@@ -8,7 +8,7 @@
 #ifndef _model_DislocationMobilityPy_h_
 #define _model_DislocationMobilityPy_h_
 
-#include <DislocationMobilityBase.h>
+#include <DislocationMobility.h>
 
 #ifdef _MODEL_PYBIND11_
     #undef slots
@@ -38,7 +38,7 @@
 namespace model
 {
     
-    struct DislocationMobilityPy : public DislocationMobilityBase
+    struct DislocationMobilityPy : public DislocationMobility
     {
         
         typedef Eigen::Matrix<double,3,3> MatrixDim;
@@ -64,7 +64,7 @@ namespace model
                         const double& T,
                         const double& dL,
                         const double& dt,
-                        const std::shared_ptr<StochasticForceGenerator>& sfg) override;
+                        const std::shared_ptr<StochasticForceGenerator>& sfg) const override;
         
     };
     

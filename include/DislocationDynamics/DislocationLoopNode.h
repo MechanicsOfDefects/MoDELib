@@ -22,9 +22,9 @@
 namespace model
 {
     
-    template <int dim, short unsigned int corder>
-    class DislocationLoopNode : public LoopNode<DislocationLoopNode<dim,corder>>
-    /*                       */,public SplineNode<DislocationLoopNode<dim,corder>,dim,corder,Hermite>
+    template <int dim>
+    class DislocationLoopNode : public LoopNode<DislocationLoopNode<dim>>
+    /*                       */,public SplineNode<DislocationLoopNode<dim>,dim,0,Hermite>
     {
         
         
@@ -32,7 +32,7 @@ namespace model
         
         public:
         
-        typedef DislocationLoopNode<dim,corder> DislocationLoopNodeType;
+        typedef DislocationLoopNode<dim> DislocationLoopNodeType;
         typedef TypeTraits<DislocationLoopNodeType> TraitsType;
         typedef typename TraitsType::LoopNetworkType LoopNetworkType;
         typedef typename TraitsType::LoopType LoopType;
@@ -43,7 +43,7 @@ namespace model
         typedef typename TraitsType::FlowType FlowType;
         typedef typename TraitsType::VectorDim VectorDim;
         typedef typename TraitsType::VectorLowerDim VectorLowerDim;
-        typedef SplineNode<DislocationLoopNode<dim,corder>,dim,corder,Hermite> SplineNodeType;
+        typedef SplineNode<DislocationLoopNode<dim>,dim,0,Hermite> SplineNodeType;
 
         
         static int verboseDislocationLoopNode;

@@ -41,6 +41,8 @@ class PolyCrystalFile(dict):
             self.A=np.array([[-1.,1.,1.],[1.,-1.,1.],[1.,1.,-1.]])/np.sqrt(3.0)
         elif self.crystalStructure == 'HEX':
             self.A=np.array([[1.,0.5,0.],[0.,0.5*np.sqrt(3.),0.],[0.,0.,np.sqrt(8.0/3.0)]])
+        elif self.crystalStructure == 'CubicFluorite':
+            self.A=np.array([[0.,1.,1.],[1.,0.,1.],[1.,1.,0.]])/np.sqrt(2.0)
         else:
             raise Exception("Unkonwn crystalStructure "+self.crystalStructure)
         self.invA=np.linalg.inv(self.A)
@@ -54,16 +56,21 @@ class PolyCrystalFile(dict):
             elif self.crystalStructure == 'FCC':
                 self.grain1globalX1=np.array([0,1,1]) # overwrite
                 self.grain1globalX3=np.array([-1,1,-1])  # overwrite
+            elif self.crystalStructure == 'CubicFluorite':
+                self.grain1globalX1=np.array([0,1,1]) # overwrite
+                self.grain1globalX3=np.array([-1,1,-1])  # overwrite
             elif self.crystalStructure == 'HEX':
                 self.grain1globalX1=np.array([1,0,0]) # overwrite
                 self.grain1globalX3=np.array([0,0,1])  # overwrite
-
             else:
                 raise Exception("Unkonwn crystalStructure "+self.crystalStructure)
         
         x1=self.grain1globalX1/np.linalg.norm(self.grain1globalX1);
         x3=self.grain1globalX3/np.linalg.norm(self.grain1globalX3);
         self.C2G=np.array([x1,np.cross(x3,x1),x3]);
+        
+        if self.alignToSlipSystem0:
+            self.boxEdges=self.C2G
                 
         # Find lattice vectors (columns of L) aligned to boxEdges
         B=self.invA@self.boxEdges.transpose()
@@ -193,7 +200,8 @@ def setInputMatrix(fileName,variable,newVal):
             foundSemiCol=line.find(';');
             if (foundPound==-1 or foundPound > foundSemiCol) and foundEqual>0:
                 writeLine=True
-            if variable in line:
+#            if variable in line:
+            if (variable == line[0:foundEqual].strip()):
                 if foundPound==-1 and foundEqual>=len(variable):
                     line=variable+'='
                     for i in range(0,num_rows-1):
@@ -210,9 +218,13 @@ def setInputVector(fileName,variable,newVal,newCom):
             foundPound=line.find('#');
             foundEqual=line.find('=');
             foundSemiCol=line.find(';');
-            if (foundPound==-1 or foundPound > foundSemiCol) and foundEqual>0 and variable in line:
+            #if (foundPound==-1 or foundPound > foundSemiCol) and foundEqual>0 and variable in line:
+            if (foundPound==-1 or foundPound > foundSemiCol) and foundEqual>0 and (variable == line[0:foundEqual].strip()):
                 line=variable+'='+' '.join(map(str, newVal))+'; # '+newCom+'\n'
                 print(line, file=sys.stderr)
             sys.stdout.write(line)
 
 
+def angleAxis(theta,a):
+    a=a/np.linalg.norm(a) # normalize axis a
+    return np.identity(3)*np.cos(theta)+np.array([[0,-a[2],a[1]],[a[2],0,-a[0]],[-a[1],a[0],0]])*np.sin(theta)+np.outer(a,a)*(1-np.cos(theta))

@@ -23,7 +23,6 @@
 namespace model
 {
         
-        /**********************************************************************/
         DefectiveCrystalActor::DefectiveCrystalActor(vtkGenericOpenGLRenderWindow* const renWin,vtkRenderer* const ren,
                                  QVTKOpenGLStereoWidget* const qvtkGLwidget_in,
                                  DislocationDynamicsBase<3>& ddBase_in) :
@@ -43,16 +42,18 @@ namespace model
         /* init */,quadrature(new QuadratureActor(renWin,ren,ddBase.poly,ddBase.simulationParameters.traitsIO))
         /* init */,chartActor(new ChartActor(ddBase.simulationParameters.traitsIO,renderWindow,ren))
         /* init */,ddField(new DDFieldWidget(renderWindow,ren,defectiveCrystal))
+        /* init */,slipSystemTab(new SlipSystemTab(defectiveCrystal))
         /* init */,mainLayout(new QGridLayout(this))
         /* init */,frameIDedit(new QLineEdit("0"))
         /* init */,plusFrameButton(new QPushButton(">"))
         /* init */,playFrameButton(new QPushButton(">>"))
+        /* init */,stopFrameButton(new QPushButton("x"))
         /* init */,minusFrameButton(new QPushButton("<"))
         /* init */,frameIncrementEdit(new QLineEdit("1"))
         /* init */,saveImage(new QCheckBox(this))
         /* init */,tabWidget(new QTabWidget())
         {
-            
+
             tabWidget->addTab(nodes, tr(std::string("Nodes").c_str()));
             tabWidget->addTab(segments, tr(std::string("Segments").c_str()));
             tabWidget->addTab(loops, tr(std::string("Loops").c_str()));
@@ -61,6 +62,7 @@ namespace model
             tabWidget->addTab(quadrature, tr(std::string("Quadrature").c_str()));
             tabWidget->addTab(chartActor, tr(std::string("Chart").c_str()));
             tabWidget->addTab(ddField, tr(std::string("Fields").c_str()));
+            tabWidget->addTab(slipSystemTab, tr(std::string("SlipSystems").c_str()));
 
             saveImage->setText("save PNG");
 
@@ -69,22 +71,25 @@ namespace model
             mainLayout->addWidget(minusFrameButton,0,1,1,1);
             mainLayout->addWidget(plusFrameButton,0,2,1,1);
             mainLayout->addWidget(playFrameButton,0,3,1,1);
-            mainLayout->addWidget(frameIncrementEdit,0,4,1,1);
+            mainLayout->addWidget(stopFrameButton,0,4,1,1);
+            mainLayout->addWidget(frameIncrementEdit,0,5,1,1);
             mainLayout->addWidget(saveImage,1,0,1,1);
 
 
-            mainLayout->addWidget(tabWidget,2,0,1,5);
+            mainLayout->addWidget(tabWidget,2,0,1,6);
             this->setLayout(mainLayout);
 
             connect(frameIDedit,SIGNAL(returnPressed()), this, SLOT(updateConfiguration()));
             connect(plusFrameButton,SIGNAL(pressed()), this, SLOT(nextConfiguration()));
             connect(minusFrameButton,SIGNAL(pressed()), this, SLOT(prevConfiguration()));
             connect(playFrameButton,SIGNAL(pressed()), this, SLOT(playConfigurations()));
+            connect(stopFrameButton,SIGNAL(pressed()), this, SLOT(stopConfigurations()));
 
             connect(frameIDedit,SIGNAL(returnPressed()), ddField, SLOT(compute()));
             connect(plusFrameButton,SIGNAL(pressed()), ddField, SLOT(compute()));
             connect(minusFrameButton,SIGNAL(pressed()), ddField, SLOT(compute()));
             connect(playFrameButton,SIGNAL(pressed()), ddField, SLOT(compute()));
+            connect(stopFrameButton,SIGNAL(pressed()), ddField, SLOT(compute()));
 
             
             QApplication::processEvents();
@@ -111,21 +116,44 @@ namespace model
             return *this;
         }
 
+        /*
+        The timer's timeout() signal calls the lambda repeatedly
+        and each call executes nextConfiguration(). When nextConfiguration()
+        returns false, the timer deletes itself (deleteLater)
+        */
         void DefectiveCrystalActor::playConfigurations()
         {
-//            bool updated(true);
-//            while (updated)
-//            {
-//                updated=nextConfiguration();
-////                QFuture<bool> future = QtConcurrent::run(&DefectiveCrystalActor::nextConfiguration,this);
-////                QFuture<bool> future = QtConcurrent::run(nextConfiguration);
-////                future.waitForFinished();
-////                updated=future.result();
-////                QApplication::processEvents();
-////                std::chrono::seconds dura( 1);
-////                std::this_thread::sleep_for( dura );
-////                pause(1);
-//            }
+            m_stopRequested = false;
+
+            // Get target frame rate (hardcoded, maybe implement a slider in the UI)
+            const int fps = 10;
+            const int delayMs = 1000 / std::max(1, fps);
+
+            // Timer Setup
+            QTimer* timer = new QTimer(this);
+            // Lambda Connection
+            connect(timer, &QTimer::timeout, [this, timer]() {
+                // also, stops the iteration if stop is requested (m_stopRequested)
+                if (m_stopRequested || !nextConfiguration()) {
+                    timer->stop();
+                    timer->deleteLater();
+                    return;
+                }
+                // Let VTK handle rendering at its own pace
+                qvtkGLwidget->update(); // Queues a paint event (non-blocking)
+                timer->start(delayMs); 
+            });
+            // Triggers timeout() signal after event processing and wait for delayMs
+            timer->start(delayMs); 
+        }
+
+        /*
+        stop animation play button
+        private class definition is added in the header file
+        */
+        void DefectiveCrystalActor::stopConfigurations()
+        {
+            m_stopRequested = true;
         }
 
         bool DefectiveCrystalActor::nextConfiguration()
@@ -174,9 +202,9 @@ namespace model
         {
             try
             {
-                DislocationNode<3,0>::force_count(0);
-                DislocationLoopNode<3,0>::force_count(0);
-                DislocationLoop<3,0>::force_count(0);
+                DislocationNode<3>::force_count(0);
+                DislocationLoopNode<3>::force_count(0);
+                DislocationLoop<3>::force_count(0);
                 EshelbyInclusionBase<3>::force_count(0);
 
                 configIO().read(frameID);
@@ -184,8 +212,8 @@ namespace model
                 //configFields.updateConfiguration();
                 defectiveCrystal.initializeConfiguration(*this);
                 nodes->updateConfiguration(*this);
-                segments->updateConfiguration(nodes->nodePolyData);
-                loops->updateConfiguration();
+                segments->updateConfiguration(nodes->nodePolyData,slipSystemTab->slipSystemColorMap);
+                loops->updateConfiguration(slipSystemTab->slipSystemColorMap);
                 inclusions->updateConfiguration();
 //                glidePlanes->updateConfiguration(*this);
                 glidePlanes->updateConfiguration();
@@ -195,6 +223,10 @@ namespace model
                 
                 if(saveImage->isChecked())
                 {
+                    //qDebug() << "Saving frame:" << frameID 
+                    //<< "| UI shows:" << frameIDedit->text();
+                    //qvtkGLwidget->repaint(); // Force render update
+                    //QCoreApplication::processEvents(); // Ensure paint completes
                     QImage img=qvtkGLwidget->grabFramebuffer();
                     img.save(QString::fromStdString(ddBase.simulationParameters.traitsIO.evlFolder+"/img_"+std::to_string(frameID)+".png"), "PNG", -1);
                 }

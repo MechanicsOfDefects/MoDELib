@@ -13,8 +13,8 @@
 namespace model
 {
     
-    template <int dim, short unsigned int corder>
-    DislocationLoopLink<dim,corder>::DislocationLoopLink(const std::shared_ptr<LoopNodeType>& so,
+    template <int dim>
+    DislocationLoopLink<dim>::DislocationLoopLink(const std::shared_ptr<LoopNodeType>& so,
                                              const std::shared_ptr<LoopNodeType>& si,
                                              const std::shared_ptr<LoopType>& pL) :
     /* init */ LoopLink<LoopLinkType>(so,si,pL)
@@ -23,8 +23,8 @@ namespace model
         
     }
     
-    template <int dim, short unsigned int corder>
-    bool DislocationLoopLink<dim,corder>::hasNetworkLink() const
+    template <int dim>
+    bool DislocationLoopLink<dim>::hasNetworkLink() const
     {
         // return !((this->source->get_P()-this->sink->get_P()).squaredNorm()<FLT_EPSILON
         // /*    */ && this->source->periodicPlaneEdge
@@ -75,16 +75,16 @@ namespace model
         return true;
     }
 
-    template <int dim, short unsigned int corder>
-    std::shared_ptr<PeriodicPlanePatch<dim>> DislocationLoopLink<dim,corder>::periodicPlanePatch() const
+    template <int dim>
+    std::shared_ptr<PeriodicPlanePatch<dim>> DislocationLoopLink<dim>::periodicPlanePatch() const
     {
         
         return (this->source->periodicPlanePatch()==this->sink->periodicPlanePatch())? this->source->periodicPlanePatch() : std::shared_ptr<PeriodicPlanePatch<dim>>(nullptr);
         
     }
 
-template <int dim, short unsigned int corder>
-CatmullRomSplineSegment<dim> DislocationLoopLink<dim,corder>::spline() const
+template <int dim>
+CatmullRomSplineSegment<dim> DislocationLoopLink<dim>::spline() const
 {
     const VectorDim prevNodePos(this->prev->twin()? this->prev->twin()->source->periodicPrev()->get_P()
                                 -this->source->periodicPlanePatch()->shift
@@ -98,14 +98,14 @@ CatmullRomSplineSegment<dim> DislocationLoopLink<dim,corder>::spline() const
 }
 
 
-    template <int dim, short unsigned int corder>
-    void DislocationLoopLink<dim,corder>::initFromFile(const std::string& fileName)
+    template <int dim>
+    void DislocationLoopLink<dim>::initFromFile(const std::string& fileName)
     {
         verboseDislocationLoopLink=TextFileParser(fileName).readScalar<int>("verboseDislocationLoopLink",false);
     }
     
-    template <int dim, short unsigned int corder>
-    const typename DislocationLoopLink<dim,corder>::LoopLinkType * DislocationLoopLink<dim,corder>::twinnedLink() const
+    template <int dim>
+    const typename DislocationLoopLink<dim>::LoopLinkType * DislocationLoopLink<dim>::twinnedLink() const
     {
         if (hasNetworkLink())
         {
@@ -134,10 +134,10 @@ CatmullRomSplineSegment<dim> DislocationLoopLink<dim,corder>::spline() const
         
     }
 
-    template <int dim, short unsigned int corder>
-    int DislocationLoopLink<dim,corder>::verboseDislocationLoopLink=0;
+    template <int dim>
+    int DislocationLoopLink<dim>::verboseDislocationLoopLink=0;
 
-    template class DislocationLoopLink<3,0>;
+    template class DislocationLoopLink<3>;
     
 }
 #endif

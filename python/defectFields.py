@@ -1,4 +1,4 @@
-# /opt/local/bin/python3.12 modelibPy11.py
+# /opt/local/bin/python3.13 defectFields.py
 import sys
 import os
 import matplotlib.pyplot as plt
@@ -6,30 +6,30 @@ import numpy as np
 sys.path.append("../build/tools/pyMoDELib")
 import pyMoDELib
 
-simulationDir=os.path.abspath("../tutorials/crossSlip")
+simulationDir=os.path.abspath("../tutorials/uniformLoadController")
 ddBase=pyMoDELib.DislocationDynamicsBase(simulationDir)
 
 # Microstructure Generation
 microstructureGenerator=pyMoDELib.MicrostructureGenerator(ddBase)
 spec=pyMoDELib.ShearLoopIndividualSpecification()
-spec.slipSystemIDs=[0,-1]
+spec.slipSystemIDs=[0,6]
 spec.loopRadii=[27.0e-8,27.0e-8]
-spec.loopCenters=np.array([[200.0,0.0,0.0],[0.0,0.0,0.0]])
+spec.loopCenters=np.array([[0.0,0.0,0.0],[0.0,0.0,0.0]])
 spec.loopSides=[10,10]
 microstructureGenerator.addShearLoopIndividual(spec)
 
-#microstructureGenerator.writeConfigFiles(0) # write evel_0.txt (optional)
+microstructureGenerator.writeConfigFiles(0) # write evel_0.txt (optional)
 
 # DefectiveCrystal
 defectiveCrystal=pyMoDELib.DefectiveCrystal(ddBase)
 defectiveCrystal.initializeConfiguration(microstructureGenerator.configIO)
+#defectiveCrystal.runSteps()
 
 # Exctract displacement and stress fields on the xy-plane through the center of the mesh
-mesh=ddBase.mesh
-xMax=mesh.xMax(); # vector [max(x1) max(x2) max(x3)] in the mesh
-xMin=mesh.xMin(); # vector [min(x1) min(x2) min(x3)] in the mesh
+xMax=ddBase.mesh.xMax(); # vector [max(x1) max(x2) max(x3)] in the mesh
+xMin=ddBase.mesh.xMin(); # vector [min(x1) min(x2) min(x3)] in the mesh
 
-n=200
+n=20
 x=np.linspace(xMin[0], xMax[0], num=n) # grid x-range
 y=np.linspace(xMin[1], xMax[1], num=n) # grid x-range
 z=0.5*(xMin[2]+xMax[2])
@@ -64,3 +64,8 @@ fig=plt.figure()
 plt.imshow(s11,origin='lower',cmap='jet')
 plt.colorbar()
 plt.show()
+
+#mesh=ddBase.mesh
+#grain1=ddBase.poly.grain(1)
+#for phase in grain1.secondPhases().values():
+#    print(phase.name)

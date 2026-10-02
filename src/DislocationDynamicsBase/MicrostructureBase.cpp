@@ -71,21 +71,21 @@ std::set<const Grain<dim>*> MicrostructureBase<dim>::pointGrains(const VectorDim
     {
         for(const auto& nodeEle : *node)
         {
-            temp.emplace(&microstructures.ddBase.poly.grain(nodeEle->simplex.region->regionID));
+            temp.emplace(microstructures.ddBase.poly.grain(nodeEle->simplex.region->regionID).get());
         }
     }
     else
     {
         if(ele)
         {
-            temp.emplace(&microstructures.ddBase.poly.grain(ele->simplex.region->regionID));
+            temp.emplace(microstructures.ddBase.poly.grain(ele->simplex.region->regionID).get());
         }
         else
         {
             const std::pair<bool,const Simplex<dim,dim>*> found(microstructures.ddBase.mesh.searchWithGuess(x,guess));
             if(found.first)
             {
-                temp.emplace(&microstructures.ddBase.poly.grain(found.second->region->regionID));
+                temp.emplace(microstructures.ddBase.poly.grain(found.second->region->regionID).get());
             }
         }
     }

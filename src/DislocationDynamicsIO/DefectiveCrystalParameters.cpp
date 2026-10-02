@@ -13,14 +13,11 @@
 
 namespace model
 {
-    
-
         
-                /**********************************************************************/
         void DefectiveCrystalParameters::manageRestart()
         {
             // Menage restart
-            IDreader<1,200,double> vReader(traitsIO.fFolder+"/F");
+            IDreader<1,400,double> vReader(traitsIO.fFolder+"/F");
             vReader.readLabelsFile(traitsIO.fFolder+"/F_labels.txt");
             if (vReader.isGood(0,true))
             {// F/F_0.txt exists
@@ -58,34 +55,36 @@ namespace model
         }
 
         /**********************************************************************/
-        std::set<int> DefectiveCrystalParameters::getSubCyclingSet(const std::vector<int> &inpVector)
-        {
-            std::set<int> temp;
-            for (const auto &iv : inpVector)
-            {
-                temp.insert(iv);
-            }
-            return temp;
-        }
+//        std::set<int> DefectiveCrystalParameters::getSubCyclingSet(const std::vector<int> &inpVector)
+//        {
+//            std::set<int> temp;
+//            for (const auto &iv : inpVector)
+//            {
+//                temp.insert(iv);
+//            }
+//            return temp;
+//        }
 
         /**********************************************************************/
         DefectiveCrystalParameters::DefectiveCrystalParameters(const std::string& folderName) :
         /* init */ traitsIO(folderName)
-        /* init */,useFEM(TextFileParser(traitsIO.ddFile).readScalar<int>("useFEM",true))
-        /* init */,useElasticDeformation(TextFileParser(traitsIO.ddFile).readScalar<int>("useElasticDeformation",true))
-        /* init */,useDislocations(TextFileParser(traitsIO.ddFile).readScalar<int>("useDislocations",true))
-        /* init */,useClusterDynamics(TextFileParser(traitsIO.ddFile).readScalar<int>("useClusterDynamics",true))
-        /* init */,useCracks(TextFileParser(traitsIO.ddFile).readScalar<int>("useCracks",true))
-        /* init */,useInclusions(TextFileParser(traitsIO.ddFile).readScalar<int>("useInclusions",true))
-        /* init */,Nsteps(TextFileParser(traitsIO.ddFile).readScalar<size_t>("Nsteps",true))
-        /* init */,useSubCycling(TextFileParser(traitsIO.ddFile).readScalar<int>("useSubCycling",true))
-        /* init */,subcyclingBins(getSubCyclingSet(TextFileParser(traitsIO.ddFile).readArray<int>("subcyclingBins",true)))
-        /* init */,use_stochasticForce(TextFileParser(traitsIO.ddFile).readScalar<int>("use_stochasticForce",true))
+        /* init */,useFEM(TextFileParser(traitsIO.dcFile).readScalar<int>("useFEM",true))
+//        /* init */,useElasticDeformation(TextFileParser(traitsIO.dcFile).readScalar<int>("useElasticDeformation",true))
+//        /* init */,useDislocations(TextFileParser(traitsIO.dcFile).readScalar<int>("useDislocations",true))
+//        /* init */,useClusterDynamics(TextFileParser(traitsIO.dcFile).readScalar<int>("useClusterDynamics",true))
+//        /* init */,useCracks(TextFileParser(traitsIO.dcFile).readScalar<int>("useCracks",true))
+//        /* init */,useInclusions(TextFileParser(traitsIO.dcFile).readScalar<int>("useInclusions",true))
+        /* init */,physics(TextFileParser(traitsIO.dcFile).readString("physics",true))
+        /* init */,Nsteps(TextFileParser(traitsIO.dcFile).readScalar<size_t>("Nsteps",true))
+        /* init */,maxResolveSteps(TextFileParser(traitsIO.dcFile).readScalar<int>("maxResolveSteps",true))
+//        /* init */,useSubCycling(TextFileParser(traitsIO.dcFile).readScalar<int>("useSubCycling",true))
+//        /* init */,subcyclingBins(getSubCyclingSet(TextFileParser(traitsIO.dcFile).readArray<int>("subcyclingBins",true)))
+//        /* init */,use_stochasticForce(TextFileParser(traitsIO.dcFile).readScalar<int>("use_stochasticForce",true))
         /* init */,periodicFaceIDs(TextFileParser(traitsIO.polyFile).template readSet<int>("periodicFaceIDs",true))
-        /* init */,dtMax(TextFileParser(traitsIO.ddFile).template readScalar<double>("dtMax",true))
-        /* init */,outputFrequency(TextFileParser(traitsIO.ddFile).readScalar<int>("outputFrequency",true))
-        /* init */,outputBinary(TextFileParser(traitsIO.ddFile).readScalar<int>("outputBinary",true))
-        /* init */,runID(TextFileParser(traitsIO.ddFile).readScalar<long int>("startAtTimeStep",true))
+        /* init */,dtMax(TextFileParser(traitsIO.dcFile).template readScalar<double>("dtMax",true))
+        /* init */,outputFrequency(TextFileParser(traitsIO.dcFile).readScalar<int>("outputFrequency",true))
+        /* init */,outputBinary(TextFileParser(traitsIO.dcFile).readScalar<int>("outputBinary",true))
+        /* init */,runID(TextFileParser(traitsIO.dcFile).readScalar<long int>("startAtTimeStep",true))
         /* init */,totalTime(0.0)
         /* init */,dt(10.0)
         {

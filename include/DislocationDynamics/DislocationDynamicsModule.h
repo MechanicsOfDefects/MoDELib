@@ -77,7 +77,7 @@
 namespace model
 {
 
-    template <int dim, short unsigned int corder>
+    template <int dim>
     class DislocationNetwork;
 
     template <typename DislocationNetworkType>

@@ -32,7 +32,7 @@ namespace model
     template <typename DislocationNetworkType>
     DislocationNodeContraction<DislocationNetworkType>::DislocationNodeContraction(DislocationNetworkType& DN_in) :
     /* init */ DN(DN_in)
-    /* init */,verboseNodeContraction(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("verboseNodeContraction",true))
+    /* init */,verboseNodeContraction(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseNodeContraction",true))
     {
         
     }
@@ -430,7 +430,7 @@ namespace model
         }
     }
 
-template class DislocationNodeContraction<DislocationNetwork<3,0>>;
+template class DislocationNodeContraction<DislocationNetwork<3>>;
 }
 #endif
 

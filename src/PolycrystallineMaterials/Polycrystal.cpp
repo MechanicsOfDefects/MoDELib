@@ -27,13 +27,7 @@
 #include <Grain.h>
 #include <GrainBoundary.h>
 #include <LatticeVector.h>
-//#include <StressStraight.h>
-//#include <GrainBoundaryType.h>
-//#include <GlidePlane.h>
 #include <TextFileParser.h>
-//#include <PolycrystallineMaterial.h>
-//#include <DislocationMobilityFCC.h>
-//#include <DislocationMobilityBCC.h>
 #include <Polycrystal.h>
 
 namespace model
@@ -56,19 +50,18 @@ namespace model
 
 
     template <int dim>
-    std::map<size_t,typename Polycrystal<dim>::GrainType> Polycrystal<dim>::getGrains(const std::string& polyFile) const
+    typename Polycrystal<dim>::GrainContainerType Polycrystal<dim>::getGrains(const std::string& polyFile) const
     {
-        std::map<size_t,typename Polycrystal<dim>::GrainType> temp;
+        GrainContainerType temp;
         for(const auto& rIter : mesh.regions())
         {
             std::cout<<greenBoldColor<<"Creating Grain "<<rIter.second->regionID<<defaultColor<<std::endl;
-            
             StaticID<Lattice<dim>>::set_count(rIter.second->regionID);
-            temp.emplace(std::piecewise_construct,
-                         std::forward_as_tuple(rIter.second->regionID),
-                         std::forward_as_tuple(*(rIter.second),
-                                               *this,
-                                               polyFile));
+            const auto success(temp.emplace(rIter.second->regionID,std::shared_ptr<Grain<dim>>(new Grain<dim>(*rIter.second,*this,polyFile))));
+            if(!success.second)
+            {
+                throw std::runtime_error("Cound not insert grain "+std::to_string(rIter.second->regionID));
+            }
         }
         
         for(const auto& rgnBnd : mesh.regionBoundaries())
@@ -79,24 +72,23 @@ namespace model
                 
                 std::shared_ptr<GrainBoundary<dim>> gb(new GrainBoundary<dim>(rgnBnd.second,
                                                                               face.second,
-                                                                              grain(rgnBnd.first.first),
-                                                                              grain(rgnBnd.first.second)));
+                                                                              *grain(rgnBnd.first.first),
+                                                                              *grain(rgnBnd.first.second)));
                 
-                temp.at(rgnBnd.first.first ).grainBoundaries().emplace(rgnBnd.first,gb);
-                temp.at(rgnBnd.first.second).grainBoundaries().emplace(rgnBnd.first,gb);
+                temp.at(rgnBnd.first.first )->grainBoundaries().emplace(rgnBnd.first,gb);
+                temp.at(rgnBnd.first.second)->grainBoundaries().emplace(rgnBnd.first,gb);
             }
-        }
-        
+        }        
         return temp;
     }
 
     template <int dim>
     double Polycrystal<dim>::getAtomicVolume() const
     {
-        const double omg0(grains.begin()->second.singleCrystal->latticeBasis.determinant());
+        const double omg0(grains.begin()->second->latticeBasis.determinant());
         for(const auto& grain : grains)
         {
-            const double omg(grain.second.singleCrystal->latticeBasis.determinant());
+            const double omg(grain.second->latticeBasis.determinant());
             if(std::fabs(omg-omg0)>FLT_EPSILON)
             {
                 throw std::runtime_error("grains have different atomic volume");
@@ -113,7 +105,7 @@ namespace model
         
         for(const auto& grain : grains)
         {
-            for(const auto& gb : grain.second.grainBoundaries())
+            for(const auto& gb : grain.second->grainBoundaries())
             {
                 temp.emplace(gb.first,gb.second.get());
             }
@@ -123,7 +115,7 @@ namespace model
     }
 
     template <int dim>
-    const typename Polycrystal<dim>::GrainType& Polycrystal<dim>::grain(const size_t& k) const
+    const std::shared_ptr<typename Polycrystal<dim>::GrainType>& Polycrystal<dim>::grain(const size_t& k) const
     {
         return grains.at(k);
     }
@@ -141,7 +133,7 @@ namespace model
     {
         const std::pair<bool,const Simplex<dim,dim>*> temp(mesh.searchWithGuess(p,guess));
         assert(temp.first && "Position not found in mesh");
-        return grain(temp.second->region->regionID).singleCrystal->latticeVector(p);
+        return grain(temp.second->region->regionID)->latticeVector(p);
     }
 
     template <int dim>
@@ -156,7 +148,7 @@ namespace model
     {
         const std::pair<bool,const Simplex<dim,dim>*> temp(mesh.searchWithGuess(p,guess));
         assert(temp.first && "Position not found in mesh");
-        return grain(temp.second->region->regionID).singleCrystal->reciprocalLatticeVector(p);
+        return grain(temp.second->region->regionID)->reciprocalLatticeVector(p);
     }
 
     template <int dim>
@@ -187,7 +179,7 @@ namespace model
         auto searchResult=mesh.search(P0);
         if(searchResult.first)
         {// point inside
-            const LatticeVector<dim> L0 = grain(searchResult.second->region->regionID).singleCrystal->snapToLattice(P0);
+            const LatticeVector<dim> L0 = grain(searchResult.second->region->regionID)->snapToLattice(P0);
             searchResult=mesh.searchRegionWithGuess(L0.cartesian(),searchResult.second);
             if(searchResult.first)
             {// point inside
@@ -206,7 +198,6 @@ namespace model
     }
 
     template class Polycrystal<3>;
-
 }
 #endif
 

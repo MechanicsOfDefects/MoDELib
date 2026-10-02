@@ -34,7 +34,7 @@ namespace model
         DislocationClimbSolverBase(const DislocationNetworkType&,const ClusterDynamics<dim>* const);
 //        const ClusterDynamics<dim>*  getCD() const;
         double getVclimbRef() const;
-        virtual void computeClimbScalarVelocities() =0;
+        virtual void computeClimbScalarVelocities(const bool& updateStiffness) =0;
 
         const ScalarVelocitiesContainerType& scalarVelocities() const;
         ScalarVelocitiesContainerType& scalarVelocities();

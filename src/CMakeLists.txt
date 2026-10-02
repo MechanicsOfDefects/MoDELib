@@ -7,7 +7,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/DislocationMobilities DDDmobilities
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/DislocationDynamicsIO DDDIO)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/DislocationDynamicsBase DDDbase)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/PolycrystallineMaterials PolyMaterials)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/DislocationMicrostructure Microstructure)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/MicrostructureGeneration Microstructure)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ClusterDynamics ClusterDynamics)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ElasticDeformation ElasticDeformation)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/DislocationDynamics DislocationDynamics)

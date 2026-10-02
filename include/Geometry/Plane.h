@@ -17,11 +17,42 @@
 
 namespace model
 {
+    template <int dim>
+    struct LocalToGlobal
+    {
+//        typedef Eigen::Matrix<double,dim,dim> MatrixDim;
+    };
+
+    template <>
+    struct LocalToGlobal<1>
+    {
+        static constexpr int dim=1;
+        typedef Eigen::Matrix<double,dim,1> VectorDim;
+        typedef Eigen::Matrix<double,dim,dim> MatrixDim;
+        static MatrixDim getL2G(const VectorDim& );
+    };
+
+    template <>
+    struct LocalToGlobal<2>
+    {
+        static constexpr int dim=2;
+        typedef Eigen::Matrix<double,dim,1> VectorDim;
+        typedef Eigen::Matrix<double,dim,dim> MatrixDim;
+        static MatrixDim getL2G(VectorDim z);
+    };
+
+    template <>
+    struct LocalToGlobal<3>
+    {
+        static constexpr int dim=3;
+        typedef Eigen::Matrix<double,dim,1> VectorDim;
+        typedef Eigen::Matrix<double,dim,dim> MatrixDim;
+        static MatrixDim getL2G(VectorDim z);
+    };
     
     template <int dim>
     struct Plane
     {
-        
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         typedef Eigen::Matrix<double,dim-1,1> VectorLowerDim;
         typedef Eigen::Matrix<double,dim,dim> MatrixDim;
@@ -30,39 +61,18 @@ namespace model
         const VectorDim unitNormal;
         const MatrixDim L2G;
 
-        /**********************************************************************/
         Plane(const VectorDim& p,const VectorDim& n);
-        
-        /**********************************************************************/
         bool contains(const VectorDim& P0) const;
-
-        /**********************************************************************/
         bool isAbove(const VectorDim& P0) const;
-
-        /**********************************************************************/
         bool isBelow(const VectorDim& P0) const;
-
-        /**********************************************************************/
         VectorDim snapToPlane(const VectorDim& P0) const;
-        
-        /**********************************************************************/
         double distanceTo(const VectorDim& P0) const;
-        
-        /**********************************************************************/
+        double signedDistanceTo(const VectorDim& P0) const;
         VectorLowerDim localPosition(const VectorDim& point) const;
-        
-        /**********************************************************************/
         VectorDim globalPosition(const VectorLowerDim& point) const;
-        
         VectorLowerDim localDirection(const VectorDim& dir) const;
-        
-        /**********************************************************************/
         VectorDim globalDirection(const VectorLowerDim& dir) const;
-        
-        /**********************************************************************/
-        static MatrixDim getL2G(VectorDim z);
-
+        static MatrixDim getL2G(const VectorDim& z);
     };
-    
 }
 #endif

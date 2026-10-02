@@ -50,6 +50,8 @@ namespace model
                             const FaceContainerType& faces_in);
         
         VectorDim periodicShift() const;
+        VectorDim regionBoundaryNormal(const int& k) const;
+
 
     };
 

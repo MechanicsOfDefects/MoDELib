@@ -10,12 +10,10 @@
 
 #include <iomanip>
 #include <LatticeVector.h>
-//#include <LatticePlaneBase.h>
 #include <Plane.h>
 
 namespace model
 {
-    
     
     template<int dim>
     struct LatticePlaneKey
@@ -26,44 +24,25 @@ namespace model
         typedef Eigen::Matrix<double,dim,1> VectorDimD;
         typedef Eigen::Matrix<LongIntType,dim,1> VectorDimI;
         typedef std::array<LongIntType,dim+2> ArrayType;
-        //
-        /**************************************************************************/
+
         static ArrayType hr2array(const VectorDimI& r, const LongIntType& h,const LongIntType& latticeID);
-        
-        /**************************************************************************/
         static int sgn(const LongIntType& val);
-        
-        /**************************************************************************/
         static ArrayType correct_h_sign(VectorDimI r,LongIntType h,const LongIntType& latticeID);
-        
-        
+
         const ArrayType array;
-        
-        /**********************************************************************/
         LatticePlaneKey(const VectorDimI& r,
                         const LongIntType& h,
                         const LongIntType& latticeID) ;
-        
-        /**********************************************************************/
         LatticePlaneKey(const VectorDimD& P,
                         const ReciprocalLatticeDirection<dim>& r) ;
-        /**********************************************************************/
         LatticePlaneKey(const LatticeVector<dim>& L,
                         const ReciprocalLatticeDirection<dim>& r);
-        
-        /**********************************************************************/
         LatticePlaneKey(const long int& hin,
                         const ReciprocalLatticeDirection<dim>& r);
-        
-        
-        Eigen::Map<const VectorDimI> reciprocalDirectionComponents() const;
-        
+        VectorDimI reciprocalDirectionComponents() const;
         const LongIntType& planeIndex() const;
-        
         const LongIntType& latticeID() const;
-        
         bool operator<(const LatticePlaneKey<dim>& other) const;
-        /**********************************************************************/
         template <class T>
         friend T& operator << (T& os, const LatticePlaneKey<dim>& key)
         {
@@ -73,7 +52,6 @@ namespace model
             }
             return os;
         }
-        
     };
     
     
@@ -82,12 +60,9 @@ namespace model
         static constexpr int dim=3;
         typedef Eigen::Matrix<double,dim,1> VectorDimD;
         typedef LatticeVector<dim>    LatticeVectorType;
-        
-        /**********************************************************************/
+
         static std::pair<bool,long int> computeHeight(const ReciprocalLatticeDirection<dim>& r,
                                                       const VectorDimD& P);
-        
-        /**********************************************************************/
         static std::pair<bool,long int> computeHeight(const ReciprocalLatticeDirection<dim>& r,
                                                       const LatticeVector<dim>& L);
         
@@ -95,19 +70,13 @@ namespace model
         const ReciprocalLatticeDirection<dim> n;
         const LatticePlaneKey<dim>::LongIntType planeIndex;
         
-        /**********************************************************************/
         LatticePlane(const VectorDimD& P,
                      const ReciprocalLatticeDirection<dim>& r) ;
-        /**********************************************************************/
         LatticePlane(const LatticeVector<dim>& L,
                      const ReciprocalLatticeDirection<dim>& r) ;
-        /**********************************************************************/
         LatticePlane(const long int& hin,
                      const ReciprocalLatticeDirection<dim>& r) ;
-        
-        /**********************************************************************/
-        VectorDimD planeOrigin() const;
-        
+        VectorDimD planeOrigin() const;        
     };
     
 }

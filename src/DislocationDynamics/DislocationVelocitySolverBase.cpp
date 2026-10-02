@@ -22,7 +22,7 @@ namespace model
         
     }
     
-    template struct DislocationVelocitySolverBase<DislocationNetwork<3,0>>;
+    template struct DislocationVelocitySolverBase<DislocationNetwork<3>>;
 
 }
 #endif

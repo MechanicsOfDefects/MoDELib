@@ -19,7 +19,9 @@ namespace model
     struct GlidePlaneBase : public ReciprocalLatticeDirection<3>
     {
         typedef Eigen::Matrix<double,3,1> VectorDimD;
+        typedef Eigen::Matrix<double,2,1> VectorLowerDimD;
         typedef Eigen::Matrix<double,3,3> MatrixDim;
+        typedef Eigen::Matrix<double,2,2> MatrixLowerDim;
         typedef Eigen::Matrix<long int,3,1> VectorDimI;
         typedef LatticeVector<3>    LatticeVectorType;
         typedef LatticeDirection<3>    LatticeDirectionType;
@@ -33,15 +35,15 @@ namespace model
                        const LatticeVectorType& v2_in,
                        const std::shared_ptr<GammaSurface>& gammaSurface_in);
 
-
         LatticeVectorType snapToLattice(const VectorDimD& P) const;
         VectorDimD snapToPlane(const VectorDimD& P) const;
-        double misfitEnergy(const VectorDimD& b) const;
-
-        static MatrixDim getG2L(const VectorDimD& x,const VectorDimD& z);
-
         
+        VectorLowerDimD localSlipVector(const VectorDimD& b) const;
+        double misfitEnergy(const VectorDimD& b) const;
+        
+        static MatrixDim getG2L(const VectorDimD& x,const VectorDimD& z);
+        MatrixLowerDim localBasis() const;
     };
     
-} // end namespace
+}
 #endif

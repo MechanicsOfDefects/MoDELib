@@ -29,6 +29,7 @@ namespace model
         const MatrixDim B;   // column matrix of reciprocal lattice vectors
         const Eigen::Matrix<double,Eigen::Dynamic,dim> waveVectors;
         const std::vector<MatrixDim> symMatrices;
+        const Eigen::Matrix<double, Eigen::Dynamic, dim + 1> points;
         const Eigen::Matrix<double,Eigen::Dynamic,2> sinCosCoeffs;
         
         /**********************************************************************/

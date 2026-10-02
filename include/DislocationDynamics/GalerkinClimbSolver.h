@@ -42,6 +42,9 @@ namespace model
         typedef Eigen::Matrix<double,2*mSize,2> StiffnessMatrixType;
         typedef Eigen::SparseMatrix<double> SparseMatrixType;
         typedef std::deque<Eigen::Triplet<double> > TripletContainerType;
+        
+        std::vector<Eigen::VectorXd> Fc;
+        std::vector<Eigen::VectorXd> KKc;
 
         ForceVectorMatrixType clusterForceVector(const NetworkLinkType& networkLink) const;
         ForceVectorMatrixType clusterForceKernel(const int& k,const NetworkLinkType& networkLink) const;
@@ -52,14 +55,14 @@ namespace model
         Eigen::VectorXd getNodeVelocitiesBulk() const;
         Eigen::VectorXd getNodeVelocitiesPipe() const;
 
-        void computeClimbScalarVelocitiesBulk();
+        void computeClimbScalarVelocitiesBulk(const bool& updateStiffness);
 
         
         public:
         
         GalerkinClimbSolver(const DislocationNetworkType&,const ClusterDynamics<dim>* const );
         Eigen::VectorXd getNodeVelocities() const override;
-        void computeClimbScalarVelocities() override;
+        void computeClimbScalarVelocities(const bool& updateStiffness) override;
         
     };
     

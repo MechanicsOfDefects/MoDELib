@@ -41,6 +41,7 @@
 #include <DDconfigIO.h>
 #include <MeshPlane.h>
 #include <NetworkLinkActor.h>
+#include <Vector2Color.h>
 
 
 namespace model
@@ -67,7 +68,7 @@ namespace model
     /* init */,tubeMapper0(vtkSmartPointer<vtkPolyDataMapper>::New())
     /* init */,tubeActor0(vtkSmartPointer<vtkActor>::New())
     /* init */,defectiveCrystal(defectiveCrystal_in)
-    /* init */,dislocationNetwork(defectiveCrystal.template getUniqueTypedMicrostructure<DislocationNetwork<3,0>>())
+    /* init */,dislocationNetwork(defectiveCrystal.template getUniqueTypedMicrostructure<DislocationNetwork<3>>())
     {
         showLinks->setChecked(true);
         showLinks->setText("links");
@@ -85,6 +86,7 @@ namespace model
         linksColorBox->addItem("plane normal");
         linksColorBox->addItem("glissile/sessile");
         linksColorBox->addItem("edge/screw");
+        linksColorBox->addItem("slip system");
         
         mainLayout->addWidget(showLinks,0,0,1,1);
         mainLayout->addWidget(sliderLinksRadius,0,1,1,1);
@@ -133,7 +135,7 @@ namespace model
         renderer->AddActor(tubeActor0);
     }
 
-    void NetworkLinkActor::updateConfiguration(vtkPolyData* const nodePolyData)
+    void NetworkLinkActor::updateConfiguration(vtkPolyData* const nodePolyData,const SlipSystemTab::SlipSystemColorMapType& sscm )
     {// https://stackoverflow.com/questions/6878263/remove-individual-points-from-vtkpoints
         std::cout<<"Updating links..."<<std::flush;
         const auto t0= std::chrono::system_clock::now();
@@ -165,7 +167,7 @@ namespace model
                 }
                 else
                 {
-                    Eigen::Matrix<int,3,1> colorVector=computeColor(link.second.lock()->burgers(),link.second.lock()->chord(),link.second.lock()->slipSystem());
+                    Eigen::Matrix<int,3,1> colorVector=computeColor(link.second.lock()->burgers(),link.second.lock()->chord(),link.second.lock()->slipSystem(),sscm);
                     unsigned char lineClr[3]={(unsigned char) colorVector(0),(unsigned char) colorVector(1),(unsigned char) colorVector(2)};
 
                     if(link.second.lock()->isBoundarySegment())
@@ -300,35 +302,35 @@ namespace model
         renderWindow->Render();
     }
 
-    Eigen::Matrix<int,3,1> NetworkLinkActor::vector2Clr(VectorDim clrVector) const
-    {
-        float clrTol=100.0*FLT_EPSILON;
-        if(clrVector(0)<-clrTol)
-        {// first component not zero but begative, flip color
-            clrVector*=-1.0;
-        }
-        else if(fabs(clrVector(0))<=clrTol)
-        {// first component is zero, use second component
-            if(clrVector(1)<-clrTol)
-            {// second component not zero but begative, flip color
-                clrVector*=-1.0;
-            }
-            else if(fabs(clrVector(1))<=clrTol)
-            {// second component is zero, use third component
-                if(clrVector(2)<-clrTol)
-                {
-                    clrVector*=-1.0;
-                }
-            }
-        }
-        
-        clrVector = (clrVector + VectorDim::Ones(dim) * clrVector.norm()).eval();
-        clrVector.normalize();
-        return (clrVector*255).cast<int>();
-    }
+//    Eigen::Matrix<int,3,1> NetworkLinkActor::vector2Clr(VectorDim clrVector) const
+//    {
+//        float clrTol=100.0*FLT_EPSILON;
+//        if(clrVector(0)<-clrTol)
+//        {// first component not zero but begative, flip color
+//            clrVector*=-1.0;
+//        }
+//        else if(fabs(clrVector(0))<=clrTol)
+//        {// first component is zero, use second component
+//            if(clrVector(1)<-clrTol)
+//            {// second component not zero but begative, flip color
+//                clrVector*=-1.0;
+//            }
+//            else if(fabs(clrVector(1))<=clrTol)
+//            {// second component is zero, use third component
+//                if(clrVector(2)<-clrTol)
+//                {
+//                    clrVector*=-1.0;
+//                }
+//            }
+//        }
+//        
+//        clrVector = (clrVector + VectorDim::Ones(dim) * clrVector.norm()).eval();
+//        clrVector.normalize();
+//        return (clrVector*255).cast<int>();
+//    }
 
     /*********************************************************************/
-    Eigen::Matrix<int,3,1> NetworkLinkActor::computeColor(const VectorDim& burgers, const VectorDim& chord, const std::shared_ptr<SlipSystem>& slipSystem) const
+    Eigen::Matrix<int,3,1> NetworkLinkActor::computeColor(const VectorDim& burgers, const VectorDim& chord, const std::shared_ptr<SlipSystem>& slipSystem,const SlipSystemTab::SlipSystemColorMapType& sscm) const
     {
         
         VectorDim clrVector(VectorDim::Zero());
@@ -369,73 +371,30 @@ namespace model
                 const float u = acos(std::fabs(chord.normalized().dot(burgers.normalized())))*2.0/std::numbers::pi;
                 //                            RGBcolor rgb(RGBmap::getColor(std::fabs(tubeTangents.col(k).normalized().dot(burgers.normalized())),0,1));
                 //                            colorVector << rgb.r, rgb.g, rgb.b;
-                clrVector=(VectorDim()<<1.0,0.647,0.0).finished()*u+VectorDim::UnitZ()*(1.0-u);
+//                clrVector=(VectorDim()<<1.0,0.647,0.0).finished()*u+VectorDim::UnitZ()*(1.0-u);
+                clrVector=VectorDim::UnitX()*u+VectorDim::UnitZ()*(1.0-u);
+                break;
+            }
+                
+            case 4:
+            {
+                clrVector=VectorDim::Zero();
+                
+                if(slipSystem)
+                {
+                    const auto ssIter(sscm.find(slipSystem.get()));
+                    if(ssIter!=sscm.end())
+                    {
+                        clrVector=ssIter->second->rgb().template cast<double>()/255.0;
+                    }
+                }
                 break;
             }
                 //                    break;
                 
         }
         
-        //    switch (clr)
-        //    {
-        //
-        //
-        //        case colorSessile:
-        //        {
-        //            const bool isSessile= planeNormal.squaredNorm()<FLT_EPSILON || fabs(burgers.dot(planeNormal))>FLT_EPSILON;
-        //            clrVector(0)= isSessile? 1.0 : 0.1;
-        //            clrVector(1)= isSessile? 0.5 : 0.4;
-        //            clrVector(2)= isSessile? 0.0 : 0.9;
-        //            break;
-        //        }
-        //
-        //        case colorNormal:
-        //        {
-        //            clrVector=planeNormal;
-        //            break;
-        //        }
-        //
-        //        case colorEdgeScrew:
-        //        {
-        //            const float u = acos(std::fabs(chord.normalized().dot(burgers.normalized())))*2.0/std::numbers::pi;
-        //            //                            RGBcolor rgb(RGBmap::getColor(std::fabs(tubeTangents.col(k).normalized().dot(burgers.normalized())),0,1));
-        //            //                            colorVector << rgb.r, rgb.g, rgb.b;
-        //            clrVector=(VectorDim()<<1.0,0.647,0.0).finished()*u+VectorDim::UnitZ()*(1-u);
-        //            break;
-        //        }
-        //            //                    break;
-        //
-        //        default:
-        //            clrVector = burgers.normalized();
-        //            //                    flipColor(colorVector);
-        //            break;
-        //    }
-        
-        return vector2Clr(clrVector);
-        
-        //    float clrTol=100.0*FLT_EPSILON;
-        //    if(clrVector(0)<-clrTol)
-        //    {// first component not zero but begative, flip color
-        //        clrVector*=-1.0;
-        //    }
-        //    else if(fabs(clrVector(0))<=clrTol)
-        //    {// first component is zero, use second component
-        //        if(clrVector(1)<-clrTol)
-        //        {// second component not zero but begative, flip color
-        //            clrVector*=-1.0;
-        //        }
-        //        else if(fabs(clrVector(1))<=clrTol)
-        //        {// second component is zero, use third component
-        //            if(clrVector(2)<-clrTol)
-        //            {
-        //                clrVector*=-1.0;
-        //            }
-        //        }
-        //    }
-        //
-        //    clrVector = (clrVector + VectorDim::Ones(dim) * clrVector.norm()).eval();
-        //    clrVector.normalize();
-        //    return (clrVector*255).cast<int>();
+        return Vector2Color::v2c(clrVector);
     }
 
 

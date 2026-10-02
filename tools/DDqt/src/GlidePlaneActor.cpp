@@ -26,9 +26,21 @@
 namespace model
 {
 
-    SingleGlidePlaneActor::SingleGlidePlaneActor(const GlidePlane<3>& glidePlane_in) :
+    SingleGlidePlaneActor::SingleGlidePlaneActor(const std::shared_ptr<GlidePlane<3>>& glidePlane_in) :
     /* init */ glidePlane(glidePlane_in)
     {
+        if(glidePlane)
+        {
+                for(const auto& pb : glidePlane->grain.planeNormals())
+                {
+                    if(  (*pb.second+glidePlane->n).base().squaredNorm()==0
+                       ||(*pb.second-glidePlane->n).base().squaredNorm()==0)
+                    {
+                        planeBase=pb.second;
+                        break;
+                    }
+                }
+        }
     }
 
     void SingleGlidePlaneActor::appendClosedPolygon(const std::vector<Eigen::Matrix<double,2,1>>& newPoints)
@@ -74,7 +86,7 @@ namespace model
     /* init */ renderWindow(renWin)
     /* init */,renderer(ren)
     /* init */,defectiveCrystal(defectiveCrystal_in)
-    /* init */,dislocationNetwork(defectiveCrystal.template getUniqueTypedMicrostructure<DislocationNetwork<3,0>>())
+    /* init */,dislocationNetwork(defectiveCrystal.template getUniqueTypedMicrostructure<DislocationNetwork<3>>())
     /* init */,mainLayout(new QGridLayout(this))
     /* init */,glidePlanesGroup(new QGroupBox(tr("&Planes")))
     /* init */,lut(vtkSmartPointer<vtkLookupTable>::New())
@@ -85,25 +97,32 @@ namespace model
     /* init */,grainNoiseBox(new QComboBox(this))
     /* init */,slipSystemNoiseBox(new QComboBox(this))
     /* init */,glidePlanesNoiseBox(new QComboBox(this))
-    /* init */,ssNoiseMin(new QLineEdit("0.0"))
-    /* init */,ssNoiseMax(new QLineEdit("0.0"))
+    /* init */,ss1NoiseMin(new QLineEdit("0.0"))
+    /* init */,ss1NoiseMax(new QLineEdit("0.0"))
+    /* init */,ss2NoiseMin(new QLineEdit("0.0"))
+    /* init */,ss2NoiseMax(new QLineEdit("0.0"))
     /* init */,sfNoiseMin(new QLineEdit("0.0"))
     /* init */,sfNoiseMax(new QLineEdit("0.0"))
     /* init */,noisePolydata(vtkSmartPointer<vtkPolyData>::New())
     /* init */,noiseMapper(vtkSmartPointer<vtkDataSetMapper>::New())
     /* init */,noiseActor(vtkSmartPointer<vtkActor>::New())
-    /* init */,glidePlaneMeshGroup(new QGroupBox(tr("&Stacking Faults")))
+    /* init */,stackingFaultGroup(new QGroupBox(tr("&Stacking Faults")))
     /* init */,glidePlanePolydata(vtkSmartPointer<vtkPolyData>::New())
     /* init */,glidePlaneMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
     /* init */,glidePlaneActor(vtkSmartPointer<vtkActor>::New())
-    /* init */,meshPolydata(vtkSmartPointer<vtkPolyData>::New())
-    /* init */,meshMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
-    /* init */,meshActor(vtkSmartPointer<vtkActor>::New())
-    ///* init */,noiseLimits(Eigen::Array<double,2,2>::Zero())
+    /* init */,stackingFaultLut(vtkSmartPointer<vtkLookupTable>::New())
+    /* init */,sfeMinEdit(new QLineEdit("0.0"))
+    /* init */,sfeMaxEdit(new QLineEdit("0.5"))
+    /* init */,stackingFaultPolydata(vtkSmartPointer<vtkPolyData>::New())
+    /* init */,stackingFaultMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
+    /* init */,stackingFaultActor(vtkSmartPointer<vtkActor>::New())
     {
         
         lut->SetHueRange(0.66667, 0.0);
         lut->Build();
+        
+        stackingFaultLut->SetHueRange(0.66667, 0.0);
+        stackingFaultLut->Build();
 
         glidePlanesGroup->setCheckable(true);
         glidePlanesGroup->setChecked(false);
@@ -112,9 +131,9 @@ namespace model
         glidePlanesNoiseGroup->setCheckable(true);
         glidePlanesNoiseGroup->setChecked(false);
         
-        glidePlaneMeshGroup->setCheckable(true);
-        glidePlaneMeshGroup->setChecked(false);
-        meshActor->SetVisibility(false);
+        stackingFaultGroup->setCheckable(true);
+        stackingFaultGroup->setChecked(false);
+        stackingFaultActor->SetVisibility(false);
         
         for(const auto& pair : defectiveCrystal.ddBase.poly.grains)
         {
@@ -125,7 +144,7 @@ namespace model
         glidePlanesNoiseBox->addItem("solidSolution_2");
         glidePlanesNoiseBox->addItem("stackingFault");
         const auto& grain(defectiveCrystal.ddBase.poly.grains.begin()->second);
-        for(size_t k=0; k<grain.singleCrystal->slipSystems().size();++k)
+        for(size_t k=0; k<grain->slipSystems().size();++k)
         {
             slipSystemNoiseBox->addItem(QString::fromStdString("slipSystem "+ std::to_string(k)));
         }
@@ -138,24 +157,34 @@ namespace model
         noiseLayout->addWidget(grainNoiseBox,1,1,1,1);
         noiseLayout->addWidget(slipSystemNoiseBox,2,0,1,1);
         noiseLayout->addWidget(glidePlanesNoiseBox,2,1,1,1);
-        noiseLayout->addWidget(ssNoiseMin,3,0,1,1);
-        noiseLayout->addWidget(ssNoiseMax,3,1,1,1);
-        noiseLayout->addWidget(sfNoiseMin,4,0,1,1);
-        noiseLayout->addWidget(sfNoiseMax,4,1,1,1);
+        noiseLayout->addWidget(ss1NoiseMin,3,0,1,1);
+        noiseLayout->addWidget(ss1NoiseMax,3,1,1,1);
+        noiseLayout->addWidget(ss2NoiseMin,4,0,1,1);
+        noiseLayout->addWidget(ss2NoiseMax,4,1,1,1);
+        noiseLayout->addWidget(sfNoiseMin,5,0,1,1);
+        noiseLayout->addWidget(sfNoiseMax,5,1,1,1);
+        
+        QGridLayout *stackingFaultLayout = new QGridLayout();
+        stackingFaultLayout->addWidget(sfeMinEdit,0,0,1,1);
+        stackingFaultLayout->addWidget(sfeMaxEdit,0,1,1,1);
+        stackingFaultGroup->setLayout(stackingFaultLayout);
+
         
         mainLayout->addWidget(glidePlanesGroup,0,0,1,1);
         mainLayout->addWidget(glidePlanesNoiseGroup,1,0,1,1);
-        mainLayout->addWidget(glidePlaneMeshGroup,2,0,1,1);
+        mainLayout->addWidget(stackingFaultGroup,2,0,1,1);
         
         this->setLayout(mainLayout);
         connect(glidePlanesGroup,SIGNAL(toggled(bool)), this, SLOT(modify()));
         connect(glidePlanesNoiseGroup,SIGNAL(toggled(bool)), this, SLOT(modify()));
-        connect(glidePlaneMeshGroup,SIGNAL(toggled(bool)), this, SLOT(modify()));
+        connect(stackingFaultGroup,SIGNAL(toggled(bool)), this, SLOT(modify()));
         
         connect(glidePlanesNoiseBox,SIGNAL(currentIndexChanged(int)), this, SLOT(modify()));
         connect(slipSystemNoiseBox,SIGNAL(currentIndexChanged(int)), this, SLOT(computeGlidePlaneNoise()));
-        connect(ssNoiseMin,SIGNAL(returnPressed()), this, SLOT(modify()));
-        connect(ssNoiseMax,SIGNAL(returnPressed()), this, SLOT(modify()));
+        connect(ss1NoiseMin,SIGNAL(returnPressed()), this, SLOT(modify()));
+        connect(ss1NoiseMax,SIGNAL(returnPressed()), this, SLOT(modify()));
+        connect(ss2NoiseMin,SIGNAL(returnPressed()), this, SLOT(modify()));
+        connect(ss2NoiseMax,SIGNAL(returnPressed()), this, SLOT(modify()));
         connect(sfNoiseMin,SIGNAL(returnPressed()), this, SLOT(modify()));
         connect(sfNoiseMax,SIGNAL(returnPressed()), this, SLOT(modify()));
         connect(noiseMeshSizeEdit,SIGNAL(returnPressed()), this, SLOT(computeGlidePlaneNoise()));
@@ -174,11 +203,11 @@ namespace model
         renderer->AddActor(noiseActor);
 
         // Stacking Faults
-        meshPolydata->Allocate();
-        meshMapper->SetInputData(meshPolydata);
-        meshActor->SetMapper ( meshMapper );
-        meshActor->GetProperty()->SetOpacity(0.8); //Make the mesh have some transparency.
-        renderer->AddActor(meshActor);
+        stackingFaultPolydata->Allocate();
+        stackingFaultMapper->SetInputData(stackingFaultPolydata);
+        stackingFaultActor->SetMapper ( stackingFaultMapper );
+        stackingFaultActor->GetProperty()->SetOpacity(0.8); //Make the mesh have some transparency.
+        renderer->AddActor(stackingFaultActor);
     }
 
     void GlidePlaneActor::updateConfiguration()
@@ -208,16 +237,17 @@ namespace model
             const size_t selectedGrainID(std::stoi(grainNoiseBox->currentText().toStdString()));
             const auto& grain(defectiveCrystal.ddBase.poly.grain(selectedGrainID));
             const size_t selectedSlipSystemID(slipSystemNoiseBox->currentIndex());
-            const auto& slipSystem(grain.singleCrystal->slipSystems()[selectedSlipSystemID]);
+            const auto& slipSystem(grain->slipSystems().at(selectedSlipSystemID));
             const auto& planeNoise(slipSystem->planeNoise);
 
-  
             size_t nodeIDoffset(0);
             double meshSize;
             std::stringstream ssM(noiseMeshSizeEdit->text().toStdString());
             if(ssM >> meshSize)
             {
-                noiseMeshSizeEdit->setStyleSheet("background-color: white");
+                ///noiseMeshSizeEdit->setStyleSheet("background-color: white");
+                // reference palette colors directly
+                noiseMeshSizeEdit->setStyleSheet("background-color: palette(base)");
                 
                 if(planeNoise)
                 {
@@ -249,6 +279,13 @@ namespace model
                                     valuesMinMax[1]=std::make_pair(std::min(valuesMinMax[1].first,std::get<1>(noiseValues.back())),std::max(valuesMinMax[1].second,std::get<1>(noiseValues.back())));
                                     valuesMinMax[2]=std::make_pair(std::min(valuesMinMax[2].first,std::get<2>(noiseValues.back())),std::max(valuesMinMax[2].second,std::get<2>(noiseValues.back())));
                                 }
+
+                                ss1NoiseMin->setText(QString::number((valuesMinMax[0].first)));
+                                ss1NoiseMax->setText(QString::number((valuesMinMax[0].second)));
+                                ss2NoiseMin->setText(QString::number((valuesMinMax[1].first)));
+                                ss2NoiseMax->setText(QString::number((valuesMinMax[1].second)));
+                                sfNoiseMin->setText(QString::number((valuesMinMax[2].first)));
+                                sfNoiseMax->setText(QString::number((valuesMinMax[2].second)));
                                 
                                 for(const auto& tri : triMesh.triangles())
                                 {
@@ -282,78 +319,145 @@ namespace model
 
 void GlidePlaneActor::computeStackingFaults()
 {
-    if(dislocationNetwork && glidePlaneMeshGroup->isChecked())
+    if(dislocationNetwork && stackingFaultGroup->isChecked())
     {
-        std::map<LatticePlaneKey<3>,SingleGlidePlaneActor> singleGlidePlaneMap;
-        for(auto& loop : dislocationNetwork->loops())
+        double sfeMin;
+        std::stringstream ssMin(sfeMinEdit->text().toStdString());
+        if(ssMin >> sfeMin)
         {
-            for(const auto& pair : loop.second.lock()->patches().localPatches())
+            //sfeMinEdit->setStyleSheet("background-color: white");
+            // reference palette colors directly
+            sfeMinEdit->setStyleSheet("background-color: palette(base)");
+            double sfeMax;
+            std::stringstream ssMax(sfeMaxEdit->text().toStdString());
+            if(ssMax >> sfeMax)
             {
-                const auto& glidePlane(pair.first->glidePlane);
-                const auto& key(glidePlane->key);
-                const auto glidePlaneIter(singleGlidePlaneMap.find(key));
-                if(glidePlaneIter!=singleGlidePlaneMap.end())
-                {// glide plane not found
-                    glidePlaneIter->second.appendClosedPolygon(pair.second);
-                }
-                else
-                {// glide plane not found
-                    const auto success(singleGlidePlaneMap.emplace(std::piecewise_construct,
-                                                                   std::forward_as_tuple(key),
-                                                                   std::forward_as_tuple(*glidePlane)));
-                    if(success.second)
+                //sfeMaxEdit->setStyleSheet("background-color: white");
+                // reference palette colors directly
+                sfeMaxEdit->setStyleSheet("background-color: palette(base)");
+                
+                stackingFaultLut->SetTableRange(sfeMin, sfeMax);
+                double dclr[3];
+                unsigned char cclr[3];
+                
+                std::map<LatticePlaneKey<3>,SingleGlidePlaneActor> singleGlidePlaneMap;
+                for(auto& loop : dislocationNetwork->loops())
+                {
+                    for(const auto& pair : loop.second.lock()->patches().localPatches())
                     {
-                        success.first->second.appendClosedPolygon(pair.second);
-                    }
-                    else
-                    {
-                        throw std::runtime_error("Cannot insert glide plane in singleGlidePlaneMap");
+                        const auto& glidePlane(pair.first->glidePlane);
+                        const auto& key(glidePlane->key);
+                        const auto glidePlaneIter(singleGlidePlaneMap.find(key));
+                        if(glidePlaneIter!=singleGlidePlaneMap.end())
+                        {// glide plane found
+                            if(glidePlaneIter->second.planeBase)
+                            {
+                                if(glidePlaneIter->second.planeBase->gammaSurface)
+                                {
+                                    glidePlaneIter->second.appendClosedPolygon(pair.second);
+                                }
+                            }
+                        }
+                        else
+                        {// glide plane not found
+                            const auto success(singleGlidePlaneMap.emplace(std::piecewise_construct,
+                                                                           std::forward_as_tuple(key),
+                                                                           std::forward_as_tuple(glidePlane)));
+                            if(success.second)
+                            {
+                                if(success.first->second.planeBase)
+                                {
+                                    if(success.first->second.planeBase->gammaSurface)
+                                    {
+                                        success.first->second.appendClosedPolygon(pair.second);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                throw std::runtime_error("Cannot insert glide plane in singleGlidePlaneMap");
+                            }
+                        }
                     }
                 }
+                
+                vtkSmartPointer<vtkPoints> meshPts(vtkSmartPointer<vtkPoints>::New());
+                vtkSmartPointer<vtkCellArray> meshTriangles(vtkSmartPointer<vtkCellArray>::New());
+                vtkSmartPointer<vtkUnsignedCharArray> meshColors(vtkSmartPointer<vtkUnsignedCharArray>::New());
+                meshColors->SetNumberOfComponents(3);
+                
+                size_t numVertices(0);
+                for(auto& pair : singleGlidePlaneMap)
+                {
+                    if(pair.second.planeBase)
+                    {
+                        if(pair.second.planeBase->gammaSurface)
+                        {
+                        TriangularMesh triMesh;
+                        triMesh.reMesh(pair.second.points,pair.second.segments,100000.0,"pz");
+                        
+                        for(const auto& point2d : triMesh.vertices())
+                        {
+                            const auto point3d(pair.second.glidePlane->globalPosition(point2d));
+                            meshPts->InsertNextPoint(point3d(0),point3d(1),point3d(2));
+                        }
+                        
+                        for(const auto& tri : triMesh.triangles())
+                        {
+                            vtkSmartPointer<vtkTriangle> triangle = vtkSmartPointer<vtkTriangle>::New();
+                            triangle->GetPointIds()->SetId (0,tri(0)+numVertices);
+                            triangle->GetPointIds()->SetId (1,tri(1)+numVertices);
+                            triangle->GetPointIds()->SetId (2,tri(2)+numVertices);
+                            
+                            //const Eigen::Vector3d bary3(Eigen::Vector3d())
+                            
+                            const Eigen::Vector2d triCenter((triMesh.vertices()[tri(0)]+triMesh.vertices()[tri(1)]+triMesh.vertices()[tri(2)])/3.0);
+                            Eigen::Vector3d slip(Eigen::Vector3d::Zero());
+                            for(auto& loop : dislocationNetwork->loops())
+                            {
+                                slip-=loop.second.lock()->patches().windingNumber(triCenter,pair.second.glidePlane)*loop.second.lock()->burgers();
+                            }
+                            const double sfe(pair.second.planeBase->misfitEnergy(slip)*defectiveCrystal.ddBase.poly.b_SI*defectiveCrystal.ddBase.poly.mu_SI);
+//                            std::cout<<"sfe="<<sfe<<std::endl;
+                            if(std::fabs(sfe)>FLT_EPSILON)
+                            {
+                                meshTriangles->InsertNextCell ( triangle );
+                                
+                                stackingFaultLut->GetColor(sfe, dclr);
+                                for(unsigned int j = 0; j < 3; j++)
+                                {
+                                    cclr[j] = static_cast<unsigned char>(255.0 * dclr[j]);
+                                }
+//                                noiseColors->InsertNextTypedTuple(cclr);
+                                meshColors->InsertNextTuple3(cclr[0],cclr[1],cclr[2]); // use this to assig color to each triangle
+
+                                
+//                                const auto triColor(Eigen::Matrix<int,1,3>::Random()*255);
+//                                meshColors->InsertNextTuple3(cclr[0],cclr[0],triColor(2)); // use this to assig color to each vertex
+                            }
+                        }
+                        numVertices+=triMesh.vertices().size();
+                    }
+                    }
+
+                }
+                
+                stackingFaultPolydata->SetPoints ( meshPts );
+                stackingFaultPolydata->SetPolys ( meshTriangles );
+                stackingFaultPolydata->GetCellData()->SetScalars(meshColors);
+                stackingFaultPolydata->Modified();
+                stackingFaultMapper->SetScalarModeToUseCellData();
+
+            }
+            else
+            {
+                sfeMaxEdit->setStyleSheet("background-color: red");
             }
         }
-        
-        vtkSmartPointer<vtkPoints> meshPts(vtkSmartPointer<vtkPoints>::New());
-        vtkSmartPointer<vtkCellArray> meshTriangles(vtkSmartPointer<vtkCellArray>::New());
-        vtkSmartPointer<vtkUnsignedCharArray> meshColors(vtkSmartPointer<vtkUnsignedCharArray>::New());
-        meshColors->SetNumberOfComponents(3);
-        
-        size_t numVertices(0);
-        for(auto& pair : singleGlidePlaneMap)
+        else
         {
-            TriangularMesh triMesh;
-            triMesh.reMesh(pair.second.points,pair.second.segments,100000.0,"pz");
-            
-            for(const auto& point2d : triMesh.vertices())
-            {
-                const auto point3d(pair.second.glidePlane.globalPosition(point2d));
-                meshPts->InsertNextPoint(point3d(0),point3d(1),point3d(2));
-            }
-            
-            for(const auto& tri : triMesh.triangles())
-            {
-                vtkSmartPointer<vtkTriangle> triangle = vtkSmartPointer<vtkTriangle>::New();
-                triangle->GetPointIds()->SetId (0,tri(0)+numVertices);
-                triangle->GetPointIds()->SetId (1,tri(1)+numVertices);
-                triangle->GetPointIds()->SetId (2,tri(2)+numVertices);
-                meshTriangles->InsertNextCell ( triangle );
-                
-                //                    const Eigen::Vector2d triCenter((triMesh.vertices()[tri(0)]+triMesh.vertices()[tri(1)]+triMesh.vertices()[tri(2)])/3.0);
-                //                    FINISH HERE, COMPUTE total slip vector and misfit energy
-                
-                const auto triColor(Eigen::Matrix<int,1,3>::Random()*255);
-                meshColors->InsertNextTuple3(triColor(0),triColor(1),triColor(2)); // use this to assig color to each vertex
-            }
-            numVertices+=triMesh.vertices().size();
+            sfeMinEdit->setStyleSheet("background-color: red");
         }
-        //    std::cout<<"Done meshing"<<std::endl;
-        
-        meshPolydata->SetPoints ( meshPts );
-        meshPolydata->SetPolys ( meshTriangles );
-        meshPolydata->GetCellData()->SetScalars(meshColors);
-        meshPolydata->Modified();
-        meshMapper->SetScalarModeToUseCellData();
-        //    renWin->Render();
     }
 }
 
@@ -398,7 +502,7 @@ void GlidePlaneActor::computeStackingFaults()
     void GlidePlaneActor::modify()
     {
         glidePlaneActor->SetVisibility(glidePlanesGroup->isChecked());
-        meshActor->SetVisibility(glidePlaneMeshGroup->isChecked());
+        stackingFaultActor->SetVisibility(stackingFaultGroup->isChecked());
         noiseActor->SetVisibility(glidePlanesNoiseGroup->isChecked());
         
         if(glidePlanesNoiseGroup->isChecked())
@@ -409,6 +513,7 @@ void GlidePlaneActor::computeStackingFaults()
             double dclr[3];
             unsigned char cclr[3];
             lut->SetTableRange(valuesMinMax[glidePlanesNoiseBox->currentIndex()].first, valuesMinMax[glidePlanesNoiseBox->currentIndex()].second);
+            //SetScalarRange(ss1NoiseMin->text().toDouble(), ss1NoiseMax->text().toDouble());
             
             for(const auto& tup : noiseValues)
             {

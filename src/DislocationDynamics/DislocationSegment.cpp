@@ -11,16 +11,14 @@
 #include <DislocationSegment.h>
 #include <PlanesIntersection.h>
 
-
-
 namespace model
 {
-    template <int dim, short unsigned int corder>
-    DislocationSegment<dim,corder>::DislocationSegment(LoopNetworkType* const net,
+    template <int dim>
+    DislocationSegment<dim>::DislocationSegment(LoopNetworkType* const net,
                                                                          const std::shared_ptr<NetworkNodeType>& nI,
                                                                          const std::shared_ptr<NetworkNodeType>& nJ) :
-    /* init */ NetworkLink<DislocationSegment>(net,nI,nJ)
-    /* init */,SplineSegment<dim,corder>(this->source->get_P(),this->sink->get_P())
+    /* init */ NetworkLink<DislocationSegment<dim>>(net,nI,nJ)
+    /* init */,SplineSegmentType(this->source->get_P(),this->sink->get_P())
     // /* init */,ConfinedDislocationObjectType(this->source->get_P(),this->sink->get_P())
     /* init */,Burgers(VectorDim::Zero())
     /* init */,BurgersNorm(Burgers.norm())
@@ -30,8 +28,8 @@ namespace model
         VerboseDislocationSegment(1,"Constructing DislocationSegment "<<this->tag()<<std::endl);
     }
     
-template <int dim, short unsigned int corder>
-typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, corder>::climbDirection() const
+template <int dim>
+typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirection() const
 {
     if(this->isBoundarySegment()
        || this->isGrainBoundarySegment())
@@ -46,8 +44,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
     }
 }
 
-       template <int dim, short unsigned int corder>
-    void DislocationSegment<dim, corder>::updateSlipSystem()
+       template <int dim>
+    void DislocationSegment<dim>::updateSlipSystem()
     {
 //        if (this->grains().size() == 0)
 //        {
@@ -141,8 +139,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
     }
 
     /**********************************************************************/
-    template <int dim, short unsigned int corder>
-    void DislocationSegment<dim,corder>::addLoopLink(LoopLinkType* const pL)
+    template <int dim>
+    void DislocationSegment<dim>::addLoopLink(LoopLinkType* const pL)
     {
         VerboseDislocationSegment(2,"DislocationSegment "<<this->tag()<<", adding LoopLink "<<pL->tag()<<std::endl;);
         NetworkLink<DislocationSegment>::addLoopLink(pL); // forward to base class
@@ -215,8 +213,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
     
     
     /**********************************************************************/
-    template <int dim, short unsigned int corder>
-    void DislocationSegment<dim,corder>::removeLoopLink(LoopLinkType* const pL)
+    template <int dim>
+    void DislocationSegment<dim>::removeLoopLink(LoopLinkType* const pL)
     {
        VerboseDislocationSegment(2,"DislocationSegment "<<this->tag()<<", removing LoopLink "<<pL->tag()<<std::endl;);
         NetworkLink<DislocationSegment>::removeLoopLink(pL);  // forward to base class
@@ -236,8 +234,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         
     }
     
-    template <int dim, short unsigned int corder>
-    void DislocationSegment<dim,corder>::updateGeometry()
+    template <int dim>
+    void DislocationSegment<dim>::updateGeometry()
     {
         VerboseDislocationSegment(2,"DislocationSegment "<<this->tag()<<", updateGeometry "<<std::endl;);
         SplineSegmentType::updateGeometry();
@@ -246,8 +244,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         VerboseDislocationSegment(2,"DislocationSegment "<<this->tag()<<", updateGeometry DONE"<<std::endl;);
     }
     
-    template <int dim, short unsigned int corder>
-    bool DislocationSegment<dim,corder>::isGlissile() const
+    template <int dim>
+    bool DislocationSegment<dim>::isGlissile() const
     {/*\returns true if ALL the following conditions are met
       * - the segment is confined by only one plane
       * - all loops containing this segment are glissile
@@ -264,15 +262,15 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return temp;
     }
     
-    template <int dim, short unsigned int corder>
-    bool DislocationSegment<dim,corder>::isSessile() const
+    template <int dim>
+    bool DislocationSegment<dim>::isSessile() const
     {
         return !isGlissile();
     }
     
     /******************************************************************/
-    template <int dim, short unsigned int corder>
-    void DislocationSegment<dim,corder>::initFromFile(const std::string& fileName)
+    template <int dim>
+    void DislocationSegment<dim>::initFromFile(const std::string& fileName)
     {
         //        LinkType::alpha=TextFileParser(fileName).readScalar<double>("parametrizationExponent",true);
         //        assert((LinkType::alpha)>=0.0 && "parametrizationExponent MUST BE >= 0.0");
@@ -283,8 +281,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         verboseDislocationSegment=TextFileParser(fileName).readScalar<int>("verboseDislocationSegment",false);
     }
     
-    template <int dim, short unsigned int corder>
-    typename DislocationSegment<dim,corder>::MeshLocation DislocationSegment<dim,corder>::meshLocation() const
+    template <int dim>
+    typename DislocationSegment<dim>::MeshLocation DislocationSegment<dim>::meshLocation() const
     {/*!\returns the position of *this relative to the bonudary:
       * 1 = inside mesh
       * 2 = on mesh boundary
@@ -307,8 +305,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         }
     }
     
-//    template <int dim, short unsigned int corder>
-//    bool DislocationSegment<dim,corder>::isVirtualBoundarySegment() const
+//    template <int dim>
+//    bool DislocationSegment<dim>::isVirtualBoundarySegment() const
 //    {//!\returns true if all loops of this segment are virtualBoundaryLoops
 //        bool temp(true);
 //        for(const auto& loopLink : this->loopLinks())
@@ -322,40 +320,40 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
 //        return temp;
 //    }
     
-    template <int dim, short unsigned int corder>
-    bool DislocationSegment<dim,corder>::hasZeroBurgers() const
+    template <int dim>
+    bool DislocationSegment<dim>::hasZeroBurgers() const
     {
         return BurgersNorm<FLT_EPSILON;
     }
     
-    template <int dim, short unsigned int corder>
-    const std::shared_ptr<SlipSystem>&  DislocationSegment<dim,corder>::slipSystem() const
+    template <int dim>
+    const std::shared_ptr<SlipSystem>&  DislocationSegment<dim>::slipSystem() const
     {
         return _slipSystem;
     }
     
-    template <int dim, short unsigned int corder>
-    bool DislocationSegment<dim,corder>::isBoundarySegment() const
+    template <int dim>
+    bool DislocationSegment<dim>::isBoundarySegment() const
     {/*!\returns true if both nodes are boundary nodes, and the midpoint is
       * on the boundary.
       */
         return this->isOnExternalBoundary();
     }
     
-    template <int dim, short unsigned int corder>
-    bool DislocationSegment<dim,corder>::isGrainBoundarySegment() const
+    template <int dim>
+    bool DislocationSegment<dim>::isGrainBoundarySegment() const
     {
         return this->isOnInternalBoundary();
     }
     
-    template <int dim, short unsigned int corder>
-    const typename DislocationSegment<dim,corder>::VectorDim& DislocationSegment<dim,corder>::burgers() const
+    template <int dim>
+    const typename DislocationSegment<dim>::VectorDim& DislocationSegment<dim>::burgers() const
     {
         return Burgers;
     }
     
-    template <int dim, short unsigned int corder>
-    void DislocationSegment<dim,corder>::addToGlobalAssembly(std::deque<Eigen::Triplet<double> >& kqqT,
+    template <int dim>
+    void DislocationSegment<dim>::addToGlobalAssembly(std::deque<Eigen::Triplet<double> >& kqqT,
                              Eigen::VectorXd& FQ) const
     {/*!\param[in] kqqT the stiffness matrix of the network component
       * \param[in] FQ the force vector of the network component
@@ -367,22 +365,25 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
             /*    */ std::pair<VectorNcoeff,VectorDim>,
             /*    */ std::less<size_t>
             /*    */ > h2posMap;
-  
-            switch (corder)
-            {
-                case 0:
-                {
-                    h2posMap.emplace(this->source->networkID(),std::make_pair((VectorNcoeff()<<1.0,0.0).finished(),this->source->get_P()));
-                    h2posMap.emplace(this->  sink->networkID(),std::make_pair((VectorNcoeff()<<0.0,1.0).finished(),this->  sink->get_P()));
-                    break;
-                }
-                    
-                default:
-                {
-                    assert(0 && "IMPLEMENT THIS CASE FOR CURVED SEGMENTS");
-                    break;
-                }
-            }
+            h2posMap.emplace(this->source->networkID(),std::make_pair((VectorNcoeff()<<1.0,0.0).finished(),this->source->get_P()));
+            h2posMap.emplace(this->  sink->networkID(),std::make_pair((VectorNcoeff()<<0.0,1.0).finished(),this->  sink->get_P()));
+
+            
+//            switch (corder)
+//            {
+//                case 0:
+//                {
+//                    h2posMap.emplace(this->source->networkID(),std::make_pair((VectorNcoeff()<<1.0,0.0).finished(),this->source->get_P()));
+//                    h2posMap.emplace(this->  sink->networkID(),std::make_pair((VectorNcoeff()<<0.0,1.0).finished(),this->  sink->get_P()));
+//                    break;
+//                }
+//                    
+//                default:
+//                {
+//                    assert(0 && "IMPLEMENT THIS CASE FOR CURVED SEGMENTS");
+//                    break;
+//                }
+//            }
             //        h2posMap=this->hermite2posMap();
             Eigen::Matrix<double, Ndof, Eigen::Dynamic> Mseg(Eigen::Matrix<double, Ndof, Eigen::Dynamic>::Zero(Ncoeff*dim,h2posMap.size()*dim));
 //            Mseg.setZero(Ncoeff*dim,h2posMap.size()*dim);
@@ -441,59 +442,20 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         }
     }
     
-    template <int dim, short unsigned int corder>
-    void DislocationSegment<dim,corder>::createQuadraturePoints(const bool& isClimbStep)
+    template <int dim>
+    void DislocationSegment<dim>::createQuadraturePoints(const bool& isClimbStep)
     {
         this->create(*this,quadPerLength,isClimbStep);
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationSegment<dim,corder>::updateQuadraturePoints(const bool& isClimbStep)
+    template <int dim>
+    void DislocationSegment<dim>::updateQuadraturePoints(const bool& isClimbStep)
     {
         this->update(*this,isClimbStep);
     }
 
-//    template <int dim, short unsigned int corder>
-//    void DislocationSegment<dim,corder>::assembleGlide(const bool& computeForcesanVelocities)
-//    {
-//        VerboseDislocationSegment(2,"DislocationSegment "<<this->tag()<<", assembleGlide"<<std::endl;);
-//        if (computeForcesanVelocities)
-//        {
-//            this->updateForcesAndVelocities(*this,quadPerLength,false);
-//        }
-//        Fq= this->quadraturePoints().size()? this->nodalVelocityVector(*this) : VectorNdof::Zero();
-//        Kqq=this->nodalVelocityMatrix(*this);
-////        h2posMap.clear();
-////        switch (corder)
-////        {
-////            case 0:
-////            {
-////                h2posMap.emplace(this->source->networkID(),std::make_pair((VectorNcoeff()<<1.0,0.0).finished(),this->source->get_P()));
-////                h2posMap.emplace(this->  sink->networkID(),std::make_pair((VectorNcoeff()<<0.0,1.0).finished(),this->  sink->get_P()));
-////                break;
-////            }
-////
-////            default:
-////            {
-////                assert(0 && "IMPLEMENT THIS CASE FOR CURVED SEGMENTS");
-////                break;
-////            }
-////        }
-////        //        h2posMap=this->hermite2posMap();
-////        Mseg.setZero(Ncoeff*dim,h2posMap.size()*dim);
-////        size_t c=0;
-////        for(const auto& pair : h2posMap)
-////        {
-////            for(int r=0;r<Ncoeff;++r)
-////            {
-////                Mseg.template block<dim,dim>(r*dim,c*dim)=pair.second.first(r)*MatrixDim::Identity();
-////            }
-////            c++;
-////        }
-//    }
-
-    template <int dim, short unsigned int corder>
-    int DislocationSegment<dim, corder>::velocityGroup(const double &maxVelocity, const std::set<int> &subcyclingBins) const
+    template <int dim>
+    int DislocationSegment<dim>::velocityGroup(const double &maxVelocity, const std::set<int> &subcyclingBins) const
     // This represents how many number of steps taken for updating the velocity
     {
         if (this->quadraturePoints().size() == 0)
@@ -531,14 +493,14 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         // return DislocationSegmentIO<dim>::velocityGroup(this->source->get_V(),this->sink->get_V(),maxVelocity);
     }
 
-    template <int dim, short unsigned int corder>
-    const typename DislocationSegment<dim,corder>::VectorDim& DislocationSegment<dim,corder>::glidePlaneNormal() const
+    template <int dim>
+    const typename DislocationSegment<dim>::VectorDim& DislocationSegment<dim>::glidePlaneNormal() const
     {
         return this->glidePlanes().size()==1? (*this->glidePlanes().begin())->unitNormal : zeroVector;
     }
     
-    template <int dim, short unsigned int corder>
-    typename DislocationSegment<dim,corder>::GlidePlaneContainerType DislocationSegment<dim,corder>::glidePlanes() const
+    template <int dim>
+    typename DislocationSegment<dim>::GlidePlaneContainerType DislocationSegment<dim>::glidePlanes() const
     {
         GlidePlaneContainerType temp;
         for (const auto &ln : this->loopLinks())
@@ -551,8 +513,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return temp;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationSegment<dim,corder>::PlanarMeshFaceContainerType DislocationSegment<dim,corder>::meshFaces() const
+    template <int dim>
+    typename DislocationSegment<dim>::PlanarMeshFaceContainerType DislocationSegment<dim>::meshFaces() const
     {
         PlanarMeshFaceContainerType temp;
         const PlanarMeshFaceContainerType sourceMeshFaces(this->source->meshFaces());
@@ -567,8 +529,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         }
         return temp;
     }
-    template <int dim, short unsigned int corder>
-    bool DislocationSegment<dim,corder>::isOnExternalBoundary() const
+    template <int dim>
+    bool DislocationSegment<dim>::isOnExternalBoundary() const
     { /*!\returns _isOnExternalBoundarySegment.
        */
         bool _isOnExternalBoundary(false);
@@ -583,8 +545,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return _isOnExternalBoundary;
     }
 
-    template <int dim, short unsigned int corder>
-    bool DislocationSegment<dim,corder>::isOnInternalBoundary() const
+    template <int dim>
+    bool DislocationSegment<dim>::isOnInternalBoundary() const
     {
         bool _isOnInternalBoundary(false);
         for (const auto &face : meshFaces())
@@ -597,13 +559,13 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return _isOnInternalBoundary;
     }
 
-    template <int dim, short unsigned int corder>
-    bool DislocationSegment<dim,corder>::isOnBoundary() const
+    template <int dim>
+    bool DislocationSegment<dim>::isOnBoundary() const
     {
         return isOnExternalBoundary() || isOnInternalBoundary();
     }
-    template <int dim, short unsigned int corder>
-    typename DislocationSegment<dim,corder>::GrainContainerType DislocationSegment<dim,corder>::grains() const
+    template <int dim>
+    typename DislocationSegment<dim>::GrainContainerType DislocationSegment<dim>::grains() const
     {
         GrainContainerType temp;
         for (const auto &glidePlane : glidePlanes())
@@ -613,8 +575,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return temp;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationSegment<dim,corder>::VectorDim DislocationSegment<dim,corder>::bndNormal() const
+    template <int dim>
+    typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::bndNormal() const
     {
         VectorDim _outNormal(VectorDim::Zero());
         for (const auto &face : meshFaces())
@@ -633,8 +595,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return _outNormal;
     }
 
-    template <int dim, short unsigned int corder>
-    std::vector<std::pair<const GlidePlane<dim> *const, const GlidePlane<dim> *const>> DislocationSegment<dim,corder>::parallelAndCoincidentGlidePlanes(const GlidePlaneContainerType &other) const
+    template <int dim>
+    std::vector<std::pair<const GlidePlane<dim> *const, const GlidePlane<dim> *const>> DislocationSegment<dim>::parallelAndCoincidentGlidePlanes(const GlidePlaneContainerType &other) const
     {
         std::vector<std::pair<const GlidePlane<dim> *const, const GlidePlane<dim> *const>> pp;
 
@@ -643,7 +605,7 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
             for (const auto &otherPlane : other)
             {
                 //                    if(plane!=otherPlane && plane->n.cross(otherPlane->n).squaredNorm()==0)
-                if (plane->n.cross(otherPlane->n).squaredNorm() == 0)
+                if (plane->n.cross(otherPlane->n).base().squaredNorm() == 0)
                 { // parallel planes
                     pp.emplace_back(plane, otherPlane);
                 }
@@ -652,8 +614,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return pp;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, corder>::snapToGlidePlanes(const VectorDim &x) const
+    template <int dim>
+    typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::snapToGlidePlanes(const VectorDim &x) const
     {
         GlidePlaneContainerType gps(glidePlanes());
         if(gps.size())
@@ -690,8 +652,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         }
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationSegment<dim, corder>::ConcentrationMatrixType DislocationSegment<dim, corder>::concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const
+    template <int dim>
+    typename DislocationSegment<dim>::ConcentrationMatrixType DislocationSegment<dim>::concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const
     {
         ConcentrationMatrixType M(ConcentrationMatrixType::Zero());
         if(this->grains().size() == 1 && this->chordLength()>FLT_EPSILON)
@@ -741,8 +703,8 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return M;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationSegment<dim, corder>::ConcentrationVectorType DislocationSegment<dim, corder>::clusterConcentration(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const
+    template <int dim>
+    typename DislocationSegment<dim>::ConcentrationVectorType DislocationSegment<dim>::clusterConcentration(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const
     {
         ConcentrationVectorType temp(ConcentrationVectorType::Zero());
         const ConcentrationMatrixType cM(concentrationMatrices(x,icp));
@@ -753,18 +715,18 @@ typename DislocationSegment<dim, corder>::VectorDim DislocationSegment<dim, cord
         return temp;
     }
 
-//    template <int dim, short unsigned int corder>
-//    const typename DislocationSegment<dim,corder>::MatrixDim DislocationSegment<dim,corder>::I=DislocationSegment<dim,corder>::MatrixDim::Identity();
+//    template <int dim>
+//    const typename DislocationSegment<dim>::MatrixDim DislocationSegment<dim>::I=DislocationSegment<dim>::MatrixDim::Identity();
     
-    template <int dim, short unsigned int corder>
-    const typename DislocationSegment<dim,corder>::VectorDim DislocationSegment<dim,corder>::zeroVector=DislocationSegment<dim,corder>::VectorDim::Zero();
+    template <int dim>
+    const typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::zeroVector=DislocationSegment<dim>::VectorDim::Zero();
     
-    template <int dim, short unsigned int corder>
-    double DislocationSegment<dim,corder>::quadPerLength=0.2;
+    template <int dim>
+    double DislocationSegment<dim>::quadPerLength=0.2;
         
-    template <int dim, short unsigned int corder>
-    int DislocationSegment<dim,corder>::verboseDislocationSegment=0;
+    template <int dim>
+    int DislocationSegment<dim>::verboseDislocationSegment=0;
         
-    template class DislocationSegment<3,0>;
+    template class DislocationSegment<3>;
 }
 #endif

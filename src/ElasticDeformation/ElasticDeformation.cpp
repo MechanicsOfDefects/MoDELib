@@ -63,10 +63,10 @@ namespace model
     template<int dim>
     ElasticDeformation<dim>::ElasticDeformation(MicrostructureContainerType& mc) :
     /* init */ MicrostructureBase<dim>("ElasticDeformation",mc)
-    /* init */,useElasticDeformationFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("useElasticDeformationFEM",true)) : false )
+    /* init */,useElasticDeformationFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ElasticDeformation.txt").readScalar<int>("useElasticDeformationFEM",true)) : false )
     /* init */,elasticDeformationFEM(useElasticDeformationFEM?  new ElasticDeformationFEM<dim>(this->microstructures.ddBase) : nullptr)
     /* init */,uniformLoadController(useElasticDeformationFEM? std::unique_ptr<UniformControllerType>(nullptr) : getUniformEDcontroller(this->microstructures.ddBase))
-    /* init */,inertiaReliefPenaltyFactor(uniformLoadController? 0.0 : TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("inertiaReliefPenaltyFactor",true))
+    /* init */,inertiaReliefPenaltyFactor(uniformLoadController? 0.0 : TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ElasticDeformation.txt").readScalar<double>("inertiaReliefPenaltyFactor",true))
     /* init */,ndA(this->microstructures.ddBase.fe? this->microstructures.ddBase.fe->template boundary<ExternalBoundary,imageTractionIntegrationOrder,GaussLegendre>() : TractionIntegrationDomainType())
     /* init */,tractionList(ndA.template integrationList<FEMfaceEvaluation<ElementType,dim,dim>>())
     /* init */,solverInitialized(false)
@@ -157,8 +157,28 @@ namespace model
                     throw std::runtime_error("ElasticDeformation: TrialFunction u initializatoin size mismatch");
                 }
             }
+            zDot.setZero(elasticDeformationFEM->z.gSize());
         }
     }
+
+template<int dim>
+void ElasticDeformation<dim>::reSolve()
+{
+    if(uniformLoadController)
+    {
+//        const MatrixDim apd(this->microstructures.averagePlasticDistortion());
+//        const MatrixDim aps(0.5*(apd+apd.transpose()));
+//        uniformLoadController->gs=this->microstructures.ddBase.voigtTraits.m2v(aps,true);
+    }
+    else
+    {
+        std::cout<<", zDot "<<std::flush;
+        for(const auto& node : elasticDeformationFEM->z.fe().nodes())
+        {
+            zDot.template segment<dim>(dim*node.gID)=this->microstructures.inelasticDisplacementRate(node.P0,&node,nullptr,nullptr);
+        }
+    }
+}
 
     template<int dim>
     void ElasticDeformation<dim>::solve()
@@ -213,17 +233,17 @@ namespace model
                 {
                     if(microstructure.get()!=static_cast<const MicrostructureBase<dim>* const>(this))
                     {// not the ElasticDeformation physics
-                        pt += microstructure->stress(pt.P,nullptr,&pt.ele,nullptr);
+                        pt -= microstructure->stress(pt.P,nullptr,&pt.ele,nullptr);
                     }
                 }
             }
             auto tractionWF=(test(elasticDeformationFEM->u),tractionList);
             std::cout<<", directSolver"<<std::flush;
-            elasticDeformationFEM->u=directSolver.solve(-tractionWF.globalVector());
+            elasticDeformationFEM->u=directSolver.solve(tractionWF.globalVector());
             
             // Compute zDot
             std::cout<<", zDot "<<std::flush;
-            zDot.setZero(elasticDeformationFEM->z.gSize());
+//            zDot.setZero(elasticDeformationFEM->z.gSize());
             for(const auto& node : elasticDeformationFEM->z.fe().nodes())
             {
                 zDot.template segment<dim>(dim*node.gID)=this->microstructures.inelasticDisplacementRate(node.P0,&node,nullptr,nullptr);
@@ -238,7 +258,6 @@ namespace model
         
         if(uniformLoadController)
         {// already updated in solve()
-            
         }
         else
         {
@@ -279,7 +298,6 @@ namespace model
                     const std::string lab("s_"+std::to_string(i)+std::to_string(j));
                     F_labels<<lab<<"\n";
                 }
-                F_labels<<std::endl;
             }
         }
         else
@@ -321,16 +339,20 @@ namespace model
             if(node)
             {
                 return eval(elasticDeformationFEM->u)(*node);
+//                return eval(elasticDeformationFEM->u)(*node)+eval(elasticDeformationFEM->z)(*node);
             }
             else
             {
                 if(ele)
                 {
                     return eval(elasticDeformationFEM->u)(*ele,ele->simplex.pos2bary(x));
+//                    return eval(elasticDeformationFEM->u)(*ele,ele->simplex.pos2bary(x))+eval(elasticDeformationFEM->z)(*ele,ele->simplex.pos2bary(x));
+
                 }
                 else
                 {
                     return eval(elasticDeformationFEM->u)(x,guess);
+//                    return eval(elasticDeformationFEM->u)(x,guess)+eval(elasticDeformationFEM->z)(x,guess);
                 }
             }
         }
@@ -367,6 +389,12 @@ namespace model
     typename ElasticDeformation<dim>::VectorMSize ElasticDeformation<dim>::mobileConcentration(const VectorDim&,const NodeType* const,const ElementType* const,const SimplexDim* const) const
     {
         return VectorMSize::Zero();
+    }
+
+    template<int dim>
+    typename ElasticDeformation<dim>::VectorISize ElasticDeformation<dim>::immobileClusters(const VectorDim&,const NodeType* const,const ElementType* const,const SimplexDim* const) const
+    {
+        return VectorISize::Zero();
     }
 
     template<int dim>

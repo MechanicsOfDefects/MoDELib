@@ -616,9 +616,9 @@ namespace model
                     
                     for (const auto &gr : link->grains())
                     {
-                        for (size_t s = 0; s < gr->singleCrystal->slipSystems().size(); ++s)
+                        for (size_t s = 0; s < gr->slipSystems().size(); ++s)
                         {
-                            const auto &slipSystem(gr->singleCrystal->slipSystems()[s]);
+                            const auto &slipSystem(gr->slipSystems().at(s));
                             if ((slipSystem->s.cartesian() - link->burgers()).norm() < FLT_EPSILON && fabs(slipSystem->n.cartesian().normalized().dot(unitChord)) < FLT_EPSILON)
                             {
                                 VerboseJunctions(3, "glissDeq, emplacing" << std::endl;);
@@ -649,10 +649,10 @@ namespace model
                 {
                     const VectorDim newNodeP(0.5 * (isLink->source->get_P() + isLink->sink->get_P())); //This new node is only on one side
                     
-                    const long int planeIndex(DN.ddBase.poly.grain(grainID).singleCrystal->slipSystems()[slipID]->n.closestPlaneIndexOfPoint(newNodeP));
-                    const GlidePlaneKey<dim> glissilePlaneKey(planeIndex, DN.ddBase.poly.grain(grainID).singleCrystal->slipSystems()[slipID]->n);
+                    const long int planeIndex(DN.ddBase.poly.grain(grainID)->slipSystems().at(slipID)->n.closestPlaneIndexOfPoint(newNodeP));
+                    const GlidePlaneKey<dim> glissilePlaneKey(planeIndex, DN.ddBase.poly.grain(grainID)->slipSystems().at(slipID)->n);
                     const auto glidePlane(DN.ddBase.glidePlaneFactory.getFromKey(glissilePlaneKey));
-                    auto glissileLoop(DN.loops().create(DN.ddBase.poly.grain(grainID).singleCrystal->slipSystems()[slipID]->s.cartesian(), glidePlane));
+                    auto glissileLoop(DN.loops().create(DN.ddBase.poly.grain(grainID)->slipSystems().at(slipID)->s.cartesian(), glidePlane));
                     
                     VerboseJunctions(3, "Glissile Junction from Link" << isLink->tag() << std::endl;);
                     
@@ -1028,8 +1028,8 @@ namespace model
     template <typename DislocationNetworkType>
     DislocationJunctionFormation<DislocationNetworkType>::DislocationJunctionFormation(DislocationNetworkType& DN_in) :
     /* init */ DN(DN_in)
-    /* init */,maxJunctionIterations(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("maxJunctionIterations",true))
-    /* init */,verboseJunctions(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("verboseJunctions",true))
+    /* init */,maxJunctionIterations(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("maxJunctionIterations",true))
+    /* init */,verboseJunctions(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseJunctions",true))
     /* init */,infiniteLineLength(10000.0)
     {
         
@@ -1092,7 +1092,7 @@ namespace model
     template <typename DislocationNetworkType>
     double DislocationJunctionFormation<DislocationNetworkType>::collisionTol=10.0;
 
-    template class DislocationJunctionFormation<DislocationNetwork<3,0>>;
+    template class DislocationJunctionFormation<DislocationNetwork<3>>;
 
 }
 #endif

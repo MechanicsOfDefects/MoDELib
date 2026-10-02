@@ -49,6 +49,21 @@ namespace model
         return tempNorm>FLT_EPSILON? (temp/tempNorm).eval() : VectorDim::Zero();
     }
 
+template <int dim>
+typename MeshBoundarySegment<dim>::VectorDim MeshBoundarySegment<dim>::regionBoundaryNormal(const int& k) const
+{
+ 
+    typename MeshBoundarySegment<dim>::VectorDim temp(MeshBoundarySegment<dim>::VectorDim::Zero());
+    for(const auto& face : faces)
+    {
+        temp+=face->outNormal(k);
+    }
+    const double tempNorm(temp.norm());
+    return tempNorm>FLT_EPSILON? (temp/tempNorm).eval() : VectorDim::Zero();
+}
+
+
+
     template <int dim>
     MeshBoundarySegment<dim>::MeshBoundarySegment(const typename MeshBoundarySegment<dim>::VectorDim& p0,
                                                   const typename MeshBoundarySegment<dim>::VectorDim& p1,

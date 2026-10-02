@@ -11,109 +11,107 @@
 #include <numbers>
 
 #include <DislocationNetwork.h>
+#include <DislocationNucleation.h>
 #include <algorithm>
 
 
 namespace model
 {
-    template <int dim, short unsigned int corder>
-    DislocationNetwork<dim,corder>::DislocationNetwork(MicrostructureContainerType& mc) :
+
+
+    template <int dim>
+    DislocationNetwork<dim>::DislocationNetwork(MicrostructureContainerType& mc) :
     /* init */ MicrostructureBase<dim>("DislocationDynamics",mc)
     /* init */,glideStepsSinceLastClimb(0)
     /* init */,ddBase(this->microstructures.ddBase)
     /* init */,networkRemesher(*this)
     /* init */,junctionsMaker(*this)
-    /* init */,crossSlipModel(DislocationCrossSlip<DislocationNetwork<dim,corder>>::getModel(ddBase.poly,ddBase.simulationParameters.traitsIO))
+    /* init */,crossSlipModel(DislocationCrossSlip<DislocationNetwork<dim>>::getModel(ddBase.poly,ddBase.simulationParameters.traitsIO))
     /* init */,crossSlipMaker(*this)
     /* init */,nodeContractor(*this)
     /* init */,timeStepper(*this)
-    /* init */,stochasticForceGenerator(ddBase.simulationParameters.use_stochasticForce? new StochasticForceGenerator(ddBase.simulationParameters.traitsIO) : nullptr)
-    /* init */,computeDDinteractions(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("computeDDinteractions",true))
-    /* init */,outputQuadraturePoints(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("outputQuadraturePoints",true))
-    /* init */,outputLinkingNumbers(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("outputLinkingNumbers",true))
-    /* init */,outputLoopLength(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("outputLoopLength",true))
-    /* init */,outputSegmentPairDistances(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("outputSegmentPairDistances",true))
-    /* init */,outputPlasticDistortionPerSlipSystem(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("outputPlasticDistortionPerSlipSystem",true))
-    /* init */,computeElasticEnergyPerLength(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("computeElasticEnergyPerLength",true))
-    /* init */,alphaLineTension(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("alphaLineTension",true))
-    /* init */,use_velocityFilter(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("use_velocityFilter",true))
-    /* init */,velocityReductionFactor(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("velocityReductionFactor",true))
-    /* init */,verboseDislocationNode(TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("verboseDislocationNode",true))
+    /* init */,stochasticForceGenerator(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("useStochasticForce",true)? new StochasticForceGenerator(ddBase.simulationParameters.traitsIO) : nullptr)
+    /* init */,bulkNucleationModel(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("bulkNucleationModel",true))
+    /* init */,surfaceNucleationModel(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("surfaceNucleationModel",true))
+    /* init */,computeDDinteractions(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("computeDDinteractions",true))
+    /* init */,outputQuadraturePoints(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("outputQuadraturePoints",true))
+    /* init */,outputLinkingNumbers(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("outputLinkingNumbers",true))
+    /* init */,outputLoopLength(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("outputLoopLength",true))
+    /* init */,outputSegmentPairDistances(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("outputSegmentPairDistances",true))
+    /* init */,outputPlasticDistortionPerSlipSystem(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("outputPlasticDistortionPerSlipSystem",true))
+    /* init */,outputDislocationDensityPerSlipSystem(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("outputDislocationDensityPerSlipSystem",true))
+    /* init */,computeElasticEnergyPerLength(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("computeElasticEnergyPerLength",true))
+    /* init */,alphaLineTension(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("alphaLineTension",true))
+    /* init */,use_velocityFilter(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("use_velocityFilter",true))
+    /* init */,velocityReductionFactor(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("velocityReductionFactor",true))
+    /* init */,nodalVelocityConstraints(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readMatrixCols<double>("nodalVelocityConstraints",dim,true))
+    /* init */,subcyclingBins(getSubCyclingSet(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readArray<int>("subcyclingBins",true)))
+    /* init */,verboseDislocationNode(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseDislocationNode",true))
     {
         assert(velocityReductionFactor>0.0 && velocityReductionFactor<=1.0);
-        LoopNetworkType::verboseLevel=TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("verboseLoopNetwork",true);
-        verboseDislocationNetwork=TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("verboseDislocationNetwork",true);
+        LoopNetworkType::verboseLevel=TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseLoopNetwork",true);
+        verboseDislocationNetwork=TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseDislocationNetwork",true);
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim, corder>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream&,const std::ofstream&)
+template <int dim>
+std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &inpVector)
+{
+    std::set<int> temp;
+    for (const auto &iv : inpVector)
+    {
+        temp.insert(iv);
+    }
+    return (temp.size()>1)? temp : std::set<int>();
+}
+
+    template <int dim>
+    void DislocationNetwork<dim>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream&,const std::ofstream&)
     {
         this->lastUpdateTime=this->microstructures.ddBase.simulationParameters.totalTime;
         
-        LoopType::initFromFile(ddBase.simulationParameters.traitsIO.ddFile);
-        LoopNodeType::initFromFile(ddBase.simulationParameters.traitsIO.ddFile);
-        LoopLinkType::initFromFile(ddBase.simulationParameters.traitsIO.ddFile);
-        NetworkLinkType::initFromFile(ddBase.simulationParameters.traitsIO.ddFile);
-        DislocationFieldBase<dim>::initFromFile(ddBase.simulationParameters.traitsIO.ddFile);
+        LoopType::initFromFile(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt");
+        LoopNodeType::initFromFile(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt");
+        LoopLinkType::initFromFile(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt");
+        NetworkLinkType::initFromFile(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt");
+        DislocationFieldBase<dim>::initFromFile(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt");
         
-        glideSolver=DislocationGlideSolverFactory<DislocationNetwork<dim,corder>>::getGlideSolver(*this,TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readString("glideSolverType",false));
-        climbSolver=DislocationClimbSolverFactory<DislocationNetwork<dim,corder>>::getClimbSolver(*this,TextFileParser(ddBase.simulationParameters.traitsIO.ddFile).readString("climbSolverType",false));
+        glideSolver=DislocationGlideSolverFactory<DislocationNetwork<dim>>::getGlideSolver(*this,TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("glideSolverType",false));
+        climbSolver=DislocationClimbSolverFactory<DislocationNetwork<dim>>::getClimbSolver(*this,TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("climbSolverType",false));
         _inclusions=this->microstructures.template getUniqueTypedMicrostructure<InclusionMicrostructure<dim>>();
-                
+        
         setConfiguration(configIO);
-        updateGeometry();
     }
 
-    //New Version
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim,corder>::setConfiguration(const DDconfigIO<dim>& evl)
+    template <int dim>
+    void DislocationNetwork<dim>::addConfiguration(const DDconfigIO<dim>& evl)
     {
-        DislocationNode<3,0>::force_count(0);
-        DislocationLoopNode<3,0>::force_count(0);
-        DislocationLoop<3,0>::force_count(0);
-        EshelbyInclusionBase<3>::force_count(0);
-
-        this->loopLinks().clear(); // erase base network to clear current config
+        //    DislocationNode<3>::force_count(0);
+        //    DislocationLoopNode<3>::force_count(0);
+        //    DislocationLoop<3>::force_count(0);
+        //    EshelbyInclusionBase<3>::force_count(0);
+        //
+        //    this->loopLinks().clear(); // erase base network to clear current config
+        
+        const size_t initialLoopCount(DislocationLoop<3>::get_count());
+        const size_t initialNetworkNodeCount(NetworkNodeType::get_count());
+        const size_t initialLoopNodeCount(DislocationLoopNode<3>::get_count());
         
         // Create Loops
         std::deque<std::shared_ptr<LoopType>> tempLoops; // keep loops alive during setConfiguration
         size_t loopNumber=1;
         for(const auto& loop : evl.loops())
         {
-            const bool faulted(ddBase.poly.grain(loop.grainID).singleCrystal->rationalLatticeDirection(loop.B).rat.asDouble()!=1.0? true : false);
+            const bool faulted(ddBase.poly.grain(loop.grainID)->rationalLatticeDirection(loop.B).rat.asDouble()!=1.0? true : false);
             VerboseDislocationNetwork(1,"Creating DislocationLoop "<<loop.sID<<" ("<<loopNumber<<" of "<<evl.loops().size()<<"), type="<<loop.loopType<<", faulted="<<faulted<<", |b|="<<loop.B.norm()<<std::endl;);
-
+            
             //std::cout<<"Creating DislocationLoop "<<loop.sID<<" ("<<loopNumber<<" of "<<evl.loops().size()<<"), type="<<loop.loopType<<", faulted="<<faulted<<", |b|="<<loop.B.norm()<<std::endl;
-            const size_t loopIDinFile(loop.sID);
-            LoopType::set_count(loopIDinFile);
+            const size_t loopIDtoUse(loop.sID+initialLoopCount);
+            LoopType::set_count(loopIDtoUse);
             
-            GlidePlaneKey<dim> loopPlaneKey(loop.P, ddBase.poly.grain(loop.grainID).singleCrystal->reciprocalLatticeDirection(loop.N));
+            GlidePlaneKey<dim> loopPlaneKey(loop.P, ddBase.poly.grain(loop.grainID)->reciprocalLatticeDirection(loop.N));
             tempLoops.push_back(this->loops().create(loop.B, ddBase.glidePlaneFactory.getFromKey(loopPlaneKey)));
-            assert(this->loops().get(loopIDinFile)->sID == loopIDinFile);
+            assert(this->loops().get(loopIDtoUse)->sID == loopIDtoUse);
             loopNumber++;
-            
-            
-            //            switch (loop.loopType)
-            //            {
-            //                case DislocationLoopIO<dim>::GLISSILELOOP:
-            //                {
-            //                    GlidePlaneKey<dim> loopPlaneKey(loop.P, ddBase.poly.grain(loop.grainID).reciprocalLatticeDirection(loop.N));
-            //                    tempLoops.push_back(this->loops().create(loop.B, ddBase.glidePlaneFactory.getFromKey(loopPlaneKey)));
-            //                    assert(this->loops().get(loopIDinFile)->sID == loopIDinFile);
-            //                    loopNumber++;
-            //                    break;
-            //                }
-            //                case DislocationLoopIO<dim>::SESSILELOOP:
-            //                {
-            //                    tempLoops.push_back(this->loops().create(loop.B,loop.grainID,loop.loopType ));
-            //                    assert(this->loops().get(loopIDinFile)->sID == loopIDinFile);
-            //                    loopNumber++;
-            //                    break;
-            //                }
-            //                default:
-            //                    assert(false && "Unknown DislocationLoop type");
-            //                    break;
-            //            }
         }
         
         // Create NetworkNodes
@@ -122,10 +120,10 @@ namespace model
         for(const auto& node : evl.nodes())
         {
             VerboseDislocationNetwork(1,"Creating DislocationNode "<<node.sID<<" ("<<netNodeNumber<<" of "<<evl.nodes().size()<<")"<<std::endl;);
-            const size_t nodeIDinFile(node.sID);
-            NetworkNodeType::set_count(nodeIDinFile);
+            const size_t nodeIDtoUse(node.sID+initialNetworkNodeCount);
+            NetworkNodeType::set_count(nodeIDtoUse);
             tempNetNodes.push_back(this->networkNodes().create(node.P,node.V,node.climbVelocityScalar,node.velocityReduction));
-            assert(this->networkNodes().get(nodeIDinFile)->sID==nodeIDinFile);
+            assert(this->networkNodes().get(nodeIDtoUse)->sID==nodeIDtoUse);
             netNodeNumber++;
         }
         
@@ -135,16 +133,16 @@ namespace model
         for(const auto& node : evl.loopNodes())
         {
             VerboseDislocationNetwork(1,"Creating DislocationLoopNode "<<node.sID<<" ("<<loopNodeNumber<<" of "<<evl.loopNodes().size()<<")"<<std::endl;);
-            const size_t nodeIDinFile(node.sID);
-            LoopNodeType::set_count(nodeIDinFile);
-            const auto loop(this->loops().get(node.loopID));
-            const auto netNode(this->networkNodes().get(node.networkNodeID));
+            const size_t nodeIDtoUse(node.sID+initialLoopNodeCount);
+            LoopNodeType::set_count(nodeIDtoUse);
+            const auto loop(this->loops().get(node.loopID+initialLoopCount));
+            const auto netNode(this->networkNodes().get(node.networkNodeID+initialNetworkNodeCount));
             const auto periodicPatch(loop->periodicGlidePlane? loop->periodicGlidePlane->patches().getFromKey(node.periodicShift) : nullptr);
             const auto periodicPatchEdge((periodicPatch && node.edgeIDs.first>=0)? (node.edgeIDs.second>=0 ? std::make_pair(periodicPatch->edges()[node.edgeIDs.first],
                                                                                                                             periodicPatch->edges()[node.edgeIDs.second]):
                                                                                     std::make_pair(periodicPatch->edges()[node.edgeIDs.first],nullptr)):std::make_pair(nullptr,nullptr));
             tempLoopNodes.push_back(this->loopNodes().create(loop,netNode,node.P,periodicPatch,periodicPatchEdge));
-            assert(this->loopNodes().get(nodeIDinFile)->sID==nodeIDinFile);
+            assert(this->loopNodes().get(nodeIDtoUse)->sID==nodeIDtoUse);
             loopNodeNumber++;
         }
         
@@ -162,27 +160,121 @@ namespace model
             const auto loopFound=loopMap.find(loop.sID); // there must be an entry with key loopID in loopMap
             assert(loopFound!=loopMap.end());
             std::vector<std::shared_ptr<LoopNodeType>> loopNodes;
-            loopNodes.push_back(this->loopNodes().get(loopFound->second.begin()->first));
+            loopNodes.push_back(this->loopNodes().get(loopFound->second.begin()->first+initialLoopNodeCount));
             for(size_t k=0;k<loopFound->second.size();++k)
             {
                 const auto nodeFound=loopFound->second.find(loopNodes.back()->sID);
                 if(k<loopFound->second.size()-1)
                 {
-                    loopNodes.push_back(this->loopNodes().get(nodeFound->second));
+                    loopNodes.push_back(this->loopNodes().get(nodeFound->second+initialLoopNodeCount));
                 }
                 else
                 {
-                    assert(nodeFound->second==loopNodes[0]->sID);
+                    assert(nodeFound->second+initialLoopNodeCount==loopNodes[0]->sID);
                 }
             }
             //        std::cout<<" Inserting loop "<<loop.sID<<std::endl;
-            this->insertLoop(this->loops().get(loop.sID),loopNodes);
+            this->insertLoop(this->loops().get(loop.sID+initialLoopCount),loopNodes);
         }
         updateGeometry();
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim,corder>::updateGeometry()
+    template <int dim>
+    void DislocationNetwork<dim>::setConfiguration(const DDconfigIO<dim>& evl)
+    {
+        DislocationNode<3>::force_count(0);
+        DislocationLoopNode<3>::force_count(0);
+        DislocationLoop<3>::force_count(0);
+        //        EshelbyInclusionBase<3>::force_count(0);
+        
+        this->loopLinks().clear(); // erase base network to clear current config
+        addConfiguration(evl);
+        
+        //        // Create Loops
+        //        std::deque<std::shared_ptr<LoopType>> tempLoops; // keep loops alive during setConfiguration
+        //        size_t loopNumber=1;
+        //        for(const auto& loop : evl.loops())
+        //        {
+        //            const bool faulted(ddBase.poly.grain(loop.grainID)->rationalLatticeDirection(loop.B).rat.asDouble()!=1.0? true : false);
+        //            VerboseDislocationNetwork(1,"Creating DislocationLoop "<<loop.sID<<" ("<<loopNumber<<" of "<<evl.loops().size()<<"), type="<<loop.loopType<<", faulted="<<faulted<<", |b|="<<loop.B.norm()<<std::endl;);
+        //
+        //            //std::cout<<"Creating DislocationLoop "<<loop.sID<<" ("<<loopNumber<<" of "<<evl.loops().size()<<"), type="<<loop.loopType<<", faulted="<<faulted<<", |b|="<<loop.B.norm()<<std::endl;
+        //            const size_t loopIDinFile(loop.sID);
+        //            LoopType::set_count(loopIDinFile);
+        //
+        //            GlidePlaneKey<dim> loopPlaneKey(loop.P, ddBase.poly.grain(loop.grainID)->reciprocalLatticeDirection(loop.N));
+        //            tempLoops.push_back(this->loops().create(loop.B, ddBase.glidePlaneFactory.getFromKey(loopPlaneKey)));
+        //            assert(this->loops().get(loopIDinFile)->sID == loopIDinFile);
+        //            loopNumber++;
+        //        }
+        //
+        //        // Create NetworkNodes
+        //        std::deque<std::shared_ptr<NetworkNodeType>> tempNetNodes; // keep loops alive during setConfiguration
+        //        size_t netNodeNumber=1;
+        //        for(const auto& node : evl.nodes())
+        //        {
+        //            VerboseDislocationNetwork(1,"Creating DislocationNode "<<node.sID<<" ("<<netNodeNumber<<" of "<<evl.nodes().size()<<")"<<std::endl;);
+        //            const size_t nodeIDinFile(node.sID);
+        //            NetworkNodeType::set_count(nodeIDinFile);
+        //            tempNetNodes.push_back(this->networkNodes().create(node.P,node.V,node.climbVelocityScalar,node.velocityReduction));
+        //            assert(this->networkNodes().get(nodeIDinFile)->sID==nodeIDinFile);
+        //            netNodeNumber++;
+        //        }
+        //
+        //        // Create LoopNodes
+        //        std::deque<std::shared_ptr<LoopNodeType>> tempLoopNodes; // keep loops alive during setConfiguration
+        //        size_t loopNodeNumber=1;
+        //        for(const auto& node : evl.loopNodes())
+        //        {
+        //            VerboseDislocationNetwork(1,"Creating DislocationLoopNode "<<node.sID<<" ("<<loopNodeNumber<<" of "<<evl.loopNodes().size()<<")"<<std::endl;);
+        //            const size_t nodeIDinFile(node.sID);
+        //            LoopNodeType::set_count(nodeIDinFile);
+        //            const auto loop(this->loops().get(node.loopID));
+        //            const auto netNode(this->networkNodes().get(node.networkNodeID));
+        //            const auto periodicPatch(loop->periodicGlidePlane? loop->periodicGlidePlane->patches().getFromKey(node.periodicShift) : nullptr);
+        //            const auto periodicPatchEdge((periodicPatch && node.edgeIDs.first>=0)? (node.edgeIDs.second>=0 ? std::make_pair(periodicPatch->edges()[node.edgeIDs.first],
+        //                                                                                                                            periodicPatch->edges()[node.edgeIDs.second]):
+        //                                                                                    std::make_pair(periodicPatch->edges()[node.edgeIDs.first],nullptr)):std::make_pair(nullptr,nullptr));
+        //            tempLoopNodes.push_back(this->loopNodes().create(loop,netNode,node.P,periodicPatch,periodicPatchEdge));
+        //            assert(this->loopNodes().get(nodeIDinFile)->sID==nodeIDinFile);
+        //            loopNodeNumber++;
+        //        }
+        //
+        //        // Insert Loops
+        //        std::map<size_t,std::map<size_t,size_t>> loopMap;
+        //        for(const auto& looplink : evl.loopLinks())
+        //        {// Collect LoopLinks by loop IDs
+        //            loopMap[looplink.loopID].emplace(looplink.sourceID,looplink.sinkID);
+        //        }
+        //        assert(loopMap.size()==evl.loops().size());
+        //
+        //        for(const auto& loop : evl.loops())
+        //        {// for each loop in the DDconfigIO<dim> object
+        //
+        //            const auto loopFound=loopMap.find(loop.sID); // there must be an entry with key loopID in loopMap
+        //            assert(loopFound!=loopMap.end());
+        //            std::vector<std::shared_ptr<LoopNodeType>> loopNodes;
+        //            loopNodes.push_back(this->loopNodes().get(loopFound->second.begin()->first));
+        //            for(size_t k=0;k<loopFound->second.size();++k)
+        //            {
+        //                const auto nodeFound=loopFound->second.find(loopNodes.back()->sID);
+        //                if(k<loopFound->second.size()-1)
+        //                {
+        //                    loopNodes.push_back(this->loopNodes().get(nodeFound->second));
+        //                }
+        //                else
+        //                {
+        //                    assert(nodeFound->second==loopNodes[0]->sID);
+        //                }
+        //            }
+        //            //        std::cout<<" Inserting loop "<<loop.sID<<std::endl;
+        //            this->insertLoop(this->loops().get(loop.sID),loopNodes);
+        //        }
+        //        updateGeometry();
+    }
+
+    template <int dim>
+    void DislocationNetwork<dim>::updateGeometry()
     {
         VerboseDislocationNetwork(2,"DislocationNetwork::updateGeometry"<<std::endl;);
         for(auto& loop : this->loops())
@@ -193,8 +285,8 @@ namespace model
         VerboseDislocationNetwork(3,"DislocationNetwork::updateGeometry DONE"<<std::endl;);
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim,corder>::MatrixDim DislocationNetwork<dim,corder>::averagePlasticDistortion() const
+    template <int dim>
+    typename DislocationNetwork<dim>::MatrixDim DislocationNetwork<dim>::averagePlasticDistortion() const
     {
         MatrixDim temp(MatrixDim::Zero());
         for(const auto& loop : this->loops())
@@ -204,18 +296,27 @@ namespace model
         return temp;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim,corder>::MatrixDim DislocationNetwork<dim,corder>::averagePlasticStrain() const
+    template <int dim>
+    typename DislocationNetwork<dim>::MatrixDim DislocationNetwork<dim>::averagePlasticStrain() const
     {/*!\returns the plastic strain rate tensor generated during the last time step.
       */
         const MatrixDim apd(averagePlasticDistortion());
         return 0.5*(apd+apd.transpose());
     }
 
-    template <int dim, short unsigned int corder>
-    std::map<std::pair<int,int>,double> DislocationNetwork<dim,corder>::slipSystemAveragePlasticDistortion() const
+    template <int dim>
+    std::map<std::pair<int,int>,double> DislocationNetwork<dim>::slipSystemAveragePlasticDistortion() const
     {
         std::map<std::pair<int,int>,double> temp; // <grainID,slipSystemID>
+        for(const auto& grain : ddBase.poly.grains)
+        {
+            for(const auto& slipSystem : grain.second->slipSystems())
+            {
+                const std::pair<int,int> key(std::make_pair(grain.first,slipSystem.second->sID));
+                temp[key]=0.0;
+            }
+        }
+        
         for(const auto& weakloop : this->loops())
         {
             const auto loop(weakloop.second.lock());
@@ -237,8 +338,8 @@ namespace model
         return temp;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim,corder>::MatrixDim DislocationNetwork<dim,corder>::averagePlasticDistortionRate() const
+    template <int dim>
+    typename DislocationNetwork<dim>::MatrixDim DislocationNetwork<dim>::averagePlasticDistortionRate() const
     {
         MatrixDim temp(MatrixDim::Zero());
         for(const auto& loop : this->loops())
@@ -248,16 +349,69 @@ namespace model
         return temp;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim,corder>::MatrixDim DislocationNetwork<dim,corder>::averagePlasticStrainRate() const
+    template <int dim>
+    typename DislocationNetwork<dim>::MatrixDim DislocationNetwork<dim>::averagePlasticStrainRate() const
     {/*!\returns the plastic strain rate tensor generated during the last time step.
       */
         const MatrixDim apdr(averagePlasticDistortionRate());
         return 0.5*(apdr+apdr.transpose());
     }
 
-    template <int dim, short unsigned int corder>
-    std::tuple<double,double,double,double> DislocationNetwork<dim,corder>::networkLength() const
+    template <int dim>
+    std::vector<std::tuple<double,double,double,double>> DislocationNetwork<dim>::networkLengthPerSlipSystem() const
+    {
+        std::vector<std::tuple<double,double,double,double>> temp;
+        
+        if(ddBase.poly.grains.size())
+        {
+            temp.resize(ddBase.poly.grains.begin()->second->slipSystems().size(),std::make_tuple(0.0,0.0,0.0,0.0));
+            //            std::vector<std::tuple<double,double,double,double>> temp(ddBase.poly.grains.begin()->second->slipSystems().size(),std::make_tuple(0.0,0.0,0.0,0.0));
+            for(auto& loop : this->loops())
+            {
+                if(loop.second.lock()->slipSystem())
+                {
+                    const size_t ssID(loop.second.lock()->slipSystem()->sID);
+                    double& bulkGlissileLength(std::get<0>(temp[ssID]));
+                    double& bulkSessileLength(std::get<1>(temp[ssID]));
+                    double& boundaryLength(std::get<2>(temp[ssID]));
+                    double& grainBoundaryLength(std::get<3>(temp[ssID]));
+                    
+                    for(const auto& loopLink : loop.second.lock()->loopLinks())
+                    {
+                        if(loopLink->networkLink())
+                        {
+                            if(!loopLink->networkLink()->hasZeroBurgers())
+                            {
+                                if(loopLink->networkLink()->isBoundarySegment())
+                                {
+                                    boundaryLength+=loopLink->networkLink()->chord().norm();
+                                }
+                                else if(loopLink->networkLink()->isGrainBoundarySegment())
+                                {
+                                    grainBoundaryLength+=loopLink->networkLink()->chord().norm();
+                                }
+                                else
+                                {
+                                    if(loopLink->networkLink()->isSessile())
+                                    {
+                                        bulkSessileLength+=loopLink->networkLink()->chord().norm()/loopLink->networkLink()->loopLinks().size();
+                                    }
+                                    else
+                                    {
+                                        bulkGlissileLength+=loopLink->networkLink()->chord().norm()/loopLink->networkLink()->loopLinks().size();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return temp;
+    }
+
+    template <int dim>
+    std::tuple<double,double,double,double> DislocationNetwork<dim>::networkLength() const
     {/*!\returns the total line length of the DislocationNetwork. The return
       * value is a tuple, where the first value is the length of bulk glissile
       * dislocations, the second value is the length of bulk sessile
@@ -304,21 +458,21 @@ namespace model
     }
 
 
-    template <int dim, short unsigned int corder>
-    const std::shared_ptr<InclusionMicrostructure<dim>>& DislocationNetwork<dim,corder>::inclusions() const
+    template <int dim>
+    const std::shared_ptr<InclusionMicrostructure<dim>>& DislocationNetwork<dim>::inclusions() const
     {
         return _inclusions;
     }
 
-    template <int dim, short unsigned int corder>
-    bool DislocationNetwork<dim,corder>::contract(std::shared_ptr<NetworkNodeType> nA,
-                                                  std::shared_ptr<NetworkNodeType> nB)
+    template <int dim>
+    bool DislocationNetwork<dim>::contract(std::shared_ptr<NetworkNodeType> nA,
+                                           std::shared_ptr<NetworkNodeType> nB)
     {
         return nodeContractor.contract(nA,nB);
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim,corder>::VectorDim DislocationNetwork<dim,corder>::displacement(const VectorDim& x,const NodeType* const,const ElementType* const,const SimplexDim* const) const
+    template <int dim>
+    typename DislocationNetwork<dim>::VectorDim DislocationNetwork<dim>::displacement(const VectorDim& x,const NodeType* const,const ElementType* const,const SimplexDim* const) const
     {/*!\param[in] P position vector
       * \returns The stress field generated by the DislocationNetwork at P
       *
@@ -348,8 +502,8 @@ namespace model
         return temp;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim,corder>::MatrixDim DislocationNetwork<dim,corder>::averageStress() const
+    template <int dim>
+    typename DislocationNetwork<dim>::MatrixDim DislocationNetwork<dim>::averageStress() const
     {/*!\param[in] P position vector
       * \returns The stress field generated by the DislocationNetwork at P
       *
@@ -358,36 +512,36 @@ namespace model
         return MatrixDim::Zero();
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim,corder>::VectorMSize DislocationNetwork<dim,corder>::mobileConcentration(const VectorDim& x, const NodeType* const node, const ElementType* const ele,const SimplexDim* const guess) const
+    template <int dim>
+    typename DislocationNetwork<dim>::VectorMSize DislocationNetwork<dim>::mobileConcentration(const VectorDim& x, const NodeType* const node, const ElementType* const ele,const SimplexDim* const guess) const
     {
         VectorMSize temp(VectorMSize::Zero());
         if(climbSolver)
         {
             const auto pointGrains(this->pointGrains(x,node,ele,guess));
-//            std::set<const Grain<dim>*> pointGrains;
-//            if(node)
-//            {
-//                for(const auto& nodeEle : *node)
-//                {
-//                    pointGrains.emplace(&ddBase.poly.grain(nodeEle->simplex.region->regionID));
-//                }
-//            }
-//            else
-//            {
-//                if(ele)
-//                {
-//                    pointGrains.emplace(&ddBase.poly.grain(ele->simplex.region->regionID));
-//                }
-//                else
-//                {
-//                    const std::pair<bool,const Simplex<dim,dim>*> found(ddBase.mesh.searchWithGuess(x,guess));
-//                    if(found.first)
-//                    {
-//                        pointGrains.emplace(&ddBase.poly.grain(found.second->region->regionID));
-//                    }
-//                }
-//            }
+            //            std::set<const Grain<dim>*> pointGrains;
+            //            if(node)
+            //            {
+            //                for(const auto& nodeEle : *node)
+            //                {
+            //                    pointGrains.emplace(&ddBase.poly.grain(nodeEle->simplex.region->regionID));
+            //                }
+            //            }
+            //            else
+            //            {
+            //                if(ele)
+            //                {
+            //                    pointGrains.emplace(&ddBase.poly.grain(ele->simplex.region->regionID));
+            //                }
+            //                else
+            //                {
+            //                    const std::pair<bool,const Simplex<dim,dim>*> found(ddBase.mesh.searchWithGuess(x,guess));
+            //                    if(found.first)
+            //                    {
+            //                        pointGrains.emplace(&ddBase.poly.grain(found.second->region->regionID));
+            //                    }
+            //                }
+            //            }
             
             if(pointGrains.size())
             {
@@ -404,14 +558,14 @@ namespace model
                                               std::inserter(intersect, intersect.begin()));
                         if(intersect.size()==1)
                         {
-//                            const int grainID((*intersect.begin())->region.regionID);
-//                            StressStraight<3> ss(ddBase.poly,segment->source->get_P(),segment->sink->get_P(),segment->burgers(),ddBase.EwaldLength);
-//                            for(const auto& shift : ddBase.periodicShifts)
-//                            {
-                                temp+=segment->clusterConcentration(x,climbSolver->CD->cdp);
-
-//                                temp+=ss.clusterConcentration(x+shift,grainID, segment->source->climbDirection(), segment->source->climbVelocityScalar , segment->sink->climbDirection(), segment->sink->climbVelocityScalar, climbSolver->CD->cdp);
-//                            }
+                            //                            const int grainID((*intersect.begin())->region.regionID);
+                            //                            StressStraight<3> ss(ddBase.poly,segment->source->get_P(),segment->sink->get_P(),segment->burgers(),ddBase.EwaldLength);
+                            //                            for(const auto& shift : ddBase.periodicShifts)
+                            //                            {
+                            temp+=segment->clusterConcentration(x,climbSolver->CD->cdp);
+                            
+                            //                                temp+=ss.clusterConcentration(x+shift,grainID, segment->source->climbDirection(), segment->source->climbVelocityScalar , segment->sink->climbDirection(), segment->sink->climbVelocityScalar, climbSolver->CD->cdp);
+                            //                            }
                         }
                     }
                 }
@@ -421,8 +575,15 @@ namespace model
     }
 
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim,corder>::MatrixDim DislocationNetwork<dim,corder>::stress(const VectorDim& x,const NodeType* const,const ElementType* const,const SimplexDim* const) const
+    template<int dim>
+    typename DislocationNetwork<dim>::VectorISize DislocationNetwork<dim>::immobileClusters(const VectorDim&,const NodeType* const,const ElementType* const,const SimplexDim* const) const
+    {
+        return VectorISize::Zero();
+    }
+    
+
+    template <int dim>
+    typename DislocationNetwork<dim>::MatrixDim DislocationNetwork<dim>::stress(const VectorDim& x,const NodeType* const,const ElementType* const,const SimplexDim* const) const
     {/*!\param[in] P position vector
       * \returns The stress field generated by the DislocationNetwork at P
       *
@@ -443,14 +604,14 @@ namespace model
         return temp;
     }
 
-    template <int dim, short unsigned int corder>
-    typename DislocationNetwork<dim, corder>::VectorDim DislocationNetwork<dim, corder>::inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const
+    template <int dim>
+    typename DislocationNetwork<dim>::VectorDim DislocationNetwork<dim>::inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const
     {
         return VectorDim::Zero();
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim, corder>::updateConfiguration()
+    template <int dim>
+    void DislocationNetwork<dim>::updateConfiguration()
     {
         this->lastUpdateTime=this->microstructures.ddBase.simulationParameters.totalTime;
         
@@ -467,8 +628,8 @@ namespace model
         updateGeometry();
     }
 
-    template <int dim, short unsigned int corder>
-    double DislocationNetwork<dim, corder>::getDt() const
+    template <int dim>
+    double DislocationNetwork<dim>::getDt() const
     {
         if(isClimbStep())
         {
@@ -482,8 +643,8 @@ namespace model
         }
     }
 
-    template <int dim, short unsigned int corder>
-    bool DislocationNetwork<dim, corder>::isClimbStep() const
+    template <int dim>
+    bool DislocationNetwork<dim>::isClimbStep() const
     {
         if(glideSolver)
         {
@@ -502,19 +663,149 @@ namespace model
         }
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim, corder>::solve()
+template <int dim>
+void DislocationNetwork<dim>::reSolve()
+{
+    
+    const bool isClimbingStep(isClimbStep());
+    if(isClimbingStep)
+    {
+        std::cout<<" climbStep"<<std::flush;
+    }
+    else
+    {
+        std::cout<<" glideStep"<<std::flush;
+    }
+    double maxVelocity = 0.0;
+    for (const auto &nodeIter : this->networkNodes())
+    {
+        const double vNorm(nodeIter.second.lock()->get_V().norm());
+        if (vNorm > maxVelocity)
+        {
+            maxVelocity = vNorm;
+        }
+    }
+    
+#ifdef _OPENMP
+    const size_t nThreads = omp_get_max_threads();
+#else
+    const size_t nThreads = 1;
+#endif
+    
+    //! -1 Compute the interaction StressField between dislocation particles
+    std::map<int, int> velocityBinMap;
+    for (const auto &binVal : subcyclingBins)
+    {
+        velocityBinMap.emplace(binVal, 0);
+    }
+    
+    
+    std::cout <<" ,updating updateForcesAndVelocities (" << nThreads << " threads) " << std::flush;
+#ifdef _OPENMP
+#pragma omp parallel for
+    for (size_t k = 0; k < this->networkLinks().size(); ++k)
+    {
+        auto linkIter(this->networkLinks().begin());
+        std::advance(linkIter, k);
+        const int velGroup((subcyclingBins.size() && !isClimbingStep) ? linkIter->second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
+        
+        if ((ddBase.simulationParameters.runID % velGroup) == 0)
+        {
+            for(auto& qp : linkIter->second.lock()->quadraturePoints())
+            {
+                qp.updateForcesAndVelocities(*linkIter->second.lock(),isClimbingStep);
+            }
+        }
+        //            else
+        //            {
+        //                linkIter->second.lock()->assembleGlide(false);
+        //            }
+    }
+#else
+    for (auto &linkIter : this->networkLinks())
+    {
+        const int velGroup(subcyclingBins.size() ? linkIter.second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
+        
+        if ((ddBase.simulationParameters.runID % velGroup) == 0)
+        {
+            for(auto& qp : linkIter->second.lock()->quadraturePoints())
+            {
+                qp.updateForcesAndVelocities(*linkIter->second.lock(),isClimbingStep);
+            }
+        }
+        //            else
+        //            {
+        //                linkIter.second.lock()->assembleGlide(false);
+        //            }
+    }
+#endif
+    
+    Eigen::VectorXd X(Eigen::VectorXd::Zero(0));
+    if(isClimbingStep)
+    {
+        climbSolver->computeClimbScalarVelocities(false);
+        size_t k=0;
+        for (auto& networkNode : this->networkNodes())
+        {
+            networkNode.second.lock()->climbVelocityScalar=climbSolver->scalarVelocities()[k];
+            ++k;
+        }
+        X=climbSolver->getNodeVelocities();
+    }
+    else
+    {
+        if(glideSolver)
+        {
+            size_t k=0;
+            for (auto& networkNode : this->networkNodes())
+            {
+                networkNode.second.lock()->climbVelocityScalar.setZero();
+                ++k;
+            }
+            X=glideSolver->getNodeVelocities();
+        }
+    }
+    if(int(NdofXnode*this->networkNodes().size())==X.size())
+    {
+        size_t k=0;
+        for (auto& networkNode : this->networkNodes())
+        {
+            networkNode.second.lock()->set_V(X.segment(NdofXnode*k,NdofXnode),isClimbingStep); // double cast to remove some numerical noise
+            ++k;
+        }
+    }
+    else
+    {
+        std::cout<<"NdofXnode*this->networkNodes().size()="<<NdofXnode*this->networkNodes().size()<<std::endl;
+        std::cout<<"vSolver->getNodeVelocities().size()="<<X.size()<<std::endl;
+        throw std::runtime_error("vSolver returned wrong velocity vector size.");
+    }
+    
+    VerboseDislocationNetwork(2,"DislocationNetwork::updateRates"<<std::endl;);
+    for(auto& loop : this->loops())
+    {// copmute slipped areas and right-handed normal // TODO: PARALLELIZE THIS LOOP
+        loop.second.lock()->updateRates();
+    }
+    // updatePlasticDistortionRateFromAreas();
+    VerboseDislocationNetwork(3,"DislocationNetwork::updateRates DONE"<<std::endl;);
+    
+//    storeSingleGlideStepDiscreteEvents(ddBase.simulationParameters.runID);
+    
+}
+
+    template <int dim>
+    void DislocationNetwork<dim>::solve()
     {
         
         const bool isClimbingStep(isClimbStep());
-if(isClimbingStep)
-{
-    std::cout<<" climbStep"<<std::flush;
-}
-else
-{
-    std::cout<<" glideStep"<<std::flush;
-}
+        if(isClimbingStep)
+        {
+            std::cout<<" climbStep"<<std::flush;
+        }
+        else
+        {
+            std::cout<<" glideStep"<<std::flush;
+        }
         double maxVelocity = 0.0;
         for (const auto &nodeIter : this->networkNodes())
         {
@@ -533,109 +824,64 @@ else
         
         //! -1 Compute the interaction StressField between dislocation particles
         std::map<int, int> velocityBinMap;
-        for (const auto &binVal : ddBase.simulationParameters.subcyclingBins)
+        for (const auto &binVal : subcyclingBins)
         {
             velocityBinMap.emplace(binVal, 0);
         }
         
-        if (corder == 0)
-        { // For straight segments use analytical expression of stress field
-            std::cout <<" creating qPoints "<< std::flush;
-            for (const auto &links : this->networkLinks())
-            {
-                
-                const int velGroup((ddBase.simulationParameters.useSubCycling && !isClimbingStep) ? links.second.lock()->velocityGroup(maxVelocity, ddBase.simulationParameters.subcyclingBins) : 1);
-                auto velocityBinIter(velocityBinMap.find(velGroup));
-                assert(velocityBinIter != velocityBinMap.end());
-                velocityBinIter->second++;
-                
-                if ((ddBase.simulationParameters.runID % velGroup) == 0)
-                {
-                    links.second.lock()->createQuadraturePoints(isClimbingStep);
-                }
-            }
+        std::cout <<" creating qPoints "<< std::flush;
+        for (const auto &links : this->networkLinks())
+        {
             
-            std::cout <<" ,updating qPoints (" << nThreads << " threads) " << std::flush;
-    #ifdef _OPENMP
-    #pragma omp parallel for
-            for (size_t k = 0; k < this->networkLinks().size(); ++k)
+            const int velGroup((subcyclingBins.size() && !isClimbingStep) ? links.second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
+            auto velocityBinIter(velocityBinMap.find(velGroup));
+            assert(velocityBinIter != velocityBinMap.end());
+            velocityBinIter->second++;
+            
+            if ((ddBase.simulationParameters.runID % velGroup) == 0)
             {
-                auto linkIter(this->networkLinks().begin());
-                std::advance(linkIter, k);
-                const int velGroup((ddBase.simulationParameters.useSubCycling && !isClimbingStep) ? linkIter->second.lock()->velocityGroup(maxVelocity, ddBase.simulationParameters.subcyclingBins) : 1);
-                
-                if ((ddBase.simulationParameters.runID % velGroup) == 0)
-                {
-                    linkIter->second.lock()->updateQuadraturePoints(isClimbingStep);
-                }
-                //            else
-                //            {
-                //                linkIter->second.lock()->assembleGlide(false);
-                //            }
+                links.second.lock()->createQuadraturePoints(isClimbingStep);
             }
-    #else
-            for (auto &linkIter : this->networkLinks())
-            {
-                const int velGroup(ddBase.simulationParameters.useSubCycling ? linkIter.second.lock()->velocityGroup(maxVelocity, ddBase.simulationParameters.subcyclingBins) : 1);
-                
-                if ((ddBase.simulationParameters.runID % velGroup) == 0)
-                {
-                    linkIter.second.lock()->updateQuadraturePoints(isClimbingStep);
-                }
-                //            else
-                //            {
-                //                linkIter.second.lock()->assembleGlide(false);
-                //            }
-            }
-    #endif
-        }
-        else
-        { // For curved segments use quandrature integration of stress field
-            //        assert(0 && "ALL THIS MUST BE RE-IMPLEMENTED FOR CURVED SEGMENTS");
-            throw std::runtime_error("DislocationNetwork::SolveNodalVelocities not implemented for corder>0.");
         }
         
-        //    const DislocationVelocitySolverBase<DislocationNetwork<dim,corder>>* const vSolver(isClimbingStep? static_cast<const DislocationVelocitySolverBase<DislocationNetwork<dim,corder>>*>(climbSolver.get())
-        //                                                                                                  : static_cast<const DislocationVelocitySolverBase<DislocationNetwork<dim,corder>>*>(glideSolver.get()));
-        //
-        //    if(vSolver)
-        //    {
-        //        const Eigen::VectorXd X(vSolver->getNodeVelocities());
-        //        if(int(NdofXnode*this->networkNodes().size())==X.size())
-        //        {
-        //            size_t k=0;
-        //            for (auto& networkNode : this->networkNodes())
-        //            {
-        ////                std::cout<<X.segment(NdofXnode*k,NdofXnode)<<std::endl;
-        //                networkNode.second.lock()->set_V(X.segment(NdofXnode*k,NdofXnode)); // double cast to remove some numerical noise
-        //                ++k;
-        //            }
-        //        }
-        //        else
-        //        {
-        //            std::cout<<"NdofXnode*this->networkNodes().size()="<<NdofXnode*this->networkNodes().size()<<std::endl;
-        //            std::cout<<"vSolver->getNodeVelocities().size()="<<X.size()<<std::endl;
-        //            throw std::runtime_error("vSolver returned wrong velocity vector size.");
-        //        }
-        //
-        //        VerboseDislocationNetwork(2,"DislocationNetwork::updateRates"<<std::endl;);
-        //        for(auto& loop : this->loops())
-        //        {// copmute slipped areas and right-handed normal // TODO: PARALLELIZE THIS LOOP
-        //            loop.second.lock()->updateRates();
-        //        }
-        //        // updatePlasticDistortionRateFromAreas();
-        //        VerboseDislocationNetwork(3,"DislocationNetwork::updateRates DONE"<<std::endl;);
-        //
-        //    }
-        //    else
-        //    {
-        ////        std::cout<<"No vSolver"<<std::endl;
-        //    }
+        std::cout <<" ,updating qPoints (" << nThreads << " threads) " << std::flush;
+    #ifdef _OPENMP
+    #pragma omp parallel for
+        for (size_t k = 0; k < this->networkLinks().size(); ++k)
+        {
+            auto linkIter(this->networkLinks().begin());
+            std::advance(linkIter, k);
+            const int velGroup((subcyclingBins.size() && !isClimbingStep) ? linkIter->second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
+            
+            if ((ddBase.simulationParameters.runID % velGroup) == 0)
+            {
+                linkIter->second.lock()->updateQuadraturePoints(isClimbingStep);
+            }
+            //            else
+            //            {
+            //                linkIter->second.lock()->assembleGlide(false);
+            //            }
+        }
+    #else
+        for (auto &linkIter : this->networkLinks())
+        {
+            const int velGroup(subcyclingBins.size() ? linkIter.second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
+            
+            if ((ddBase.simulationParameters.runID % velGroup) == 0)
+            {
+                linkIter.second.lock()->updateQuadraturePoints(isClimbingStep);
+            }
+            //            else
+            //            {
+            //                linkIter.second.lock()->assembleGlide(false);
+            //            }
+        }
+    #endif
         
         Eigen::VectorXd X(Eigen::VectorXd::Zero(0));
         if(isClimbingStep)
         {
-            climbSolver->computeClimbScalarVelocities();
+            climbSolver->computeClimbScalarVelocities(true);
             size_t k=0;
             for (auto& networkNode : this->networkNodes())
             {
@@ -685,12 +931,12 @@ else
         
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim,corder>::moveNodes(const double & dt_in)
+    template <int dim>
+    void DislocationNetwork<dim>::moveNodes(const double & dt_in)
     {/*! Moves all nodes in the DislocationNetwork using the stored glide velocity and current dt
       */
         const auto t0= std::chrono::system_clock::now();
-        std::cout<<"Moving DislocationNodes by glide (dt="<<dt_in<< ")... "<<std::flush;
+        std::cout<<"Moving DislocationNodes (dt="<<dt_in<< ")... "<<std::flush;
         danglingBoundaryLoopNodes.clear();
         for(auto& node : this->networkNodes())
         {
@@ -700,15 +946,15 @@ else
         std::cout<<magentaColor<<std::setprecision(3)<<std::scientific<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]."<<defaultColor<<std::endl;
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim,corder>::storeSingleGlideStepDiscreteEvents(const long int&)
+    template <int dim>
+    void DislocationNetwork<dim>::storeSingleGlideStepDiscreteEvents(const long int&)
     {
         crossSlipMaker.findCrossSlipSegments();
         crossSlipMaker.execute(); // this is now performed before moving, since internally it computes forces and velocities on the new segments
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim,corder>::executeSingleGlideStepDiscreteEvents(const long int& runID)
+    template <int dim>
+    void DislocationNetwork<dim>::executeSingleGlideStepDiscreteEvents(const long int& runID)
     {
         
         //    crossSlipMaker.execute();
@@ -723,10 +969,14 @@ else
         networkRemesher.remesh(runID);
         //        updateVirtualBoundaryLoops();
         
+        DislocationNucleation<dim> nucleator(*this);
+        nucleator.bulkNucleate(bulkNucleationModel);
+        nucleator.surfaceNucleate(surfaceNucleationModel);
+        
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim,corder>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
+    template <int dim>
+    void DislocationNetwork<dim>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
     {
         
         for(const auto& loop : this->loops())
@@ -752,37 +1002,6 @@ else
             configIO.nodes().emplace_back(*node.second.lock());
         }
         
-//        for(const auto& node : this->polyhedronInclusionNodes())
-//        {
-//            configIO.polyhedronInclusionNodes().emplace_back(node.second);
-//        }
-//        
-//        // Store Eshelby Inclusions
-//        for(const auto& ei : this->eshelbyInclusions())
-//        {
-//            
-//            auto* sphericalDerived = dynamic_cast<SphericalInclusion<dim>*>(ei.second.get());
-//            if (sphericalDerived)
-//            {
-//                configIO.sphericalInclusions().emplace_back(*sphericalDerived);
-//            }
-//            
-//            auto* polyhedronDerived = dynamic_cast<PolyhedronInclusion<dim>*>(ei.second.get());
-//            if (polyhedronDerived)
-//            {
-//                configIO.polyhedronInclusions().emplace_back(*polyhedronDerived);
-//                for(const auto& face : polyhedronDerived->faces)
-//                {
-//                    for(size_t k=0;k<face.second.size();++k)
-//                    {
-//                        const size_t k1(k<face.second.size()-1? k+1 : 0);
-//                        configIO.polyhedronInclusionEdges().emplace_back(polyhedronDerived->sID,face.first,face.second[k].first,face.second[k1].first);
-//                    }
-//                }
-//            }
-//        }
-        
-        
         // AuxIO
         if (this->outputQuadraturePoints)
         {
@@ -804,6 +1023,27 @@ else
             F_labels<<"sessile density [m^-2]\n";
             F_labels<<"boundary density [m^-2]\n";
             F_labels<<"grain boundary density [m^-2]\n";
+        }
+        
+        if(outputDislocationDensityPerSlipSystem)
+        {
+            const auto ssDen(this->networkLengthPerSlipSystem());
+            for(const auto& tup : ssDen)
+            {
+                f_file<<std::get<0>(tup)*densityFactor<<" "<<std::get<1>(tup)*densityFactor<<" "<<std::get<2>(tup)*densityFactor<<" "<<std::get<3>(tup)*densityFactor<<" ";
+            }
+            
+            if(ddBase.simulationParameters.runID==0)
+            {
+                for(size_t kd=0;kd<ssDen.size();++kd)
+                {
+                    F_labels<<"SlipSystem_"<<kd<<" glissile density [m^-2]\n";
+                    F_labels<<"SlipSystem_"<<kd<<"sessile density [m^-2]\n";
+                    F_labels<<"SlipSystem_"<<kd<<"boundary density [m^-2]\n";
+                    F_labels<<"SlipSystem_"<<kd<<"grain boundary density [m^-2]\n";
+                }
+            }
+            
         }
         
         if(this->outputPlasticDistortionPerSlipSystem)
@@ -842,8 +1082,8 @@ else
         }
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationNetwork<dim,corder>::updateBoundaryNodes()
+    template <int dim>
+    void DislocationNetwork<dim>::updateBoundaryNodes()
     {
         
         /*!Step 1. Before removing populate the junction information
@@ -854,104 +1094,107 @@ else
         for (const auto& ln : this->loopNodes())
         {
             const auto sharedLNptr(ln.second.lock());
-            if (sharedLNptr->periodicPlaneEdge.first)
-            {//Node on a boundary: possible junction is between sharedLNptr->periodicPrev() and sharedLNptr->periodicNext()
-                if (sharedLNptr->networkNode->loopNodes().size()>1)
-                {//junction node
-                    const auto loopsThis (sharedLNptr->networkNode->loopIDs());
-                    
-                    const LoopNodeType *pPrev(sharedLNptr->periodicPrev());
-                    const LoopNodeType *pNext(sharedLNptr->periodicNext());
-                    
-                    
-                    const auto pPrevNetwork (pPrev->networkNode);
-                    const auto pNextNetwork (pNext->networkNode);
-                    
-                    assert(pPrevNetwork!=nullptr);
-                    assert(pNextNetwork!=nullptr);
-                    
-                    const auto loopspPrev(pPrevNetwork->loopIDs());
-                    const auto loopspNext(pNextNetwork->loopIDs());
-                    
-                    std::set<size_t> tempPrev;
-                    std::set<size_t> tempNext;
-                    std::set_intersection(loopspPrev.begin(), loopspPrev.end(), loopsThis.begin(), loopsThis.end(), std::inserter(tempPrev, tempPrev.begin()));
-                    std::set_intersection(loopsThis.begin(), loopsThis.end(), loopspNext.begin(), loopspNext.end(), std::inserter(tempNext, tempNext.begin()));
-                                        
-//                    if (tempPrev!=tempNext)
-//                    {
-//                        std::cout<<"For bnd network node"<<sharedLNptr->networkNode->sID<<" loops are "<<std::flush;
-//                        for (const auto& loop : loopsThis)
-//                        {
-//                            std::cout<<loop<<", ";
-//                        }
-//                        std::cout<<std::endl;
-//                        
-//                        std::cout<<"For prev network node"<<pPrevNetwork->sID<<" loops are "<<std::flush;
-//                        for (const auto& loop : loopspPrev)
-//                        {
-//                            std::cout<<loop<<", ";
-//                        }
-//                        std::cout<<std::endl;
-//                        
-//                        std::cout<<"For next network node"<<pNextNetwork->sID<<" loops are "<<std::flush;
-//                        for (const auto& loop : loopspNext)
-//                        {
-//                            std::cout<<loop<<", ";
-//                        }
-//                        std::cout<<std::endl;
-//                        throw std::runtime_error("BND node must have the same loops as the common loops between the internal nodes");
-//                    }
-//                    else
-//                    {
-//                        if (pPrevNetwork->sID < pNextNetwork->sID)
-//                        {
-//                            networkNodeLoopMap.emplace(std::make_pair(pPrevNetwork, pNextNetwork), tempPrev);
-//                        }
-//                        else
-//                        {
-//                            networkNodeLoopMap.emplace(std::make_pair(pNextNetwork, pPrevNetwork), tempPrev);
-//                        }
-//                    }
-                    
-                    std::set<size_t> tempLoops;
-                    std::set_intersection(tempPrev.begin(), tempPrev.end(), tempNext.begin(), tempNext.end(), std::inserter(tempLoops, tempLoops.begin()));
-                    if(tempLoops.size())
-                    {
-                        if (pPrevNetwork->sID < pNextNetwork->sID)
+            if(sharedLNptr->periodicNext() && sharedLNptr->periodicPrev())
+            {
+                if (sharedLNptr->periodicPlaneEdge.first)
+                {//Node on a boundary: possible junction is between sharedLNptr->periodicPrev() and sharedLNptr->periodicNext()
+                    if (sharedLNptr->networkNode->loopNodes().size()>1)
+                    {//junction node
+                        const auto loopsThis (sharedLNptr->networkNode->loopIDs());
+                        
+                        const LoopNodeType *pPrev(sharedLNptr->periodicPrev());
+                        const LoopNodeType *pNext(sharedLNptr->periodicNext());
+                        
+                        
+                        const auto pPrevNetwork (pPrev->networkNode);
+                        const auto pNextNetwork (pNext->networkNode);
+                        
+                        assert(pPrevNetwork!=nullptr);
+                        assert(pNextNetwork!=nullptr);
+                        
+                        const auto loopspPrev(pPrevNetwork->loopIDs());
+                        const auto loopspNext(pNextNetwork->loopIDs());
+                        
+                        std::set<size_t> tempPrev;
+                        std::set<size_t> tempNext;
+                        std::set_intersection(loopspPrev.begin(), loopspPrev.end(), loopsThis.begin(), loopsThis.end(), std::inserter(tempPrev, tempPrev.begin()));
+                        std::set_intersection(loopsThis.begin(), loopsThis.end(), loopspNext.begin(), loopspNext.end(), std::inserter(tempNext, tempNext.begin()));
+                        
+                        //                    if (tempPrev!=tempNext)
+                        //                    {
+                        //                        std::cout<<"For bnd network node"<<sharedLNptr->networkNode->sID<<" loops are "<<std::flush;
+                        //                        for (const auto& loop : loopsThis)
+                        //                        {
+                        //                            std::cout<<loop<<", ";
+                        //                        }
+                        //                        std::cout<<std::endl;
+                        //
+                        //                        std::cout<<"For prev network node"<<pPrevNetwork->sID<<" loops are "<<std::flush;
+                        //                        for (const auto& loop : loopspPrev)
+                        //                        {
+                        //                            std::cout<<loop<<", ";
+                        //                        }
+                        //                        std::cout<<std::endl;
+                        //
+                        //                        std::cout<<"For next network node"<<pNextNetwork->sID<<" loops are "<<std::flush;
+                        //                        for (const auto& loop : loopspNext)
+                        //                        {
+                        //                            std::cout<<loop<<", ";
+                        //                        }
+                        //                        std::cout<<std::endl;
+                        //                        throw std::runtime_error("BND node must have the same loops as the common loops between the internal nodes");
+                        //                    }
+                        //                    else
+                        //                    {
+                        //                        if (pPrevNetwork->sID < pNextNetwork->sID)
+                        //                        {
+                        //                            networkNodeLoopMap.emplace(std::make_pair(pPrevNetwork, pNextNetwork), tempPrev);
+                        //                        }
+                        //                        else
+                        //                        {
+                        //                            networkNodeLoopMap.emplace(std::make_pair(pNextNetwork, pPrevNetwork), tempPrev);
+                        //                        }
+                        //                    }
+                        
+                        std::set<size_t> tempLoops;
+                        std::set_intersection(tempPrev.begin(), tempPrev.end(), tempNext.begin(), tempNext.end(), std::inserter(tempLoops, tempLoops.begin()));
+                        if(tempLoops.size())
                         {
-                            networkNodeLoopMap.emplace(std::make_pair(pPrevNetwork, pNextNetwork), tempLoops);
-                        }
-                        else
-                        {
-                            networkNodeLoopMap.emplace(std::make_pair(pNextNetwork, pPrevNetwork), tempLoops);
-                        }
-                    }
-                    
-                }
-            }
-            else
-            {//Node not on a boundary: possible junction is between sharedLNptr and sharedLNptr->periodicNext()
-                if (sharedLNptr->networkNode->loopNodes().size()>1)
-                {// a junction node
-                    if (sharedLNptr->boundaryNext().size()==0 && sharedLNptr->periodicNext()->networkNode->loopNodes().size()>1)
-                    {
-                        if (sharedLNptr->periodicPlanePatch()!=sharedLNptr->periodicNext()->periodicPlanePatch())
-                        {// Junction is across boundary
-                            const auto netLink (sharedLNptr->next.second->networkLink());
-                            if(netLink)
+                            if (pPrevNetwork->sID < pNextNetwork->sID)
                             {
-                                std::set<size_t> netLinkLoopIDs (netLink->loopIDs());
-                                if (netLink->loopLinks().size()>=2)
+                                networkNodeLoopMap.emplace(std::make_pair(pPrevNetwork, pNextNetwork), tempLoops);
+                            }
+                            else
+                            {
+                                networkNodeLoopMap.emplace(std::make_pair(pNextNetwork, pPrevNetwork), tempLoops);
+                            }
+                        }
+                        
+                    }
+                }
+                else
+                {//Node not on a boundary: possible junction is between sharedLNptr and sharedLNptr->periodicNext()
+                    if (sharedLNptr->networkNode->loopNodes().size()>1)
+                    {// a junction node
+                        if (sharedLNptr->boundaryNext().size()==0 && sharedLNptr->periodicNext()->networkNode->loopNodes().size()>1)
+                        {
+                            if (sharedLNptr->periodicPlanePatch()!=sharedLNptr->periodicNext()->periodicPlanePatch())
+                            {// Junction is across boundary
+                                const auto netLink (sharedLNptr->next.second->networkLink());
+                                if(netLink)
                                 {
-                                    //a junction node moving out
-                                    if (sharedLNptr->networkNode->sID < sharedLNptr->periodicNext()->networkNode->sID)
+                                    std::set<size_t> netLinkLoopIDs (netLink->loopIDs());
+                                    if (netLink->loopLinks().size()>=2)
                                     {
-                                        networkNodeLoopMap.emplace(std::make_pair(sharedLNptr->networkNode, sharedLNptr->periodicNext()->networkNode), netLinkLoopIDs);
-                                    }
-                                    else
-                                    {
-                                        networkNodeLoopMap.emplace(std::make_pair(sharedLNptr->periodicNext()->networkNode,sharedLNptr->networkNode), netLinkLoopIDs);
+                                        //a junction node moving out
+                                        if (sharedLNptr->networkNode->sID < sharedLNptr->periodicNext()->networkNode->sID)
+                                        {
+                                            networkNodeLoopMap.emplace(std::make_pair(sharedLNptr->networkNode, sharedLNptr->periodicNext()->networkNode), netLinkLoopIDs);
+                                        }
+                                        else
+                                        {
+                                            networkNodeLoopMap.emplace(std::make_pair(sharedLNptr->periodicNext()->networkNode,sharedLNptr->networkNode), netLinkLoopIDs);
+                                        }
                                     }
                                 }
                             }
@@ -1025,7 +1268,7 @@ else
                 
                 if (loopNodesPos.size())
                 {
-                    const auto polyInt(loop->periodicGlidePlane->polygonPatchIntersection(loopNodesPos)); // Note: last element of polyInt is always an internal node
+                    const auto polyInt(loop->periodicGlidePlane->polygonPatchIntersection(loopNodesPos,false)); // Note: last element of polyInt is always an internal node
                     // 2dPos,shift,edgeIDs ,set of edgeiD(all edges crossed),size_t(number of boundary nodes on same loop link after current node),LoopNodeType* (from loopNodesPos if internal, nullptr otherwise)
                     //edges still needed to be traversed will be reverse of the value if junction formation includes link in the opposite direction
                     std::map<const LoopNodeType *, size_t> polyIntMap; // ID of internal loopNodes into polyInt
@@ -1442,10 +1685,9 @@ else
         
     }
 
-    template <int dim, short unsigned int corder>
-    int DislocationNetwork<dim,corder>::verboseDislocationNetwork=0;
+    template <int dim>
+    int DislocationNetwork<dim>::verboseDislocationNetwork=0;
 
-    template class DislocationNetwork<3,0>;
-
+    template class DislocationNetwork<3>;
 }
 #endif

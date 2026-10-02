@@ -8,7 +8,6 @@
 #ifndef model_LatticeDirection_h_
 #define model_LatticeDirection_h_
 
-//#include <LatticeBase.h>
 #include <LatticeVector.h>
 #include <ReciprocalLatticeVector.h>
 #include <LatticeGCD.h>
@@ -16,34 +15,19 @@
 namespace model
 {
     template <int dim>
-    struct LatticeDirection :
-//    /* inherits */ public LatticeGCD<dim>,
-    /* inherits */ public LatticeVector<dim>
+    struct LatticeDirection : public LatticeVector<dim>
     {
         typedef LatticeGCD<dim> LatticeGCDType;
-//        typedef LatticeBase<dim> LatticeBaseType;
         typedef LatticeVector<dim> LatticeVectorType;
         typedef ReciprocalLatticeVector<dim> ReciprocalLatticeVectorType;
         typedef Eigen::Matrix<double,dim,1> VectorDimD;
-        
-//    public:
-        
-        /**********************************************************************/
+        typedef Eigen::Matrix<long int,dim,1> VectorDimI;
+
         LatticeDirection(const LatticeVectorType& v) ;
-        /**********************************************************************/
-        template<typename Derived>
-        LatticeDirection(const Eigen::MatrixBase<Derived>& v,
-                         const Lattice<dim>& lat) ;
-        
-        /**********************************************************************/
+        LatticeDirection(const VectorDimI& v,const Lattice<dim>& lat) ;
         LatticeDirection(const ReciprocalLatticeVectorType& r1,const ReciprocalLatticeVectorType& r2);
-        
-        /**********************************************************************/
         LatticeVectorType snapToLattice(const VectorDimD& dP) const;
-        
-        /**********************************************************************/
-        VectorDimD snapToDirection(const VectorDimD& dP) const;
-        
+        VectorDimD snapToDirection(const VectorDimD& dP) const;        
     };
     
 } // end namespace

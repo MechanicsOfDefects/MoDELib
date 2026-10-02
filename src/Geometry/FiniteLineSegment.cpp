@@ -136,9 +136,6 @@ namespace model
         return 0.5*(P0+P1);
     }
 
-//    template class SegmentSegmentDistance<1>;
-//    template class SegmentSegmentDistance<2>;
-//    template class SegmentSegmentDistance<3>;
     template struct FiniteLineSegment<1>;
     template struct FiniteLineSegment<2>;
     template struct FiniteLineSegment<3>;

@@ -168,12 +168,12 @@ namespace model
 //        }
 //    }
     
-    /**********************************************************************/
-    template<int dim>
-    const std::map<size_t,size_t>& MeshRegion<dim>::parallelFaces() const
-    {
-        return _parallelFaces;
-    }
+//    /**********************************************************************/
+//    template<int dim>
+//    const std::map<size_t,size_t>& MeshRegion<dim>::parallelFaces() const
+//    {
+//        return _parallelFaces;
+//    }
     
     /**********************************************************************/
     template<int dim>

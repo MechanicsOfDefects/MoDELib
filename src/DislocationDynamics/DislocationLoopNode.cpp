@@ -13,10 +13,10 @@
 namespace model
 {
     
-    template <int dim, short unsigned int corder>
-    DislocationLoopNode<dim,corder>::DislocationLoopNode(typename DislocationLoopNode<dim,corder>::LoopNetworkType* const net,
-                                                                           const std::shared_ptr<typename DislocationLoopNode<dim,corder>::LoopType>& loop,
-                                                                           const std::shared_ptr<typename DislocationLoopNode<dim,corder>::NetworkNodeType>& networkNode,
+    template <int dim>
+    DislocationLoopNode<dim>::DislocationLoopNode(typename DislocationLoopNode<dim>::LoopNetworkType* const net,
+                                                                           const std::shared_ptr<typename DislocationLoopNode<dim>::LoopType>& loop,
+                                                                           const std::shared_ptr<typename DislocationLoopNode<dim>::NetworkNodeType>& networkNode,
                                                                            const VectorDim& P,
                                                                            const std::shared_ptr<PeriodicPlanePatch<dim>>& patch_in,
                                                                            const std::pair<const std::shared_ptr<PeriodicPlaneEdge<dim>>,const std::shared_ptr<PeriodicPlaneEdge<dim>>>& edge_in
@@ -38,10 +38,10 @@ namespace model
         
     }
 
-    template <int dim, short unsigned int corder>
-    DislocationLoopNode<dim,corder>::DislocationLoopNode(typename DislocationLoopNode<dim,corder>::LoopNetworkType* const net,
-                                                                           const std::shared_ptr<typename DislocationLoopNode<dim,corder>::LoopType>& loop,
-                                                                           const std::shared_ptr<typename DislocationLoopNode<dim,corder>::NetworkNodeType>& networkNode,
+    template <int dim>
+    DislocationLoopNode<dim>::DislocationLoopNode(typename DislocationLoopNode<dim>::LoopNetworkType* const net,
+                                                                           const std::shared_ptr<typename DislocationLoopNode<dim>::LoopType>& loop,
+                                                                           const std::shared_ptr<typename DislocationLoopNode<dim>::NetworkNodeType>& networkNode,
                                                                            const LoopLinkType* const loopLink) :
     /* init */ LoopNode<DislocationLoopNode>(net,loop,networkNode)
     /* init */,SplineNodeType(loopLink->periodicPlanePatch()? networkNode->get_P()-loopLink->periodicPlanePatch()->shift : networkNode->get_P())
@@ -52,35 +52,35 @@ namespace model
         
     }
     
-    template <int dim, short unsigned int corder>
-    bool DislocationLoopNode<dim,corder>::isContractableTo(const LoopNodeType* const other) const
+    template <int dim>
+    bool DislocationLoopNode<dim>::isContractableTo(const LoopNodeType* const other) const
     {
         return LoopNode<LoopNodeType>::isContractableTo(other) && _periodicPlanePatch==other->periodicPlanePatch();
     }
 
     
-    template <int dim, short unsigned int corder>
-    std::shared_ptr<DislocationLoopNode<dim,corder>> DislocationLoopNode<dim,corder>::clone(const std::shared_ptr<typename DislocationLoopNode<dim,corder>::LoopType>& otherLoop,
-                                                                                                                                const std::shared_ptr<typename DislocationLoopNode<dim,corder>::NetworkNodeType>& otherNetworkNode) const
+    template <int dim>
+    std::shared_ptr<DislocationLoopNode<dim>> DislocationLoopNode<dim>::clone(const std::shared_ptr<typename DislocationLoopNode<dim>::LoopType>& otherLoop,
+                                                                                                                                const std::shared_ptr<typename DislocationLoopNode<dim>::NetworkNodeType>& otherNetworkNode) const
     {
-        return std::shared_ptr<DislocationLoopNode<dim,corder>>(new DislocationLoopNode(this->p_network(),otherLoop,otherNetworkNode,this->get_P(),_periodicPlanePatch,periodicPlaneEdge));
+        return std::shared_ptr<DislocationLoopNode<dim>>(new DislocationLoopNode(this->p_network(),otherLoop,otherNetworkNode,this->get_P(),_periodicPlanePatch,periodicPlaneEdge));
     }
     
-    template <int dim, short unsigned int corder>
-    void DislocationLoopNode<dim,corder>::initFromFile(const std::string& fileName)
+    template <int dim>
+    void DislocationLoopNode<dim>::initFromFile(const std::string& fileName)
     {
         verboseDislocationLoopNode=TextFileParser(fileName).readScalar<int>("verboseDislocationLoopNode",false);
     }
 
-    template <int dim, short unsigned int corder>
-    const DislocationLoopNode<dim,corder>* DislocationLoopNode<dim,corder>::periodicPrev() const
+    template <int dim>
+    const DislocationLoopNode<dim>* DislocationLoopNode<dim>::periodicPrev() const
     {
         if (this->prev.first)
         {
             auto currentPrev(this->prev.first);
-            while (currentPrev->periodicPlaneEdge.first) //First is sufficient
+            while (currentPrev->periodicPlaneEdge.first && currentPrev->periodicPlaneEdge.first->twin) //First is sufficient
             {
-                if (currentPrev == this)   //This if statement can return the current node as periodicPrev. Discuss this with Dr. Po
+                if (currentPrev == this)
                 {
                     return nullptr;
                 }
@@ -89,35 +89,32 @@ namespace model
             return currentPrev;
         }
         return nullptr;
-
     }
     
-    template <int dim, short unsigned int corder>
-    const DislocationLoopNode<dim,corder>* DislocationLoopNode<dim,corder>::periodicNext() const
+    template <int dim>
+    const DislocationLoopNode<dim>* DislocationLoopNode<dim>::periodicNext() const
     {
-         auto currentNext(this->next.first);
-        if (currentNext)
+        if (this->next.first)
         {
-            while (currentNext->periodicPlaneEdge.first)
+            auto currentNext(this->next.first);
+            while (currentNext->periodicPlaneEdge.first && currentNext->periodicPlaneEdge.first->twin)
             {
-                if (currentNext == this)  //This if statement can return the current node as periodicNext. Discuss this with Dr. Po
+                if (currentNext == this)
                 {
                     return nullptr;
                 }
                 currentNext = currentNext->next.first;
-
             }
             return currentNext;
         }
         return nullptr;
-
     }
     
-    template <int dim, short unsigned int corder>
-    std::vector<DislocationLoopNode<dim,corder>*> DislocationLoopNode<dim,corder>::boundaryPrev() const
+    template <int dim>
+    std::vector<DislocationLoopNode<dim>*> DislocationLoopNode<dim>::boundaryPrev() const
     {
         assert(!this->periodicPlaneEdge.first);
-        std::vector<DislocationLoopNode<dim,corder>*> temp;
+        std::vector<DislocationLoopNode<dim>*> temp;
         if (this->prev.first)
         {
             auto currentPrev(this->prev.first);
@@ -130,11 +127,11 @@ namespace model
         return temp;
     }
     
-    template <int dim, short unsigned int corder>
-    std::vector<DislocationLoopNode<dim,corder>*> DislocationLoopNode<dim,corder>::boundaryNext() const
+    template <int dim>
+    std::vector<DislocationLoopNode<dim>*> DislocationLoopNode<dim>::boundaryNext() const
     {
                 assert(!this->periodicPlaneEdge.first);
-        std::vector<DislocationLoopNode<dim,corder>*> temp;
+        std::vector<DislocationLoopNode<dim>*> temp;
         if (this->next.first)
         {
             auto currentNext(this->next.first);
@@ -148,8 +145,8 @@ namespace model
         return temp;
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationLoopNode<dim,corder>::set_P(const typename DislocationLoopNode<dim,corder>::VectorLowerDim& newP)
+    template <int dim>
+    void DislocationLoopNode<dim>::set_P(const typename DislocationLoopNode<dim>::VectorLowerDim& newP)
     {
        VerboseDislocationLoopNode(2,"DislocationLoopNode "<<this->tag()<<" set_P (lowerDim)"<<std::endl;);
         assert(periodicPlaneEdge.first);
@@ -186,8 +183,8 @@ namespace model
 
 //Yash's Version temporary
 
-    // template <int dim, short unsigned int corder>
-    // void DislocationLoopNode<dim,corder>::set_P(const typename DislocationLoopNode<dim,corder>::VectorLowerDim& newP)
+    // template <int dim>
+    // void DislocationLoopNode<dim>::set_P(const typename DislocationLoopNode<dim>::VectorLowerDim& newP)
     // {
     //     VerboseDislocationLoopNode(2,"DislocationLoopNode "<<this->tag()<<" set_P (lowerDim)"<<std::endl;);
     //     assert(periodicPlaneEdge);
@@ -200,8 +197,8 @@ namespace model
     // }
 
     
-    template <int dim, short unsigned int corder>
-    void DislocationLoopNode<dim,corder>::set_P(const typename DislocationLoopNode<dim,corder>::VectorDim& newP)
+    template <int dim>
+    void DislocationLoopNode<dim>::set_P(const typename DislocationLoopNode<dim>::VectorDim& newP)
     {
        VerboseDislocationLoopNode(2,"DislocationLoopNode "<<this->tag()<<" set_P "<<std::endl;);
 
@@ -398,20 +395,20 @@ namespace model
         }
     }
     
-    template <int dim, short unsigned int corder>
-    std::shared_ptr<PeriodicPlanePatch<dim>> DislocationLoopNode<dim,corder>::periodicPlanePatch() const
+    template <int dim>
+    std::shared_ptr<PeriodicPlanePatch<dim>> DislocationLoopNode<dim>::periodicPlanePatch() const
     {
         return _periodicPlanePatch;
     }
 
-    template <int dim, short unsigned int corder>
-    void DislocationLoopNode<dim,corder>::updateGeometry()
+    template <int dim>
+    void DislocationLoopNode<dim>::updateGeometry()
     {
 
     }
 
-    template <int dim, short unsigned int corder>
-    bool DislocationLoopNode<dim,corder>::isGeometricallyRemovable(const double &Lmin,const double &Lmax,const double& relAreaTh)
+    template <int dim>
+    bool DislocationLoopNode<dim>::isGeometricallyRemovable(const double &Lmin,const double &Lmax,const double& relAreaTh)
     {
         const auto pPrev(periodicPrev());
         const auto pNext(periodicNext());
@@ -460,167 +457,9 @@ namespace model
         }
     }
     
-//Updated Version for allowing for the removal of twinned loopNode only (This version has worked very well (Reached 1% strain with both FR source and circular loops))
-//Boundary node accumulation for annihilation at the boundary    
-    // template <int dim, short unsigned int corder>
-    // std::pair<bool,size_t> DislocationLoopNode<dim, corder>::isRemovable(const double &Lmin, const double &relAreaTh)
-    // {
-    //     //The pair will be populated as follows:
-    //     //If the node is removable and it does not have a twin the pair will contain the same node
-    //     //Otherwise it will contrain the twin (in the removal then we have to remove both the current node and twin)
-
-    //     VerboseDislocationLoopNode(2, " Checking if DislocationLoopNode " << this->tag() << " is removable " << std::endl;);
-    //     if (periodicPlaneEdge)
-    //     { // a boundary node
-    //         VerboseDislocationLoopNode(2, "  DislocationLoopNode " << this->tag() << " onPlaneEdge" << std::endl;);
-    //         // const auto pPrev(periodicPrev());
-    //         // const auto pNext(periodicNext());
-    //         // if (pPrev && pNext)
-    //         // {
-    //         //     VerboseDislocationLoopNode(2, "  DislocationLoopNode " << this->tag() << " NOT removable (both periodicPrev and periodicNext exist)" << std::endl;);
-    //         //     return std::make_pair(false,0);
-    //         // }
-    //         // else
-    //         // {
-    //         //     VerboseDislocationLoopNode(2, "  DislocationLoopNode " << this->tag() << "  removable (periodicPrev and periodicNext do not exist)" << std::endl;);
-    //         //     return std::make_pair(true,this->sID);
-    //         // }
-    //             VerboseDislocationLoopNode(2, "  DislocationLoopNode " << this->tag() << " NOT removable (on Edge)" << std::endl;);
-    //             return std::make_pair(false,0);
-
-    //     }
-    //     else
-    //     { // not a boundary node
-    //         VerboseDislocationLoopNode(2, " Dislocation LoopNode Not on Boundary " << std::endl;);
-
-    //         const auto pPrev(periodicPrev());
-    //         const auto pNext(periodicNext());
-    //         // if ((pPrev->get_P() - pNext->get_P()).norm() < this->network().networkRemesher.Lmax)
-    //         // {
-    //         if (pPrev && pNext)
-    //         {
-    //             if (this->networkNode->loopNodes().size() == 1)
-    //             {
-    //                 if ((pPrev->get_P() - pNext->get_P()).norm() < this->network().networkRemesher.Lmax &&
-    //                     isGeometricallyRemovable(Lmin, relAreaTh))
-    //                 {
-    //                     return std::make_pair(true,this->sID);
-    //                 }
-    //                 else
-    //                 {
-    //                     return std::make_pair(false,0);
-    //                 }
-    //             }
-    //             else if (this->networkNode->loopNodes().size() >= 2)
-    //             {
-    //                 const auto prevTwin(this->prev.second->twinnedLink());
-    //                 const auto nextTwin(this->next.second->twinnedLink());
-
-    //                 if (prevTwin && nextTwin)
-    //                 {
-
-    //                     if (prevTwin->loop == nextTwin->loop && (prevTwin->periodicPlanePatch() == nextTwin->periodicPlanePatch()))
-    //                    {
-    //                         //Check based on neighbors of the networkNode
-    //                         //Here the other node will be inserted
-    //                         size_t prevtwinID((prevTwin->source->networkNode==this->networkNode)? prevTwin->source->sID : prevTwin->sink->sID);
-    //                         size_t nexttwinID((nextTwin->source->networkNode==this->networkNode)? nextTwin->source->sID : nextTwin->sink->sID);
-    //                         // if (prevtwinID!=nexttwinID)
-    //                         // {
-    //                         //     // prevTwin->loop->printLoop();
-    //                         //     std::cout<<"Prev twin->tag() "<<prevTwin->tag()<<std::endl;
-    //                         //     std::cout<<"Next twin->tag() "<<nextTwin->tag()<<std::endl;
-
-    //                         //     std::cout<<" Current node id "<<this->tag()<<std::endl;
-    //                         //     std::cout<<" PrevTwin tag "<<((prevTwin->source->networkNode==this->networkNode)? prevTwin->source->tag() : prevTwin->sink->tag())<<std::endl;
-    //                         //     std::cout<<" NextTwin tag "<<((nextTwin->source->networkNode==this->networkNode)? nextTwin->source->tag() : nextTwin->sink->tag())<<std::endl;
-
-    //                         //     std::cout<<" PrevTwin periodicPrev "<<((prevTwin->source->networkNode==this->networkNode)? prevTwin->source->periodicPrev()->tag() : prevTwin->sink->periodicPrev()->tag())<<std::endl;
-    //                         //     std::cout<<" NextTwin periodicNext "<<((nextTwin->source->networkNode==this->networkNode)? nextTwin->source->periodicNext()->tag() : nextTwin->sink->periodicNext()->tag())<<std::endl;
-
-    //                         // }
-    //                         // assert((prevtwinID==nexttwinID) && "LoopNode mismatch in the removal of the nodes 0B nodes");
-    //                         // return std::make_pair(true,prevtwinID);
-
-    //                         if (prevtwinID==nexttwinID)
-    //                         {
-    //                             return std::make_pair(true,prevtwinID);
-    //                         }
-    //                         else
-    //                         {
-    //                             // prevTwin->loop->printLoop();
-    //                             std::cout << "Prev twin->tag() " << prevTwin->tag() << std::endl;
-    //                             std::cout << "Next twin->tag() " << nextTwin->tag() << std::endl;
-
-    //                             std::cout << " Current node id " << this->tag() << std::endl;
-    //                             std::cout << " PrevTwin tag " << ((prevTwin->source->networkNode == this->networkNode) ? prevTwin->source->tag() : prevTwin->sink->tag()) << std::endl;
-    //                             std::cout << " NextTwin tag " << ((nextTwin->source->networkNode == this->networkNode) ? nextTwin->source->tag() : nextTwin->sink->tag()) << std::endl;
-
-    //                             std::cout << " PrevTwin periodicPrev " << ((prevTwin->source->networkNode == this->networkNode) ? prevTwin->source->periodicPrev()->tag() : prevTwin->sink->periodicPrev()->tag()) << std::endl;
-    //                             std::cout << " NextTwin periodicNext " << ((nextTwin->source->networkNode == this->networkNode) ? nextTwin->source->periodicNext()->tag() : nextTwin->sink->periodicNext()->tag()) << std::endl;
-
-    //                             assert(false && "LoopNode mismatch in the removal of the nodes 0B nodes");
-    //                             return std::make_pair(false,0);
-    //                         }
-                            
-    //                     }
-    //                     // else
-    //                     // {
-    //                         //This is not valid for the case of junctions with different loops
-    //                         //In one case it is becoming removable but for the other node it is not removable
-    //                     //     if ((pPrev->get_P() - pNext->get_P()).norm() < this->network().networkRemesher.Lmax)
-    //                     //     {
-    //                     //         //Geometrically Removable condition should be checked for all the loop nodes corresponding to this network node
-    //                     //         bool tempRemovable(true);
-    //                     //         for (const auto &loopN : this->networkNode->loopNodes())
-    //                     //         {
-    //                     //             const auto LoopNpPrev(periodicPrev());
-    //                     //             const auto LoopNpNext(periodicNext());
-
-    //                     //             if (LoopNpPrev && LoopNpNext)
-    //                     //             {
-    //                     //                 tempRemovable *= (loopN->isGeometricallyRemovable(Lmin, FLT_EPSILON) &&
-    //                     //                                   (LoopNpPrev->get_P() - LoopNpNext->get_P()).norm() < this->network().networkRemesher.Lmax);
-    //                     //             }
-    //                     //         }
-    //                     //         return std::make_pair(tempRemovable,this->sID);
-    //                     //     }
-    //                     //     else
-    //                     //     {
-    //                     //         return std::make_pair(false,0);
-    //                     //     }
-    //                     // }
-    //                     else
-    //                     {
-    //                         return std::make_pair(false, 0);
-    //                     }
-    //                 }
-    //                 else
-    //                 {
-    //                     return std::make_pair(false,0);
-    //                 }
-    //             }
-    //             else
-    //             {
-    //                 return std::make_pair(false,0);
-    //             }
-    //         }
-    //         else
-    //         {
-    //             return std::make_pair(false,0);
-    //         }
-
-    //         // }
-    //         // else
-    //         // {
-    //         //     return false;
-    //         // }
-    //     }
-    // }
-
     //Version which can classiy the boundary nodes as well...
-    template <int dim, short unsigned int corder>
-    std::pair<bool,size_t> DislocationLoopNode<dim, corder>::isRemovable(const double &Lmin,const double &Lmax, const double &relAreaTh)
+    template <int dim>
+    std::pair<bool,size_t> DislocationLoopNode<dim>::isRemovable(const double &Lmin,const double &Lmax, const double &relAreaTh)
     {
        //The pair will be populated as follows:
         //If the node is removable and it does not have a twin the pair will contain the same node
@@ -765,8 +604,8 @@ namespace model
         }
     }
 
-    template <int dim, short unsigned int corder>
-    bool DislocationLoopNode<dim,corder>::isMovableTo(const VectorDim& X) const
+    template <int dim>
+    bool DislocationLoopNode<dim>::isMovableTo(const VectorDim& X) const
     {
        VerboseDislocationLoopNode(4,"checking if DislocationLoopNode "<<this->sID<< " isMovable:"<<std::endl;);
 
@@ -789,9 +628,9 @@ namespace model
         return isMovable;
     }
     
-    template <int dim, short unsigned int corder>
-    int DislocationLoopNode<dim,corder>::verboseDislocationLoopNode=0;
+    template <int dim>
+    int DislocationLoopNode<dim>::verboseDislocationLoopNode=0;
 
-    template class DislocationLoopNode<3,0>;
+    template class DislocationLoopNode<3>;
 }
 #endif

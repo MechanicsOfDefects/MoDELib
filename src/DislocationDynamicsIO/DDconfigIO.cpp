@@ -73,7 +73,6 @@ template <int dim>
 DDconfigIO<dim>::DDconfigIO(const std::string& folderName) :
 /* init */ DDbaseIO(folderName,"evl")
 {
-    
 }
 
 template <int dim>

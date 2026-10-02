@@ -18,6 +18,10 @@
 #include <GaussLegendre_2_1.h>
 #include <GaussLegendre_2_3.h>
 #include <GaussLegendre_2_4.h>
+#include <GaussLegendre_2_12.h>
+#include <GaussLegendre_2_13.h>
+#include <GaussLegendre_2_16.h>
+#include <GaussLegendre_2_19.h>
 #include <GaussLegendre_2_37.h>
  
 #endif 

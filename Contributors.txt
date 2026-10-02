@@ -35,3 +35,4 @@ David Cereceda Senas <david.cereceda@villanova.edu>
 Thomas Swinburne <swinburne@cinam.univ-mrs.fr>
 Amit Acharya <acharyaamit@cmu.edu>
 Michael Mahler <michael.mahler@kit.edu>
+Jonathan Amodeo <jonathan.amodeo@cnrs.fr>

@@ -63,11 +63,11 @@ namespace model
         {// both lines are degenerate
             if(A0A1.squaredNorm()<FLT_EPSILON)
             {
-                return std::make_tuple(INCIDENT,0.5*(A0+A1),VectorDimD::Zero());
+                return std::make_tuple(INCIDENT,0.5*(A0+A1),0.5*(A0+A1),0.0,0.0);
             }
             else
             {
-                return std::make_tuple(SKEW,A0,A1);
+                return std::make_tuple(SKEW,A0,A1,0.0,0.0);
             }
         }
         else if(normD0<FLT_EPSILON && normD1>=FLT_EPSILON)
@@ -76,11 +76,11 @@ namespace model
             const VectorDimD x(A1+u1*d1);
             if((x-A0).squaredNorm()<FLT_EPSILON)
             {
-                return std::make_tuple(INCIDENT,0.5*(A0+x),VectorDimD::Zero());
+                return std::make_tuple(INCIDENT,0.5*(A0+x),0.5*(A0+x),0.0,u1);
             }
             else
             {
-                return std::make_tuple(SKEW,A0,x);
+                return std::make_tuple(SKEW,A0,x,0.0,u1);
             }
         }
         else if(normD0>=FLT_EPSILON && normD1<FLT_EPSILON)
@@ -89,11 +89,11 @@ namespace model
             const VectorDimD x(A0+u0*d0);
             if((x-A1).squaredNorm()<FLT_EPSILON)
             {
-                return std::make_tuple(INCIDENT,0.5*(A1+x),VectorDimD::Zero());
+                return std::make_tuple(INCIDENT,0.5*(A1+x),0.5*(A1+x),u0,0.0);
             }
             else
             {
-                return std::make_tuple(SKEW,x,A1);
+                return std::make_tuple(SKEW,x,A1,u0,0.0);
             }
         }
         else
@@ -116,27 +116,27 @@ namespace model
                 const VectorDimD x1(A1+u1*d1);
                 if((x0-x1).squaredNorm()<FLT_EPSILON)
                 {
-                    return std::make_tuple(INCIDENT,x0,x1);
+                    return std::make_tuple(INCIDENT,x0,x1,u0,u1);
                 }
                 else
                 {
-                    return std::make_tuple(SKEW,x0,x1);
+                    return std::make_tuple(SKEW,x0,x1,u0,u1);
                 }
             }
             else
             {// A solution could not be found. This means parallel or coincident lines
                 const double A0A1norm(A0A1.norm());
-                if(A0A1norm<FLT_EPSILON)
+                if(A0A1norm<FLT_EPSILON) // this condition is unnecessary
                 {
-                    return std::make_tuple(COINCIDENT,A0,A1);
+                    return std::make_tuple(COINCIDENT,A0,A1,0.0,0.0);
                 }
                 else if(fabs(fabs(d0.dot(A0A1))-A0A1norm)<FLT_EPSILON)
                 {// coi
-                    return std::make_tuple(COINCIDENT,A0,A1);
+                    return std::make_tuple(COINCIDENT,A0,A1,0.0,0.0);
                 }
                 else
                 {
-                    return std::make_tuple(PARALLEL,A0,A1);
+                    return std::make_tuple(PARALLEL,A0,A1,0.0,0.0);
                 }
 //                        if(fabs(num0)<FLT_EPSILON && fabs(num1)<FLT_EPSILON)
 //                        {
@@ -158,10 +158,12 @@ namespace model
                          const VectorDimD& D0,
                          const VectorDimD& A1,
                          const VectorDimD& D1) :
-    /* init */ sol(findIntersections(A0,D0,A1,D1)),
-    /* init */ type(std::get<0>(sol)),
-    /* init */ x0(std::get<1>(sol)),
-    /* init */ x1(std::get<2>(sol))
+    /* init */ sol(findIntersections(A0,D0,A1,D1))
+    /* init */,type(std::get<0>(sol))
+    /* init */,x0(std::get<1>(sol))
+    /* init */,x1(std::get<2>(sol))
+    /* init */,u0(std::get<3>(sol))
+    /* init */,u1(std::get<4>(sol))
     {
         
     }

@@ -36,10 +36,11 @@ namespace model
         // u=(P0-v0).n/(v1-v0).n;
         const double edgeNorm=(v1-v0).norm();
         if(edgeNorm<FLT_EPSILON)
-        {
-            if(fabs((P0-0.5*(v0+v1)).dot(n))<FLT_EPSILON)
+        {// segment is degenerate (point)
+            const VectorDimD vM(0.5*(v0+v1));
+            if(fabs((P0-vM).dot(n))<FLT_EPSILON)
             {
-                return std::make_tuple(INCIDENT,v0,v1);
+                return std::make_tuple(INCIDENT,vM,vM);
             }
             else
             {
@@ -118,6 +119,8 @@ namespace model
         
     }
 
+    template struct PlaneSegmentIntersection<1>;
+    template struct PlaneSegmentIntersection<2>;
     template struct PlaneSegmentIntersection<3>;
 }
 #endif

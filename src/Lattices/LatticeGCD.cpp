@@ -14,7 +14,6 @@
 namespace model
 {
 
-    /**********************************************************************/
     template <int dim>
     long int LatticeGCD<dim>::gcd(const long int &a, const long int &b)
     {
@@ -23,19 +22,18 @@ namespace model
         return absB > 0 ? gcd(absB, absA % absB) : (absA > 0 ? absA : 1);
     }
 
-    /**********************************************************************/
     template <int dim>
     long int LatticeGCD<dim>::gcd(const long int &a, const long int &b, const long int &c)
     {
         return gcd(a, gcd(b, c));
     }
 
-    /**********************************************************************/
     template <int dim>
     long int LatticeGCD<dim>::gcd(const VectorDimI &v)
     {
         return gcd(v(0), v(1), v(2));
     }
+
     template struct LatticeGCD<3>;
 } // end namespace
 #endif

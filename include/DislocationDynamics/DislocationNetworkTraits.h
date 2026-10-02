@@ -26,22 +26,22 @@ namespace model
     
     /************************************************************/
     /*	Class Predeclarations ***********************************/
-    template <int dim, short unsigned int corder>
+    template <int dim>
     class DislocationNetwork;
     
-    template <int dim, short unsigned int corder>
+    template <int dim>
     class DislocationLoop;
     
-    template <int dim, short unsigned int corder>
+    template <int dim>
     class DislocationLoopNode;
     
-    template <int dim, short unsigned int corder>
+    template <int dim>
     class DislocationLoopLink;
     
-    template <int dim, short unsigned int corder>
+    template <int dim>
     class DislocationNode;
     
-    template <int dim, short unsigned int corder>
+    template <int dim>
     class DislocationSegment;
     
     template <typename DislocationNetworkType>
@@ -55,17 +55,16 @@ namespace model
     
     /********************************************************************/
     /*	DislocationNetworkTraitsBase: a base class for Dislocation Network Traits */
-    template <int _dim, short unsigned int _corder>
+    template <int _dim>
     struct DislocationNetworkTraitsBase
     {
         static constexpr int dim=_dim;
-        static constexpr int corder=_corder;
-        typedef DislocationNetwork   <dim,corder>	LoopNetworkType;
-        typedef DislocationLoop      <dim,corder> LoopType;
-        typedef DislocationLoopNode  <dim,corder>	LoopNodeType;
-        typedef DislocationLoopLink  <dim,corder> LoopLinkType;
-        typedef DislocationNode      <dim,corder> NetworkNodeType;
-        typedef DislocationSegment   <dim,corder>	NetworkLinkType;
+        typedef DislocationNetwork   <dim>	LoopNetworkType;
+        typedef DislocationLoop      <dim> LoopType;
+        typedef DislocationLoopNode  <dim>	LoopNodeType;
+        typedef DislocationLoopLink  <dim> LoopLinkType;
+        typedef DislocationNode      <dim> NetworkNodeType;
+        typedef DislocationSegment   <dim>	NetworkLinkType;
         
         
         typedef LatticeVector<dim> LatticeVectorType;
@@ -91,29 +90,29 @@ namespace model
         
     };
     
-    template <int dim, short unsigned int corder>
-    struct TypeTraits<DislocationNetwork<dim,corder> > :
-    public DislocationNetworkTraitsBase <dim,corder>{};
+    template <int dim>
+    struct TypeTraits<DislocationNetwork<dim> > :
+    public DislocationNetworkTraitsBase <dim>{};
     
-    template <int dim, short unsigned int corder>
-    struct TypeTraits<DislocationLoop<dim,corder> > :
-    public DislocationNetworkTraitsBase <dim,corder>{};
+    template <int dim>
+    struct TypeTraits<DislocationLoop<dim> > :
+    public DislocationNetworkTraitsBase <dim>{};
     
-    template <int dim, short unsigned int corder>
-    struct TypeTraits<DislocationLoopNode<dim,corder> > :
-    public DislocationNetworkTraitsBase <dim,corder>{};
+    template <int dim>
+    struct TypeTraits<DislocationLoopNode<dim> > :
+    public DislocationNetworkTraitsBase <dim>{};
     
-    template <int dim, short unsigned int corder>
-    struct TypeTraits<DislocationLoopLink<dim,corder> > :
-    public DislocationNetworkTraitsBase <dim,corder>{};
+    template <int dim>
+    struct TypeTraits<DislocationLoopLink<dim> > :
+    public DislocationNetworkTraitsBase <dim>{};
     
-    template <int dim, short unsigned int corder>
-    struct TypeTraits<DislocationNode<dim,corder> > :
-    public DislocationNetworkTraitsBase <dim,corder>{};
+    template <int dim>
+    struct TypeTraits<DislocationNode<dim> > :
+    public DislocationNetworkTraitsBase <dim>{};
     
-    template <int dim, short unsigned int corder>
-    struct TypeTraits<DislocationSegment<dim,corder> > :
-    public DislocationNetworkTraitsBase <dim,corder>{};
+    template <int dim>
+    struct TypeTraits<DislocationSegment<dim> > :
+    public DislocationNetworkTraitsBase <dim>{};
     
 } // namespace model
 #endif

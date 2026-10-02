@@ -8,7 +8,6 @@
 #ifndef model_ReciprocalLatticeDirection_h_
 #define model_ReciprocalLatticeDirection_h_
 
-//#include <LatticeBase.h>
 #include <LatticeVector.h>
 #include <ReciprocalLatticeVector.h>
 #include <LatticeGCD.h>
@@ -23,21 +22,11 @@ namespace model
         typedef LatticeVector<dim> LatticeVectorType;
         typedef ReciprocalLatticeVector<dim> ReciprocalLatticeVectorType;
         typedef Eigen::Matrix<double,dim,1> VectorDimD;
-        /**********************************************************************/
+        typedef Eigen::Matrix<long int,dim,1> VectorDimI;
+        
         ReciprocalLatticeDirection(const ReciprocalLatticeVectorType& v) ;
-        
-        /**********************************************************************/
-        template<typename Derived>
-        ReciprocalLatticeDirection(const Eigen::MatrixBase<Derived>& v,
-                                   const Lattice<dim>& lat) :
-        /* base init */ ReciprocalLatticeVectorType(((v.squaredNorm()==0)? v : (v/LatticeGCD<dim>::gcd(v)).eval()),lat)
-        {
-            //            assert(this->squaredNorm() && "ReciprocalLatticeDirection has Zero Norm");
-        }
-        
-        /**********************************************************************/
-        ReciprocalLatticeDirection(const LatticeVectorType& v1,const LatticeVectorType& v2);
-        
+        ReciprocalLatticeDirection(const VectorDimI& v,const Lattice<dim>& lat);
+        ReciprocalLatticeDirection(const LatticeVectorType& v1,const LatticeVectorType& v2);        
     };
     
 } // end namespace

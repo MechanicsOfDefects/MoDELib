@@ -25,7 +25,7 @@ namespace model
         
         
         typedef Eigen::Matrix<double,dim,1> VectorDimD;
-        typedef std::tuple<IntersectionType,VectorDimD,VectorDimD> SolutionType;
+        typedef std::tuple<IntersectionType,VectorDimD,VectorDimD,double,double> SolutionType;
         
     private:
         const SolutionType sol;
@@ -41,6 +41,8 @@ namespace model
         const IntersectionType& type;
         const VectorDimD& x0;
         const VectorDimD& x1;
+        const double& u0;
+        const double& u1;
         
         /**********************************************************************/
         LineLineIntersection(const VectorDimD& A0,

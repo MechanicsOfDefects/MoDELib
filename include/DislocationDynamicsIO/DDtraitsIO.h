@@ -25,7 +25,7 @@ namespace model
         const std::string evlFolder;
         const std::string auxFolder;
         const std::string fFolder;
-        const std::string ddFile;
+        const std::string dcFile;
         const std::string fFile;
         const std::string flabFile;
         const std::string polyFile;

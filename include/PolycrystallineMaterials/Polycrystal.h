@@ -27,22 +27,15 @@
 #include <Grain.h>
 #include <GrainBoundary.h>
 #include <LatticeVector.h>
-//#include <StressStraight.h>
-//#include <GrainBoundaryType.h>
-//#include <GlidePlane.h>
 #include <TextFileParser.h>
-//#include <PolycrystallineMaterial.h>
-//#include <DislocationMobilityFCC.h>
-//#include <DislocationMobilityBCC.h>
 
 namespace model
 {
-    
-    
-    
     template <int dim>
     class Polycrystal : public  PolycrystallineMaterialBase
     {
+    public:
+
         typedef SimplicialMesh<dim> SimplicialMeshType;
         typedef MeshRegion<dim> MeshRegionType;
         typedef MeshRegionObserver<MeshRegionType> MeshRegionObserverType;
@@ -51,37 +44,29 @@ namespace model
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         typedef Grain<dim> GrainType;
         typedef GrainBoundary<dim> GrainBoundaryType;
-        
-        std::map<size_t,GrainType> getGrains(const std::string& polyFile) const;
+        typedef std::map<size_t,std::shared_ptr<Grain<dim>>> GrainContainerType;
+
+    private:
+        GrainContainerType getGrains(const std::string& polyFile) const;
         std::map<std::pair<size_t,size_t>,const GrainBoundaryType* const> getGrainBoundaries() const;
-
-//        const std::map<size_t,GrainType>& grains() const;
-
         double getAtomicVolume() const;
                 
     public:
-        
         const SimplicialMeshType& mesh;
-        const std::map<size_t,Grain<dim>> grains;
+        const std::map<size_t,std::shared_ptr<Grain<dim>>> grains;
         const std::map<std::pair<size_t,size_t>,const GrainBoundaryType* const> grainBoundaries;
         const double Omega;
         
         Polycrystal(const std::string& polyFile,const SimplicialMeshType& mesh_in);
-//        GrainType& grain(const size_t& k);
-        const GrainType& grain(const size_t& k) const;
-//        std::map<std::pair<size_t,size_t>,GrainBoundaryType>& grainBoundaries();
-//        const std::map<std::pair<size_t,size_t>,GrainBoundaryType>& grainBoundaries() const;
+        const std::shared_ptr<GrainType>& grain(const size_t& k) const;
         const GrainBoundaryType& grainBoundary(const size_t& i,const size_t& j) const;
-//        GrainBoundaryType& grainBoundary(const size_t& i,const size_t& j);
         LatticeVectorType latticeVectorFromPosition(const VectorDim& p, const Simplex<dim,dim>* const guess) const;
         LatticeVectorType latticeVectorFromPosition(const VectorDim& p) const;
         ReciprocalLatticeVectorType reciprocalLatticeVectorFromPosition(const VectorDim& p,const Simplex<dim,dim>* const guess) const;
         ReciprocalLatticeVectorType reciprocalLatticeVectorFromPosition(const VectorDim& p) const;
         VectorDim randomPoint() const;
         std::pair<LatticeVector<dim>,int> randomLatticePointInMesh() const;
-        
     };
-    
 }
 #endif
 

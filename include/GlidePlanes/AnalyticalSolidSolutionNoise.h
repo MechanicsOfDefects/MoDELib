@@ -51,6 +51,7 @@ namespace model
 
         AnalyticalSolidSolutionNoise(const std::string& tag, const int& seed,
                                     const GridSizeType& gridSize, const GridSpacingType& gridSpacing,
+                                     const Eigen::Matrix<double,2,2>& latticeBasis,
                                      const double& a_in,const double& a_Cai_in,const double& MSSS);
         
         std::array<COMPLEX,2> kCorrelations(const Eigen::Matrix<double,3,1>& kv,const Eigen::Matrix<int,3,1>& kvID) const override;

@@ -39,16 +39,15 @@ namespace model
 
     template <int dim>
     class DDconfigIO : public DDbaseIO
-    /*              */,private std::vector<DislocationNodeIO<dim> >
-    /*              */,private std::vector<DislocationLoopIO<dim> >
-    /*              */,private std::vector<DislocationLoopNodeIO<dim> >
-    /*              */,private std::vector<DislocationLoopLinkIO<dim> >
+    /*              */,private std::vector<DislocationNodeIO<dim>>
+    /*              */,private std::vector<DislocationLoopIO<dim>>
+    /*              */,private std::vector<DislocationLoopNodeIO<dim>>
+    /*              */,private std::vector<DislocationLoopLinkIO<dim>>
     /*              */,private std::vector<SphericalInclusionIO<dim>>
     /*              */,private std::vector<PolyhedronInclusionIO<dim>>
     /*              */,private std::vector<PolyhedronInclusionNodeIO<dim>>
     /*              */,private std::vector<PolyhedronInclusionEdgeIO>
     {
-        
         
         std::map<size_t,const size_t> _loopNodeMap;
         std::map<size_t,const size_t> _nodeMap;
@@ -58,12 +57,12 @@ namespace model
         typedef Eigen::Matrix<double,Eigen::Dynamic,2*dim> DispMatrixType; // elastic and diffusive displacement
         CDMatrixType _cdMatrix;
         DispMatrixType _dispMatrix;
-
+        
     public:
         
-//        DDconfigIO(const std::string& folderName,const std::string& suffix="");
+        //        DDconfigIO(const std::string& folderName,const std::string& suffix="");
         DDconfigIO(const std::string& folderName);
-
+        
         void clear();
         const std::vector<DislocationNodeIO<dim> >& nodes() const;
         std::vector<DislocationNodeIO<dim> >& nodes();
@@ -105,7 +104,7 @@ namespace model
         std::map<size_t,std::vector<size_t>> loopNodeSequence() const;
         void finalize();
         void print() const;
-
+        
         //        std::map<std::pair<size_t,size_t>,std::set<size_t> > segmentloopMap() const
         //        {
         //
@@ -139,9 +138,7 @@ namespace model
         //            return temp;
         //        }
         
-        
-        
-};
+    };
 
 }
 #endif

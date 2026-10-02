@@ -44,8 +44,8 @@ std::shared_ptr<DislocationGlideSolverBase<DislocationNetworkType>> DislocationG
     
 }
     
-    template struct DislocationGlideSolverBase<DislocationNetwork<3,0>>;
-    template struct DislocationGlideSolverFactory<DislocationNetwork<3,0>>;
+    template struct DislocationGlideSolverBase<DislocationNetwork<3>>;
+    template struct DislocationGlideSolverFactory<DislocationNetwork<3>>;
 
 }
 #endif

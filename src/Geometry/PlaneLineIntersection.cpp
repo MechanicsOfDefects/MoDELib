@@ -86,6 +86,8 @@ namespace model
         
     }
 
+template struct PlaneLineIntersection<1>;
+template struct PlaneLineIntersection<2>;
     template struct PlaneLineIntersection<3>;
         
 } /* namespace model */

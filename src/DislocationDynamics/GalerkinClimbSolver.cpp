@@ -80,19 +80,25 @@ namespace model
     }
 
     template <typename DislocationNetworkType>
-    void GalerkinClimbSolver<DislocationNetworkType>::computeClimbScalarVelocities()
+    void GalerkinClimbSolver<DislocationNetworkType>::computeClimbScalarVelocities(const bool& updateStiffness)
     {
         std::cout<<", climbSolver "<<std::flush;
-        computeClimbScalarVelocitiesBulk();
+        computeClimbScalarVelocitiesBulk(updateStiffness);
     }
 
     template <typename DislocationNetworkType>
-    void GalerkinClimbSolver<DislocationNetworkType>::computeClimbScalarVelocitiesBulk()
+    void GalerkinClimbSolver<DislocationNetworkType>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
     {
-//        std::vector<std::vector<Eigen::Triplet<double>>> lhsT(mSize);
-        std::vector<Eigen::VectorXd> Fc(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
-        std::vector<Eigen::VectorXd> KKc(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
+//        std::vector<Eigen::VectorXd> Fc(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
+//        std::vector<Eigen::VectorXd> KKc(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
 //        bool useLumpedSolver(true);
+        //        std::vector<std::vector<Eigen::Triplet<double>>> lhsT(mSize);
+
+        Fc.assign(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
+        if(updateStiffness)
+        {
+            KKc.assign(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
+        }
         
 #ifdef _OPENMP
         const size_t nThreads(omp_get_max_threads());
@@ -132,18 +138,20 @@ namespace model
                     const size_t i0(fieldLink.second.lock()->source->gID());
                     const size_t i1(fieldLink.second.lock()->  sink->gID());
                     
-                    const ForceVectorMatrixType fc(clusterForceVector(*fieldLink.second.lock()));
+                    const ForceVectorMatrixType fc(clusterForceVector(*fieldLink.second.lock())); // TODO: this is being calculated multiple times for different species
                     for(int kc=0; kc<mSize; ++kc)
                     {
-//#ifdef _OPENMP
-//#pragma omp critical
-//#endif
-//                        {
-                            Fc_ref[kc](i0)+=fc(0,kc);
-                            Fc_ref[kc](i1)+=fc(1,kc);
-//                        }
+                        //#ifdef _OPENMP
+                        //#pragma omp critical
+                        //#endif
+                        //                        {
+                        Fc_ref[kc](i0)+=fc(0,kc);
+                        Fc_ref[kc](i1)+=fc(1,kc);
+                        //                        }
                     }
                     
+                    if(updateStiffness)
+                    {
                     for(const auto& sourceLink : this->DN.networkLinks())
                     {// sum line-integral part of displacement field per segment
                         if(   !sourceLink.second.lock()->hasZeroBurgers()
@@ -160,67 +168,68 @@ namespace model
                             {
                                 const Eigen::Matrix<double,2,2> kccs(kcc.template block<2,2>(2*kc,0));
                                 
-//                                if(useLumpedSolver)
-//                                {
-//#ifdef _OPENMP
-//#pragma omp critical
-//#endif
-//                                    {
-                                        KKc_ref[kc](i0)+=0.5*kccs(0,0)+0.5*kccs(0,1);
-                                        KKc_ref[kc](j0)+=0.5*kccs(0,0)+0.5*kccs(1,0);
-                                        KKc_ref[kc](i1)+=0.5*kccs(1,0)+0.5*kccs(1,1);
-                                        KKc_ref[kc](j1)+=0.5*kccs(0,1)+0.5*kccs(1,1);
-
-                                        
-                                        //lhsT[kc].emplace_back(i0,i0,0.5*kccs(0,0));
-                                        //lhsT[kc].emplace_back(j0,j0,0.5*kccs(0,0));
-                                        
-                                        //lhsT[kc].emplace_back(i0,i0,0.5*kccs(0,1));
-//                                        lhsT[kc].emplace_back(j1,j1,0.5*kccs(0,1));
-                                        
-//                                        lhsT[kc].emplace_back(i1,i1,0.5*kccs(1,0));
-                                        //lhsT[kc].emplace_back(j0,j0,0.5*kccs(1,0));
-                                        
-  //                                      lhsT[kc].emplace_back(i1,i1,0.5*kccs(1,1));
-//                                        lhsT[kc].emplace_back(j1,j1,0.5*kccs(1,1));
-//                                    }
-//                                }
-//                                else
-//                                {
-//                                    const bool forceSym(true);// at the moment we need to symmtrize, since numerical intgration on fieldLink is not equivalent to analytical integration on sourceLink
-//                                    if(forceSym)
-//                                    {
-//#ifdef _OPENMP
-//#pragma omp critical
-//#endif
-//                                        {
-//                                            lhsT[kc].emplace_back(i0,j0,0.5*kccs(0,0));
-//                                            lhsT[kc].emplace_back(i0,j1,0.5*kccs(0,1));
-//                                            lhsT[kc].emplace_back(i1,j0,0.5*kccs(1,0));
-//                                            lhsT[kc].emplace_back(i1,j1,0.5*kccs(1,1));
-//                                            
-//                                            lhsT[kc].emplace_back(j0,i0,0.5*kccs(0,0));
-//                                            lhsT[kc].emplace_back(j1,i0,0.5*kccs(0,1));
-//                                            lhsT[kc].emplace_back(j0,i1,0.5*kccs(1,0));
-//                                            lhsT[kc].emplace_back(j1,i1,0.5*kccs(1,1));
-//                                        }
-//                                    }
-//                                    else
-//                                    {
-//#ifdef _OPENMP
-//#pragma omp critical
-//#endif
-//                                        {
-//                                            lhsT[kc].emplace_back(i0,j0,kccs(0,0));
-//                                            lhsT[kc].emplace_back(i0,j1,kccs(0,1));
-//                                            lhsT[kc].emplace_back(i1,j0,kccs(1,0));
-//                                            lhsT[kc].emplace_back(i1,j1,kccs(1,1));
-//                                        }
-//                                    }
-//                                }
+                                //                                if(useLumpedSolver)
+                                //                                {
+                                //#ifdef _OPENMP
+                                //#pragma omp critical
+                                //#endif
+                                //                                    {
+                                KKc_ref[kc](i0)+=0.5*kccs(0,0)+0.5*kccs(0,1);
+                                KKc_ref[kc](j0)+=0.5*kccs(0,0)+0.5*kccs(1,0);
+                                KKc_ref[kc](i1)+=0.5*kccs(1,0)+0.5*kccs(1,1);
+                                KKc_ref[kc](j1)+=0.5*kccs(0,1)+0.5*kccs(1,1);
+                                
+                                
+                                //lhsT[kc].emplace_back(i0,i0,0.5*kccs(0,0));
+                                //lhsT[kc].emplace_back(j0,j0,0.5*kccs(0,0));
+                                
+                                //lhsT[kc].emplace_back(i0,i0,0.5*kccs(0,1));
+                                //                                        lhsT[kc].emplace_back(j1,j1,0.5*kccs(0,1));
+                                
+                                //                                        lhsT[kc].emplace_back(i1,i1,0.5*kccs(1,0));
+                                //lhsT[kc].emplace_back(j0,j0,0.5*kccs(1,0));
+                                
+                                //                                      lhsT[kc].emplace_back(i1,i1,0.5*kccs(1,1));
+                                //                                        lhsT[kc].emplace_back(j1,j1,0.5*kccs(1,1));
+                                //                                    }
+                                //                                }
+                                //                                else
+                                //                                {
+                                //                                    const bool forceSym(true);// at the moment we need to symmtrize, since numerical intgration on fieldLink is not equivalent to analytical integration on sourceLink
+                                //                                    if(forceSym)
+                                //                                    {
+                                //#ifdef _OPENMP
+                                //#pragma omp critical
+                                //#endif
+                                //                                        {
+                                //                                            lhsT[kc].emplace_back(i0,j0,0.5*kccs(0,0));
+                                //                                            lhsT[kc].emplace_back(i0,j1,0.5*kccs(0,1));
+                                //                                            lhsT[kc].emplace_back(i1,j0,0.5*kccs(1,0));
+                                //                                            lhsT[kc].emplace_back(i1,j1,0.5*kccs(1,1));
+                                //
+                                //                                            lhsT[kc].emplace_back(j0,i0,0.5*kccs(0,0));
+                                //                                            lhsT[kc].emplace_back(j1,i0,0.5*kccs(0,1));
+                                //                                            lhsT[kc].emplace_back(j0,i1,0.5*kccs(1,0));
+                                //                                            lhsT[kc].emplace_back(j1,i1,0.5*kccs(1,1));
+                                //                                        }
+                                //                                    }
+                                //                                    else
+                                //                                    {
+                                //#ifdef _OPENMP
+                                //#pragma omp critical
+                                //#endif
+                                //                                        {
+                                //                                            lhsT[kc].emplace_back(i0,j0,kccs(0,0));
+                                //                                            lhsT[kc].emplace_back(i0,j1,kccs(0,1));
+                                //                                            lhsT[kc].emplace_back(i1,j0,kccs(1,0));
+                                //                                            lhsT[kc].emplace_back(i1,j1,kccs(1,1));
+                                //                                        }
+                                //                                    }
+                                //                                }
                             }
                         }
                     }
+                }
                 }
             }
 #ifdef _OPENMP
@@ -230,15 +239,19 @@ namespace model
                 for(int kc=0; kc<mSize; ++kc)
                 {
                     Fc[kc]+=FcT[thread][kc];
-                    KKc[kc]+=KKcT[thread][kc];
+                    if(updateStiffness)
+                    {
+                        KKc[kc]+=KKcT[thread][kc];
+                    }
 //                    lhsT[kc].insert(lhsT[kc].end(), lhsTV[thread][kc].begin(), lhsTV[thread][kc].end());
                 }
             }
 #endif
         
 //        Eigen::SparseMatrix<double> Kcc(this->DN.networkNodes().size(),this->DN.networkNodes().size());
+
+        // Lumped solver
         std::vector<Eigen::Array<double,1,mSize>> nodeV(this->DN.networkNodes().size(),Eigen::Array<double,1,mSize>::Zero());
-        
         for(int kc=0; kc<mSize; ++kc)
         {
 //            Kcc.setFromTriplets(lhsT[kc].begin(),lhsT[kc].end());
@@ -253,6 +266,8 @@ namespace model
 //                Eigen::VectorXd Kccd(Kcc.diagonal());
                 for (size_t n=0; n<this->DN.networkNodes().size(); n++)
                 {
+//                    std::cout<<"kc="<<kc<<std::endl;
+//                    std::cout<<"Node "<<n<<" Fc="<<Fc[kc](n)<<", KKc="<<KKc[kc](n)<<std::endl;
                     if(std::fabs(KKc[kc](n))>FLT_EPSILON)
                     {
                         nodeV[n](kc)=Fc[kc](n)/KKc[kc](n);
@@ -292,7 +307,7 @@ namespace model
         return getNodeVelocitiesBulk()+getNodeVelocitiesPipe();
     }
 
-    template class GalerkinClimbSolver<DislocationNetwork<3,0>>;
+    template class GalerkinClimbSolver<DislocationNetwork<3>>;
 
 }
 #endif

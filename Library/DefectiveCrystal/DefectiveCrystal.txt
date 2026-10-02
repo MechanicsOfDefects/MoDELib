@@ -1,0 +1,12 @@
+######################################
+# GENERAL SETTINGS
+physics=none;
+useFEM=1; # enables/disables FEM throughout MoDELib
+Nsteps=10;		# total number of simulation steps
+dtMax=1e35; # max dt in b/cs
+maxResolveSteps=0;
+startAtTimeStep = -1;  # time step for restart. -1 means last available step in file F/F_0.txt
+periodicImageSize= 0 0 0; # number of images for each periodic shift vector
+EwaldLengthFactor=0;
+outputFrequency=1;
+outputBinary=0;

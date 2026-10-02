@@ -52,7 +52,7 @@ namespace model
             return T;
         }
         
-        FixedDirichletSolver(const bool& use_directSolver_in,const double& tol):
+        FixedDirichletSolver(const bool& use_directSolver_in, const double& tol):
         /* init */ dirichletConditions(nullptr)
         /* init */,dofVector(nullptr)
         /* init */,gSize(0)

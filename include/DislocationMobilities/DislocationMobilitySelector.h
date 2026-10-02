@@ -8,28 +8,38 @@
 #ifndef _model_DislocationMobilitySelector_h_
 #define _model_DislocationMobilitySelector_h_
 
+#include <string>
+#include <memory>
+#include <DislocationMobility.h>
 #include <DislocationMobilityBase.h>
-#include <DislocationMobilityFCC.h>
-#include <DislocationMobilityBCC.h>
-#include <DislocationMobilityHEXbasal.h>
-#include <DislocationMobilityHEXprismatic.h>
-#include <DislocationMobilityHEXpyramidal.h>
-#include <DislocationMobilityPy.h>
+//#include <DislocationMobilityFCC.h>
+//#include <DislocationMobilityBCC.h>
+//#include <DislocationMobilityHEXbasal.h>
+//#include <DislocationMobilityHEXprismatic.h>
+//#include <DislocationMobilityHEXpyramidal.h>
+//#include <DislocationMobilityPy.h>
 
 namespace model
 {
     
-    /**************************************************************************/
-    /**************************************************************************/
     struct DislocationMobilitySelector
     {
         
-        const std::string defaultStr;
+//        const std::string defaultStr;
+//        
+//        DislocationMobilitySelector(const std::string& defaultStr_in);
+//                
+//        std::shared_ptr<DislocationMobilityBase> getMobility(const std::string& dislocationMobilityType,
+//                                                             const PolycrystallineMaterialBase& material) const;
         
-        DislocationMobilitySelector(const std::string& defaultStr_in);
+//        DislocationMobilitySelector(const std::string& inputStr);
                 
-        std::shared_ptr<DislocationMobilityBase> getMobility(const std::string& dislocationMobilityType,
-                                                             const PolycrystallineMaterialBase& material) const;
+        std::shared_ptr<DislocationMobility> getMobility(const PolycrystallineMaterialBase& material,
+                                                         const std::string& tag) const;
+        
+        std::shared_ptr<DislocationMobilityBase> getMobilityBase(const PolycrystallineMaterialBase& material,
+                                                                 const std::string& tag) const;
+
         
     };
     

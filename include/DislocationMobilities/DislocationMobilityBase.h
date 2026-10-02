@@ -5,8 +5,8 @@
  * GNU General Public License (GPL) v2 <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _model_DislocationMobility_h_
-#define _model_DislocationMobility_h_
+#ifndef _model_DislocationMobilityBase_h_
+#define _model_DislocationMobilityBase_h_
 
 #include <iostream>
 #include <random>
@@ -25,8 +25,6 @@
 namespace model
 {
     
-    /**************************************************************************/
-    /**************************************************************************/
     struct StochasticForceGenerator
     {
         typedef std::default_random_engine T;
@@ -34,10 +32,8 @@ namespace model
         std::vector<std::normal_distribution<double>> distributions;
         const int stochasticForceSeed;
         const int seed;
-        /**********************************************************************/
+
         StochasticForceGenerator(const DDtraitsIO& traitsIO);
-        
-        /**********************************************************************/
         double stochasticVelocity(const double& kB,
                                const double& T,
                                const double& B,
@@ -46,31 +42,31 @@ namespace model
         
     };
     
-    /**************************************************************************/
-    /**************************************************************************/
     struct DislocationMobilityBase : public StaticID<DislocationMobilityBase>
-//    				, public StochasticForceGenerator
     {
         typedef Eigen::Matrix<double,3,3> MatrixDim;
         typedef Eigen::Matrix<double,3,1> VectorDim;
+        
+        static constexpr double kB_SI=1.38064852e-23; // Boltzmann constant in SI units [J/K]
         const std::string name;
 
         
-        /**********************************************************************/
         DislocationMobilityBase(const std::string& name_in) ;
         
-        /**********************************************************************/
         virtual ~DislocationMobilityBase(){};
         
-        /**********************************************************************/
         virtual double velocity(const MatrixDim& S,
                                 const VectorDim& b,
-                                const VectorDim& , // xi
                                 const VectorDim& n,
                                 const double& T,
                                 const double& dL,
                                 const double& dt,
-                                const std::shared_ptr<StochasticForceGenerator>& sfg) =0 ;
+                                const std::shared_ptr<StochasticForceGenerator>& sfg) const =0 ;
+        
+        double velocity(const MatrixDim& S,
+                        const VectorDim& b,
+                        const VectorDim& n,
+                        const double& T) const ;
         
     };
     

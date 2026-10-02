@@ -43,7 +43,7 @@ namespace model
         void buildFaces();
         
         MeshRegionObserverType& regionObserver;
-        std::map<size_t,size_t> _parallelFaces;
+//        std::map<size_t,size_t> _parallelFaces;
         
     public:
         const size_t regionID;
@@ -54,7 +54,7 @@ namespace model
         ~MeshRegion();
         void update();
 //        void identifyParallelFaces(const std::set<int>&);
-        const std::map<size_t,size_t>& parallelFaces() const;
+//        const std::map<size_t,size_t>& parallelFaces() const;
         const std::set<const SimplexType*>& simplices() const;
         std::set<const SimplexType*>& simplices();
         const MeshFacesContainerType& faces() const;

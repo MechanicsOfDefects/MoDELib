@@ -38,6 +38,7 @@ namespace model
         typedef Eigen::Matrix<double,dim,dim> MatrixDim;
         typedef Eigen::Matrix<double,dim,1>   VectorDim;
         typedef Eigen::Matrix<double,mSize,1> VectorMSize;
+        typedef Eigen::Matrix<double,iSize,1> VectorISize;
 
         MicrostructureBase(const std::string& tag_in,MicrostructureContainer<dim>& m_in);
         virtual ~MicrostructureBase() = default;
@@ -53,6 +54,7 @@ namespace model
 
         virtual void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) = 0;
         virtual void solve() = 0;
+        virtual void reSolve() = 0;
         virtual double getDt() const = 0;
         virtual void output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const = 0;
         virtual void updateConfiguration() = 0;
@@ -63,6 +65,7 @@ namespace model
         virtual MatrixDim averageStress() const = 0;
         virtual VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const = 0;
         virtual VectorMSize mobileConcentration(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const = 0;
+        virtual VectorISize immobileClusters(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const = 0;
 
         Eigen::Matrix<double,Eigen::Dynamic,dim> displacement(Eigen::Ref<const Eigen::Matrix<double,Eigen::Dynamic,dim>>) const;
         std::vector<Eigen::Matrix<double,dim,dim>> stress(Eigen::Ref<const Eigen::Matrix<double,Eigen::Dynamic,dim>>) const;

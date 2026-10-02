@@ -27,15 +27,15 @@
 
 namespace model
 {
-    template <int dim, short unsigned int corder>
-    class DislocationSegment : public NetworkLink<DislocationSegment<dim,corder>>
-    /*                      */,public SplineSegment<dim,corder>
-    /*                      */,public DislocationQuadraturePointContainer<dim,corder>
+    template <int dim>
+    class DislocationSegment : public NetworkLink<DislocationSegment<dim>>
+    /*                      */,public SplineSegment<dim,0>
+    /*                      */,public DislocationQuadraturePointContainer<dim>
     {
         
     public:
         
-        typedef TypeTraits<DislocationSegment<dim,corder>> TraitsType;
+        typedef TypeTraits<DislocationSegment<dim>> TraitsType;
         typedef typename TraitsType::LoopNetworkType LoopNetworkType;
         typedef typename TraitsType::LoopType LoopType;
         typedef typename TraitsType::LoopNodeType LoopNodeType;
@@ -47,7 +47,7 @@ namespace model
         typedef typename TraitsType::MatrixDim MatrixDim;
         typedef typename TraitsType::MeshLocation MeshLocation;
 //        typedef ConfinedDislocationObject<dim> ConfinedDislocationObjectType;
-        typedef SplineSegment<dim,corder> SplineSegmentType;
+        typedef SplineSegment<dim,0> SplineSegmentType;
         typedef typename SplineSegmentType::VectorNdof VectorNdof;
         typedef typename SplineSegmentType::MatrixNdof MatrixNdof;
         typedef typename SplineSegmentType::VectorNcoeff VectorNcoeff;
@@ -59,7 +59,7 @@ namespace model
         typedef std::set<const GlidePlaneType *> GlidePlaneContainerType;
         typedef PlanarMeshFace<dim> PlanarMeshFaceType;
         typedef std::set<const PlanarMeshFaceType *> PlanarMeshFaceContainerType;
-        typedef typename DislocationQuadraturePoint<dim,corder>::QuadratureDynamicType QuadratureDynamicType;
+        typedef typename DislocationQuadraturePoint<dim>::QuadratureDynamicType QuadratureDynamicType;
         
         
         static constexpr int mSize=ClusterDynamicsParameters<dim>::mSize;

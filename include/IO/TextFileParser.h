@@ -19,6 +19,7 @@
 #include <map>
 #include <regex>
 
+#include <StrUtilities.h>
 #include <Eigen/Dense>
 
 #include <TerminalColors.h>
@@ -140,7 +141,7 @@ class TextFileParser : public std::ifstream
                && foundEqual!=std::string::npos
                && foundKey<foundEqual)
             {
-                const std::string keyRead(removeSpaces(line.substr(0,foundEqual)));
+                const std::string keyRead(StrUtilities::removeSpaces(line.substr(0,foundEqual)));
 
                 if(keyRead==key)
                 {
@@ -191,11 +192,11 @@ public:
         }
     }
         
-    static std::string removeSpaces(std::string key)
-    {
-        key.erase(std::remove_if(key.begin(), key.end(), [](unsigned char x) { return std::isspace(x); }), key.end());
-        return key;
-    }
+//    static std::string StrUtilities::removeSpaces(std::string key)
+//    {
+//        key.erase(std::remove_if(key.begin(), key.end(), [](unsigned char x) { return std::isspace(x); }), key.end());
+//        return key;
+//    }
     
     /**********************************************************************/
     std::string readString(const std::string& key,const bool&verbose=false)
@@ -291,7 +292,7 @@ public:
         {
             std::get<0>(temp)=true; // valid line
             std::get<1>(temp)=(foundPound!=std::string::npos); // has semicolumn
-            std::get<2>(temp)=StringToScalar<KeyType>::toScalar(removeSpaces(line.substr(0,foundCol)));
+            std::get<2>(temp)=StringToScalar<KeyType>::toScalar(StrUtilities::removeSpaces(line.substr(0,foundCol)));
 
             const std::string valStr(foundSemiCol==std::string::npos? line.substr(foundCol+1,line.size()-foundCol-1) : line.substr(foundCol+1,foundSemiCol-foundCol-1));
             Scalar tempVal;
@@ -325,7 +326,7 @@ public:
             const size_t foundKey=line.find(key);
             const size_t foundEqual=line.find("=");
 
-            const std::string keyRead(removeSpaces(line.substr(0,foundEqual)));
+            const std::string keyRead(StrUtilities::removeSpaces(line.substr(0,foundEqual)));
 
             if(keyRead==key
                && foundKey!=std::string::npos
@@ -408,7 +409,7 @@ public:
             const size_t foundKey=line.find(key);
             const size_t foundEqual=line.find("=");
             
-            const std::string keyRead(removeSpaces(line.substr(0,foundEqual)));
+            const std::string keyRead(StrUtilities::removeSpaces(line.substr(0,foundEqual)));
 
             if(keyRead==key)
             {

@@ -48,13 +48,15 @@ namespace model
     private:
         
         VectorDim P;
+        VectorDim deltaP;
         
         
     public:
         
         /*************************************************/
         SplineNode(const VectorDim& P_in) :
-        /* init list */ P(P_in)
+        /* init */ P(P_in)
+        /* init */,deltaP(VectorDim::Zero())
         {
             
         }
@@ -62,6 +64,7 @@ namespace model
         /*************************************************/
         void set_P(const VectorDim& P_in)
         {
+            deltaP=P_in-P;
             P=P_in;
             static_cast<Derived*>(this)->updateGeometry();
 //            for(const auto& neighboor : this->neighbors())
@@ -79,6 +82,11 @@ namespace model
         const VectorDim& get_P() const
         {
             return P;
+        }
+        
+        const VectorDim& get_deltaP() const
+        {
+            return deltaP;
         }
         
     };

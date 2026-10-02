@@ -13,8 +13,6 @@
 #include <FCClattice.h>
 #include <HEXlattice.h>
 
-//#include <BestRationalApproximation.h>
-
 namespace model
 {
 
@@ -23,45 +21,19 @@ namespace model
                       const PolycrystallineMaterialBase& material,
                       const std::string& polyFile
                       ) :
-    //    /* init */ SingleCrystalType(material,TextFileParser(polyFile).readMatrix<double>("C2G"+std::to_string(region_in.regionID),dim,dim,true),polyFile)
-    /* init */ region(region_in)
+    /* init */SingleCrystalBase<dim>(material,TextFileParser(polyFile).readMatrix<double>("C2G"+std::to_string(region_in.regionID),dim,dim,true))
+    /* init */,region(region_in)
     /* init */,grainID(region.regionID) // remove grain ID, use lattice.sID
-    /* init */,singleCrystal(getSingleCrystal(region_in,material,polyFile))
     {
-        assert(singleCrystal->sID==region.regionID); // lattice.sID must be same as grainID
-        std::cout<<"  latticeBasis="<<singleCrystal->latticeBasis<<std::endl;
-        std::cout<<"  # planeNormals="<<singleCrystal->planeNormals().size()<<std::endl;
-        std::cout<<"  # slipSystems="<<singleCrystal->slipSystems().size()<<std::endl;
-        std::cout<<"  # secondPhases="<<singleCrystal->secondPhases().size()<<std::endl;
-    }
-
-    template <int dim>
-    std::shared_ptr<SingleCrystalBase<dim>> Grain<dim>::getSingleCrystal(const MeshRegionType& region_in,
-                                                                         const PolycrystallineMaterialBase& material,
-                                                                         const std::string& polyFile)
-    {
-        
-        //        const Eigen::Matrix<double,1,dim> x1(TextFileParser(polyFile).readMatrix<double>("grain"+std::to_string(region_in.regionID)+"globalX1",1,dim,true).normalized());
-        //        const Eigen::Matrix<double,1,dim> x3(TextFileParser(polyFile).readMatrix<double>("grain"+std::to_string(region_in.regionID)+"globalX3",1,dim,true).normalized());
-        //        const MatrixDimD C2G((MatrixDimD()<<x1,x3.cross(x1).normalized(),x3).finished());
-        const MatrixDimD C2G(TextFileParser(polyFile).readMatrix<double>("C2G"+std::to_string(region_in.regionID),dim,dim,true));
-        if(material.crystalStructure=="BCC")
+        if(this->sID!=region.regionID)
         {
-            return std::shared_ptr<SingleCrystalBase<dim>>(new BCClattice<dim>(C2G,material,polyFile));
+            std::cout<<"this->sID="<<this->sID<<std::endl;
+            std::cout<<"region.regionID="<<region.regionID<<std::endl;
+            throw std::runtime_error("grain.sID!=region.regionID.");
         }
-        else if(material.crystalStructure=="FCC")
-        {
-            return std::shared_ptr<SingleCrystalBase<dim>>(new FCClattice<dim>(C2G,material,polyFile));
-        }
-        else if(material.crystalStructure=="HEX")
-        {
-            return std::shared_ptr<SingleCrystalBase<dim>>(new HEXlattice<dim>(C2G,material,polyFile));
-        }
-        else
-        {
-            throw std::runtime_error("Grain::getSingleCrystal: unknown crystal structure "+material.crystalStructure);
-            return nullptr;
-        }
+        std::cout<<"  # planeNormals="<<this->planeNormals().size()<<std::endl;
+        std::cout<<"  # slipSystems="<<this->slipSystems().size()<<std::endl;
+        std::cout<<"  # secondPhases="<<this->secondPhases().size()<<std::endl;
     }
 
     template <int dim>
@@ -83,11 +55,11 @@ namespace model
         std::deque<const GlidePlaneBase*> temp;
         if(B.dot(N)==0) // not sessile
         {
-            for (const auto& planeNormal : singleCrystal->planeNormals())
+            for (const auto& planeNormal : this->planeNormals())
             {
-                if(	 B.dot(*planeNormal)==0 && N.cross(*planeNormal).squaredNorm()>0)
+                if(	 B.dot(*planeNormal.second)==0 && N.cross(*planeNormal.second).base().squaredNorm()>0)
                 {
-                    temp.push_back(planeNormal.get());
+                    temp.push_back(planeNormal.second.get());
                 }
             }
         }
@@ -95,6 +67,5 @@ namespace model
     }
 
     template class Grain<3>;
-
 }
 #endif

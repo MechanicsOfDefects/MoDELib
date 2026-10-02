@@ -35,6 +35,7 @@ namespace model
         const double mu1_SI;    // [Pa/K]
         const double mu_SI;     // temperature-dependent shear modulus mu=mu0+mu1*T [Pa]
         const double nu;        // Poisson's ratio
+        const double E_SI;        // Poisson's ratio
         const double rho_SI;    // mass density [Kg/m^3]
         const double cs_SI;     // shear wave speed [m/s]
         const double b_SI;      // Burgers vector [m]
@@ -51,18 +52,12 @@ namespace model
 
         const std::set<std::string> enabledSlipSystems;
         const std::set<std::string> enabledSecondPhases;
-
-//        const double dOmegav;
-//        const double Ufv_SI;
-//        const double Ufv;
-//        const double Umv_SI;     // vacancy migration energy [eV]
-//        const double Umv;        // vacancy migration energy [-]
-//        const double D0v_SI;        // shear wave speed [-]
-//        const double Dv;        // shear wave speed [-]
         
         static const std::string& getMaterialFile(const std::string& fileName);
         PolycrystallineMaterialBase(const std::string& fileName,const double& absoluteTemperature);
-        
+        bool isEnabledPlane(const std::string& planeStr) const;
+        bool isEnabledSlipSystem(const std::string& ssStr) const;
+
     };
 }
 #endif

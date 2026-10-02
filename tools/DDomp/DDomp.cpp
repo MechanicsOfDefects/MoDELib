@@ -8,6 +8,11 @@
 // Define the non-singluar method used for calculations
 #define _MODEL_NON_SINGULAR_DD_ 1 // 0 classical theory, 1 Cai's regularization method, 2 Lazar's regularization method
 
+
+#ifdef _MODEL_PYBIND11_ // COMPILED WITH PYBIND11
+#include <pybind11/pybind11.h>
+#include <pybind11/embed.h>
+#endif
 #include <Eigen/src/Core/util/DisableStupidWarnings.h>
 #include <DefectiveCrystal.h>
 

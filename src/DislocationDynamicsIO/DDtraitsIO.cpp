@@ -22,7 +22,7 @@ namespace model
         /* init */,evlFolder(simulationFolder+"/evl")
         /* init */,auxFolder(simulationFolder+"/evl")
         /* init */,fFolder(simulationFolder+"/F")
-        /* init */,ddFile(inputFilesFolder+"/DD.txt")
+        /* init */,dcFile(inputFilesFolder+"/DefectiveCrystal.txt")
         /* init */,fFile(fFolder+"/F_0.txt")
         /* init */,flabFile(fFolder+"/F_labels.txt")
         /* init */,polyFile(inputFilesFolder+"/polycrystal.txt")
@@ -35,7 +35,7 @@ namespace model
             std::cout<<"evlFolder="<<evlFolder<<std::endl;
             std::cout<<"auxFolder="<<auxFolder<<std::endl;
             std::cout<<"fFolder="<<fFolder<<std::endl;
-            std::cout<<"ddFile="<<ddFile<<std::endl;
+            std::cout<<"dcFile="<<dcFile<<std::endl;
             std::cout<<"fFile="<<fFile<<std::endl;
             std::cout<<"flabFile="<<flabFile<<std::endl;
             std::cout<<"polyFile="<<polyFile<<std::endl;

@@ -269,7 +269,8 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
     scalarBar->GetLabelTextProperty()->SetColor(0,0,0);
     scalarBar->SetLookupTable( lut );
     
-    renderer->AddActor2D(scalarBar);
+    //renderer->AddActor2D(scalarBar);
+    renderer->AddViewProp(scalarBar);
 
 }
 

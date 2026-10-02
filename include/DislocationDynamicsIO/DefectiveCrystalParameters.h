@@ -25,15 +25,17 @@ namespace model
         
         const DDtraitsIO traitsIO;
         const int useFEM;
-        const bool useElasticDeformation;
-        const bool useDislocations;
-        const bool useClusterDynamics;
-        const bool useCracks;
-        const bool useInclusions;
+        const std::string physics;
+//        const bool useElasticDeformation;
+//        const bool useDislocations;
+//        const bool useClusterDynamics;
+//        const bool useCracks;
+//        const bool useInclusions;
         const long int Nsteps;
-        const int useSubCycling;
-        const std::set<int> subcyclingBins; 
-        const bool use_stochasticForce;
+        const int maxResolveSteps;
+//        const int useSubCycling;
+//        const std::set<int> subcyclingBins; 
+//        const bool use_stochasticForce;
         const std::set<int> periodicFaceIDs;
         const double dtMax;
         const int outputFrequency;
@@ -44,9 +46,9 @@ namespace model
         
         void manageRestart();
 
-    private:
+//    private:
 
-        static std::set<int> getSubCyclingSet(const std::vector<int> &inpVector);
+//        static std::set<int> getSubCyclingSet(const std::vector<int> &inpVector);
 
     public:
         

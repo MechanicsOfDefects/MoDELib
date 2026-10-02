@@ -6,6 +6,10 @@
  * GNU General Public License (GPL) v2 <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _MODEL_PYBIND11_ // COMPILED WITH PYBIND11
+#include <pybind11/pybind11.h>
+#include <pybind11/embed.h>
+#endif
 #include <QtWidgets/QApplication>
 #include <QVTKOpenGLNativeWidget.h>
 #include <DDqtMainWindow.h>

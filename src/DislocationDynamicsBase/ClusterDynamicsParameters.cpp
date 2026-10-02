@@ -25,49 +25,53 @@ namespace model
     /* init */ T(ddBase.poly.T),
     /* init */ omega(ddBase.poly.Omega),
     /* init */ b(ddBase.poly.b),
-    /* init */ G0(ddBase.simulationParameters.useClusterDynamics? TextFileParser(ddBase.poly.materialFile).readScalar<double>("doseRate_dpaPerSec",true)*(ddBase.poly.b_SI/ddBase.poly.cs_SI) : 0.0),
+    /* init */ G0(true? TextFileParser(ddBase.poly.materialFile).readScalar<double>("doseRate_dpaPerSec",true)*(ddBase.poly.b_SI/ddBase.poly.cs_SI) : 0.0),
     /* MOBILE SPECIES */
-    /* init */ msVector(ddBase.simulationParameters.useClusterDynamics? TextFileParser(ddBase.poly.materialFile).readMatrix<int>("mobileSpeciesVector",1,mSize,true).array().template cast<double>().eval() : Eigen::Array<double,1,mSize>::Zero()),
-    /* init */ msRelRelaxVol(ddBase.simulationParameters.useClusterDynamics? TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesRelRelaxVol",1,mSize,true).array().eval() : Eigen::Array<double,1,mSize>::Zero()),
-    /* init */ msEf(ddBase.simulationParameters.useClusterDynamics? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesEnergyFormation_eV",1,mSize,true).array()*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3)).eval() : Eigen::Array<double,1,mSize>::Zero()),
-    /* init */ msEm(ddBase.simulationParameters.useClusterDynamics? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesEnergyMigration_eV",mSize,dim*(dim+1)/2,true)*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3)).eval() : Eigen::Matrix<double,mSize,dim*(dim+1)/2>::Zero()),
-    /* init */ msD0(ddBase.simulationParameters.useClusterDynamics? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesD0_SI",mSize,dim*(dim+1)/2,true)/ddBase.poly.b_SI/ddBase.poly.cs_SI).eval() : Eigen::Matrix<double,mSize,dim*(dim+1)/2>::Zero()),
+    /* init */ msVector(true? TextFileParser(ddBase.poly.materialFile).readMatrix<int>("mobileSpeciesVector",1,mSize,true).array().template cast<double>().eval() : Eigen::Array<double,1,mSize>::Zero()),
+    /* init */ msRelRelaxVol(true? TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesRelRelaxVol",1,mSize,true).array().eval() : Eigen::Array<double,1,mSize>::Zero()),
+    /* init */ msEf(true? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesEnergyFormation_eV",1,mSize,true).array()*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3)).eval() : Eigen::Array<double,1,mSize>::Zero()),
+    /* init */ msEm(true? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesEnergyMigration_eV",mSize,dim*(dim+1)/2,true)*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3)).eval() : Eigen::Matrix<double,mSize,dim*(dim+1)/2>::Zero()),
+    /* init */ msD0(true? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesD0_SI",mSize,dim*(dim+1)/2,true)/ddBase.poly.b_SI/ddBase.poly.cs_SI).eval() : Eigen::Matrix<double,mSize,dim*(dim+1)/2>::Zero()),
     /* init */ D(getD(ddBase.poly.grains)),
     /* init */ invD(getInvD()),
     /* init */ detD(getDetD()),
+    /* init */ Eb((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,mSize>("mobileSpeciesBindingEnergy_eV",true).array()*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3) : Eigen::Array<double,1,mSize>::Zero().eval()),
     /* init */ msCascadeFractions((mSize>1 && G0>0.0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesCascadeFractions",1,mSize,true) : Eigen::Matrix<double,1,mSize>::Ones()),
     /* init */ msSurvivingEfficiency(G0>0.0 ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("mobileSpeciesSurvivingEfficiency",true) : 1.0),
     /* init */ G(G0*msSurvivingEfficiency*msCascadeFractions),
-    /* init */ otherSinks(ddBase.simulationParameters.useClusterDynamics? (TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,mSize>("otherSinks_SI",true)*ddBase.poly.b_SI*ddBase.poly.b_SI).eval() : Eigen::Array<double,1,mSize>::Zero()),
-    //    /* init */ dislocationSinks(TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("dislocationSinks_SI",true)*ddBase.poly.b_SI*ddBase.poly.b_SI),
-    //    /* init */ initloopSinks(getInitLoopSinks(TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize>("initloopSinks_SI",true),ddBase.poly.b_SI)),
-    /* init */ reactionMap((ddBase.simulationParameters.useClusterDynamics && mSize>1) ? getMap(TextFileParser(ddBase.poly.materialFile).readMatrix<double,mSize*(mSize+1)/2,3>("reactionPrefactorMap",true)) : std::map<std::pair<int,int>,double>()),
+    /* init */ otherSinks(true? (TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,mSize>("otherSinks_SI",true)*ddBase.poly.b_SI*ddBase.poly.b_SI).eval() : Eigen::Array<double,1,mSize>::Zero()),
+    /* init */ dislocationSinks(TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("dislocationSinks_SI",true)*ddBase.poly.b_SI*ddBase.poly.b_SI),
+    /* init */ initLoopSinks(getInitLoopSinks(TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize>("initLoopSinks_SI",true),ddBase.poly.b_SI)),
+    /* init */ reactionMap((true && mSize>1) ? getMap(TextFileParser(ddBase.poly.materialFile).readMatrix<double,mSize*(mSize+1)/2,3>("reactionPrefactorMap",true)) : std::map<std::pair<int,int>,double>()),
     /* init */ R1(mSize>1 ? getR1() : Eigen::Matrix<double,mSize,mSize>::Zero()),
     /* init */ R1cd(iSize>0 ? msVector.abs().matrix().asDiagonal()*R1*(1.0/msVector.abs()).matrix().asDiagonal() : Eigen::Matrix<double,mSize,mSize>::Zero().eval()),
     /* init */ R2(mSize>1 ? getR2() : std::vector<Eigen::Matrix<double,mSize,mSize>>(2,Eigen::Matrix<double,mSize,mSize>::Zero())),
-    /* init */ discreteDislocationBias(ddBase.simulationParameters.useClusterDynamics? TextFileParser(ddBase.poly.materialFile).readMatrix<double,2,mSize>("discreteDislocationBias",true).eval() : Eigen::Array<double,2,mSize>::Zero()),
+    /* init */ discreteDislocationBias(true? TextFileParser(ddBase.poly.materialFile).readMatrix<double,2,mSize>("discreteDislocationBias",true).eval() : Eigen::Array<double,2,mSize>::Zero()),
     /* IMMOBILE SPECIES */
-    /* init */ immobileSpeciesVector((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<int>("immobileSpeciesVector",1,iSize/2,true).array().template cast<double>() : Eigen::Array<double,1,iSize/2>::Zero().eval()),
-    /* init */ immobileSpeciesRelRelaxVol((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("immobileSpeciesRelRelaxVol",true).array() : Eigen::Array<double,1,iSize/2>::Zero().eval()),
-    /* init */ immobileSpeciesBurgers((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,dim,iSize/2>("immobileSpeciesBurgers",true) : Eigen::Matrix<double,dim,iSize/2>::Zero()),
-    /* init */ immobileSpeciesBurgersMagnitude((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? getImmobileSpeciesBurgersMagnitude(ddBase.poly.grains) : Eigen::Array<double,1,iSize/2>::Zero().eval()),
-    /* init */ a_bp((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("alpha_bp",true) : 0.0),
-    /* init */ delVPyramid((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("delVPyramid",true)/pow(ddBase.poly.b_SI,3) : 0.0),
-    /* init */ w0((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("w0",true) : 0.0),
-    /* init */ n_s((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("n_s",true) : 0.0 ),
-    /* init */ Eb((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,mSize>("Eb_eV",true).array()*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3) : Eigen::Array<double,1,mSize>::Zero().eval()),
-    /* init */ evc((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("evc",true) : 0.0 ),
-    /* init */ Nvmax((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("Nvmax",true)*pow(ddBase.poly.b_SI,3) : 0.0 ),
-    /* init */ nmin((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("nmin",true) : Eigen::Array<double,1,iSize/2>::Zero()),
-    /* init */ nmax((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("nmax",true) : Eigen::Array<double,1,iSize/2>::Zero()),
-    /* init */ r_min((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("r_min",true).array() : Eigen::Array<double,1,iSize/2>::Zero().eval()),
-    /* init */ computeReactions((ddBase.simulationParameters.useClusterDynamics && mSize>0 && mSize+iSize>1)? TextFileParser(ddBase.poly.materialFile).readScalar<int>("computeReactions",true) : 0),
-//    /* init */ use0DsinkStrength((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<int>("use0DsinkStrength",true) : 0),
-//    /* init */ Zv((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,dim>("Zv",true) : Eigen::Array<double,1,dim>::Zero()),
-//    /* init */ Zi((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,dim>("Zi",true) : Eigen::Array<double,1,dim>::Zero()),
-//    /* init */ ZVec((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,mSize>("ZVec",true) : Eigen::Array<double,1,mSize>::Zero()),
-//    /* init */ rc_il((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,dim>("rc_il",true)/ddBase.poly.b_SI : Eigen::Array<double,1,dim>::Zero().eval()),
-    /* init */ discreteDistanceFactor((ddBase.simulationParameters.useClusterDynamics && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("distanceFactor",true) : 0.0)
+    /* init */ immobileSpeciesVector((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<int>("immobileSpeciesVector",1,iSize/2,true).array().template cast<double>() : Eigen::Array<double,1,iSize/2>::Zero().eval()),
+    /* init */ immobileSpeciesRelRelaxVol((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("immobileSpeciesRelRelaxVol",true).array() : Eigen::Array<double,1,iSize/2>::Zero().eval()),
+    /* init */ immobileSpeciesBurgers((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,dim,iSize/2>("immobileSpeciesBurgers",true) : Eigen::Matrix<double,dim,iSize/2>::Zero()),
+    /* init */ immobileSpeciesBurgersMagnitude((true && iSize>0) ? getImmobileSpeciesBurgersMagnitude(ddBase.poly.grains) : Eigen::Array<double,1,iSize/2>::Zero().eval()),
+    /* init */ immobileBias((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("immobileBias",true) : Eigen::Array<double,1,iSize/2>::Zero()),
+    /* init */ a_bp((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("alpha_bp",true) : 0.0),
+    /* init */ delVPyramid((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("delVPyramid",true)/pow(ddBase.poly.b_SI,3) : 0.0),
+    /* init */ w0((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("w0",true) : 0.0),
+    /* init */ n_s((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("n_s",true) : 0.0 ),
+//    /* init */ evc((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("evc",true) : 0.0 ),
+//    /* init */ Nvmax((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("Nvmax",true)*pow(ddBase.poly.b_SI,3) : 0.0 ),
+    /* init */ nmin((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("nmin",true) : Eigen::Array<double,1,iSize/2>::Zero()),
+    /* init */ nmax((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("nmax",true) : Eigen::Array<double,1,iSize/2>::Zero()),
+    /* init */ n_min((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("n_min",true).array() : Eigen::Array<double,1,iSize/2>::Zero().eval()),
+    /* init */ computeReactions((true && mSize>0 && mSize+iSize>1)? TextFileParser(ddBase.poly.materialFile).readScalar<int>("computeReactions",true) : 0),
+//    /* init */ use0DsinkStrength((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<int>("use0DsinkStrength",true) : 0),
+//    /* init */ Zv((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,dim>("Zv",true) : Eigen::Array<double,1,dim>::Zero()),
+//    /* init */ Zi((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,dim>("Zi",true) : Eigen::Array<double,1,dim>::Zero()),
+//    /* init */ ZVec((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,mSize>("ZVec",true) : Eigen::Array<double,1,mSize>::Zero()),
+//    /* init */ rc_il((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,dim>("rc_il",true)/ddBase.poly.b_SI : Eigen::Array<double,1,dim>::Zero().eval()),
+    // /* init */ discreteDistanceFactor((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("distanceFactor",true) : 0.0),
+    /* init */ discretizationFactor((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("clusterDiscretizationFactor",true) : 0.0),
+    /* init */ discretizationTime((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("clusterDiscretizationTime",true)*(ddBase.poly.cs_SI/ddBase.poly.b_SI) : 0.0),
+    /* init */ minimumLoopSize((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("minimumLoopSize",true)/ddBase.poly.b_SI : 0.0 )
     {
         
         double vacancySum(0.0);
@@ -305,10 +309,10 @@ namespace model
     }
 
     template<int dim>
-    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::iSize/2> ClusterDynamicsParameters<dim>::getImmobileSpeciesBurgersMagnitude(const std::map<size_t,Grain<dim>>& grains) const
+    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::iSize/2> ClusterDynamicsParameters<dim>::getImmobileSpeciesBurgersMagnitude(const GrainContainerType& grains) const
     {
         Eigen::Array<double,1,iSize/2> temp(Eigen::Array<double,1,iSize/2>::Zero());
-        const Eigen::Matrix<double,dim,dim> lat(grains.begin()->second.singleCrystal->latticeBasis);
+        const Eigen::Matrix<double,dim,dim> lat(grains.begin()->second->latticeBasis);
         const Eigen::Matrix<double,dim,iSize/2> localBurgers(lat*immobileSpeciesBurgers);
         
         for(size_t k=0; k<iSize/2; k++)
@@ -322,7 +326,7 @@ namespace model
 
 
     template<int dim>
-    std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> ClusterDynamicsParameters<dim>::getD(const std::map<size_t,Grain<dim>>& grains) const
+    std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> ClusterDynamicsParameters<dim>::getD(const GrainContainerType& grains) const
     {
         std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> temp;
         
@@ -341,7 +345,7 @@ namespace model
                 // c^T*inv(C2G^T*Dg*C2G)*c
                 // Dc=C2G^T*Dg*C2G
                 // Dg = C2G*Dc*C2G^T
-                const Eigen::Matrix<double,dim,dim> Dglobal(grainPair.second.singleCrystal->C2G*Dlocal*grainPair.second.singleCrystal->C2G.transpose());
+                const Eigen::Matrix<double,dim,dim> Dglobal(grainPair.second->C2G*Dlocal*grainPair.second->C2G.transpose());
                 grainIter.first->second.emplace_back(Dglobal);
                 
                 if( fabs(Dglobal.eigenvalues().imag()(0)*Dglobal.eigenvalues().imag()(1)*Dglobal.eigenvalues().imag()(2)) > FLT_EPSILON)
@@ -420,14 +424,16 @@ namespace model
     template<int dim>
     Eigen::Array<double,1,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::equilibriumMobileConcentration(const double& stressTrace) const
     {
-        
+
         return msVector.abs()*exp(-(msEf-stressTrace*msVector*msRelRelaxVol*omega/3.0)/kB/T);
+        // return msVector.abs()*exp(-msEf/kB/T);
     }
 
     template<int dim>
     Eigen::Array<double,1,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::boundaryMobileConcentration(const double& stressTrace,const double& normalTraction) const
     {
         return equilibriumMobileConcentration(stressTrace)*exp(-normalTraction*msVector*omega/kB/T);
+        // return msVector.abs()*exp(-msEf/kB/T);
     }
 
     template<int dim>

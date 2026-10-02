@@ -28,7 +28,7 @@ namespace model
     public:
         
         /**********************************************************************/
-        static int lineTriangleIntersection(const VectorDim& X,const VectorDim& s,
+        static std::map<float,VectorDim> lineTriangleIntersection(const VectorDim& X,const VectorDim& s,
                                             const VectorDim& P1,const VectorDim& P2,const VectorDim& P3);
         
     };

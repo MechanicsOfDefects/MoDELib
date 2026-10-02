@@ -17,63 +17,51 @@ namespace model
     template <int dim>
     typename ReciprocalLatticeVector<dim>::BaseType& ReciprocalLatticeVector<dim>::base()
     {
-        return *this;
+        return _base;
     }
 
-    /**********************************************************************/
     template <int dim>
     const typename ReciprocalLatticeVector<dim>::BaseType& ReciprocalLatticeVector<dim>::base() const
     {
-        return *this;
+        return _base;
     }
 
-    /**********************************************************************/
     template <int dim>
-    ReciprocalLatticeVector<dim>::ReciprocalLatticeVector(const LatticeType &lat) : /* init base */ BaseType(VectorDimI::Zero()),
-                                                      /* init      */ lattice(lat)
-    ///* base init */ BaseType(LatticeBaseType::d2contra(d))
+    ReciprocalLatticeVector<dim>::ReciprocalLatticeVector(const LatticeType&lat) :
+/* init  */ _base(VectorDimI::Zero())
+ /* init */,lattice(lat)
     { /*!@param[in] d vector in real space
           * Constructs *this by mapping d to the lattice
           */
     }
 
-    /**********************************************************************/
     template <int dim>
     ReciprocalLatticeVector<dim>::ReciprocalLatticeVector(const VectorDimD &d,
-                            /*                   */ const LatticeType &lat) : /* init base */ BaseType(d2cov(d, lat)),
-                                                                              /* init base */ lattice(lat)
+                            /*                   */ const LatticeType&lat) :
+/* init base */ _base(d2cov(d, lat))
+/* init base */,lattice(lat)
     { /*!@param[in] d vector in real space
           * Constructs *this by mapping d to the lattice
           */
     }
 
-    /**********************************************************************/
-    template <int dim>
-    typename ReciprocalLatticeVector<dim>::ReciprocalLatticeVectorType& ReciprocalLatticeVector<dim>::operator=(const ReciprocalLatticeVectorType &other)
-    {
-        assert(&lattice == &other.lattice && "ReciprocalLatticeVectorType belong to different Lattices.");
-        base() = other.base();
-        return *this;
-    }
+template <int dim>
+ReciprocalLatticeVector<dim>::ReciprocalLatticeVector(const VectorDimI &d,
+                        /*                   */ const LatticeType&lat) :
+/* init base */ _base(d)
+/* init base */,lattice(lat)
+{ /*!@param[in] d vector in real space
+      * Constructs *this by mapping d to the lattice
+      */
+}
 
-    /**********************************************************************/
-    template <int dim>
-    typename ReciprocalLatticeVector<dim>::ReciprocalLatticeVectorType& ReciprocalLatticeVector<dim>::operator=(ReciprocalLatticeVectorType &&other)
-    {
-        assert(&lattice == &other.lattice && "LatticeVectors belong to different Lattices.");
-        base() = other.base();
-        return *this;
-    }
-
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::ReciprocalLatticeVectorType ReciprocalLatticeVector<dim>::operator+(const ReciprocalLatticeVectorType &other) const
     {
         assert(&lattice == &other.lattice && "LatticeVectors belong to different Lattices.");
-        return ReciprocalLatticeVectorType(static_cast<VectorDimI>(*this) + static_cast<VectorDimI>(other), lattice);
+        return ReciprocalLatticeVectorType((base() + other.base()).eval(), lattice);
     }
 
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::ReciprocalLatticeVectorType& ReciprocalLatticeVector<dim>::operator+=(const ReciprocalLatticeVectorType &other)
     {
@@ -82,15 +70,13 @@ namespace model
         return *this;
     }
 
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::ReciprocalLatticeVectorType ReciprocalLatticeVector<dim>::operator-(const ReciprocalLatticeVectorType &other) const
     {
         assert(&lattice == &other.lattice && "LatticeVectors belong to different Lattices.");
-        return ReciprocalLatticeVectorType(static_cast<VectorDimI>(*this) - static_cast<VectorDimI>(other), lattice);
+        return ReciprocalLatticeVectorType((base() - other.base()).eval(), lattice);
     }
 
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::ReciprocalLatticeVectorType& ReciprocalLatticeVector<dim>::operator-=(const ReciprocalLatticeVectorType &other)
     {
@@ -99,44 +85,38 @@ namespace model
         return *this;
     }
 
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::ReciprocalLatticeVectorType ReciprocalLatticeVector<dim>::operator*(const long int &scalar) const
     {
-        return ReciprocalLatticeVectorType(static_cast<VectorDimI>(*this) * scalar, lattice);
+        return ReciprocalLatticeVectorType((base() * scalar).eval(), lattice);
     }
 
-    /**********************************************************************/
     template <int dim>
     long int ReciprocalLatticeVector<dim>::dot(const LatticeVectorType &other) const
     {
         assert(&lattice == &other.lattice && "LatticeVectors belong to different Lattices.");
-        return static_cast<VectorDimI>(*this).dot(static_cast<VectorDimI>(other));
+        return base().dot(other.base());
     }
 
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::LatticeDirectionType ReciprocalLatticeVector<dim>::cross(const ReciprocalLatticeVectorType &other) const
     {
         assert(&lattice == &other.lattice && "LatticeVectors belong to different Lattices.");
-        return LatticeDirectionType(LatticeVectorType(static_cast<VectorDimI>(*this).cross(static_cast<VectorDimI>(other)), lattice));
+        return LatticeDirectionType(LatticeVectorType(base().cross(other.base()), lattice));
     }
 
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::VectorDimD ReciprocalLatticeVector<dim>::cartesian() const
     {
-        return lattice.reciprocalBasis * this->template cast<double>();
+        return lattice.reciprocalBasis * base().template cast<double>();
     }
 
-    /**********************************************************************/
     template <int dim>
     double ReciprocalLatticeVector<dim>::planeSpacing() const
     {
         return 1.0 / cartesian().norm();
     }
 
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::VectorDimD ReciprocalLatticeVector<dim>::interplaneVector() const
     {
@@ -144,20 +124,18 @@ namespace model
         return c / c.squaredNorm();
     }
 
-    /**********************************************************************/
     template <int dim>
     long int ReciprocalLatticeVector<dim>::closestPlaneIndexOfPoint(const VectorDimD &P) const
     {
-        assert(this->squaredNorm() > 0 && "A null ReciprocalLatticeVector cannot be used to compute planeIndexOfPoint");
+        assert(base().squaredNorm() > 0 && "A null ReciprocalLatticeVector cannot be used to compute planeIndexOfPoint");
         const double hd(cartesian().dot(P));
         return std::lround(hd);
     }
 
-    /**********************************************************************/
     template <int dim>
     long int ReciprocalLatticeVector<dim>::planeIndexOfPoint(const VectorDimD &P) const
     {
-        assert(this->squaredNorm() > 0 && "A null ReciprocalLatticeVector cannot be used to compute planeIndexOfPoint");
+        assert(base().squaredNorm() > 0 && "A null ReciprocalLatticeVector cannot be used to compute planeIndexOfPoint");
         const double hd(cartesian().dot(P));
         const long int h(std::lround(hd));
         if (fabs(hd - h) > FLT_EPSILON)
@@ -171,21 +149,18 @@ namespace model
         return h;
     }
 
-    /**********************************************************************/
     template <int dim>
     long int ReciprocalLatticeVector<dim>::planeIndexOfPoint(const LatticeVector<dim> &P) const
     {
-        assert(this->squaredNorm() > 0 && "A null ReciprocalLatticeVector cannot be used to compute planeIndexOfPoint");
+        assert(base().squaredNorm() > 0 && "A null ReciprocalLatticeVector cannot be used to compute planeIndexOfPoint");
         return dot(P);
     }
 
-    /**********************************************************************/
     template <int dim>
     typename ReciprocalLatticeVector<dim>::VectorDimI ReciprocalLatticeVector<dim>::d2cov(const VectorDimD &d,
                             const LatticeType &lat)
     {
         const VectorDimD nd(lat.latticeBasis.transpose() * d);
-        //            const VectorDimD rd(RoundEigen<double,dim>::round(nd));
         const VectorDimD rd(nd.array().round());
         if ((nd - rd).norm() > roundTol)
         {
@@ -193,11 +168,9 @@ namespace model
             std::cout << "d2cov, rd=" << rd.transpose() << std::endl;
             throw std::runtime_error("Input vector is not a reciprocal lattice vector");
         }
-        //            assert((nd-rd).norm()<roundTol && "Input vector is not a lattice vector");
         return rd.template cast<long int>();
     }
 
-    //Operator starts here
     template <int dim>
     ReciprocalLatticeVector<dim> operator*(const long int &scalar, const ReciprocalLatticeVector<dim> &L)
     {

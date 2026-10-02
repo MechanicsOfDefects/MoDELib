@@ -41,6 +41,8 @@
 #include <MeshPlane.h>
 //#include <ConfigurationFields.h>
 #include <DefectiveCrystal.h>
+#include <SlipSystemTab.h>
+
 
 namespace model
 {
@@ -53,7 +55,7 @@ namespace model
         Q_OBJECT
         private slots:
         void modify();
-        Eigen::Matrix<int,3,1> vector2Clr(VectorDim) const;
+//        Eigen::Matrix<int,3,1> vector2Clr(VectorDim) const;
         
         private:
         
@@ -88,12 +90,12 @@ namespace model
         
 //        const ConfigurationFields<3>& configFields;
         const DefectiveCrystal<3>& defectiveCrystal;
-        const std::shared_ptr<DislocationNetwork<3,0>> dislocationNetwork;
+        const std::shared_ptr<DislocationNetwork<3>> dislocationNetwork;
 
         NetworkLinkActor(vtkGenericOpenGLRenderWindow* const,vtkRenderer* const,const DefectiveCrystal<3>& defectiveCrystal_in);
-        void updateConfiguration(vtkPolyData* const nodePolyData);
+        void updateConfiguration(vtkPolyData* const nodePolyData,const SlipSystemTab::SlipSystemColorMapType& sscm);
 
-        Eigen::Matrix<int,3,1> computeColor(const VectorDim& burgers, const VectorDim& chord, const std::shared_ptr<SlipSystem>& slipSystem) const;
+        Eigen::Matrix<int,3,1> computeColor(const VectorDim& burgers, const VectorDim& chord, const std::shared_ptr<SlipSystem>& slipSystem,const SlipSystemTab::SlipSystemColorMapType& sscm) const;
     };
     
 } // namespace model

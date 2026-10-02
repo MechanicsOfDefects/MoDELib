@@ -9,6 +9,7 @@
 #define model_DefectiveCrystal_cpp_
 
 #include <DefectiveCrystal.h>
+#include <StrUtilities.h>
 
 namespace model
 {
@@ -27,22 +28,57 @@ namespace model
             throw std::runtime_error("Cannot open file "+this->ddBase.simulationParameters.traitsIO.flabFile);
         }
         
-        if(this->ddBase.simulationParameters.useInclusions)
+        
+        
+        std::stringstream ss(this->ddBase.simulationParameters.physics);
+        std::string tempVal;
+        std::vector<std::string> physics;
+        while (ss >> tempVal)
         {
-            this->emplace_back(new InclusionMicrostructureType(*this));
+            physics.push_back(tempVal);
         }
-        if(this->ddBase.simulationParameters.useElasticDeformation)
+        
+        for(const auto& phys : physics)
         {
-            this->emplace_back(new ElasticDeformationType(*this));
+            if(StrUtilities::lowercase(phys)=="inclusionmicrostructure" && this->template getUniqueTypedMicrostructure<InclusionMicrostructureType>()==nullptr)
+            {
+                this->emplace_back(new InclusionMicrostructureType(*this));
+            }
+            else if(StrUtilities::lowercase(phys)=="dislocationdynamics" && this->template getUniqueTypedMicrostructure<DislocationNetworkType>()==nullptr)
+            {
+                this->emplace_back(new DislocationNetworkType(*this));
+            }
+            else if(StrUtilities::lowercase(phys)=="clusterdynamics" && this->template getUniqueTypedMicrostructure<ClusterDynamicsType>()==nullptr)
+            {
+                this->emplace_back(new ClusterDynamicsType(*this));
+            }
+            else if(StrUtilities::lowercase(phys)=="elasticdeformation" && this->template getUniqueTypedMicrostructure<ElasticDeformationType>()==nullptr)
+            {
+                this->emplace_back(new ElasticDeformationType(*this));
+            }
+            else
+            {
+                throw std::runtime_error("Unknown physics "+phys);
+            }
         }
-        if(this->ddBase.simulationParameters.useClusterDynamics)
-        {
-            this->emplace_back(new ClusterDynamicsType(*this));
-        }
-        if(this->ddBase.simulationParameters.useDislocations)
-        {
-            this->emplace_back(new DislocationNetworkType(*this));
-        }
+        
+//        if(this->ddBase.simulationParameters.useInclusions)
+//        {
+//            this->emplace_back(new InclusionMicrostructureType(*this));
+//        }
+//        if(this->ddBase.simulationParameters.useDislocations)
+//        {
+//            this->emplace_back(new DislocationNetworkType(*this));
+//        }
+//        if(this->ddBase.simulationParameters.useClusterDynamics)
+//        {
+//            this->emplace_back(new ClusterDynamicsType(*this));
+//        }
+//        if(this->ddBase.simulationParameters.useElasticDeformation)
+//        {
+//            this->emplace_back(new ElasticDeformationType(*this));
+//        }
+
 //        std::cout<<"Defective Crystal Done Constructor"<<std::endl;
     }
 
@@ -59,6 +95,10 @@ namespace model
         /*                    */<< ", time="<<this->ddBase.simulationParameters.totalTime<<defaultColor<<std::endl;
         
         this->solve();
+        for(int r=0;r<this->ddBase.simulationParameters.maxResolveSteps;++r)
+        {
+            this->reSolve();
+        }
         this->ddBase.simulationParameters.dt=this->getDt();
                 
         if (!(this->ddBase.simulationParameters.runID%this->ddBase.simulationParameters.outputFrequency))
@@ -68,10 +108,10 @@ namespace model
             
             f_file<< this->ddBase.simulationParameters.runID<<" "<<std::setprecision(15)<<std::scientific<<this->ddBase.simulationParameters.totalTime<<" "<<this->ddBase.simulationParameters.dt<<" ";
 
-            const Eigen::Matrix<double,dim,dim>& pD(this->averagePlasticDistortion());
+            const Eigen::Matrix<double,dim,dim> pD(this->averagePlasticDistortion());
             f_file<<pD.row(0)<<" "<<pD.row(1)<<" "<<pD.row(2)<<" "<<pD.trace()<<" "<<pD.norm()<<" ";
 
-            const Eigen::Matrix<double,dim,dim>& pDR(this->averagePlasticDistortionRate());
+            const Eigen::Matrix<double,dim,dim> pDR(this->averagePlasticDistortionRate());
             f_file<<pDR.row(0)<<" "<<pDR.row(1)<<" "<<pDR.row(2)<<" "<<pDR.trace()<<" "<<pDR.norm()<<" ";
             
             if(this->ddBase.simulationParameters.runID==0)
@@ -129,6 +169,7 @@ namespace model
     {/*! Runs a number of simulation time steps defined by simulationParameters.Nsteps
       */
         const auto t0= std::chrono::system_clock::now();
+//        this->updateConfiguration(); // added to compute right-handed normals. Now removed since DislocationNetwork::updateGeometry is called during initialization
         while (this->ddBase.simulationParameters.runID<this->ddBase.simulationParameters.Nsteps)
         {
             runSingleStep();
@@ -137,9 +178,9 @@ namespace model
     }
 
     template <int _dim>
-    const DislocationNetwork<_dim,0>& DefectiveCrystal<_dim>::dislocationNetwork() const
+    const DislocationNetwork<_dim>& DefectiveCrystal<_dim>::dislocationNetwork() const
     {
-        const auto ptrDN(this->template getUniqueTypedMicrostructure<DislocationNetwork<_dim,0>>());
+        const auto ptrDN(this->template getUniqueTypedMicrostructure<DislocationNetwork<_dim>>());
         if(ptrDN)
         {
             return *ptrDN;

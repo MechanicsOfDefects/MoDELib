@@ -24,7 +24,8 @@ namespace model
         /* init */ outFolderName(outFolderName_in)
         /* init */,fileNamePrefix(fileNamePrefix_in)
         /* init */,outFolderSuffix(outFolderSuffix_in)
-        {}
+        {
+        }
         
 
         std::string DDbaseIO::getBinFilename(const size_t& runID)

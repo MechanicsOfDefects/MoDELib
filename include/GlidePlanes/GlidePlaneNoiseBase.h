@@ -45,13 +45,23 @@ namespace model
  
         static REAL_SCALAR W_t_Cai(REAL_SCALAR r2, REAL_SCALAR a) ;
 
-        
+#ifdef _MODEL_GLIDE_PLANE_NOISE_GENERATOR_
+        std::vector<COMPLEX*> originalKCorrelations() const;
+        std::vector<COMPLEX*> noisyKCorrelations(const std::vector<COMPLEX*>& okCorr,
+                                                 std::default_random_engine& generator,
+                                                 std::normal_distribution<REAL_SCALAR>& distribution) const;
+        std::vector<REAL_SCALAR*> realNoise(const std::vector<COMPLEX*>& nkCorr) const;
+        std::vector<std::vector<double>> averageNoiseCorrelation(const int& reps) const;
+        std::vector<std::vector<double>> sampleAverageNoise(const int& reps) const;
+
+#endif
 
         const std::string tag;
         const int seed;
         const GridSizeType gridSize;
         const GridSpacingType gridSpacing;
         const GridSpacingType gridLength;
+        const Eigen::Matrix<double,2,2> invTransposeLatticeBasis;
         const int& NX;
         const int& NY;
         const int& NZ;
@@ -61,7 +71,8 @@ namespace model
         const double& LY;
         const double& LZ;
 
-
+//        std::default_random_engine generator;
+//        std::normal_distribution<REAL_SCALAR> distribution;
 //        const size_t NK;
         // lattice basis1
         // lattice basis2
@@ -69,15 +80,18 @@ namespace model
         GlidePlaneNoiseBase(const std::string& tag_in,
                             const int& seed_in,
                             const NoiseTraitsBase::GridSizeType& gridSize_in,
-                            const NoiseTraitsBase::GridSpacingType& gridSpacing_SI_in);
+                            const NoiseTraitsBase::GridSpacingType& gridSpacing_SI_in,
+                            const Eigen::Matrix<double,2,2>& latticeBasis);
         virtual ~GlidePlaneNoiseBase(){};
         void computeRealNoise();
         void computeRealNoiseStatistics(const PolycrystallineMaterialBase& mat) const;
         GridSizeType rowAndColIndices(const int& storageIndex) const;
         int storageIndex(const int& i,const int& j) const;
+        void writeFieldSlice() const;
         const NoiseContainerType& noiseVector() const;
         NoiseContainerType& noiseVector();
-        virtual std::array<COMPLEX,N> kCorrelations(const Eigen::Matrix<double,3,1>& k,const Eigen::Matrix<int,3,1>& kID) const = 0;
+        //virtual std::array<COMPLEX,N> kCorrelations(const Eigen::Matrix<double,3,1>& k,const Eigen::Matrix<int,3,1>& kID) const = 0;
+        virtual std::array<COMPLEX,N> kCorrelations(const Eigen::Matrix<double,3,1>& k,const Eigen::Matrix<int,3,1>& kID) const { return {}; };
     };
 }
 #endif

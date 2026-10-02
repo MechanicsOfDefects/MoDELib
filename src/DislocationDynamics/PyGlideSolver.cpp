@@ -164,7 +164,7 @@ namespace model
     template <typename DislocationNetworkType>
     PyGlideSolver<DislocationNetworkType>::PyGlideSolver(const DislocationNetworkType& DN_in) :
     /* init */ DislocationGlideSolverBase<DislocationNetworkType>(DN_in)
-    /* init */,pyModuleName(this->DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/"+TextFileParser(this->DN.ddBase.simulationParameters.traitsIO.ddFile).readString("pyModuleName"))
+    /* init */,pyModuleName(this->DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/"+TextFileParser(this->DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("pyModuleName"))
     {
         std::filesystem::path pyModulePath(pyModuleName);
         std::string pyModuleDir(pyModulePath.parent_path());
@@ -419,7 +419,7 @@ namespace model
     #endif
 
 
-    template class PyGlideSolver<DislocationNetwork<3,0>>;
+    template class PyGlideSolver<DislocationNetwork<3>>;
     
 }
 #endif

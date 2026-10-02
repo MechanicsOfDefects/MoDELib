@@ -28,12 +28,10 @@ namespace model
     /* init */,c(pS->center())
     /* init */,periodicFacePair(std::make_pair(VectorDim::Zero(),nullptr))
     {
-        //            std::cout<<"Creating PlanarMeshFace "<<this->sID<<", n="<<outNormal().transpose()<<std::endl;
         if(std::fabs(n.norm()-1.0)>FLT_EPSILON)
         {
             throw std::runtime_error("PlanarMeshFace: n must have unit norm. n.norm()="+std::to_string(n.norm()));
         }
-//        assert((n.norm()-1.0)<FLT_EPSILON);
         this->insert(pS);
     }
     
@@ -66,12 +64,9 @@ namespace model
         c.setZero();
         for(const auto& simplex : *this)
         {
-            n+=simplex->outNormal(regionIDs.first);
-            c+=simplex->center();
+            n+=simplex->outNormal(regionIDs.first)/this->size();
+            c+=simplex->center()/this->size();
         }
-        n/=this->size();
-        c/=this->size();
-//        assert(fabs(n.norm()-1.0)<FLT_EPSILON);
         n.normalize();
         
         for(const auto& simplex : *this)
@@ -117,6 +112,13 @@ namespace model
             {
                 std::cout<<"vertices.size()="<<vertices.size()<<std::endl;
                 throw std::runtime_error("PlanarMeshFace hull has size "+std::to_string(_hull.size()));
+            }
+            
+            // Recompute center using Hull
+            c.setZero();
+            for(const auto& v : convexHull())
+            {
+                c+=v->P0/convexHull().size();
             }
         }
     }

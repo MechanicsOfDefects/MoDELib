@@ -23,4 +23,6 @@ target_sources(DDqt PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/QuadratureActor.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/../include/DDFieldWidget.h
 	${CMAKE_CURRENT_SOURCE_DIR}/DDFieldWidget.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/../include/SlipSystemTab.h
+	${CMAKE_CURRENT_SOURCE_DIR}/SlipSystemTab.cpp
 	)

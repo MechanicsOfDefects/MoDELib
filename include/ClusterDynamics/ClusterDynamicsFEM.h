@@ -16,13 +16,17 @@
 #include <Eigen/UmfPackSupport>
 #endif
 
+
 #include <ClusterDynamicsParameters.h>
 #include <DislocationDynamicsBase.h>
 #include <EvalFunction.h>
 #include <FixedDirichletSolver.h>
+#include <SpatialODESolver.h>
 #include <DDconfigIO.h>
 #include <MicrostructureBase.h>
 #include <SecondOrderReaction.h>
+#include <FirstOrderReaction.h>
+#include <ImmobileSinkRate.h>
 #include <MicrostructureContainer.h>
 
 namespace model
@@ -76,7 +80,7 @@ namespace model
         static constexpr int iSize=ClusterDynamicsParameters<dim>::iSize;
         typedef TrialFunction<'m',mSize,FiniteElementType> MobileTrialType;
         typedef TrialFunction<'i',iSize,FiniteElementType> ImmobileTrialType;
-//        typedef TrialFunction<'z',dim,FiniteElementType> DiffusiveTrialType;
+        typedef TrialFunction<'z',dim,FiniteElementType> DiffusiveTrialType;
         typedef TrialGrad<MobileTrialType> MobileGradType;
         typedef TrialProd<FluxMatrix<dim>,MobileGradType> MobileFluxType;
         
@@ -95,6 +99,22 @@ namespace model
         typedef TrialProd<FluxMatrix<dim>,MobileIncrementGradType> MobileIncrementFluxType;
         typedef BilinearForm<MobileIncrementTestGradType,TrialProd<Constant<double,1,1>,MobileIncrementFluxType>> MobileIncrementBilinearFormType;
         typedef BilinearWeakForm<MobileIncrementBilinearFormType,VolumeIntegrationDomainType> MobileIncrementBilinearWeakFormType;
+
+        // typedef TrialGrad<MobileTrialType> MobileGradType;
+        // typedef TrialProd<FluxMatrix<dim>,MobileGradType> MobileFluxType;
+
+        // typedef TrialGrad<MobileTrialType> MobileTestGradType;
+        // typedef BilinearForm<MobileTestGradType,TrialProd<Constant<double,1,1>,MobileFluxType>> MobileBilinearFormType;
+        // typedef BilinearWeakForm<MobileBilinearFormType,VolumeIntegrationDomainType> MobileBilinearWeakFormType;
+
+        // typedef TrialFunction<'d',mSize,FiniteElementType> MobileIncrementTrialType;
+        // typedef TrialGrad<MobileIncrementTrialType> MobileIncrementTestGradType;
+
+        // typedef TrialGrad<MobileIncrementTrialType> MobileIncrementGradType;
+        // typedef TrialProd<FluxMatrix<dim>,MobileIncrementGradType> MobileIncrementFluxType;
+        // typedef BilinearForm<MobileIncrementTestGradType,TrialProd<Constant<double,1,1>,MobileIncrementFluxType>> MobileIncrementBilinearFormType;
+        // typedef BilinearWeakForm<MobileIncrementBilinearFormType,VolumeIntegrationDomainType> MobileIncrementBilinearWeakFormType;
+        
         typedef Eigen::SparseMatrix<double,Eigen::RowMajor> SparseMatrixType;
 #ifdef CHOLMOD_H // SuiteSparse Cholmod (LLT) module
     typedef Eigen::CholmodSupernodalLLT<SparseMatrixType> LltSolverType;
@@ -132,15 +152,35 @@ namespace model
         bool solverInitialized;
 
         const Eigen::VectorXd cascadeGlobalProduction;
+        Eigen::VectorXd immobileClusterRate;
 
-        ClusterDynamicsFEM(const DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
-        void solveMobileClusters();
+//         ClusterDynamicsFEM(const DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
+//         void solveMobileClusters();
+//         void solveImmobileClusters();
+//         void solve();
+// //        void applyBoundaryConditions();
+//         void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels);
+//         void initializeSolver();
+//         VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const;
+
+        ClusterDynamicsFEM(DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
+        void solveMobileClusters(const bool hasDiscreteLoops);
         void solveImmobileClusters();
-        void solve();
+        void updateImmobileClusters(const double dt);
+        void solve(const bool hasDiscreteLoops);
 //        void applyBoundaryConditions();
         void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels);
         void initializeSolver();
         VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const;
+
+        // Added all this below : 
+        typedef Eigen::Matrix<double,dim+1,1> BaryType;
+        std::vector<Eigen::Matrix<double,dim,dim>> betaP(const ElementType& ele, const BaryType& bary) const;
+        std::vector<Eigen::Matrix<double,dim,dim>> betaV(const ElementType& ele, const BaryType& bary) const;
+        MatrixDim averageBetaP() const;
+        MatrixDim averageBetaPKernel(const Eigen::Matrix<double,dim,1>& a1, const ElementType& ele) const;
+        MatrixDim averageBetaV() const;
+        MatrixDim averageBetaVKernel(const Eigen::Matrix<double,dim,1>& a1, const ElementType& ele) const;
 
     };
     

@@ -23,5 +23,6 @@ int main(int argc, char** argv)
     MicrostructureGenerator mg(ddBase);
     mg.readMicrostructureFile();
     mg.writeConfigFiles(0);
+    
     return 0;
 }

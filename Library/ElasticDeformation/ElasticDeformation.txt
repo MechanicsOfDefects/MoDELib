@@ -1,3 +1,5 @@
+useElasticDeformationFEM=0;
+inertiaReliefPenaltyFactor=1e-3;
 
 ExternalStress0 = 0.0 0.0 0.0 0.0 0.0 0.0;
 ExternalStressRate = 0.0 0.0 0.0 0.0 0.0 0.0;

@@ -65,6 +65,9 @@
 #include <vtkGlyph3D.h>
 #include <vtkArrowSource.h>
 #include <vtkDoubleArray.h>
+#include <vtkLabeledDataMapper.h>
+#include <vtkActor2D.h>
+#include <vtkProperty2D.h>
 
 #include <TextFileParser.h>
 
@@ -122,7 +125,10 @@ namespace model
     public:
         QGridLayout* mainLayout;
         QCheckBox* showMesh;
+        QCheckBox* showExternalFaceIDs;
         QCheckBox* showFaceBoundaries;
+        QCheckBox* showPeriodicFaces;
+        
 //        QCheckBox* showGrainColors;
         QCheckBox* showRegionBoundaries;
         QSlider* sliderRegionBoundaries;
@@ -132,6 +138,10 @@ namespace model
  //       QSlider* sliderAxes;
 
         QCheckBox* showPeriodicityVectors;
+
+        vtkSmartPointer<vtkPolyData> labelPolyData;
+        vtkSmartPointer<vtkLabeledDataMapper> labelMapper;
+        vtkSmartPointer<vtkActor2D> labelActor;
 
         
         vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow;
@@ -159,6 +169,14 @@ namespace model
         vtkSmartPointer<vtkPolyData> gbTrianglePolyData;
         vtkSmartPointer<vtkPolyDataMapper> gbMapper;
         vtkSmartPointer<vtkActor> gbActor;
+        
+//        vtkSmartPointer<vtkUnsignedCharArray> gbColors;
+//        vtkSmartPointer<vtkPoints> gbPoints;
+//        vtkSmartPointer<vtkCellArray> gbTriangles;
+//        vtkSmartPointer<vtkPolyData> gbTrianglePolyData;
+        vtkSmartPointer<vtkPolyDataMapper> pfMapper;
+        vtkSmartPointer<vtkActor> pfActor;
+
         
         vtkSmartPointer<vtkPlane> clipPlane;
         vtkSmartPointer<vtkClipPolyData> clipper;

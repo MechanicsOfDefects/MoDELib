@@ -71,15 +71,15 @@
 
 namespace model
 {
-    template <int dim, short unsigned int corder>
+    template <int dim>
     class DislocationNetwork : public MicrostructureBase<dim>
-    /*                      */,public LoopNetwork<DislocationNetwork<dim,corder> >
+    /*                      */,public LoopNetwork<DislocationNetwork<dim> >
     {
         
     public:
         
         
-        typedef TypeTraits<DislocationNetwork<dim,corder>> TraitsType;
+        typedef TypeTraits<DislocationNetwork<dim>> TraitsType;
         typedef typename TraitsType::LoopNetworkType LoopNetworkType;
         typedef typename TraitsType::LoopType LoopType;
         typedef typename TraitsType::LoopNodeType LoopNodeType;
@@ -95,6 +95,7 @@ namespace model
         typedef typename MicrostructureBase<dim>::NodeType NodeType;
         typedef typename MicrostructureBase<dim>::SimplexDim SimplexDim;
         typedef typename MicrostructureBase<dim>::VectorMSize VectorMSize;
+        typedef typename MicrostructureBase<dim>::VectorISize VectorISize;
 
 
         constexpr static int NdofXnode=NetworkNodeType::NdofXnode;
@@ -106,36 +107,41 @@ namespace model
         void updateBoundaryNodes();
         bool contract(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
         
-        std::shared_ptr<DislocationGlideSolverBase<DislocationNetwork<dim,corder>>> glideSolver;
-        std::shared_ptr<DislocationClimbSolverBase<DislocationNetwork<dim,corder>>> climbSolver;
+        std::shared_ptr<DislocationGlideSolverBase<DislocationNetwork<dim>>> glideSolver;
+        std::shared_ptr<DislocationClimbSolverBase<DislocationNetwork<dim>>> climbSolver;
 
     private:
         
+        static std::set<int> getSubCyclingSet(const std::vector<int> &inpVector);
         std::shared_ptr<InclusionMicrostructure<dim>> _inclusions;
 
     public:
 
         DislocationDynamicsBase<dim>& ddBase;
         DislocationNetworkRemesh<LoopNetworkType> networkRemesher;
-        DislocationJunctionFormation<DislocationNetwork<dim,corder>> junctionsMaker;
-        const std::shared_ptr<BaseCrossSlipModel<DislocationNetwork<dim,corder>>> crossSlipModel;
-        DislocationCrossSlip<DislocationNetwork<dim,corder>> crossSlipMaker;
+        DislocationJunctionFormation<DislocationNetwork<dim>> junctionsMaker;
+        const std::shared_ptr<BaseCrossSlipModel<DislocationNetwork<dim>>> crossSlipModel;
+        DislocationCrossSlip<DislocationNetwork<dim>> crossSlipMaker;
         DislocationNodeContraction<LoopNetworkType> nodeContractor;
-        DDtimeStepper<DislocationNetwork<dim,corder>> timeStepper;
+        DDtimeStepper<DislocationNetwork<dim>> timeStepper;
         std::shared_ptr<StochasticForceGenerator> stochasticForceGenerator;
         int ddSolverType;
+        int bulkNucleationModel;
+        int surfaceNucleationModel;
         bool computeDDinteractions;
         bool outputQuadraturePoints;
         bool outputLinkingNumbers;
         bool outputLoopLength;
         bool outputSegmentPairDistances;
         const bool outputPlasticDistortionPerSlipSystem;
+        const bool outputDislocationDensityPerSlipSystem;
         const bool computeElasticEnergyPerLength;
         double alphaLineTension;
         std::set<const LoopNodeType*> danglingBoundaryLoopNodes;
         const bool use_velocityFilter;
         const double velocityReductionFactor;
-        
+        const Eigen::Matrix<double,Eigen::Dynamic,dim> nodalVelocityConstraints;
+        const std::set<int> subcyclingBins;
         
         const int verboseDislocationNode;
             
@@ -143,6 +149,7 @@ namespace model
                 
         void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
         void solve() override;
+        void reSolve() override;
         double getDt() const override;
         void output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
         void updateConfiguration() override;
@@ -153,14 +160,17 @@ namespace model
         MatrixDim averageStress() const override;
         VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
         VectorMSize mobileConcentration(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
-
+        VectorISize immobileClusters(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
 
         void setConfiguration(const DDconfigIO<dim>&);
+        void addConfiguration(const DDconfigIO<dim>&);
+
         MatrixDim averagePlasticStrain() const;
         std::map<std::pair<int,int>,double> slipSystemAveragePlasticDistortion() const;
         MatrixDim averagePlasticStrainRate() const;
         void updateGeometry();//
         std::tuple<double,double,double,double> networkLength() const;
+        std::vector<std::tuple<double,double,double,double>> networkLengthPerSlipSystem() const;
         bool isClimbStep() const;
         const std::shared_ptr<InclusionMicrostructure<dim>>&  inclusions() const;
 

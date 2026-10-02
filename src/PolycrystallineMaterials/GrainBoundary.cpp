@@ -36,7 +36,7 @@ namespace model
     void GrainBoundary<dim>::computeCrystallographicRotationAxis()
     {
         // Compute the relative rotation matrix R such that C2G2=R*C2G1
-        const MatrixDimD R(grain(grainBndID.first).singleCrystal->C2G.transpose()*grain(grainBndID.second).singleCrystal->C2G);
+        const MatrixDimD R(grain(grainBndID.first).C2G.transpose()*grain(grainBndID.second).C2G);
         
         // Eigen-decompose R
         Eigen::EigenSolver<MatrixDimD> es(R);
@@ -57,8 +57,8 @@ namespace model
         assert(axisNorm>FLT_EPSILON);
         _crystallographicRotationAxis/=axisNorm;
         
-        _rotationAxis=grain(grainBndID.first).singleCrystal->C2G*_crystallographicRotationAxis;
-        assert((_rotationAxis-grain(grainBndID.second).singleCrystal->C2G*_crystallographicRotationAxis).norm()<FLT_EPSILON && "rotationAxis inconsistency.");
+        _rotationAxis=grain(grainBndID.first).C2G*_crystallographicRotationAxis;
+        assert((_rotationAxis-grain(grainBndID.second).C2G*_crystallographicRotationAxis).norm()<FLT_EPSILON && "rotationAxis inconsistency.");
         
         cosTheta=0.5*(R.trace()-1.0);
         

@@ -99,7 +99,7 @@ namespace model
                     TextFileParser(simulationParameters.traitsIO.polyFile).readMatrix<double>("X0",1,_dim,true).transpose(),
                     simulationParameters.periodicFaceIDs)
     /* init */,isPeriodicDomain(checkIfFullyPeriodicDomain(mesh))
-    /* init */,periodicImageSize(isPeriodicDomain? TextFileParser(simulationParameters.traitsIO.ddFile).readArray<int>("periodicImageSize",true) : std::vector<int>())
+    /* init */,periodicImageSize(isPeriodicDomain? TextFileParser(simulationParameters.traitsIO.dcFile).readArray<int>("periodicImageSize",true) : std::vector<int>())
     /* init */,periodicLatticeBasis(mesh.periodicBasis())
     /* init */,periodicLatticeReciprocalBasis(periodicLatticeBasis*(periodicLatticeBasis.transpose()*periodicLatticeBasis).inverse())
     /* init */,periodicShifts(getPeriodicShifts(periodicLatticeBasis,periodicImageSize))
@@ -107,11 +107,31 @@ namespace model
     /* init */,fe((!isPeriodicDomain && simulationParameters.useFEM) ? new FiniteElement<ElementType>(mesh) : nullptr)
     /* init */,glidePlaneFactory(poly)
     /* init */,periodicGlidePlaneFactory(poly,glidePlaneFactory)
-    /* init */,EwaldLength(isPeriodicDomain? getEwaldLength(periodicLatticeBasis,TextFileParser(simulationParameters.traitsIO.ddFile).readScalar<double>("EwaldLengthFactor",true)) : 0.0)
+    /* init */,EwaldLength(isPeriodicDomain? getEwaldLength(periodicLatticeBasis,TextFileParser(simulationParameters.traitsIO.dcFile).readScalar<double>("EwaldLengthFactor",true)) : 0.0)
     {
         if(!mesh.simplices().size())
         {
             throw std::runtime_error("Mesh is empty");
+        }
+        
+        for(const auto& region : mesh.regions())
+        {
+            for(const auto& face : region.second->faces())
+            {
+                if(face.second->isExternal() && face.second->periodicFacePair.second)
+                {
+                    const Eigen::Matrix<double,Eigen::Dynamic,1> pd(periodicLatticeReciprocalBasis.transpose()*face.second->periodicFacePair.first);
+                    const Eigen::Matrix<double,Eigen::Dynamic,1> pn(pd.array().round());
+                    if((pd-pn).norm()>FLT_EPSILON*pd.norm())
+                    {
+                        std::cout<<"region="<<region.second->regionID<<std::endl;
+                        std::cout<<"face="<<face.second->sID<<std::endl;
+                        std::cout<<"pd="<<pd.transpose()<<std::endl;
+                        std::cout<<"pn="<<pn.transpose()<<std::endl;
+                        throw std::runtime_error("Face shift must be an intiger combination of the periodicity vectors");
+                    }
+                }
+            }
         }
         
         std::cout<<"isPeriodicDomain="<<isPeriodicDomain<<std::endl;

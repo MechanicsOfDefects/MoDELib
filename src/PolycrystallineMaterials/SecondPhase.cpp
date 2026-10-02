@@ -21,9 +21,11 @@ namespace model
     
     template<int dim>
     SecondPhase<dim>::SecondPhase(const std::string& _name,
-                                  const std::map<const GlidePlaneBase*,std::shared_ptr<GammaSurface>>& _gsMap) :
+                                  const std::map<const GlidePlaneBase*,std::shared_ptr<GammaSurface>>& _gsMap,
+                                  const PlaneNormalContainerType& planes_in) :
     /* init */ name(_name)
     /* init */,gsMap(_gsMap)
+    /* init */,planes(planes_in)
     {
         
         std::cout<<greenBoldColor<<"Creating SecondPhase "<<name<<", phaseID= "<<this->sID<<defaultColor<<std::endl;
@@ -33,15 +35,6 @@ namespace model
     template<int dim>
     double SecondPhase<dim>::misfitEnergy(const VectorDim& b,const GlidePlaneBase* const gpb) const
     {
-        
-//        std::cout<<"inPlane="<<n<<std::endl;
-//
-//        std::cout<<"planes"<<std::endl;
-//        for(const auto& pair : gsMap)
-//        {
-//            std::cout<<pair.first<<std::endl;
-//        }
-        
         const auto gammaIter(gsMap.find(gpb));
         if(gammaIter!=gsMap.end())
         {
@@ -59,6 +52,17 @@ namespace model
 
     }
 
+template<int dim>
+double SecondPhase<dim>::misfitEnergy(const VectorDim& b,const size_t& planeID) const
+{
+    return misfitEnergy(b,planes.at(planeID).get());
+}
+
+template<int dim>
+std::shared_ptr<GammaSurface> SecondPhase<dim>::gammaSurface(const size_t& planeID) const
+{
+    return gsMap.at(planes.at(planeID).get());
+}
     
 template struct SecondPhase<3>;
 }

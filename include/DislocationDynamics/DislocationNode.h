@@ -21,14 +21,14 @@
 namespace model
 {
     
-    template <int dim, short unsigned int corder>
-    class DislocationNode : public NetworkNode<DislocationNode<dim,corder>>
-    /*                   */,public SplineNode<DislocationNode<dim,corder>,dim,corder,Hermite>
+    template <int dim>
+    class DislocationNode : public NetworkNode<DislocationNode<dim>>
+    /*                   */,public SplineNode<DislocationNode<dim>,dim,0,Hermite>
     {
         
         public:
         
-        typedef TypeTraits<DislocationLoop<dim,corder>> TraitsType;
+        typedef TypeTraits<DislocationLoop<dim>> TraitsType;
         typedef typename TraitsType::LoopNetworkType LoopNetworkType;
         typedef typename TraitsType::LoopType LoopType;
         typedef typename TraitsType::LoopNodeType LoopNodeType;
@@ -37,7 +37,7 @@ namespace model
         typedef typename TraitsType::NetworkLinkType NetworkLinkType;
         typedef typename TraitsType::FlowType FlowType;
         typedef typename TraitsType::VectorDim VectorDim;
-        typedef SplineNode<DislocationNode<dim,corder>,dim,corder,Hermite> SplineNodeType;
+        typedef SplineNode<DislocationNode<dim>,dim,0,Hermite> SplineNodeType;
 //        typedef ConfinedDislocationObject<dim> ConfinedDislocationObjectType;
         typedef typename TypeTraits<NetworkNodeType>::MeshLocation MeshLocation;
         typedef std::vector<VectorDim> VectorOfNormalsType;

@@ -12,8 +12,6 @@
 namespace model
 {
 
-
-   /**************************************************************************/
     template <int dim>
     typename LatticePlaneKey<dim>::ArrayType LatticePlaneKey<dim>::hr2array(const VectorDimI &r, const LongIntType &h, const LongIntType &latticeID)
     {
@@ -27,14 +25,12 @@ namespace model
         return temp;
     }
 
-    /**************************************************************************/
     template <int dim>
     int LatticePlaneKey<dim>::sgn(const LongIntType &val)
     {
         return (LongIntType(0) < val) - (val < LongIntType(0));
     }
 
-    /**************************************************************************/
     template <int dim>
     typename LatticePlaneKey<dim>::ArrayType LatticePlaneKey<dim>::correct_h_sign(VectorDimI r, LongIntType h, const LongIntType &latticeID)
     {
@@ -55,47 +51,42 @@ namespace model
         return hr2array(r, h, latticeID);
     }
 
-
-    /**********************************************************************/
     template <int dim>
     LatticePlaneKey<dim>::LatticePlaneKey(const VectorDimI& r,
-    const LongIntType& h,
-    const LongIntType& latticeID) :
+                                          const LongIntType& h,
+                                          const LongIntType& latticeID) :
     /* init */ array(correct_h_sign(r,h,latticeID))
     {
     }
-    
-    /**********************************************************************/
+
     template <int dim>
     LatticePlaneKey<dim>::LatticePlaneKey(const VectorDimD& P,
-    const ReciprocalLatticeDirection<dim>& r) :
-    /* delegate */ LatticePlaneKey(r,r.planeIndexOfPoint(P),r.lattice.sID)
+                                          const ReciprocalLatticeDirection<dim>& r) :
+    /* delegate */ LatticePlaneKey(r.base(),r.planeIndexOfPoint(P),r.lattice.sID)
     {
-    
-    }
-    
-    /**********************************************************************/
-    template <int dim>
-    LatticePlaneKey<dim>::LatticePlaneKey(const LatticeVector<dim>& L,
-    const ReciprocalLatticeDirection<dim>& r) :
-    /* delegate */ LatticePlaneKey(r,r.planeIndexOfPoint(L),r.lattice.sID)
-    {
-    
-    }
-    
-    /**********************************************************************/
-    template <int dim>
-    LatticePlaneKey<dim>::LatticePlaneKey(const long int& hin,
-    const ReciprocalLatticeDirection<dim>& r) :
-    /* init */ LatticePlaneKey(r,hin,r.lattice.sID)
-    {
-    
+        
     }
 
     template <int dim>
-    Eigen::Map<const typename LatticePlaneKey<dim>::VectorDimI> LatticePlaneKey<dim>::reciprocalDirectionComponents() const
+    LatticePlaneKey<dim>::LatticePlaneKey(const LatticeVector<dim>& L,
+                                          const ReciprocalLatticeDirection<dim>& r) :
+    /* delegate */ LatticePlaneKey(r.base(),r.planeIndexOfPoint(L),r.lattice.sID)
     {
-        return Eigen::Map<const VectorDimI>(&array.data()[0]);
+        
+    }
+
+    template <int dim>
+    LatticePlaneKey<dim>::LatticePlaneKey(const long int& hin,
+                                          const ReciprocalLatticeDirection<dim>& r) :
+    /* init */ LatticePlaneKey(r.base(),hin,r.lattice.sID)
+    {
+        
+    }
+
+    template <int dim>
+    typename LatticePlaneKey<dim>::VectorDimI LatticePlaneKey<dim>::reciprocalDirectionComponents() const
+    {
+        return VectorDimI(Eigen::Map<const VectorDimI>(&array.data()[0]));
     }
 
     template <int dim>
@@ -118,13 +109,11 @@ namespace model
 
     template struct LatticePlaneKey<3>;
 
-//for the lattice plane class.
-    /**********************************************************************/
     std::pair<bool, long int> LatticePlane::computeHeight(const ReciprocalLatticeDirection<dim> &r,
-                                                   const VectorDimD &P)
+                                                          const VectorDimD &P)
     { /*! ????
-          */
-        if(r.squaredNorm()==0)
+       */
+        if(r.base().squaredNorm()==0)
         {
             throw std::runtime_error("LatticePlane::computeHeight: A zero normal cannot be used as valid GlidePlane normal");
         }
@@ -133,47 +122,43 @@ namespace model
         return std::make_pair(fabs(hd - h) < FLT_EPSILON, h);
     }
 
-    /**********************************************************************/
     std::pair<bool, long int> LatticePlane::computeHeight(const ReciprocalLatticeDirection<dim> &r,
-                                                   const LatticeVector<dim> &L)
+                                                          const LatticeVector<dim> &L)
     { /*! ????
-          */
-        if(r.squaredNorm()==0)
+       */
+        if(r.base().squaredNorm()==0)
         {
             throw std::runtime_error("LatticePlane::computeHeight: A zero normal cannot be used as valid GlidePlane normal");
         }
         return std::make_pair(true, L.dot(r));
     }
 
-    /**********************************************************************/
     LatticePlane::LatticePlane(const VectorDimD& P,
-    const ReciprocalLatticeDirection<dim>& r) :
+                               const ReciprocalLatticeDirection<dim>& r) :
     /* init */ key(P,r)
     /* init */,n(ReciprocalLatticeVector<dim>(key.reciprocalDirectionComponents(),r.lattice))
     /* init */,planeIndex(key.planeIndex())
     {
-}
-    
-    /**********************************************************************/
+    }
+
     LatticePlane::LatticePlane(const LatticeVector<dim>& L,
-    const ReciprocalLatticeDirection<dim>& r) :
+                               const ReciprocalLatticeDirection<dim>& r) :
     /* init */ key(L,r)
     /* init */,n(ReciprocalLatticeVector<dim>(key.reciprocalDirectionComponents(),r.lattice))
     /* init */,planeIndex(key.planeIndex())
     {
-    
+        
     }
-    
-    /**********************************************************************/
+
     LatticePlane::LatticePlane(const long int& hin,
-    const ReciprocalLatticeDirection<dim>& r) :
+                               const ReciprocalLatticeDirection<dim>& r) :
     /* init */ key(hin,r)
     /* init */,n(ReciprocalLatticeVector<dim>(key.reciprocalDirectionComponents(),r.lattice))
     /* init */,planeIndex(key.planeIndex())
     {
-    
+        
     }
-    /**********************************************************************/
+
     typename LatticePlane::VectorDimD LatticePlane::planeOrigin() const
     {
         return planeIndex * n.planeSpacing() * n.cartesian().normalized();

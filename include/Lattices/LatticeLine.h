@@ -24,18 +24,10 @@ namespace model
         const LatticeDirectionType d;
         
         LatticeLine(const LatticeVectorType& P_in,const LatticeVectorType& d_in);
-        
-        /**********************************************************************/
         LatticeVectorType snapToLattice(const LatticeVectorType& P0) const;
-        /**********************************************************************/
         LatticeVectorType snapToLattice(const VectorDimD& P0) const;
-        
-        /**********************************************************************/
         VectorDimD snapToLine(const VectorDimD& P0) const;
-        
-        /**********************************************************************/
-        bool contains(const LatticeVectorType& P0) const;
-        
+        bool contains(const LatticeVectorType& P0) const;        
     };
     
 } // end namespace

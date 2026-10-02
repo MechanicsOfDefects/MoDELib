@@ -8,6 +8,7 @@
 #ifndef model_STATICID_H_
 #define model_STATICID_H_
 
+#include <iostream>
 
 namespace model
 {
@@ -50,7 +51,7 @@ namespace model
             count_used=true;
             count+=increment;
 		}
-        
+                
         static size_t nextID()
         {
             return count;
@@ -66,6 +67,8 @@ namespace model
 //			model_checkInput(newCount>=count && "YOU ARE TRYING TO SET THE COUNTER TO A LOWER VALUE THAN THE CURRENT ONE.");
             if(newCount<count)
             {
+                std::cout<<"newCount="<<newCount<<std::endl;
+                std::cout<<"count="<<count<<std::endl;
                 throw std::runtime_error("StaticID::set_count newCount<count");
             }
 //            assert(newCount>=count && "YOU ARE TRYING TO SET THE COUNTER TO A LOWER VALUE THAN THE CURRENT ONE.");

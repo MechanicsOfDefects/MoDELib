@@ -12,48 +12,36 @@
 namespace model
 {
 
-    
-    /**********************************************************************/
     template <int dim>
     LatticeDirection<dim>::LatticeDirection(const LatticeVectorType& v) :
-    /* base init */ LatticeVectorType(((v.squaredNorm()==0)? v : (v/LatticeGCD<dim>::gcd(v)).eval()),v.lattice)
+    /* delegate */ LatticeDirection<dim>(v.base(),v.lattice)
     {
     }
-        
-    /**********************************************************************/
+
     template <int dim>
-    template<typename Derived>
-    LatticeDirection<dim>::LatticeDirection(const Eigen::MatrixBase<Derived>& v,
-                     const Lattice<dim>& lat) :
-    //        /* base init */ LatticeGCDType(v),
-    //        /* base init */ ReciprocalLatticeVectorType(((v.squaredNorm()==0)? v : (v/this->gCD).eval()),v.covBasis,v.contraBasis)
-    //        /* base init */ ReciprocalLatticeVectorType(((v.squaredNorm()==0)? v : (v/this->gCD).eval()),v.lattice)
+    LatticeDirection<dim>::LatticeDirection(const VectorDimI& v,const Lattice<dim>& lat):
     /* base init */ LatticeVectorType(((v.squaredNorm()==0)? v : (v/LatticeGCD<dim>::gcd(v)).eval()),lat)
     {
-    //            assert(this->squaredNorm() && "ReciprocalLatticeDirection has Zero Norm");
-    }
         
-    /**********************************************************************/
+    }
+
     template <int dim>
     LatticeDirection<dim>::LatticeDirection(const ReciprocalLatticeVectorType& r1,const ReciprocalLatticeVectorType& r2) :
     /* delegating */ LatticeDirection(LatticeVectorType(r1.cross(r2)))
     {
     }
-        
 
-    /**********************************************************************/
     template <int dim>
     typename LatticeDirection<dim>::LatticeVectorType LatticeDirection<dim>::snapToLattice(const VectorDimD &dP) const
     { /*!@param[in] dP a cartesian input vector
-          *\returns the closest lattice vector corresponding to the projection
-          * of dP on *this LatticeDirection.
-          */
+       *\returns the closest lattice vector corresponding to the projection
+       * of dP on *this LatticeDirection.
+       */
         const VectorDimD dc(this->cartesian());
         return LatticeVectorType((round(dP.dot(dc) / dc.squaredNorm()) * dc).eval(),
                                  this->lattice);
     }
 
-    /**********************************************************************/
     template <int dim>
     typename LatticeDirection<dim>::VectorDimD LatticeDirection<dim>::snapToDirection(const VectorDimD &dP) const
     {
@@ -63,6 +51,7 @@ namespace model
         dc /= dNorm;
         return dP.dot(dc) * dc;
     }
+
     template struct LatticeDirection<3>;
 
 } // end namespace

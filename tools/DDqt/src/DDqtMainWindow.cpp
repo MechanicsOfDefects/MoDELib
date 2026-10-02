@@ -24,15 +24,11 @@ namespace model
     /* init */,newViewerAction(new QAction(tr("&New"), this))
     {
         resize(1920, 1080);
-
         QMenu* viewertMenu=menuBar()->addMenu(tr("&Viewer"));
         viewertMenu->addAction(newViewerAction);
         connect(newViewerAction, &QAction::triggered, this, &DDqtMainWindow::newViewerTab);
-//        connect(tabWidget->tabBar(), &QTabBar::tabCloseRequested, tabWidget->tabBar(), &QTabBar::removeTab);
-
+        connect(tabWidget,SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
         tabWidget->setTabsClosable(true);
-
-        
         setCentralWidget(tabWidget);
     }
 
@@ -48,6 +44,12 @@ namespace model
             std::cout<<e.what()<<std::endl;
         }
     }
+
+void DDqtMainWindow::closeTab(int tabID)
+{
+    tabWidget->removeTab(tabID);
+}
+
 
 } // namespace model
 #endif

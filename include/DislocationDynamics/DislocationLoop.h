@@ -21,13 +21,13 @@
 
 namespace model
 {
-    template <int _dim, short unsigned int corder>
-    class DislocationLoop : public Loop<DislocationLoop<_dim,corder>>
+    template <int _dim>
+    class DislocationLoop : public Loop<DislocationLoop<_dim>>
     {
 
     public:
         
-        typedef TypeTraits<DislocationLoop<_dim,corder>> TraitsType;
+        typedef TypeTraits<DislocationLoop<_dim>> TraitsType;
         typedef typename TraitsType::LoopNetworkType LoopNetworkType;
         typedef typename TraitsType::LoopType LoopType;
         typedef typename TraitsType::LoopNodeType LoopNodeType;
@@ -57,7 +57,7 @@ namespace model
         double _slippedAreaRate;
         VectorDim _rightHandedUnitNormal;
         VectorDim _rightHandedUnitNormal_old;
-        ReciprocalLatticeDirectionType _rightHandedNormal;
+        std::unique_ptr<ReciprocalLatticeDirectionType> _rightHandedNormal;
         std::shared_ptr<SlipSystem> _slipSystem;
 
     public:
@@ -88,6 +88,7 @@ namespace model
         std::vector<MeshedDislocationLoop> meshed(const double& meshSize,const double& localMeshSize) const;
         static void initFromFile(const std::string&);
         static double planarSolidAngle(const VectorDim& x,const VectorDim& planePoint,const VectorDim& rhN,const std::vector<std::pair<VectorDim,VectorDim>>& polygonSegments);
+        bool flippedInsideOut(const int& N,const double& areaThreshold) const;
         template <typename T> static int sgn(const T& val);
    };
     

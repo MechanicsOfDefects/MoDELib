@@ -16,11 +16,11 @@ namespace model
     template <typename DislocationNetworkType>
     DislocationNetworkRemesh<DislocationNetworkType>::DislocationNetworkRemesh(DislocationNetworkType& DN_in):
     /* init */ DN(DN_in)
-    /* init */,Lmax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("Lmax",true))
-    /* init */,Lmin(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("Lmin",true))
-    /* init */,absoluteAreaThreshold(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("absoluteAreaThreshold",true))
-    /* init */,relativeAreaThreshold(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("relativeAreaThreshold",true))
-    /* init */,remeshFrequency(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("remeshFrequency",true))
+    /* init */,Lmax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("Lmax",true))
+    /* init */,Lmin(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("Lmin",true))
+    /* init */,absoluteAreaThreshold(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("absoluteAreaThreshold",true))
+    /* init */,relativeAreaThreshold(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("relativeAreaThreshold",true))
+    /* init */,remeshFrequency(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("remeshFrequency",true))
     {
         
         assert(Lmin<=Lmax);
@@ -152,7 +152,7 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
                                         bndLoopNodes.emplace(bndNode->sID,bndNode->periodicPrev()->sID,bndNode->periodicNext()->sID);
                                     }
                                 }
-                                std::cout<<"Removing LoopNode"<<loopN->tag()<<std::endl;
+//                                std::cout<<"Removing LoopNode"<<loopN->tag()<<std::endl;
                                 DN.removeLoopNode(loopN->sID);
                                 removedLoopNodes.insert(loopN);
                                 Nremoved++;
@@ -601,7 +601,7 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
 //        return std::min(mesh.xMax(0) - mesh.xMin(0), std::min(mesh.xMax(1) - mesh.xMin(1), mesh.xMax(2) - mesh.xMin(2)));
 //    }
     
-    template class DislocationNetworkRemesh<DislocationNetwork<3,0>>;
+    template class DislocationNetworkRemesh<DislocationNetwork<3>>;
 
     
 } // namespace model

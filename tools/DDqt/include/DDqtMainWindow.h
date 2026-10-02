@@ -33,6 +33,7 @@ struct DDqtMainWindow : public QMainWindow
     private slots:
     
         void newViewerTab();
+        void closeTab(int tabID);
     
     
     private:

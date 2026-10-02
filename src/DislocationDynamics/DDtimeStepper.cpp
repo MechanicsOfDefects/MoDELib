@@ -17,17 +17,13 @@ namespace model
     template <typename DislocationNetworkType>
     DDtimeStepper<DislocationNetworkType>::DDtimeStepper(const DislocationNetworkType& DN_in):
     /* init */ DN(DN_in)
-    /* init */,timeSteppingMethod(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readString("timeSteppingMethod", true))
-    /* init */,dxMax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("dxMax", true))
-//    /* init */,shearWaveSpeedFraction(1.0e-7)
-//    /* init */,dtMax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.ddFile).readScalar<double>("dtMax", true))
+    /* init */,timeSteppingMethod(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("timeSteppingMethod", true))
+    /* init */,dxMax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("dxMax", true))
     {
         if (dxMax < FLT_EPSILON)
         {
             throw std::runtime_error("dxMax must be > FLT_EPSILON.");
         }
-        
-
     }
 
     template <typename DislocationNetworkType>
@@ -66,7 +62,7 @@ namespace model
         }
     }
 
-template struct DDtimeStepper<DislocationNetwork<3,0>>;
+template struct DDtimeStepper<DislocationNetwork<3>>;
 
 } // end namespace
 #endif
