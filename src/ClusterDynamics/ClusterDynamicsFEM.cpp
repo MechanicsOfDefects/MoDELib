@@ -85,6 +85,7 @@ template struct InvDscaling<3>;
     /* init */,nodeListInternalExternal(ddBase.isPeriodicDomain ? -1 : ddBase.fe->template createNodeList<ExternalAndInternalBoundary>())
     /* init */,mobileClustersIncrement(ddBase.fe->template trial<'d',mSize>())
     /* init */,dV(ddBase.fe->template domain<EntireDomain,dVorder,GaussLegendre>())
+    /* init */,dVprojection(ddBase.fe->template domain<EntireDomain,dVprojectionOrder,GaussLegendre>())
 //    /* init */,mBWF((test(this->mobileGrad),-ddBase.poly.Omega*this->mobileFlux)*dV)
     /* init */,mBWF((test(grad(iDs*mobileClusters)),-ddBase.poly.Omega*this->mobileFlux)*dV)
     /* init */,dmBWF((test(grad(iDs*mobileClustersIncrement)),-ddBase.poly.Omega*(FluxMatrix<dim>(this->cdp)*grad(mobileClustersIncrement)))*dV)   
@@ -180,8 +181,14 @@ template struct InvDscaling<3>;
         {
             std::cout<<", immobile solver, "<<std::flush;
             ImmobileSinkRate<MobileTrialType,ImmobileTrialType> immobileRate(mobileClusters,immobileClusters,this->cdp,ddBase.poly);
-            auto lWFsink((test(immobileClusters),immobileRate)*dV);
-            SpatialODESolver iSolver(immobileClusters,dV,false,1e-4);
+            // The rates are projected on the finite-element space with a quadrature that is exact for the mass
+            // matrix. With the 4-point rule of dV that matrix is singular: the nodal field with 6 at the vertices
+            // and 1 at the mid-edge nodes vanishes at every quadrature point, and the projected rates held an
+            // arbitrary multiple of it.
+            auto lWFsink((test(immobileClusters),immobileRate)*dVprojection);
+            // The rates of the number densities are orders of magnitude smaller than those of the contents,
+            // and the tolerance is relative to the norm of all of them
+            SpatialODESolver iSolver(immobileClusters,dVprojection,false,1e-12);
             immobileClusterRate = iSolver.solve(lWFsink.globalVector());
             std::cout<<"convergenceError="<<iSolver.error()<<std::endl;
         }
@@ -206,6 +213,24 @@ template struct InvDscaling<3>;
         }
     }
 
+
+    template<int dim>
+    void ClusterDynamicsFEM<dim>::scaleImmobileFamily(const int& family,const double& factor)
+    {/*!@param[in] family the index of an immobile family
+      * @param[in] factor the fraction of the family that remains in the fields
+      *
+      * Scales the number density and the defect content of a family by the
+      * same factor, which leaves the size of its clusters unchanged.
+      */
+        const double floorValue(1.0e-33); // keeps the ratio content/density defined when nothing remains
+        for(size_t nodeID=0; nodeID<immobileClusters.nodeSize(); nodeID++)
+        {
+            double& N(TrialBase<ImmobileTrialType>::dofVector()(iSize*nodeID+family));
+            double& c(TrialBase<ImmobileTrialType>::dofVector()(iSize*nodeID+iSize/2+family));
+            N=std::max(N*factor,floorValue);
+            c=std::max(c*factor,floorValue);
+        }
+    }
 
     template<int dim>
     void ClusterDynamicsFEM<dim>::solve(const bool hasDiscreteLoops)
@@ -301,15 +326,12 @@ template struct InvDscaling<3>;
         const Eigen::Matrix<double,dim,dim> lat(ddBase.poly.grains.at(gID)->latticeBasis);
         const Eigen::Matrix<double,dim,iSize/2> localBurgers(lat*cdp.immobileSpeciesBurgers);
         const Eigen::Array<double,1,iSize/2> cr(cdp.clusterRadius(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0)));
-        const Eigen::Matrix<double,1,dim> localx(lat.col(0).normalized());
-        const Eigen::Matrix<double,1,dim> localy((2.0*lat.col(1)-lat.col(0)).normalized());
-        const Eigen::Matrix<double,1,dim> localz(lat.col(2).normalized());
         for(int k=0; k<iSize/2; k++)
         { // N A b ^b*^b
             Eigen::Matrix<double,dim,dim> tempStrain(Eigen::Matrix<double,dim,dim>::Zero());
             const double Area=M_PI*std::pow(cr(k),2);
             const Eigen::Matrix<double,dim,dim> highValue(cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*Area*localBurgers.col(k)*localBurgers.col(k).normalized().transpose());
-            const Eigen::Matrix<double,dim,dim> lowValue(cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*cdp.delVPyramid*(localx.transpose()*localx+localy.transpose()*localy+localz.transpose()*localz)/3.0);
+            const Eigen::Matrix<double,dim,dim> lowValue(cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*cdp.delVPyramid*Eigen::Matrix<double,dim,dim>::Identity()/3.0); // isotropic, in any crystal
             tempStrain+=cdp.sigmoidalMatrixInterpolation(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0),lowValue,highValue,k).matrix();
             strainVector.push_back(tempStrain);
         }
@@ -334,16 +356,13 @@ template struct InvDscaling<3>;
         const size_t gID(ele.simplex.region->regionID);
         const Eigen::Matrix<double,dim,dim> lat(ddBase.poly.grains.at(gID)->latticeBasis);
         const Eigen::Matrix<double,dim,iSize/2> localBurgers(lat*cdp.immobileSpeciesBurgers);
-        const Eigen::Matrix<double,1,dim> localx(lat.col(0).normalized());
-        const Eigen::Matrix<double,1,dim> localy((2.0*lat.col(1)-lat.col(0)).normalized());
-        const Eigen::Matrix<double,1,dim> localz(lat.col(2).normalized());
         const Eigen::Array<double,1,iSize/2> cr(cdp.clusterRadius(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0)));
         for(int k=0; k<iSize/2; k++)
         { // N A b ^b*^b
             Eigen::Matrix<double,dim,dim> tempStrain(Eigen::Matrix<double,dim,dim>::Zero());
             const double Area=M_PI*std::pow(cr(k),2);
             const Eigen::Matrix<double,dim,dim> highValue(cdp.immobileSpeciesRelRelaxVol(k)*cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*Area*localBurgers.col(k)*localBurgers.col(k).normalized().transpose());
-            const Eigen::Matrix<double,dim,dim> lowValue(cdp.immobileSpeciesRelRelaxVol(k)*cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*cdp.delVPyramid*(localx.transpose()*localx+localy.transpose()*localy+localz.transpose()*localz)/3.0);
+            const Eigen::Matrix<double,dim,dim> lowValue(cdp.immobileSpeciesRelRelaxVol(k)*cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*cdp.delVPyramid*Eigen::Matrix<double,dim,dim>::Identity()/3.0); // isotropic, in any crystal
             tempStrain+=cdp.sigmoidalMatrixInterpolation(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0),lowValue,highValue,k).matrix();
             strainVector.push_back(tempStrain);
         }

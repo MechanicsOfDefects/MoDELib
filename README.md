@@ -20,7 +20,7 @@ The governing rule follows from that separation:
 > Each physics is a *microstructure* with the same duties: solve, propose a time step, update its configuration, and report its fields. The crystal adds the fields and takes the smallest time step.
 
 **Languages:** C++20 for the library and its tools. Python for input generation, post-processing and the optional `pyMoDELib` bindings (pybind11).\
-**Version:** 2.0.0. Input files written for 1.0.0 must be converted: see [section 9](#9-migrating-input-files-from-100).\
+**Version:** 2.1.0 ([changes](#15-changes-in-210)). Input files written for 1.0.0 must be converted: see [section 9](#9-migrating-input-files-from-100).\
 **License:** GNU GPL v2, as stated in the header of every source file. The repository has no separate `LICENSE` file.\
 **Primary reference:** G. Po, M. S. Mohamed, T. Crosby, C. Erel, A. El-Azab, N. Ghoniem, *Recent progress in discrete dislocation dynamics and its applications to micro plasticity*, JOM 66 (2014) 2108–2120.
 
@@ -54,7 +54,7 @@ In 1.0.0 cluster dynamics solved for the mobile point-defect species only. In 2.
 
 - **Eight immobile fields.** For each of four loop families, `c`, `a1`, `a2` and `a3`, the code carries a number density $N_j$ and a defect content $c_j$ (the point defects stored in that family, per lattice site). The mean cluster size is $n_j = c_j/(N_j\,\Omega)$.
 - **Sink strengths that follow the cluster shape.** A cluster is treated as a bi-pyramid below `nmin` defects and as a dislocation loop above `nmax`, with a sigmoidal transition between the two. The sink strength, the capture bias and the eigenstrain all follow that transition.
-- **Anisotropic capture.** The bias of a loop family combines a drift factor (`immobileBias`) and the diffusion-anisotropy factor of the mobile species (the ratio of its diffusion coefficients along and normal to the `c` axis).
+- **Anisotropic capture.** The bias of a loop family combines a drift factor (`immobileBias`, one value per mobile species) and the diffusion-anisotropy factor of the mobile species (the ratio of its diffusion coefficients along and normal to the `c` axis).
 - **Network dislocations as sinks.** `dislocationSinks_SI` gives a dislocation density per family, in addition to the loops.
 - **Growth strain.** Cluster dynamics now contributes to the average plastic distortion of the crystal: the eigenstrain of the loop populations, and the relaxation volume of the dissolved defects. In 1.0.0 that contribution was zero.
 - **Dissociation of mobile clusters**, with a binding energy per species (`mobileSpeciesBindingEnergy_eV`).
@@ -100,6 +100,15 @@ Slip systems are named by their crystallography, for example `a/2<111>{110}` ins
 - **Scripts:** `lib/` holds readers of the output files; `testsPy/` holds verification scripts.
 - **Build:** portable `CMakeLists.txt` with options for the optional parts ([section 5](#5-installation)).
 
+### 1.5 Changes in 2.1.0
+
+Version 2.1.0 closes two items of the 2.0.0 list of known issues, and corrects one defect found while testing them. Input files of 2.0.0 run unchanged. The method of the two additions is that of the DisloCluster code for irradiated zirconium; the theory is in [section 3.6](#36-cluster-dynamics) and the tests are in [section 10](#validation-of-210).
+
+- **Nucleation of immobile clusters.** The number densities are no longer constant. Clusters are born in cascades (`loopCascadeFractions`, `nNuc`) and from the reactions between mobile species whose product is larger than the largest mobile cluster (`loopClusteringNucleation`). The three keys are optional; without them the behaviour is that of 2.0.0.
+- **Conversion of the immobile fields to discrete loops.** `ClusterDynamics::initializeDiscreteClimbLoops`, commented out in 2.0.0, is rewritten. At `clusterDiscretizationTime` the fields become prismatic loops of the dislocation network, with the number, the position and the size that the fields give, and the fields lose what the loops hold. The three variables of the `#- Discretization -#` block now have an effect.
+- **Any number of loop families, in any crystal.** The immobile model no longer assumes four families: `MODELIB_CD_ISIZE` is any even number. The diffusion-anisotropy bias distinguishes the families by their Burgers vector instead of their position in the list, and the bi-pyramid eigenstrain is isotropic in any lattice.
+- **Projection of the immobile rates (correction).** The rates of the immobile species are projected on the finite-element space by solving with the mass matrix. That matrix was assembled with a 4-point quadrature, which does not integrate it exactly on quadratic elements and leaves it singular: the nodal field with the value 6 at the vertices and 1 at the mid-edge nodes vanishes at every quadrature point. The projected rates therefore held an arbitrary multiple of that field. Quantities evaluated at the quadrature points (sink strengths, growth strain) did not see it; nodal values did. The projection now uses a 14-point rule that is exact for the mass matrix (`GaussLegendre<3,14>`). This changes the results of `spatialCDtest` slightly, and by an amount that grows with dose ([section 10](#validation-of-210)).
+
 ## 2. Capabilities
 
 | Capability | Where | Notes |
@@ -122,7 +131,7 @@ Slip systems are named by their crystallography, for example `a/2<111>{110}` ins
 | Glide-plane noise | `GlidePlanes/AnalyticalSolidSolutionNoise.h`, `MDSolidSolutionNoise.h`, `MDStackingFaultNoise.h` | stress noise of a solid solution and stacking-fault energy noise, sampled on a grid (FFTW) from analytical or MD correlations |
 | Stochastic force | `DD.txt` | `useStochasticForce`, `stochasticForceSeed` |
 | Inclusions | `SphericalInclusion.h`, `PolyhedronInclusion.h` | eigendistortion, velocity reduction factor and second phase per inclusion |
-| Cluster dynamics | `include/ClusterDynamics/` | mobile species: anisotropic diffusion, production from a dose rate, dissociation, second-order reactions, sinks. Immobile species: four loop families with number density and defect content. Growth strain ([section 3.6](#36-cluster-dynamics)) |
+| Cluster dynamics | `include/ClusterDynamics/` | mobile species: anisotropic diffusion, production from a dose rate, dissociation, second-order reactions, sinks. Immobile species: loop families with number density and defect content, nucleation, conversion to discrete loops. Growth strain ([section 3.6](#36-cluster-dynamics)) |
 | Microstructure generation | `include/MicrostructureGeneration/` | shear, prismatic and Frank loops; stacking-fault tetrahedra; periodic dipoles; a planar loop from its nodes; spherical and polyhedral inclusions. By target density or individually |
 | Time stepping | `DDtimeStepper.h` | `fixed` or `adaptive`; velocity filter; subcycling when `subcyclingBins` has more than one value |
 | Lattice arithmetic | `include/Lattices/` | lattice and reciprocal vectors, rational directions, LLL reduction, CSL and DSCL of bicrystals |
@@ -260,11 +269,29 @@ $$\rho^{l}_j = (1-S_j)\,\alpha_{bp}\,4\pi r^{pyr}_j N_j + S_j\,2\pi r^{loop}_j N
 
 with $r^{pyr} = (n\Omega/\sqrt{8})^{1/3}$ and $r^{loop} = \sqrt{n\Omega/(\pi b\,|\mathbf{b}_j|)}$. The bias is 1 for bi-pyramids, and for loops the product of `immobileBias` and the diffusion-anisotropy factor: $p_k$ for the `c` family and $(p_k + p_k^{-2})/2$ for the `a` families, with $p_k = (D_{k,33}/D_{k,11})^{1/6}$.
 
-**Immobile species.** The number densities do not change (there is no nucleation of new clusters). The defect content grows by the net flux of point defects to the family:
+**Immobile species.** The defect content of a family grows by the net flux of point defects to it, and by the content of the clusters that are born. The number density grows by nucleation:
 
-$$\frac{dN_j}{dt} = 0,\qquad \frac{dc_j}{dt} = s_j \sum_k Z^{tot}_{jk}\,\rho^{l}_j\,\bar D_k\, n_k\, C_k .$$
+$$\frac{dN_j}{dt} = \frac{1}{\Omega}\left(\frac{G_j}{n^{nuc}_j} + \chi_j\,\Phi^{N}_{p(j)}\right),\qquad \frac{dc_j}{dt} = s_j \sum_k Z^{tot}_{jk}\,\rho^{l}_j\,\bar D_k\, n_k\, C_k + G_j + \chi_j\,\Phi^{c}_{p(j)} .$$
 
-The rate is projected on the finite-element space and integrated by a forward Euler step. The content is kept above `n_min` defects per cluster.
+$N_j$ is a number per unit volume and $c_j$ a number of defects per atomic site, hence the atomic volume $\Omega$ in the first equation. The rates are projected on the finite-element space and integrated by a forward Euler step. The content is kept above `n_min` defects per cluster.
+
+**Nucleation.** Two sources create clusters. Both are optional, and without them $dN_j/dt = 0$ as in 2.0.0.
+
+- **Cascades.** A fraction $\varepsilon_j$ (`loopCascadeFractions`) of the surviving defects is born directly as clusters of family $j$, each holding $n^{nuc}_j$ defects (`nNuc`). The content production is $G_j = G_0\,\eta\,\varepsilon_j$, with $G_0$ the dose rate and $\eta$ the surviving efficiency, and the number production is $G_j/n^{nuc}_j$. The defects that go to the clusters do not go to the mobile species: for the vacancies, and separately for the interstitials, `mobileSpeciesCascadeFractions` and `loopCascadeFractions` must sum to one. The code prints a warning otherwise.
+- **Clustering of mobile species.** The mobile ladder is finite, for example $\{v, i, 2i, 3i\}$. A reaction $a + b$ between two species of the same sign whose product $n_a + n_b$ is not a mobile species (here $i+3i$, $2i+2i$, $2i+3i$ and $3i+3i$) takes its reactants out of the ladder. The mobile equations already debit them, with the rate coefficient $K_{ab} = p_{ab}\,4\pi(r_a+r_b)(\bar D_a+\bar D_b)/\Omega$ of the second-order reactions; this is the origin of the start-up warning `Sum of R2 is not zero`. In 2.0.0 those defects were lost. With `loopClusteringNucleation=1` each such reaction creates one immobile cluster that holds the defects of its two reactants. The number of reactions per site and per unit time is
+
+$$E_{ab} = K_{ab}\,C_a\,C_b \quad (a\neq b),\qquad E_{aa} = \tfrac{1}{2}K_{aa}\,C_a^2 ,$$
+
+  and the two sources of the families of sign $p$ (vacancy or interstitial, the sign of the reactants) are
+
+$$\Phi^{N}_p = \sum_{(a,b)\in p} E_{ab},\qquad \Phi^{c}_p = \sum_{(a,b)\in p} \left(|n_a|+|n_b|\right)E_{ab} .$$
+
+  What the loops gain is exactly what the mobile species lose, so the reactions conserve the defects. A channel is active when its prefactor in `reactionPrefactorMap` is positive.
+- **Shares.** The clustering source of a sign is divided between the families of that sign in the proportions of their cascade fractions, $\chi_j = \varepsilon_j / \sum_{j'\in p}\varepsilon_{j'}$, or equally when those fractions are all zero.
+
+The model has no term that removes clusters (coalescence, dissolution of small vacancy loops), so with nucleation the number densities only grow. The mean size $n_j = c_j/(N_j\Omega)$ follows from the two equations: nucleation lowers it, absorption raises it.
+
+**Projection of the rates.** The rates above are evaluated at quadrature points and projected on the nodal basis by solving $\mathbf{M}\dot{\mathbf{x}} = \mathbf{f}$, with $\mathbf{M}$ the mass matrix. On the quadratic tetrahedra $\mathbf{M}$ needs a rule that is exact for polynomials of degree 4. The 14-point rule used here is exact to degree 5 and has positive weights.
 
 **Growth strain.** The average plastic distortion of cluster dynamics is the volume average of
 
@@ -272,7 +299,27 @@ $$\boldsymbol{\beta}^P = \sum_j s_j N_j \left[(1-S_j)\,\Delta V_{pyr}\,\frac{\ma
 
 plus a volumetric part from the relaxation volumes of the loops and of the dissolved mobile defects. Vacancy loops on the basal plane and interstitial loops on the prismatic planes therefore produce the anisotropic shape change known as irradiation growth.
 
-**Coupling with dislocation dynamics.** Climb needs cluster dynamics: the climb velocity of a segment follows from the difference between the concentration in equilibrium with its climb force and the concentration that cluster dynamics gives at that point. When the network holds discrete loops, the loop sink term is left out of the mobile equation and the immobile fields are frozen.
+**Conversion to discrete loops.** A field of clusters cannot glide, intersect a dislocation or be seen as an obstacle; a discrete loop can. At the first update after `clusterDiscretizationTime`, with `DislocationDynamics` in `physics` and a network that holds no loop yet, each family is converted as follows.
+
+1. *Number.* The number of clusters in the crystal is not a parameter: it is the integral of the number density, $\mathcal{N}_j = \int N_j\,dV$. The number of discrete loops is $\mathcal{N}_j/\Lambda$, rounded, where $\Lambda$ is `clusterDiscretizationFactor`, the number of clusters that one discrete loop stands for. $\Lambda = 1$ gives the population of the field; a larger value makes the population affordable for dislocation dynamics.
+2. *Position.* Each loop is placed in a mesh element drawn with probability $\mathcal{N}_e/\mathcal{N}_j$, the share of the clusters that the element holds, and at a uniformly random point of that element. The loops therefore follow the spatial variation of the field.
+3. *Size.* A loop holds the defects of the clusters it stands for, $m = \Lambda\,\mathcal{C}_e/\mathcal{N}_e$, with $\mathcal{C}_e = \int_e c_j/\Omega\,dV$. A prismatic loop of radius $r$ and Burgers vector $\mathbf{b}_j$ stores $\pi r^2 |\mathbf{b}_j|/\Omega$ defects, so
+
+$$r = \sqrt{\frac{m\,\Omega}{\pi\,|\mathbf{b}_j|}} .$$
+
+   Rounding the number of loops changes the total by a fraction of a loop. All radii are then multiplied by one factor, so that the loops hold exactly the defects of the field: $\sum_i \pi r_i^2|\mathbf{b}_j|/\Omega = \int c_j/\Omega\,dV$.
+4. *Coalescence.* Two loops of the same family overlap when the distance of their centres is less than the sum of their radii. They are merged only if the centres also lie within one spacing of the habit planes along the normal: loops on different parallel planes cannot become one loop without climbing. The merged loop has the area of the two, $r = \sqrt{r_1^2+r_2^2}$, which conserves the defects, and its centre is their area-weighted centroid. Merging at constant total area cannot remove overlap: with $N$ loops in a volume $V$, $r \propto N^{-1/2}$ and the spacing $d = (V/N)^{1/3} \propto N^{-1/3}$, so the ratio $2r/d \propto N^{-1/6}$ grows with every merge. A pass that would make the mean diameter larger than the mean spacing is therefore rejected, and the family is reported as saturated.
+5. *Shape and crystallography.* A loop is a regular polygon of 12 sides in the lattice plane nearest to its centre, with normal along $\mathbf{b}_j$ (a pure prismatic loop). A polygon of circumradius $R$ has the area $\tfrac{n}{2}R^2\sin(2\pi/n)$, 4.5 % less than the disc for $n=12$. The stored defects are proportional to the area, so the circumradius is $R = r\sqrt{2\pi/(n\sin(2\pi/n))} = 1.023\,r$. The Burgers vector is the lattice vector `immobileSpeciesBurgers`, along the area normal for a vacancy loop and opposite to it for an interstitial loop. The loops are sessile: they move by climb.
+6. *Loops that are not created.* A loop smaller than `minimumLoopSize` is not created. A loop with a node outside its grain is moved towards the centre of the grain in steps of 10 % of the distance, and is not created if it still does not fit after 30 steps. If the created loops hold the fraction $\varphi$ of the defects of the family, the fields $N_j$ and $c_j$ are both multiplied by $1-\varphi$. The same factor on both leaves the cluster size of what remains unchanged.
+
+For each family the code prints three totals before and after the conversion: the number of loops, the stored defects, and the sink strength $\sum 2\pi r$. The defects are conserved by construction. The number is conserved for $\Lambda=1$, up to rounding and coalescence. The sink strength is not conserved when clusters are lumped: at constant area it scales as $\Lambda^{-1/2}$.
+
+Two consequences should guide the choice of the conversion time:
+
+- The eigenstrain of a discrete loop is that of a loop, $\mathbf{b}\otimes\hat{\mathbf{b}}\,\pi r^2/V$. A family that is still in the bi-pyramid range of the sigmoid has an isotropic eigenstrain in the fields, and its conversion changes the growth strain. Set `minimumLoopSize` to the loop radius at `nmax` to leave such a family in the fields.
+- After the conversion the loops evolve by dislocation dynamics, and the time step is the smaller of `dtMax` and the step that the network proposes. The `dtMax` of a run of cluster dynamics alone (days) is far larger than what the climb of discrete loops needs.
+
+**Coupling with dislocation dynamics.** Climb needs cluster dynamics: the climb velocity of a segment follows from the difference between the concentration in equilibrium with its climb force and the concentration that cluster dynamics gives at that point. When the network holds discrete loops, the loop sink term is left out of the mobile equation and the immobile fields are frozen; this applies to the share of a family that a conversion left in the fields.
 
 **Time step.** Cluster dynamics proposes `dtMax`. A run of cluster dynamics alone uses `dtMax` as its step.
 
@@ -392,7 +439,7 @@ The build type is `Release`, with `-O3 -march=native -fopenmp`. Eigen is found t
 | `BUILD_DDQT` | `ON` | builds the viewer; needs Qt 6 and VTK. Configuration fails if they are missing, so set it to `OFF` on a machine without them |
 | `MODELIB_MARCH` | `native` | the value of `-march`. Use for example `x86-64-v2` for binaries that must run on other machines |
 | `MODELIB_CD_MSIZE` | `4` | number of mobile cluster-dynamics species |
-| `MODELIB_CD_ISIZE` | `8` | number of immobile cluster-dynamics fields: two per loop family. `0` for none |
+| `MODELIB_CD_ISIZE` | `8` | number of immobile cluster-dynamics fields: two per loop family, so an even number. `0` for none |
 | `EIGEN3_INCLUDE_DIRS` | found automatically | path of the Eigen headers |
 | `CMAKE_PREFIX_PATH` | | where Qt 6 is installed, for example `~/Qt/6.7.3/macos/lib/cmake` |
 | `Python_EXECUTABLE`, `pybind11_DIR` | | the interpreter and the pybind11 installation to use |
@@ -420,15 +467,15 @@ cmake -S . -B build_1_0 -DMODELIB_CD_MSIZE=1 -DMODELIB_CD_ISIZE=0 -DUSE_PYBIND11
 cmake --build build_1_0 -j
 ```
 
-The immobile-species model is written for four loop families, so `MODELIB_CD_ISIZE` is either 8 or 0.
+`MODELIB_CD_ISIZE` is twice the number of loop families of the material file: any even number, or 0. The diffusion-anisotropy bias of a family is that of a loop normal to the third lattice vector when its Burgers vector is along that vector (the basal loops of a HEX crystal), and that of a loop containing it otherwise. With isotropic diffusion the bias is 1 for every family, in any crystal.
 
 ### Container image
 
 Each release is also published as a container image with the command-line tools, `Library/`, `python/`, `lib/` and the tutorials:
 
 ```bash
-docker pull ghcr.io/mechanicsofdefects/modelib:v2.0.0
-docker run -it --rm ghcr.io/mechanicsofdefects/modelib:v2.0.0
+docker pull ghcr.io/mechanicsofdefects/modelib:v2.1.0
+docker run -it --rm ghcr.io/mechanicsofdefects/modelib:v2.1.0
 ```
 
 The container starts in `/opt/MoDELib/tutorials`, with `DDomp` and `microstructureGenerator` on the `PATH`. They are built with the default species counts (4 and 8) and `-march=x86-64-v2`, so that the binaries do not depend on the build machine. `DDqt` and `pyMoDELib` are not in the image.
@@ -612,6 +659,8 @@ An old slip-system name gives no error: the crystal is simply created without sl
 
 **Microstructure files:** in the density specifications of shear and Frank loops, `targetDensity`, `radiusDistributionMean` and `radiusDistributionStd` are now `targetDensity_SI`, `radiusDistributionMean_SI` and `radiusDistributionStd_SI`. Frank loops gained `allowedGrainIDs` and `allowedPlaneIDs`.
 
+**From 2.0.0 to 2.1.0** nothing needs to be converted. The keys `loopCascadeFractions`, `nNuc` and `loopClusteringNucleation` are optional. `clusterDiscretizationTime`, `clusterDiscretizationFactor` and `minimumLoopSize` were already required, and now act; the value of `clusterDiscretizationTime` in `Zr4_Fitted.txt` is beyond any run, so no conversion takes place unless it is lowered. `minimumLoopSize` is in metres.
+
 **Cluster dynamics.** With immobile species, the material file needs the variables of the `#- Immobile Species -#`, `#- Bi-Pyramids -#`, `#- Initial Defect Densities -#` and `#- Discretization -#` blocks of `Zr4_Fitted.txt`, which is the reference for the 4 + 8 species model.
 
 **Source code.** Code that includes headers of `DislocationMicrostructure/` must use `MicrostructureGeneration/`. `DislocationNetwork<dim,corder>` is now `DislocationNetwork<dim>`.
@@ -630,10 +679,49 @@ The repository has no automated test suite. What it has:
   | `stressStraight` | timing of the stress of a straight segment | `pyMoDELib` |
   | `analyticalSolidSolutionCorrelations`, `mdSolidSolutionCorrelations`, `mdSolidSolutionNoiseSample`, `mdStackingFaultCorrelations`, `mdStackingFaultNoiseSample` | sampled noise against its input correlation | `pyMoDELib` with FFTW, SciPy |
   | `periodicFields`, `periodicEnergy` | fields and energy of periodic dipoles against the number of images | `pyMoDELib`; the executables |
+  | `clusterDynamics` | nucleation of immobile clusters and their conversion to discrete loops, against analytical values; prints PASS or FAIL for each check | the executables, NumPy |
 
   The plots use Matplotlib, several of them with LaTeX labels.
 - **The tutorials:** five complete simulations ([section 7](#7-tutorials)).
 - **Continuous integration:** `.github/workflows/workflow.yml` builds the Doxygen pages on each push to `master` and publishes them. `.github/workflows/container.yml` builds the container image when a release is published; that build compiles the library and the two command-line tools, and runs two steps of the `dipoleNoise` and `spatialCDtest` tutorials.
+
+### Validation of 2.1.0
+
+The additions of 2.1.0 were checked with the eight cases of `testsPy/clusterDynamics`. Each case is the `spatialCDtest` tutorial (Zr, 1 µm box of 24 115 finite-element nodes, 553 K, $10^{-7}$ dpa/s, steps of 0.0489 dpa) with a few input variables changed. `runCases.sh` runs them and `checkCases.py` compares the results with the expected values. The numbers below are those of a build with g++ 15.2 and Eigen 3.4 on Ubuntu (WSL 2). The fields are compared through the text output, which holds six significant digits.
+
+**Nucleation.**
+
+| Check | Case | Expected | Result |
+|---|---|---|---|
+| Number source of the cascades, at every node | `nuc`: $\varepsilon = (5, 0.704, 0.704, 0.704)\times10^{-3}$, $n^{nuc} = (400, 300, 300, 300)$ | $\Delta N_j = G_0\eta\varepsilon_j\Delta t/(n^{nuc}_j\Omega)$ per step: $8.637\times10^{-9}$ and $1.622\times10^{-9}\ b^{-3}$ ($2.56\times10^{20}$ and $4.80\times10^{19}$ m$^{-3}$) | largest nodal difference $3	imes10^{-4}$, the resolution of the output |
+| Content source of the cascades, at every node | `nuc` minus `nuc0` after one step. The two cases have the same mobile field, hence the same absorption | $\Delta c_j = G_0\eta\varepsilon_j\Delta t$: $2.443\times10^{-6}$ and $3.440\times10^{-7}$ | largest nodal difference $4\times10^{-5}$ (`c`) and $3\times10^{-3}$ (`a`), the resolution of the output |
+| Without the keys, or with zero values | `reg`, `nuc0` | constant number densities | unchanged to the last digit |
+| Number source of the clustering reactions | `clus`: $i + 3i$ is the only active channel of `Zr4_Fitted.txt`, $K = 1.50\times10^{11}$ s$^{-1}$; initial density lowered to $4\times10^{19}$ m$^{-3}$ so that the source is resolved | $\chi_j K C_i C_{3i}\Delta t/\Omega$ from the mobile field of the output, $\chi_j = 1/3$ | mean over the mesh 0.98 of the expected value; median of the nodal ratios 1.005 |
+| Content source of the clustering reactions | `clus` minus `clusRef` | 4 defects per new cluster ($i+3i$) | mean 1.02 of the expected value; 4.2 defects per new cluster |
+| Vacancy family under interstitial clustering | `clus` | no change | no change |
+| Two loop families | build with `MODELIB_CD_ISIZE=4`, families `c` and `a1` | the same formulae | $\Delta N = 8.637\times10^{-9}$ and $4.607\times10^{-9}\ b^{-3}$ per step, as expected |
+
+With the fitted parameters of `Zr4_Fitted.txt` the concentrations of $i$ and $3i$ are so small that clustering adds less than $10^{-5}$ of the cascade source; it is checked in a case of its own for that reason.
+
+**Conversion to discrete loops.** In each case the field holds 4000.03 clusters per family.
+
+| Check | Case | Expected | Result |
+|---|---|---|---|
+| Number of loops, one loop per cluster | `discAll`, $\Lambda = 1$ | 4000 per family | 4000 drawn per family; 3999, 3999, 3998 and 4000 after the coalescence of four coplanar overlapping pairs; all inserted (15 996 loops) |
+| Stored defects | all cases | inserted = field | relative difference below $10^{-14}$ for every family |
+| Sink strength $\sum 2\pi r$, one loop per cluster | `discAll` | that of the field | ratio 0.9999 (`c`), 0.9998, 0.9997, 1.0000 (`a`); the difference is the merged pairs |
+| Sink strength, lumped | `disc`, $\Lambda = 100$ (40 loops per family) | $\Lambda^{-1/2} = 0.1$ of the field | 0.1000 for the four families |
+| Diameter over spacing | `discAll` and `disc` | growth as $N^{-1/6}$: a factor $100^{1/6} = 2.154$ | 0.0558 → 0.1202 (`c`), 0.1728 → 0.3724 (`a`): factors 2.154 and 2.155 |
+| `minimumLoopSize` | `discMin`, 30 nm, larger than the `c` loops | the `c` family stays in the fields; its number density and content are not changed | 0 `c` loops, 120 `a` loops |
+| Loops in the network | `disc`, `discMin` | the loops reported are in the configuration files | 160 and 120 loops of 12 nodes |
+| Run after the conversion | `disc` | climb steps of dislocation dynamics | three steps completed |
+| Growth strain across the conversion, loops only | `discMin` | continuous, but for the relaxation-volume term of the converted families (1 % of their strain, `immobileSpeciesRelRelaxVol`) | $\beta^P_{11}$: $1.109\times10^{-4}$ → $1.097\times10^{-4}$; $\beta^P_{33}$: $-7.131\times10^{-5}$ → $-7.132\times10^{-5}$ |
+| Growth strain across the conversion, bi-pyramids included | `disc` | the `c` clusters hold 104 defects, below `nmin` = 400: in the fields they are bi-pyramids with an isotropic eigenstrain, and they become basal loops. The strain of the loops is $\sum \mathbf{b}\otimes\hat{\mathbf{b}}\,\pi r^2/V$: $\beta^P_{11} = 1.807\times10^{-4}$, $\beta^P_{33} = -2.05\times10^{-5}$ | $\beta^P_{11}$: $1.109\times10^{-4}$ → $1.805\times10^{-4}$; $\beta^P_{33}$: $-7.131\times10^{-5}$ → $-2.060\times10^{-5}$. The discrete strain is the expected one; the jump is the change of shape, and is avoided with `minimumLoopSize` |
+| Two loop families | build with `MODELIB_CD_ISIZE=4` | conversion of both | 45 and 43 loops inserted, defects conserved |
+
+**Comparison with 2.0.0.** With nucleation off, 2.1.0 differs from 2.0.0 only by the projection of the immobile rates. Over the first 21 steps of `spatialCDtest` (0.98 dpa) the total growth strain differs from that of 2.0.0 by a relative $6	imes10^{-5}$ after 0.3 dpa, $2	imes10^{-4}$ after 0.5 dpa and $1.1	imes10^{-3}$ after 1 dpa for $eta^P_{11}$, and by $4	imes10^{-4}$ after 1 dpa for $eta^P_{33}$. The strain accumulated since the first step differs by 1 % ($eta^P_{11}$) and 2 % ($eta^P_{33}$) at 1 dpa. The difference grows with dose. **The comparison at the full dose of the tutorial (5.9 dpa) had not been completed when 2.1.0 was released**, and the parameters of `Zr4_Fitted.txt` were fitted with the projection of 2.0.0: the agreement of the tutorial with the growth measurements should be checked again. The mobile fields differ by $3	imes10^{-5}$ after 0.3 dpa.
+
+**What these tests do not cover.** The nucleation sources are checked against their formulae, not against measured loop densities: no parameter set was fitted with nucleation on. The conversion is checked for its conservation properties and for the first climb steps; no long run of dislocation dynamics on a converted population was made. All cases are single crystals of HEX zirconium.
 
 ## 11. Status and known issues
 
@@ -642,11 +730,11 @@ The repository has no automated test suite. What it has:
 | Dislocation glide, junctions, remeshing | in use; exercised by the tutorials |
 | Periodic and finite domains, inclusions | in use |
 | Glide-plane noise | in use; `dipoleNoise` tutorial. The templates `MDSolidSolution.txt` and `MDStackingFault.txt` are placeholders: set `type`, the correlation files, and three values for `gridSize` and `gridSpacing_SI`, as the `testsPy` scripts do |
-| Cluster dynamics, mobile and immobile species | in use; `spatialCDtest` tutorial. The immobile model is specific to HEX crystals and to four loop families. The number densities are constant: there is no nucleation of clusters |
+| Cluster dynamics, mobile and immobile species | in use; `spatialCDtest` tutorial. Nucleation of clusters by cascades and by clustering is available and is off in `Zr4_Fitted.txt`, whose parameters were fitted with constant number densities. There is no term that removes clusters (coalescence, dissolution), so the number densities only grow. The diffusion-anisotropy bias is that of a HEX crystal; the rest of the immobile model holds for any crystal and any number of families |
 | Climb | Galerkin climb solver coupled to the cluster-dynamics concentrations; `annealing` tutorial |
 | Species counts | fixed at compile time (`MODELIB_CD_MSIZE`, `MODELIB_CD_ISIZE`). Two builds are needed to run all the tutorials. Making the counts run-time parameters is the open item |
 | Material files | all are in the 2.0.0 format. Only `Zr4_Fitted.txt` has the variables of the immobile species. `Zr_CD2.txt`, `Zr_CD3_BMD19.txt` and `Zr_CD4.txt` have two, three and four mobile species and need a build with `MODELIB_CD_ISIZE=0` and the matching `MODELIB_CD_MSIZE`. The mobility numbers of `UO2.txt` are those of W and are placeholders |
-| Conversion of loop fields to discrete loops | the code that would replace the immobile fields by discrete prismatic loops after `clusterDiscretizationTime` is commented out in `ClusterDynamics.cpp`. The three variables of the `#- Discretization -#` block are still read, and have no effect |
+| Conversion of loop fields to discrete loops | in use from 2.1.0 ([section 3.6](#36-cluster-dynamics)). One conversion per run, of all families at once. Every cluster of a converted family becomes a loop, also in the bi-pyramid range unless `minimumLoopSize` excludes it. The relaxation-volume strain of a converted family (`immobileSpeciesRelRelaxVol`) is not carried by the discrete loops. No tutorial exercises it yet |
 | Nucleation | `bulkNucleationModel=1` is a first model: it inserts a shear loop of radius $50\,b$ in every mesh element where a resolved shear stress is below $0.05\,\mu$. `surfaceNucleationModel` is read and has no effect |
 | Cross slip | model 1 (deterministic) is in use. Model 2 (thermally activated, HEX) has not been updated: it relies on the names of the 1.0.0 mobility classes and on material variables that no material file has |
 | Mobility type `none` | not usable: an enabled slip system needs a law |

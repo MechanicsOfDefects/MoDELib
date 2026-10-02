@@ -25,7 +25,7 @@
 # See also https://mcilloni.ovh/2021/02/09/cxx-cross-clang/
 
 cmake_minimum_required(VERSION 3.20)
-project(MoDELib VERSION 2.0.0 LANGUAGES C CXX)
+project(MoDELib VERSION 2.1.0 LANGUAGES C CXX)
 
 option(USE_PYBIND11 "enables pybind11" ON)
 option(BUILD_TOOLS "builds tools" ON)

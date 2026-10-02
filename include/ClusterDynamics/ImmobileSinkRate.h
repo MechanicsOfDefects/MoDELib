@@ -84,7 +84,7 @@ struct ImmobileSinkRate : public EvalFunction<ImmobileSinkRate<MobileTrialFuncti
             {
                 for(int j=0;j<mSize;j++)
                 {
-                temp(i,j) = i%(iSize/2)==0 ? p[j] : (p[j]+1.0/p[j]/p[j])/2.0;
+                temp(i,j) = cdp.isBasalFamily(i) ? p[j] : (p[j]+1.0/p[j]/p[j])/2.0; // clusters in the basal plane, or in a plane that contains the c axis
                 }
             }
         }
@@ -131,10 +131,7 @@ struct ImmobileSinkRate : public EvalFunction<ImmobileSinkRate<MobileTrialFuncti
         //loopRadius(0) = cdp.vclusterRadius(correctedSinkValue(iSize/2),correctedSinkValue(0));
         //loopsDensity(0) = 0.2*4.0*M_PI*loopRadius(0)*correctedSinkValue(0);
 
-        const Eigen::Matrix<double,iSize/2,1> disDensity((Eigen::Matrix<double,iSize/2,1>()<<cdp.dislocationSinks(0), //dislocation density c
-                                                                                             cdp.dislocationSinks(1), //a1
-                                                                                             cdp.dislocationSinks(2), //a2
-                                                                                             cdp.dislocationSinks(3)).finished());
+        const Eigen::Matrix<double,iSize/2,1> disDensity(cdp.dislocationSinks.matrix().transpose()); // dislocation density of each family
         const Eigen::Matrix<double,iSize/2,1> defectDensity(cdp.clusterDensity(correctedSinkValue.template block<iSize/2,1>(iSize/2,0).array(),correctedSinkValue.template block<iSize/2,1>(0,0).array()).transpose().matrix());
         const Eigen::Array<double,iSize/2,mSize> rholD((defectDensity*aveD.matrix()).array());
         const Eigen::Array<double,iSize/2,mSize> rhodD((disDensity*aveD.matrix()).array());
@@ -192,6 +189,35 @@ struct ImmobileSinkRate : public EvalFunction<ImmobileSinkRate<MobileTrialFuncti
         
         Eigen::Matrix<double,rows,cols> temp(Eigen::Matrix<double,rows,cols>::Zero());
         temp.template block<rows/2,cols>(rows/2,0) = (cdp.immobileSpeciesVector.transpose()*fluxs).matrix();
+
+        if(cdp.hasNucleation())
+        {// Nucleation of new clusters. Number densities are per unit volume, contents per atomic volume
+
+            // Clusters born in cascades: each one holds nNuc defects
+            temp.template block<rows/2,cols>(0,0) += (cdp.loopG/cdp.nNuc/cdp.omega).matrix().transpose();
+            temp.template block<rows/2,cols>(rows/2,0) += cdp.loopG.matrix().transpose();
+
+            // Clusters born from the reactions between mobile species whose product is not mobile.
+            // The loss rate of each reactant is K*C_a*C_b, as in SecondOrderReaction.
+            // One cluster is born per reaction, and holds the defects of the two reactants
+            Eigen::Array<double,1,2> clusteringNumber(Eigen::Array<double,1,2>::Zero());  // [vacancy type, interstitial type]
+            Eigen::Array<double,1,2> clusteringContent(Eigen::Array<double,1,2>::Zero());
+            for(const auto& channel : cdp.loopNucChannels)
+            {
+                const int a(channel.first.first);
+                const int b(channel.first.second);
+                const double loss(channel.second*std::max(Cvalue(a),0.0)*std::max(Cvalue(b),0.0));
+                const int p(cdp.msVector(a)<0.0? 0 : 1);
+                clusteringNumber(p) += (a==b)? 0.5*loss : loss;
+                clusteringContent(p)+= (a==b)? std::fabs(cdp.msVector(a))*loss : (std::fabs(cdp.msVector(a))+std::fabs(cdp.msVector(b)))*loss;
+            }
+            for(int k=0;k<rows/2;++k)
+            {
+                const int p(cdp.immobileSpeciesVector(k)<0.0? 0 : 1);
+                temp(k)        += cdp.clusteringShare(k)*clusteringNumber(p)/cdp.omega;
+                temp(rows/2+k) += cdp.clusteringShare(k)*clusteringContent(p);
+            }
+        }
 
         return  temp;
     }

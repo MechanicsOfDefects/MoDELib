@@ -52,7 +52,7 @@ namespace model
     /* init */ immobileSpeciesRelRelaxVol((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("immobileSpeciesRelRelaxVol",true).array() : Eigen::Array<double,1,iSize/2>::Zero().eval()),
     /* init */ immobileSpeciesBurgers((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,dim,iSize/2>("immobileSpeciesBurgers",true) : Eigen::Matrix<double,dim,iSize/2>::Zero()),
     /* init */ immobileSpeciesBurgersMagnitude((true && iSize>0) ? getImmobileSpeciesBurgersMagnitude(ddBase.poly.grains) : Eigen::Array<double,1,iSize/2>::Zero().eval()),
-    /* init */ immobileBias((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("immobileBias",true) : Eigen::Array<double,1,iSize/2>::Zero()),
+    /* init */ immobileBias((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,mSize>("immobileBias",true) : Eigen::Array<double,1,mSize>::Zero()),
     /* init */ a_bp((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("alpha_bp",true) : 0.0),
     /* init */ delVPyramid((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("delVPyramid",true)/pow(ddBase.poly.b_SI,3) : 0.0),
     /* init */ w0((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<double>("w0",true) : 0.0),
@@ -62,6 +62,12 @@ namespace model
     /* init */ nmin((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("nmin",true) : Eigen::Array<double,1,iSize/2>::Zero()),
     /* init */ nmax((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("nmax",true) : Eigen::Array<double,1,iSize/2>::Zero()),
     /* init */ n_min((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,iSize/2>("n_min",true).array() : Eigen::Array<double,1,iSize/2>::Zero().eval()),
+    /* init */ loopCascadeFractions(getOptionalFamilyArray(ddBase.poly.materialFile,"loopCascadeFractions",0.0)),
+    /* init */ nNuc(getOptionalFamilyArray(ddBase.poly.materialFile,"nNuc",1.0)),
+    /* init */ loopG(G0*msSurvivingEfficiency*loopCascadeFractions),
+    /* init */ useClusteringNucleation(iSize>0 && mSize>1 ? getOptionalInt(ddBase.poly.materialFile,"loopClusteringNucleation",0)>0 : false),
+    /* init */ loopNucChannels(useClusteringNucleation ? getLoopNucChannels() : std::map<std::pair<int,int>,double>()),
+    /* init */ clusteringShare(getClusteringShare()),
     /* init */ computeReactions((true && mSize>0 && mSize+iSize>1)? TextFileParser(ddBase.poly.materialFile).readScalar<int>("computeReactions",true) : 0),
 //    /* init */ use0DsinkStrength((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<int>("use0DsinkStrength",true) : 0),
 //    /* init */ Zv((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,dim>("Zv",true) : Eigen::Array<double,1,dim>::Zero()),
@@ -85,6 +91,25 @@ namespace model
             else if(msVector(k)>0)
             {// interstitial cluster
                 interstitialSum+=msCascadeFractions(k);
+            }
+        }
+        for(int k=0;k<iSize/2;++k)
+        {// defects born in cascades as immobile clusters are part of the same balance
+            if(loopCascadeFractions(k)<0.0)
+            {
+                throw std::runtime_error("ClusterDynamicsParameters: loopCascadeFractions must not be negative.");
+            }
+            if(loopCascadeFractions(k)>0.0 && nNuc(k)<1.0)
+            {
+                throw std::runtime_error("ClusterDynamicsParameters: nNuc must be at least 1 for each family with a non-zero loopCascadeFractions.");
+            }
+            if(immobileSpeciesVector(k)<0)
+            {
+                vacancySum+=loopCascadeFractions(k);
+            }
+            else if(immobileSpeciesVector(k)>0)
+            {
+                interstitialSum+=loopCascadeFractions(k);
             }
         }
         
@@ -112,6 +137,19 @@ namespace model
         {
             std::cout<<"second-order interaction matrix (in 1/s) for "<<static_cast<int>(msVector(k))<<"-species is: "<<std::endl;
             std::cout<<R2[k]*ddBase.poly.cs_SI/ddBase.poly.b_SI<<std::endl;
+        }
+
+        if(hasNucleation())
+        {
+            std::cout<<"immobile cluster nucleation: loopCascadeFractions="<<loopCascadeFractions<<", nNuc="<<nNuc<<std::endl;
+            for(const auto& pair : loopNucChannels)
+            {
+                std::cout<<"  clustering channel "<<static_cast<int>(msVector(pair.first.first))<<" + "<<static_cast<int>(msVector(pair.first.second))<<", rate coefficient (in 1/s) "<<pair.second*ddBase.poly.cs_SI/ddBase.poly.b_SI<<std::endl;
+            }
+            if(loopNucChannels.size())
+            {
+                std::cout<<"  share of each family in the clustering nucleation: "<<clusteringShare<<std::endl;
+            }
         }
     }
 
@@ -306,6 +344,155 @@ namespace model
         }
         
         return tempR2;
+    }
+
+    template<int dim>
+    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::iSize/2> ClusterDynamicsParameters<dim>::getOptionalFamilyArray(const std::string& materialFile,const std::string& key,const double& defaultValue)
+    {/*!\returns the per-family values of an optional key of the material file,
+      * or defaultValue for every family when the key is absent.
+      */
+        if(iSize>0)
+        {
+            Eigen::Matrix<double,1,iSize/2> temp;
+            try
+            {
+                temp=TextFileParser(materialFile).readMatrix<double,1,iSize/2>(key,true);
+            }
+            catch(const std::runtime_error& e)
+            {
+                if(std::string(e.what()).find("does not cointain line with format")==std::string::npos)
+                {// the key is present, and wrong
+                    throw;
+                }
+                return Eigen::Array<double,1,iSize/2>::Constant(defaultValue);
+            }
+            return temp.array();
+        }
+        else
+        {
+            return Eigen::Array<double,1,iSize/2>::Constant(defaultValue);
+        }
+    }
+
+    template<int dim>
+    int ClusterDynamicsParameters<dim>::getOptionalInt(const std::string& materialFile,const std::string& key,const int& defaultValue)
+    {
+        try
+        {
+            return TextFileParser(materialFile).readScalar<int>(key,true);
+        }
+        catch(const std::runtime_error& e)
+        {
+            if(std::string(e.what()).find("does not cointain line with format")==std::string::npos)
+            {// the key is present, and wrong
+                throw;
+            }
+            return defaultValue;
+        }
+    }
+
+    template<int dim>
+    bool ClusterDynamicsParameters<dim>::hasNucleation() const
+    {
+        return (iSize>0) && ((loopG>0.0).any() || loopNucChannels.size()>0);
+    }
+
+    template<int dim>
+    bool ClusterDynamicsParameters<dim>::isBasalFamily(const int& k) const
+    {/*!\returns true if the Burgers vector of family k is along the third lattice vector
+      * (the c axis of a HEX crystal), so that the clusters lie in the basal plane.
+      */
+        return fabs(immobileSpeciesBurgers(2,k))>FLT_EPSILON
+        /*  */ && fabs(immobileSpeciesBurgers(0,k))<FLT_EPSILON
+        /*  */ && fabs(immobileSpeciesBurgers(1,k))<FLT_EPSILON;
+    }
+
+    template<int dim>
+    std::map<std::pair<int,int>,double> ClusterDynamicsParameters<dim>::getLoopNucChannels() const
+    {/*!\returns the reactions between mobile species that nucleate immobile clusters,
+      * with the rate coefficient that getR2() assembles,
+      *
+      *      K_ab = p_ab*4*pi*(r_a+r_b)*(D_a+D_b)/Omega.
+      *
+      * A pair (a,b) of the reaction map is a nucleating channel when
+      *  (i)  the two species have the same sign (a mixed pair is recombination), and
+      *  (ii) no mobile species has the size of the product, so that the product
+      *       leaves the mobile ladder and becomes an immobile cluster.
+      * For the species {v,i,2i,3i} the channels are i+3i, 2i+2i and 2i+3i.
+      * getR2() debits the reactants of these channels and credits no product,
+      * which is the origin of the warning "Sum of R2 is not zero".
+      */
+        std::map<std::pair<int,int>,double> temp;
+        if(detD.empty())
+        {
+            return temp;
+        }
+
+        Eigen::Array<double,1,mSize> aveD(Eigen::Array<double,1,mSize>::Zero());
+        Eigen::Array<double,1,mSize> rn(Eigen::Array<double,1,mSize>::Zero());
+        for(int k=0;k<mSize;k++)
+        {// same radii and average diffusion coefficients as in getR2()
+            aveD(k)=pow(detD.begin()->second(k),1.0/3.0);
+            if(fabs(msVector(k)-1)<FLT_EPSILON || fabs(msVector(k)+1)<FLT_EPSILON)
+            {
+                rn(k)=pow(3.0*this->omega/4.0/M_PI,1.0/3.0);
+            }
+            else
+            {
+                rn(k)=pow(fabs(msVector(k)*this->omega/this->b/M_PI),1.0/2.0);
+            }
+        }
+
+        for(const auto& pair : reactionMap)
+        {
+            const int a(pair.first.first);
+            const int c(pair.first.second);
+            if(pair.second<=0.0)
+            {// channel switched off in the material file
+                continue;
+            }
+            if(msVector(a)*msVector(c)<=0.0)
+            {// opposite signs: not clustering
+                continue;
+            }
+            bool productIsMobile(false);
+            for(int k=0;k<mSize;k++)
+            {
+                if(fabs(msVector(a)+msVector(c)-msVector(k))<FLT_EPSILON)
+                {
+                    productIsMobile=true;
+                    break;
+                }
+            }
+            if(!productIsMobile)
+            {
+                temp.emplace(pair.first,pair.second*4.0*M_PI*(rn(a)+rn(c))*(aveD(a)+aveD(c))/omega);
+            }
+        }
+        return temp;
+    }
+
+    template<int dim>
+    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::iSize/2> ClusterDynamicsParameters<dim>::getClusteringShare() const
+    {/*!\returns the share of the clustering nucleation taken by each family.
+      * The shares are those of loopCascadeFractions within the families of
+      * the same sign, or equal shares when all those fractions are zero.
+      */
+        Eigen::Array<double,1,iSize/2> temp(Eigen::Array<double,1,iSize/2>::Zero());
+        Eigen::Array<double,1,2> fracTot(Eigen::Array<double,1,2>::Zero());
+        Eigen::Array<double,1,2> cntTot(Eigen::Array<double,1,2>::Zero());
+        for(int k=0;k<iSize/2;++k)
+        {
+            const int p(immobileSpeciesVector(k)<0.0? 0 : 1);
+            fracTot(p)+=loopCascadeFractions(k);
+            cntTot(p)+=1.0;
+        }
+        for(int k=0;k<iSize/2;++k)
+        {
+            const int p(immobileSpeciesVector(k)<0.0? 0 : 1);
+            temp(k)= fracTot(p)>0.0 ? loopCascadeFractions(k)/fracTot(p) : 1.0/cntTot(p);
+        }
+        return temp;
     }
 
     template<int dim>

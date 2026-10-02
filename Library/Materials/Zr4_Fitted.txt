@@ -82,7 +82,7 @@ immobileSpeciesBurgers=0 1 0 -1
                         0 0 1 1
                         1 0 0 0; # Each column is a Burgers vector (component for lattice basis) for immobile loops
 immobileSpeciesRelRelaxVol= 0.1 0.01 0.01 0.01; # Relative relaxation volume for loops [... c a1 a2 a3 ...]
-immobileBias=1.0 1.0 1.0 1.0;
+immobileBias=1.0 1.0 1.0 1.0; # [-] drift bias of the loops for each mobile species [v i 2i 3i]
 
 #- Bi-Pyramids -#
 alpha_bp = 0.4; # [-] bi-pyramid sink strength coefficient
@@ -93,12 +93,19 @@ nmin = 400 0.9 0.9 0.9; # [-]  Critival number of vacancies below which cluser i
 nmax = 1500 1 1 1; # [-] Critical number of vacancies above which cluster is c-loop
 n_min = 8 8 8 8; # [-] Minimal defects per node
 
+#- Nucleation of immobile clusters -#
+# Optional block. Without it, or with the values below, the number densities are constant.
+loopCascadeFractions=0.0 0.0 0.0 0.0; # [-] fraction of the surviving defects born in cascades as clusters of each family [c a1 a2 a3]. When not zero, reduce mobileSpeciesCascadeFractions so that vacancies and interstitials each sum to one
+nNuc=400 300 300 300; # [-] number of defects in a cluster born in a cascade
+loopClusteringNucleation=0; # 1= clusters also nucleate from the reactions between mobile species whose product is larger than the largest mobile cluster
+
 #- Initial Defect Densities -#
 otherSinks_SI=0e12 0e12 0e12 0e12; # [m^-2], Sink strength k^2 of the first-order reaction
 dislocationSinks_SI=0e11 0e11 0e11 0e11; # [m^-2], Dislocation sink strength in [c, a1, a2, a3]
 initLoopSinks_SI= 4e21 4e21 4e21 4e21 2e-5 12e-5 12e-5 12e-5; # [m^-3] and [-] for initial loop sinks
 
 #- Discretization -#
-clusterDiscretizationTime=0.5e30; # [s] 10 dpa = 10e7 s * 1e-7 dpa/s
-clusterDiscretizationFactor=100; # [-] number of neighbor clusters lumped into discrete loop
-minimumLoopSize = 0e9; # [nm] smallest discretizable loop 
+# At clusterDiscretizationTime the immobile fields are replaced by discrete prismatic loops. Needs DislocationDynamics in physics
+clusterDiscretizationTime=0.5e30; # [s] time of the conversion. 10 dpa is 1e8 s at 1e-7 dpa/s
+clusterDiscretizationFactor=100; # [-] number of clusters that one discrete loop stands for. 1 gives the population of the fields
+minimumLoopSize = 0e9; # [m] loops of smaller radius are not created, and stay in the fields

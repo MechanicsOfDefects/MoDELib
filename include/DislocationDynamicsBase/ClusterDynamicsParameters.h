@@ -40,6 +40,7 @@ struct ClusterDynamicsParameters
     // set by the CMake options MODELIB_CD_MSIZE and MODELIB_CD_ISIZE, and must match the material file.
     static constexpr int mSize=MODELIB_CD_MSIZE;     // e.g. Cv, Ci, C2i, C3i
     static constexpr int iSize=MODELIB_CD_ISIZE;  // e.g. Nc, Na1, Na2, Na3, cv, ca1, ca2, ca3
+    static_assert(iSize>=0 && iSize%2==0,"MODELIB_CD_ISIZE must be even: each immobile family carries a number density and a defect content");
 
     typedef Eigen::Matrix<double,dim,1> VectorDim;
     typedef Eigen::Matrix<double,dim,dim> MatrixDim;
@@ -86,7 +87,7 @@ struct ClusterDynamicsParameters
     const Eigen::Array<double,1,iSize/2> immobileSpeciesRelRelaxVol;
     const Eigen::Matrix<double,dim,iSize/2> immobileSpeciesBurgers;
     const Eigen::Array<double,1,iSize/2> immobileSpeciesBurgersMagnitude;
-    const Eigen::Array<double,1,iSize/2> immobileBias;
+    const Eigen::Array<double,1,mSize> immobileBias; // drift bias of the loops for each mobile species
     const double a_bp; // bi-pyramid sink strength coefficient
     const double delVPyramid;
     const double w0;
@@ -94,6 +95,14 @@ struct ClusterDynamicsParameters
     const Eigen::Array<double,1,iSize/2> nmin; // Critical size for <c> pyramid -> loop
     const Eigen::Array<double,1,iSize/2> nmax;
     const Eigen::Array<double,1,iSize/2> n_min; // minimal loop sizes
+
+    // Nucleation of immobile clusters (optional keys of the material file; without them the number densities are constant)
+    const Eigen::Array<double,1,iSize/2> loopCascadeFractions; // fraction of the surviving defects born in cascades as clusters of each family
+    const Eigen::Array<double,1,iSize/2> nNuc; // defects per cascade-born cluster
+    const Eigen::Array<double,1,iSize/2> loopG; // content production rate of each family, G0*msSurvivingEfficiency*loopCascadeFractions
+    const bool useClusteringNucleation; // clusters also nucleate from the mobile reactions whose product is larger than the largest mobile cluster
+    const std::map<std::pair<int,int>,double> loopNucChannels; // (species,species) -> rate coefficient of the nucleating reactions
+    const Eigen::Array<double,1,iSize/2> clusteringShare; // share of the clustering nucleation taken by each family, within its polarity
 
     // Irradiation Production
     // const double evc; // Vacancy cluster generation efficiency
@@ -125,6 +134,12 @@ struct ClusterDynamicsParameters
     std::map<std::pair<int,int>,double> getMap(const Eigen::Array<double,mSize*(mSize+1)/2,3> matrix_in) const;
     Eigen::Matrix<double,mSize,mSize> getR1() const;
     std::vector<Eigen::Matrix<double,mSize,mSize>> getR2() const;
+    static Eigen::Array<double,1,iSize/2> getOptionalFamilyArray(const std::string& materialFile,const std::string& key,const double& defaultValue);
+    static int getOptionalInt(const std::string& materialFile,const std::string& key,const int& defaultValue);
+    std::map<std::pair<int,int>,double> getLoopNucChannels() const;
+    Eigen::Array<double,1,iSize/2> getClusteringShare() const;
+    bool hasNucleation() const;
+    bool isBasalFamily(const int& k) const;
     Eigen::Array<double,1,iSize/2> getImmobileSpeciesBurgersMagnitude(const GrainContainerType& grains) const;
     std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> getD(const GrainContainerType& grains) const;
     std::vector<Eigen::Matrix<double,dim,dim>> getDlocal() const;

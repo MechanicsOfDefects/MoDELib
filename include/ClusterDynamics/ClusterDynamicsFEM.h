@@ -76,6 +76,8 @@ namespace model
         typedef FiniteElement<ElementType> FiniteElementType;
         static constexpr int dVorder=4;
         typedef IntegrationDomain<FiniteElementType,0,dVorder,GaussLegendre> VolumeIntegrationDomainType;
+        static constexpr int dVprojectionOrder=14; // exact for the mass matrix of the quadratic elements
+        typedef IntegrationDomain<FiniteElementType,0,dVprojectionOrder,GaussLegendre> ProjectionIntegrationDomainType;
         static constexpr int mSize=ClusterDynamicsParameters<dim>::mSize;
         static constexpr int iSize=ClusterDynamicsParameters<dim>::iSize;
         typedef TrialFunction<'m',mSize,FiniteElementType> MobileTrialType;
@@ -145,6 +147,7 @@ namespace model
         const int nodeListInternalExternal;
         MobileIncrementTrialType mobileClustersIncrement;
         VolumeIntegrationDomainType dV;
+        ProjectionIntegrationDomainType dVprojection; // used to project the rates of the immobile species
         MobileBilinearWeakFormType mBWF;
         MobileIncrementBilinearWeakFormType dmBWF;
 
@@ -167,6 +170,7 @@ namespace model
         void solveMobileClusters(const bool hasDiscreteLoops);
         void solveImmobileClusters();
         void updateImmobileClusters(const double dt);
+        void scaleImmobileFamily(const int& family,const double& factor);
         void solve(const bool hasDiscreteLoops);
 //        void applyBoundaryConditions();
         void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels);

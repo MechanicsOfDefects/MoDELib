@@ -77,6 +77,7 @@ namespace model
         const bool useClusterDynamicsFEM;
         const std::unique_ptr<ClusterDynamicsFEM<dim>> clusterDynamicsFEM;
         UniformControllerContainerType uniformControllers;
+        bool discreteLoopsInitialized; // true once the immobile fields have been converted to discrete loops
 
         
 //        const int nodeListInternalExternal;
@@ -108,9 +109,7 @@ namespace model
         void applyBoundaryConditions();
 
 
-        // std::set<const Simplex<dim,dim>*> vertexSetNeighbors(const std::set<const Simplex<dim,dim>*>& inSet, const std::set<const Simplex<dim,dim>*>& usedEle) const;
-        // std::pair<double,double> groupNi(const std::set<const Simplex<dim,dim>*>& inSet, const int &k) const;
-        // void initializeDiscreteClimbLoops();
+        void initializeDiscreteClimbLoops();
         
         
         static UniformControllerContainerType getUniformControllers(const DislocationDynamicsBase<dim>& ddBase,const ClusterDynamicsParameters<dim>& cdp);

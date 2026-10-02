@@ -77,7 +77,7 @@ struct FirstOrderReaction : public EvalFunction<FirstOrderReaction<MobileTrialFu
             {
                 for(int j=0;j<mSize;j++)
                 {
-                temp(i,j) = i%(iSize/2)==0 ? p[j] : (p[j]+1.0/p[j]/p[j])/2.0;
+                temp(i,j) = cdp.isBasalFamily(i) ? p[j] : (p[j]+1.0/p[j]/p[j])/2.0; // clusters in the basal plane, or in a plane that contains the c axis
                 }
             }
         }
@@ -124,10 +124,7 @@ struct FirstOrderReaction : public EvalFunction<FirstOrderReaction<MobileTrialFu
         //loopRadius(0) = cdp.vclusterRadius(correctedSinkValue(iSize/2),correctedSinkValue(0));
         //loopsDensity(0) = 0.2*4.0*M_PI*loopRadius(0)*correctedSinkValue(0);
 
-        const Eigen::Matrix<double,iSize/2,1> disDensity((Eigen::Matrix<double,iSize/2,1>()<<cdp.dislocationSinks(0), //dislocation density c
-                                                                                             cdp.dislocationSinks(1), //a1
-                                                                                             cdp.dislocationSinks(2), //a2
-                                                                                             cdp.dislocationSinks(3)).finished());
+        const Eigen::Matrix<double,iSize/2,1> disDensity(cdp.dislocationSinks.matrix().transpose()); // dislocation density of each family
         const Eigen::Matrix<double,iSize/2,1> defectDensity(cdp.clusterDensity(correctedSinkValue.template block<iSize/2,1>(iSize/2,0).array(),correctedSinkValue.template block<iSize/2,1>(0,0).array()).transpose().matrix());
         const Eigen::Array<double,iSize/2,mSize> rholD((defectDensity*aveD.matrix()).array());
         const Eigen::Array<double,iSize/2,mSize> rhodD((disDensity*aveD.matrix()).array());
@@ -178,11 +175,6 @@ struct FirstOrderReaction : public EvalFunction<FirstOrderReaction<MobileTrialFu
       */
         
         const Eigen::Matrix<double,iSize,1> sinkvalue(sinke(ele,bary));
-        const Eigen::Matrix<double,iSize/2,1> loopsDensity((Eigen::Matrix<double,iSize/2,1>()<<2.0*M_PI*sinkvalue(0)*sinkvalue(4),  // Loop density c
-                                                                        /*                        */ 2.0*M_PI*sinkvalue(1)*sinkvalue(5),  // Loop density a1
-                                                                        /*                        */ 2.0*M_PI*sinkvalue(2)*sinkvalue(6),  // Loop density a2
-                                                                        /*                        */ 2.0*M_PI*sinkvalue(3)*sinkvalue(7)).finished());
-
         // const Eigen::Matrix<double,6,1> tempS(stresse(ele,bary));
         // Eigen::Matrix<double,3,3> ExternalS;
         // ExternalS(0,0)=tempS(0); // s11
