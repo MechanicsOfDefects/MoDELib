@@ -38,28 +38,50 @@ namespace model
             physics.push_back(tempVal);
         }
         
+        const std::string availablePhysics("DislocationDynamics, ClusterDynamics, ElasticDeformation, InclusionMicrostructure");
         for(const auto& phys : physics)
         {
-            if(StrUtilities::lowercase(phys)=="inclusionmicrostructure" && this->template getUniqueTypedMicrostructure<InclusionMicrostructureType>()==nullptr)
-            {
-                this->emplace_back(new InclusionMicrostructureType(*this));
+            const std::string lowerPhys(StrUtilities::lowercase(phys));
+            if(lowerPhys=="none")
+            {// placeholder value of the template Library/DefectiveCrystal/DefectiveCrystal.txt
+                continue;
             }
-            else if(StrUtilities::lowercase(phys)=="dislocationdynamics" && this->template getUniqueTypedMicrostructure<DislocationNetworkType>()==nullptr)
+            else if(lowerPhys=="inclusionmicrostructure")
             {
-                this->emplace_back(new DislocationNetworkType(*this));
+                if(this->template getUniqueTypedMicrostructure<InclusionMicrostructureType>()==nullptr)
+                {
+                    this->emplace_back(new InclusionMicrostructureType(*this));
+                }
             }
-            else if(StrUtilities::lowercase(phys)=="clusterdynamics" && this->template getUniqueTypedMicrostructure<ClusterDynamicsType>()==nullptr)
+            else if(lowerPhys=="dislocationdynamics")
             {
-                this->emplace_back(new ClusterDynamicsType(*this));
+                if(this->template getUniqueTypedMicrostructure<DislocationNetworkType>()==nullptr)
+                {
+                    this->emplace_back(new DislocationNetworkType(*this));
+                }
             }
-            else if(StrUtilities::lowercase(phys)=="elasticdeformation" && this->template getUniqueTypedMicrostructure<ElasticDeformationType>()==nullptr)
+            else if(lowerPhys=="clusterdynamics")
             {
-                this->emplace_back(new ElasticDeformationType(*this));
+                if(this->template getUniqueTypedMicrostructure<ClusterDynamicsType>()==nullptr)
+                {
+                    this->emplace_back(new ClusterDynamicsType(*this));
+                }
+            }
+            else if(lowerPhys=="elasticdeformation")
+            {
+                if(this->template getUniqueTypedMicrostructure<ElasticDeformationType>()==nullptr)
+                {
+                    this->emplace_back(new ElasticDeformationType(*this));
+                }
             }
             else
             {
-                throw std::runtime_error("Unknown physics "+phys);
+                throw std::runtime_error("Unknown physics '"+phys+"' in "+this->ddBase.simulationParameters.traitsIO.dcFile+". Available physics (separated by spaces): "+availablePhysics+".");
             }
+        }
+        if(this->empty())
+        {
+            throw std::runtime_error("No physics selected. Set physics= in "+this->ddBase.simulationParameters.traitsIO.dcFile+" to one or more of (separated by spaces): "+availablePhysics+".");
         }
         
 //        if(this->ddBase.simulationParameters.useInclusions)

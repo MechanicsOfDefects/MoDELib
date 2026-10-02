@@ -27,7 +27,7 @@ materialFile='Zr4_Fitted.txt';
 materialFileTemplate='../../Library/Materials/'+materialFile;
 print("\033[1;32mCreating  materialFile\033[0m")
 shutil.copy2(materialFileTemplate,'inputFiles/'+materialFile)
-setInputVariable('inputFiles/'+materialFile,'enabledSlipSystems','fullBasal fullPrismatic')
+setInputVariable('inputFiles/'+materialFile,'enabledSlipSystems','<a>{basal} <a>{prismatic}')
 
 # Make a local copy of ClusterDynamics file, and modify that copy if necessary
 clusterDynamicsFile='ClusterDynamics.txt';

@@ -2,6 +2,12 @@ import sys
 sys.path.append("../../python/")
 from modlibUtils import *
 
+# Annealing of vacancy and interstitial Frank loops by climb, coupled to the diffusion of single vacancies.
+# The material file used here (Zr_BMD19.txt) has ONE mobile species and no immobile species, while the
+# numbers of cluster-dynamics species are fixed when MoDELib is compiled (defaults: 4 mobile, 8 immobile).
+# Build MoDELib for this tutorial with:
+#   cmake -S . -B build -DMODELIB_CD_MSIZE=1 -DMODELIB_CD_ISIZE=0
+
 # Create folder structure
 folders=['evl','F','inputFiles']
 for x in folders:

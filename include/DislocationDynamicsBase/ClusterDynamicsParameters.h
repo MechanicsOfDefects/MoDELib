@@ -23,14 +23,23 @@
 //#include <EvalExpression.h>
 //#include <DislocationStress.h>
 
+#ifndef MODELIB_CD_MSIZE
+#define MODELIB_CD_MSIZE 4
+#endif
+#ifndef MODELIB_CD_ISIZE
+#define MODELIB_CD_ISIZE 8
+#endif
+
 namespace model
 {
 
 template<int dim>
 struct ClusterDynamicsParameters
 {
-    static constexpr int mSize=4;     // e.g. Cv, Ci, C2i, C3i
-    static constexpr int iSize=8;  // e.g. Nc, Na1, Na2, Na3, cv, ca1, ca2, ca3
+    // Numbers of mobile and immobile cluster-dynamics species. They are compile-time constants,
+    // set by the CMake options MODELIB_CD_MSIZE and MODELIB_CD_ISIZE, and must match the material file.
+    static constexpr int mSize=MODELIB_CD_MSIZE;     // e.g. Cv, Ci, C2i, C3i
+    static constexpr int iSize=MODELIB_CD_ISIZE;  // e.g. Nc, Na1, Na2, Na3, cv, ca1, ca2, ca3
 
     typedef Eigen::Matrix<double,dim,1> VectorDim;
     typedef Eigen::Matrix<double,dim,dim> MatrixDim;

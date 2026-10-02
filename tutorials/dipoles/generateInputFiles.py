@@ -30,7 +30,7 @@ shutil.copy2(DDfileTemplate,'inputFiles/'+DDfile)
 setInputVariable('inputFiles/'+DDfile,'timeSteppingMethod','adaptive') # adaptive or fixed
 setInputVariable('inputFiles/'+DDfile,'dxMax','1') # max nodal displacement for when timeSteppingMethod=adaptive
 setInputVariable('inputFiles/'+DDfile,'use_velocityFilter','1') # don't filter velocity if noise is enabled
-setInputVariable('inputFiles/'+DDfile,'use_stochasticForce','0') # Langevin thermal noise enabled
+setInputVariable('inputFiles/'+DDfile,'useStochasticForce','0') # Langevin thermal noise enabled
 setInputVariable('inputFiles/'+DDfile,'alphaLineTension','1.0') # dimensionless scale factor in for line tension forces
 setInputVariable('inputFiles/'+DDfile,'Lmin','5')  # min segment length (in Burgers vector units)
 setInputVariable('inputFiles/'+DDfile,'Lmax','20')  # max segment length (in Burgers vector units)
@@ -38,7 +38,6 @@ setInputVariable('inputFiles/'+DDfile,'outputQuadraturePoints','1')  # output qu
 setInputVariable('inputFiles/'+DDfile,'computeElasticEnergyPerLength','1')  # output quadrature data
 setInputVariable('inputFiles/'+DDfile,'glideSolverType','Galerkin')  # type of glide solver, or none
 setInputVariable('inputFiles/'+DDfile,'climbSolverType','none')  # type of clim solver, or none
-setInputVariable('inputFiles/'+DDfile,'Nsteps','1000000')  # number of simulation steps
 setInputVariable('inputFiles/'+DDfile,'remeshFrequency','1')
 setInputVariable('inputFiles/'+DDfile,'quadPerLength','1.0')
 

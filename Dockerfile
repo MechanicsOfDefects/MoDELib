@@ -6,7 +6,7 @@
 # Contents of the image, under /opt/MoDELib:
 #   build/tools/DDomp/DDomp                                      (also on PATH as DDomp)
 #   build/tools/MicrostructureGenerator/microstructureGenerator  (also on PATH)
-#   Library/  python/  tutorials/
+#   Library/  python/  lib/  tutorials/
 # DDqt (Qt 6 and VTK) and pyMoDELib (pybind11) are not in the image.
 
 ############################
@@ -22,22 +22,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt/MoDELib
 COPY . .
 
-# Instruction set of the binaries. "native" would tie them to the CPU of the build machine.
+# Build options (see the header of CMakeLists.txt):
+#   MARCH             instruction set of the binaries. "native" would tie them to the CPU of the build machine.
+#   CD_MSIZE CD_ISIZE numbers of mobile and immobile cluster-dynamics species, fixed at compile time.
+#                     The defaults (4 and 8) are those of the spatialCDtest tutorial and of Zr4_Fitted.txt.
 ARG MARCH=x86-64-v2
+ARG CD_MSIZE=4
+ARG CD_ISIZE=8
 
-# Three changes to the build files, made inside the image only:
-#   1. Eigen: CMakeLists.txt assigns the MacPorts path.
-#   2. Architecture: -march=native is replaced by -march=${MARCH}.
-#   3. DDqt: removed from the tools, since it requires Qt 6 and VTK.
-# The checks that follow stop the build if a pattern no longer matches.
-RUN sed -i 's#set(EIGEN3_INCLUDE_DIRS /opt/local/include/eigen3)#set(EIGEN3_INCLUDE_DIRS /usr/include/eigen3)#' CMakeLists.txt \
- && sed -i "s#-march=native#-march=${MARCH}#" CMakeLists.txt \
- && sed -i '/DDqt DDqt/d' tools/CMakeLists.txt \
- && grep -q 'set(EIGEN3_INCLUDE_DIRS /usr/include/eigen3)' CMakeLists.txt \
- && ! grep -q 'march=native' CMakeLists.txt \
- && ! grep -q 'DDqt' tools/CMakeLists.txt
-
-RUN cmake -S . -B build -DUSE_PYBIND11=OFF \
+# pyMoDELib (pybind11) and DDqt (Qt 6 and VTK) are switched off.
+RUN cmake -S . -B build \
+        -DUSE_PYBIND11=OFF -DBUILD_DDQT=OFF \
+        -DMODELIB_MARCH=${MARCH} \
+        -DMODELIB_CD_MSIZE=${CD_MSIZE} -DMODELIB_CD_ISIZE=${CD_ISIZE} \
  && cmake --build build -j"$(nproc)"
 
 ############################
@@ -56,20 +53,31 @@ COPY --from=build /opt/MoDELib/build/tools/MicrostructureGenerator/microstructur
                   /opt/MoDELib/build/tools/MicrostructureGenerator/microstructureGenerator
 COPY Library   /opt/MoDELib/Library
 COPY python    /opt/MoDELib/python
+COPY lib       /opt/MoDELib/lib
 COPY tutorials /opt/MoDELib/tutorials
 
 RUN ln -s /opt/MoDELib/build/tools/DDomp/DDomp /usr/local/bin/DDomp \
  && ln -s /opt/MoDELib/build/tools/MicrostructureGenerator/microstructureGenerator /usr/local/bin/microstructureGenerator
 
-# Smoke test: two steps of the dipoleNoise tutorial. The build fails if no configuration is written.
-RUN cp -r /opt/MoDELib/tutorials/dipoleNoise /opt/MoDELib/tutorials/smokeTest \
- && cd /opt/MoDELib/tutorials/smokeTest \
- && python3 generateInputFiles.py \
- && sed -i 's/^Nsteps=.*/Nsteps=2;/; s/^outputFrequency=.*/outputFrequency=1;/' inputFiles/DD.txt \
- && microstructureGenerator . \
- && DDomp . \
- && test -f evl/evl_1.txt \
- && cd / && rm -rf /opt/MoDELib/tutorials/smokeTest
+# Smoke tests. Each one shortens a tutorial to two steps; the build fails if a pattern no longer matches
+# or if the second configuration is not written.
+#   1. dipoleNoise:   dislocation dynamics with glide-plane noise, periodic domain.
+#   2. spatialCDtest: cluster dynamics alone on the finite-element mesh (mobile and immobile species).
+#                     It needs the default species counts; leave it out of SMOKE_TESTS for other counts.
+ARG SMOKE_TESTS="dipoleNoise spatialCDtest"
+RUN set -e; \
+    for tutorial in ${SMOKE_TESTS}; do \
+        cp -r /opt/MoDELib/tutorials/${tutorial} /opt/MoDELib/tutorials/smokeTest; \
+        cd /opt/MoDELib/tutorials/smokeTest; \
+        python3 generateInputFiles.py; \
+        sed -i 's/^Nsteps=[^;]*;/Nsteps=2;/; s/^outputFrequency=[^;]*;/outputFrequency=1;/' inputFiles/DefectiveCrystal.txt; \
+        grep -q '^Nsteps=2;' inputFiles/DefectiveCrystal.txt; \
+        grep -q '^outputFrequency=1;' inputFiles/DefectiveCrystal.txt; \
+        microstructureGenerator .; \
+        DDomp .; \
+        test -f evl/evl_1.txt; \
+        cd /; rm -rf /opt/MoDELib/tutorials/smokeTest; \
+    done
 
 LABEL org.opencontainers.image.title="MoDELib" \
       org.opencontainers.image.description="Mechanics of Defects Evolution Library: command-line tools, input templates and tutorials" \

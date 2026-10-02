@@ -26,7 +26,6 @@ DDfileTemplate='../../Library/DislocationDynamics/'+DDfile
 print("\033[1;32mCreating  DDfile\033[0m")
 shutil.copy2(DDfileTemplate,'inputFiles/'+DDfile)
 setInputVariable('inputFiles/'+DDfile,'timeSteppingMethod','adaptive') # adaptive or fixed
-setInputVariable('inputFiles/'+DDfile,'dtMax','1e25')
 setInputVariable('inputFiles/'+DDfile,'dxMax','10') # max nodal displacement for when timeSteppingMethod=adaptive
 setInputVariable('inputFiles/'+DDfile,'use_velocityFilter','1') # don't filter velocity if noise is enabled
 setInputVariable('inputFiles/'+DDfile,'alphaLineTension','1.0') # dimensionless scale factor in for line tension forces

@@ -82,7 +82,7 @@ namespace model
                     const double& ,
                     const double& ,
                     const double& ,
-                    const std::shared_ptr<StochasticForceGenerator>& )
+                    const std::shared_ptr<StochasticForceGenerator>& ) const
     {
         throw std::runtime_error("DislocationMobilityPy used without pybind11");
         return 0.0;

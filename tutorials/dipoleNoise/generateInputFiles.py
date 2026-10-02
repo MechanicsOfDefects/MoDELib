@@ -66,7 +66,7 @@ shutil.copy2(DDfileTemplate,'inputFiles/'+DDfile)
 setInputVariable('inputFiles/'+DDfile,'timeSteppingMethod','adaptive') # adaptive or fixed
 setInputVariable('inputFiles/'+DDfile,'dxMax','1') # max nodal displacement for when timeSteppingMethod=adaptive
 setInputVariable('inputFiles/'+DDfile,'use_velocityFilter','0') # don't filter velocity if noise is enabled
-setInputVariable('inputFiles/'+DDfile,'use_stochasticForce','0') # Langevin thermal noise enabled
+setInputVariable('inputFiles/'+DDfile,'useStochasticForce','0') # Langevin thermal noise enabled
 setInputVariable('inputFiles/'+DDfile,'alphaLineTension','1')
 setInputVariable('inputFiles/'+DDfile,'Lmin','5')  # min segment length (in Burgers vector units)
 setInputVariable('inputFiles/'+DDfile,'Lmax','20')  # max segment length (in Burgers vector units)

@@ -25,7 +25,7 @@ glideEquilibriumRate=1e-12; # climb rate threshold below which climb steps are t
 ######################################
 # NUCLEATION MODELS
 surfaceNucleationModel=0; # (0=no nucleation)
-bulkNucleationModel=0; (0=no nucleation)
+bulkNucleationModel=0; # (0=no nucleation)
 
 ######################################
 # DISLOCATION ELASTIC FIELDS

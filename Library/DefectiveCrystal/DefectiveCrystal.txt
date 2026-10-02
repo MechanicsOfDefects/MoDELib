@@ -1,6 +1,6 @@
 ######################################
 # GENERAL SETTINGS
-physics=none;
+physics=none; # physics to simulate, separated by spaces: DislocationDynamics ClusterDynamics ElasticDeformation InclusionMicrostructure. At least one is required
 useFEM=1; # enables/disables FEM throughout MoDELib
 Nsteps=10;		# total number of simulation steps
 dtMax=1e35; # max dt in b/cs
