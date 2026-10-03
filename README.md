@@ -121,7 +121,8 @@ Input files of 2.1.0 run unchanged. With a build that has SUNDIALS, set `immobil
 - **`atomicVolume_SI`** (optional material key): the atomic volume used by cluster dynamics, for parameter sets fitted with a value other than that of the lattice.
 - **`simulations/`**: a Jupyter notebook that builds MoDELib, runs a zirconium grain (a cube of 200 nm to 10 dpa, or the hexagonal crystal of 400 nm of the report's Figure 27 to 26 dpa), and writes a time-stamped folder with provenance, figures, checks and a report ([`simulations/README.md`](simulations/README.md)). The output of the verification runs is in `simulations/reference_output/`.
 - **`loopNucleationPerReaction`, `coalescenceClimbBurgers`**: optional material keys that select, for comparison, the two forms of the DisloCluster code that differ from the report ([section 3.6](#36-cluster-dynamics)).
-- **Documentation on the Wiki**: a workflow converts the Doxygen output to Wiki pages at each push ([section 12](#12-documentation)).
+- **Verification in three dimensions.** The hexagonal crystal of 400 nm of the report's Figure 27 was run to 26 dpa and compared with the DisloCluster run behind that figure. With the same terms (preset `hex400dc`), the two codes agree in the grain interior to 1–5 % for the loop densities, 2 % for the loop diameters and 1–2 % for the vacancies and interstitials. With the report's terms (preset `hex400`, the default), the density of the `<a>` loops is 0.81 and the diameter of the `<c>` loops 1.20 times those of DisloCluster, for the two reasons given in [section 3.6](#36-cluster-dynamics). The cube of 200 nm was run to 10 dpa. All checks of the three runs pass ([section 10](#validation-of-220)).
+- **Documentation on the Wiki**: at each push to `master` a workflow converts the Doxygen output to Wiki pages, about 1 300 of them: Home, the cluster-dynamics page, and one page per class and per file ([section 12](#12-documentation)).
 
 ## 2. Capabilities
 
@@ -779,7 +780,7 @@ The repository has no automated test suite. What it has:
 
   The plots use Matplotlib, several of them with LaTeX labels.
 - **The tutorials:** five complete simulations ([section 7](#7-tutorials)).
-- **Continuous integration:** `.github/workflows/workflow.yml` builds the Doxygen pages on each push to `master` and publishes them. `.github/workflows/container.yml` builds the container image when a release is published; that build compiles the library and the two command-line tools, and runs two steps of the `dipoleNoise` and `spatialCDtest` tutorials.
+- **Continuous integration:** `.github/workflows/workflow.yml` builds the Doxygen pages on each push to `master` and publishes them; `.github/workflows/doxygen-wiki.yml` converts them to the pages of the Wiki. `.github/workflows/container.yml` builds the container image when a release is published; that build compiles the library and the two command-line tools, and runs two steps of the `dipoleNoise` and `spatialCDtest` tutorials.
 
 ### Validation of 2.1.0
 
@@ -817,7 +818,9 @@ With the fitted parameters of `Zr4_Fitted.txt` the concentrations of $i$ and $3i
 
 **Comparison with 2.0.0.** With nucleation off, 2.1.0 differs from 2.0.0 only by the projection of the immobile rates. Over the first 21 steps of `spatialCDtest` (0.98 dpa) the total growth strain differs from that of 2.0.0 by a relative $6\times10^{-5}$ after 0.3 dpa, $2\times10^{-4}$ after 0.5 dpa and $1.1\times10^{-3}$ after 1 dpa for $\beta^P_{11}$, and by $4\times10^{-4}$ after 1 dpa for $\beta^P_{33}$. The strain accumulated since the first step differs by 1 % ($\beta^P_{11}$) and 2 % ($\beta^P_{33}$) at 1 dpa. The difference grows with dose. **The comparison at the full dose of the tutorial (5.9 dpa) had not been completed when 2.1.0 was released**, and the parameters of `Zr4_Fitted.txt` were fitted with the projection of 2.0.0: the agreement of the tutorial with the growth measurements should be checked again. The mobile fields differ by $3\times10^{-5}$ after 0.3 dpa.
 
-**Implicit integrator (2.2.0).** Three more cases of `testsPy/clusterDynamics` use `tutorials/spatialCDcvode` (1 µm box, 573 K, `Zr_CD4opt.txt`, steps of 0.1 dpa). `referenceRates.py` is an implementation of the equations of the report written separately from the C++ code and integrated with SciPy (BDF, relative tolerance $10^{-10}$).
+### Validation of 2.2.0
+
+**Implicit integrator.** Three more cases of `testsPy/clusterDynamics` use `tutorials/spatialCDcvode` (1 µm box, 573 K, `Zr_CD4opt.txt`, steps of 0.1 dpa). `referenceRates.py` is an implementation of the equations of the report written separately from the C++ code and integrated with SciPy (BDF, relative tolerance $10^{-10}$).
 
 | Check | Case | Expected | Result |
 |---|---|---|---|
@@ -832,7 +835,7 @@ With the fitted parameters of `Zr4_Fitted.txt` the concentrations of $i$ and $3i
 
 These checks establish that the code integrates the equations of the report. They do not compare the model with measurements, and the report's own comparison with its 0D code (its Table 3) is not reproduced here: the calibrated material file of the report was not available, and `Zr_CD4opt.txt` was assembled from the report's Table 1 and from the material file of the DisloCluster run behind the report's figures. The run of `simulations/` compares a grain of 200 nm with the ENNDS reference run, which solves a later model.
 
-**Verification runs in three dimensions (2.2.0).** `simulations/` runs two cases with the CVODE integrator and keeps their output in `simulations/reference_output/`.
+**Verification runs in three dimensions.** `simulations/` runs two cases with the CVODE integrator and keeps their output in `simulations/reference_output/`.
 
 | Case | Compared with | Result |
 |---|---|---|
@@ -852,7 +855,7 @@ These checks establish that the code integrates the equations of the report. The
 | Cluster dynamics, mobile and immobile species | in use; `spatialCDtest` (explicit integrator, constant densities) and `spatialCDcvode` (CVODE, full kinetics of the D1/M1 report). `Zr4_Fitted.txt` was fitted with the explicit integrator and constant densities; `Zr_CD4opt.txt` holds the parameters of the report, valid at 573 K and without anisotropic diffusion. The network density is constant. The emission model of the vacancy loops has a constant binding energy. The diffusion-anisotropy bias is that of a HEX crystal |
 | Climb | Galerkin climb solver coupled to the cluster-dynamics concentrations; `annealing` tutorial |
 | Species counts | fixed at compile time (`MODELIB_CD_MSIZE`, `MODELIB_CD_ISIZE`). Two builds are needed to run all the tutorials. Making the counts run-time parameters is the open item |
-| Material files | all are in the 2.0.0 format. Only `Zr4_Fitted.txt` has the variables of the immobile species. `Zr_CD2.txt`, `Zr_CD3_BMD19.txt` and `Zr_CD4.txt` have two, three and four mobile species and need a build with `MODELIB_CD_ISIZE=0` and the matching `MODELIB_CD_MSIZE`. The mobility numbers of `UO2.txt` are those of W and are placeholders |
+| Material files | all are in the 2.0.0 format. `Zr4_Fitted.txt` (explicit integrator) and `Zr_CD4opt.txt` (CVODE) have the variables of the immobile species. `Zr_CD2.txt`, `Zr_CD3_BMD19.txt` and `Zr_CD4.txt` have two, three and four mobile species and need a build with `MODELIB_CD_ISIZE=0` and the matching `MODELIB_CD_MSIZE`. The mobility numbers of `UO2.txt` are those of W and are placeholders |
 | Conversion of loop fields to discrete loops | in use from 2.1.0 ([section 3.6](#36-cluster-dynamics)). One conversion per run, of all families at once. Every cluster of a converted family becomes a loop, also in the bi-pyramid range unless `minimumLoopSize` excludes it. The relaxation-volume strain of a converted family (`immobileSpeciesRelRelaxVol`) is not carried by the discrete loops. No tutorial exercises it yet |
 | Nucleation | `bulkNucleationModel=1` is a first model: it inserts a shear loop of radius $50\,b$ in every mesh element where a resolved shear stress is below $0.05\,\mu$. `surfaceNucleationModel` is read and has no effect |
 | Cross slip | model 1 (deterministic) is in use. Model 2 (thermally activated, HEX) has not been updated: it relies on the names of the 1.0.0 mobility classes and on material variables that no material file has |
@@ -865,7 +868,9 @@ These checks establish that the code integrates the equations of the report. The
 | `lib/` readers | `getLoops.py`, `readEVL.py`, `readEVLMod1.py` and `readNodes.py` expect a three-line `evl` header; the files have ten. `readAUX.py` assumes three mobile species |
 | `DDqt` | the immobile cluster-dynamics fields are not plotted |
 | Sources outside the build | `PeriodicGlidePlane_NEW.h/.cpp`, `GalerkinGlideSolver_lumped.cpp`, `Lattices_NEW/`, `Math/Rational_NEW.h` and `MPI/` are in the repository and are not compiled |
-| Doxygen pages | the main page still describes the earlier header-only MODEL library |
+| Doxygen pages | the main page of the GitHub Pages site still describes the earlier header-only MODEL library. The Wiki has a home page for 2.2.0 (`doxygen/dox/Home.dox`), which replaces the Wiki's Home at each push to `master` |
+| Comparison with DisloCluster | two terms of the DisloCluster code differ from the report: one loop per clustering reaction, and a climb speed of coalescence without the Burgers-vector magnitude. MoDELib follows the report by default, and `loopNucleationPerReaction`, `coalescenceClimbBurgers` select the DisloCluster forms. The parameters of `Zr_CD4opt.txt` may have been fitted with one loop per clustering reaction. With either form, the di- and tri-interstitials of the hexagonal crystal are 7–10 % below those of DisloCluster, for a reason not yet traced |
+| Container image | built without SUNDIALS: `immobileIntegrator=cvode` is not available in it |
 | Manual | `manual_beta/`: the theory chapters are written; the section on running MoDELib is referenced but not yet written. It does not describe the 2.0.0 input files |
 
 ## 12. Documentation
@@ -873,7 +878,7 @@ These checks establish that the code integrates the equations of the report. The
 - **API reference (Doxygen):** <https://mechanicsofdefects.github.io/MoDELib/>, built from `doxygen/` on each push to `master`.
 - **Theory manual:** `manual_beta/MoDELib_manual.pdf`. Chapters: the elastic theory of discrete dislocations; discrete dislocation dynamics in MoDELib (network topology, the uniform load controller); a review of tensor calculus; the elastic fields of piecewise-straight loops.
 - **Input reference:** the templates in `Library/` carry a comment on each variable. `Library/DefectiveCrystal/DefectiveCrystal.txt` and `Library/DislocationDynamics/DD.txt` list the controls; `Library/Materials/Zr4_Fitted.txt` lists the cluster-dynamics variables.
-- **Wiki:** `.github/workflows/doxygen-wiki.yml` converts the Doxygen output to Markdown (doxybook2) and pushes it to the Wiki of the repository at each push to `master`: the page `Home` (`doxygen/dox/Home.dox`), the other pages of `doxygen/dox`, one page per class and per file with its diagram, and a sidebar. It needs the Wiki enabled with a first page, and read and write permissions for workflows (Settings → Actions → General). To render the pages locally, run `doxygen Doxyfile` in `doxygen/` and open `doxygen/HTML/index.html`.
+- **Wiki:** <https://github.com/MechanicsOfDefects/MoDELib/wiki>. `.github/workflows/doxygen-wiki.yml` converts the Doxygen output to Markdown (doxybook2) and pushes it to the Wiki of the repository at each push to `master`: the page `Home` (`doxygen/dox/Home.dox`), the other pages of `doxygen/dox`, one page per class and per file with its diagram, and a sidebar. It needs the Wiki enabled with a first page, and read and write permissions for workflows (Settings → Actions → General). To render the pages locally, run `doxygen Doxyfile` in `doxygen/` and open `doxygen/HTML/index.html`.
 - **Report of the cluster-dynamics model:** `docs/reports/GW_Phase4_D1M1.pdf`.
 - **Simulations:** `simulations/README.md` and the notebook `simulations/run_simulation.ipynb`.
 - **Git notes:** `git_basic_commands.txt`.
