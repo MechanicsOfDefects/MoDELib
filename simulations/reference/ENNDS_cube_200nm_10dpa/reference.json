@@ -1,0 +1,7 @@
+{
+ "run": "20261001_200157_a70f2f3_cube_200nm_reference",
+ "source": "https://github.com/Ghoniem/ENNDS, application_fields/radiation_damage/zirconium_spatial_cluster_dynamics/simulations/reference_output/cube_200nm_10dpa/volume_means.csv, version 3.1.0 (commit 4242050)",
+ "atomic_volume_m3": 2.326553e-29,
+ "material": "Zr3d_ghoniem.txt (9 family slots, second moments, loopSinkScale, dadZ0)",
+ "note": "The two runs do not solve the same model. MoDELib integrates the equations of the D1/M1 report with four loop families and the parameters of Zr_CD4opt.txt. ENNDS integrates the later model of DisloCluster, with nine family slots, second moments of the size distributions and refitted parameters, and its vacancy loops are split into faulted, perfect and pyramid populations, summed here. The ratios show how far the two parameter sets are from each other; they are not a test of the code."
+}

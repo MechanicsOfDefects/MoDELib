@@ -1,0 +1,98 @@
+{
+ "run": "DisloCluster ZrMicro/output/20260806_153853_15c465f_hex400 (commit 15c465f), table provenance_comparison.md, column 'hexagonal 400 nm'",
+ "note": "Interior values (the tenth of the nodes with the highest vacancy concentration) of the DisloCluster run of the hexagonal crystal: MoDELib3 of 2026-08-06 with the material file of that date (four loop families, atomic volume 1.2e-29 m^3), steps of 1 dpa with 20 sub-steps for the loops. Two terms of that run differ from this one. (1) Nucleation by clustering: that run created one loop for each reaction between mobile species whose product is not mobile, holding the 4 or 5 interstitials of the reaction. This run nucleates the loops from the cascades only, as the report states for its figures; Eq. 37 of the report, which divides the clustered content by the nucleation size, would add 0.3 %. The one-loop-per-reaction source raises the <a> loop density by a factor 1.26. (2) Climb speed of coalescence: that code omits the magnitude of the Burgers vector (1.63 b for the <c> loops), which makes the coalescence of the <c> loops with the network faster and their diameter smaller by a factor 0.83. With these two terms written as in that code and the mobile concentrations of that run, the rate equations of MoDELib give its loop densities and diameters to 0.1 %: the expected ratios of this run to that one are 0.79 to 0.81 for the <a> density and 1.19 to 1.20 for the <c> diameter.",
+ "doses": [
+  1.0,
+  6.0,
+  11.0,
+  16.0,
+  21.0,
+  26.0
+ ],
+ "interior": {
+  "1": {
+   "N_c": 1.4814e+21,
+   "d_c": 55.88,
+   "N_a1": 1.3362e+21,
+   "d_a1": 9.28,
+   "N_a2": 1.3362e+21,
+   "d_a2": 9.28,
+   "N_a3": 1.3362e+21,
+   "d_a3": 9.28,
+   "Cv": 4.2995e+23,
+   "Ci": 5.2679e+19,
+   "C2i": 1.2143e+18,
+   "C3i": 7.5872e+17
+  },
+  "6": {
+   "N_c": 1.4816e+21,
+   "d_c": 57.79,
+   "N_a1": 1.6695e+21,
+   "d_a1": 9.31,
+   "N_a2": 1.6695e+21,
+   "d_a2": 9.31,
+   "N_a3": 1.6695e+21,
+   "d_a3": 9.31,
+   "Cv": 3.9618e+23,
+   "Ci": 4.8931e+19,
+   "C2i": 7.8107e+17,
+   "C3i": 4.9136e+17
+  },
+  "11": {
+   "N_c": 1.4816e+21,
+   "d_c": 57.9,
+   "N_a1": 1.6749e+21,
+   "d_a1": 9.3,
+   "N_a2": 1.6749e+21,
+   "d_a2": 9.3,
+   "N_a3": 1.6749e+21,
+   "d_a3": 9.3,
+   "Cv": 3.9589e+23,
+   "Ci": 4.886e+19,
+   "C2i": 7.7451e+17,
+   "C3i": 4.8735e+17
+  },
+  "16": {
+   "N_c": 1.4816e+21,
+   "d_c": 57.94,
+   "N_a1": 1.6768e+21,
+   "d_a1": 9.29,
+   "N_a2": 1.6768e+21,
+   "d_a2": 9.29,
+   "N_a3": 1.6768e+21,
+   "d_a3": 9.29,
+   "Cv": 3.9562e+23,
+   "Ci": 4.8819e+19,
+   "C2i": 7.7018e+17,
+   "C3i": 4.8469e+17
+  },
+  "21": {
+   "N_c": 1.4816e+21,
+   "d_c": 57.96,
+   "N_a1": 1.6772e+21,
+   "d_a1": 9.29,
+   "N_a2": 1.6772e+21,
+   "d_a2": 9.29,
+   "N_a3": 1.6772e+21,
+   "d_a3": 9.29,
+   "Cv": 3.954e+23,
+   "Ci": 4.8794e+19,
+   "C2i": 7.6711e+17,
+   "C3i": 4.8281e+17
+  },
+  "26": {
+   "N_c": 1.4816e+21,
+   "d_c": 57.96,
+   "N_a1": 1.6769e+21,
+   "d_a1": 9.29,
+   "N_a2": 1.6769e+21,
+   "d_a2": 9.29,
+   "N_a3": 1.6769e+21,
+   "d_a3": 9.29,
+   "Cv": 3.952e+23,
+   "Ci": 4.8777e+19,
+   "C2i": 7.6482e+17,
+   "C3i": 4.8139e+17
+  }
+ }
+}

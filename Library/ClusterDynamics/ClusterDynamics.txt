@@ -1,1 +1,2 @@
 useClusterDynamicsFEM=0;
+immobileIntegrator=auto; # cvode (implicit, needs SUNDIALS) or euler (explicit, as in version 2.1). With the value of this template: cvode when MoDELib was built with SUNDIALS

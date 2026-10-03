@@ -1,6 +1,8 @@
 #!/bin/bash
-# Runs the cases that check the nucleation of immobile clusters and their conversion to discrete loops.
-# Each case is a copy of tutorials/spatialCDtest with a few input variables changed.
+# Runs the cases that check the kinetics of the immobile clusters and their conversion to discrete loops.
+# Each case is a copy of a tutorial with a few input variables changed:
+#   tutorials/spatialCDtest   (immobileIntegrator=euler) for reg, nuc, nuc0, clus, clusRef, disc, discAll, discMin
+#   tutorials/spatialCDcvode  (immobileIntegrator=cvode) for cvode, cvodeRestart, cvodeStress. They need a build with SUNDIALS
 #
 # Usage, from this folder, after building MoDELib with the default species counts (4 mobile, 8 immobile):
 #   ./runCases.sh                      runs all the cases
@@ -32,16 +34,20 @@ discreteLoops () { # adds dislocation dynamics, with climb only, and converts th
     setvar inputFiles/DD.txt outputQuadraturePoints 0
 }
 
-CASES=${@:-reg nuc nuc0 clus clusRef disc discAll discMin}
+CASES=${@:-reg nuc nuc0 clus clusRef disc discAll discMin cvode cvodeRestart cvodeStress}
 for CASE in $CASES
 do
     rm -rf $CASE
     mkdir $CASE
-    cp $ROOT/tutorials/spatialCDtest/generateInputFiles.py $CASE/
+    TUTORIAL=spatialCDtest
+    case $CASE in cvode*) TUTORIAL=spatialCDcvode ;; esac
+    cp $ROOT/tutorials/$TUTORIAL/generateInputFiles.py $CASE/
     cd $CASE
     sed -i 's|"../../python/"|"'$ROOT'/python/"|; s|\.\./\.\./Library/|'$ROOT'/Library/|g' generateInputFiles.py
     python3 generateInputFiles.py > generateInputFiles.log 2>&1
     MAT=inputFiles/Zr4_Fitted.txt
+    case $CASE in cvode*) MAT=inputFiles/Zr_CD4opt.txt ;; esac
+    FIRSTCONFIGURATION=
     DC=inputFiles/DefectiveCrystal.txt
     case $CASE in
         reg)      # the tutorial as it is: nucleation off
@@ -82,11 +88,25 @@ do
             setvar $MAT minimumLoopSize "30e-9"
             discreteLoops
             ;;
+        cvode)    # the D1/M1 model: four steps of 0.1 dpa
+            setvar $DC Nsteps 4
+            ;;
+        cvodeRestart) # a new study that starts from the third configuration of the case cvode
+            setvar $DC Nsteps 2
+            FIRSTCONFIGURATION=../cvode/evl/evl_2.txt
+            ;;
+        cvodeStress)  # a tensile stress of 2 MPa along a1 orients the nucleation
+            setvar $DC Nsteps 2
+            setvar $DC physics "ClusterDynamics ElasticDeformation"
+            cp $ROOT/Library/ElasticDeformation/ElasticDeformation.txt inputFiles/ElasticDeformation.txt
+            setvar inputFiles/ElasticDeformation.txt ExternalStress0 " 6.0606e-5 0.0 0.0 0.0 0.0 0.0"
+            ;;
         *)
             echo "unknown case $CASE"; exit 1
             ;;
     esac
     $MG . > microstructureGenerator.log 2>&1
+    if [ -n "$FIRSTCONFIGURATION" ]; then cp $FIRSTCONFIGURATION evl/evl_0.txt; fi
     $DD . > DDomp.log 2>&1
     echo "case $CASE: $(ls evl | grep -c evl_) configurations written"
     cd ..

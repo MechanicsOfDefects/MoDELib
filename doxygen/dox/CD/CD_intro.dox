@@ -1,0 +1,73 @@
+namespace model {
+/*! \page CD_intro Cluster Dynamics (CD)
+
+\section CD_introduction Introduction
+
+Cluster dynamics describes the point defects produced by irradiation and the loops they form.
+It is one of the physics of the DefectiveCrystal, enabled by the name ClusterDynamics in the
+<tt>physics</tt> line of DefectiveCrystal.txt, and it is solved on the finite-element mesh.
+
+Two kinds of species are carried:
+
+- mobile species (single vacancies, interstitials and small interstitial clusters), whose
+  concentrations obey steady reaction-diffusion equations;
+- immobile families (for zirconium, basal vacancy loops and three families of prismatic
+  interstitial loops), each described by a number density and a defect content, which obey
+  ordinary differential equations at each point.
+
+The numbers of species are compile-time constants, set by the CMake options
+<tt>MODELIB_CD_MSIZE</tt> and <tt>MODELIB_CD_ISIZE</tt>.
+
+\section CD_classes Classes
+
+- ClusterDynamics: the physics seen by the DefectiveCrystal. It applies the boundary conditions,
+  calls the solvers, writes the fields, and converts the immobile fields to discrete loops.
+- ClusterDynamicsParameters: the parameters read from the material file, and the reaction matrices.
+- ClusterDynamicsFEM: the fields, their weak forms and the two solves of a step.
+- SecondOrderReaction, FirstOrderReaction, LoopSinkReaction, VacancyLoopSource: the reaction and
+  source terms of the mobile equations.
+- ImmobileRateEquations: the rate equations of the immobile families at one point. It holds no
+  finite-element type.
+- ImmobileODESolver: the implicit integration of those equations at every node, by CVODE.
+- ImmobileSinkRate, SpatialODESolver: the rates and their projection used by the explicit integrator.
+
+\section CD_step One time step
+
+-# Mobile species. ClusterDynamicsFEM::solveMobileClusters solves the steady equations by Newton
+   iterations, for the immobile fields currently held. The immobile clusters enter through the
+   sink LoopSinkReaction and through the vacancies they release, VacancyLoopSource.
+-# Immobile families. ClusterDynamicsFEM::updateImmobileClusters advances them over the step with
+   the mobile field held fixed. With <tt>immobileIntegrator=cvode</tt> (ClusterDynamics.txt),
+   ImmobileODESolver integrates ImmobileRateEquations at each node: the equations are stiff, and
+   independent from node to node. With <tt>immobileIntegrator=euler</tt>, the rates of
+   ImmobileSinkRate are projected on the nodes and an explicit step is taken.
+
+The two solves work on the same vectors of nodal values: nothing goes through a file.
+The fields are written in the configuration files evl_n.txt at full precision, and a run that
+finds such a file as evl_0.txt starts from its fields.
+
+\section CD_equations Equations of the immobile families
+
+For a family with n clusters per atom and c stored defects per atom,
+
+\f[
+\frac{dn}{dt} = \frac{s^{nuc}+G_L}{n^{nuc}} - a_n - \Delta N ,\qquad
+\frac{dc}{dt} = \dot G^{c} + G_L + s^{nuc} - A_c - A^{emit} - \Delta C ,
+\f]
+
+with the content of the clusters born in cascades \f$G_L\f$ and from reactions between mobile
+species \f$s^{nuc}\f$, the net absorption of mobile defects \f$\dot G^{c}\f$, the dissolution
+\f$a_n\f$, \f$A_c\f$ and thermal emission \f$A^{emit}\f$ of the vacancy clusters, and the
+coalescence \f$\Delta N\f$, \f$\Delta C\f$. Each term is a function of ImmobileRateEquations.
+The model is that of the report docs/reports/GW_Phase4_D1M1.pdf.
+
+\section CD_tutorials Tutorials and tests
+
+- tutorials/spatialCDtest: growth strain of zirconium with constant loop densities (explicit integrator);
+- tutorials/spatialCDcvode: nucleation, dissolution and coalescence of the loops (CVODE);
+- simulations/run_simulation.ipynb: a grain of 200 nm to 10 dpa, with figures and a report;
+- testsPy/clusterDynamics: the rate equations against an independent implementation, and the
+  conversion to discrete loops.
+
+*/
+}

@@ -9,6 +9,8 @@
 #define model_ClusterDynamicsFEM_cpp_
 
 #include <cmath>
+#include <chrono>
+#include <algorithm>
 #include <ClusterDynamicsFEM.h>
 #include <ExternalAndInternalBoundary.h>
 #include <Fix.h>
@@ -86,92 +88,167 @@ template struct InvDscaling<3>;
     /* init */,mobileClustersIncrement(ddBase.fe->template trial<'d',mSize>())
     /* init */,dV(ddBase.fe->template domain<EntireDomain,dVorder,GaussLegendre>())
     /* init */,dVprojection(ddBase.fe->template domain<EntireDomain,dVprojectionOrder,GaussLegendre>())
-//    /* init */,mBWF((test(this->mobileGrad),-ddBase.poly.Omega*this->mobileFlux)*dV)
-    /* init */,mBWF((test(grad(iDs*mobileClusters)),-ddBase.poly.Omega*this->mobileFlux)*dV)
-    /* init */,dmBWF((test(grad(iDs*mobileClustersIncrement)),-ddBase.poly.Omega*(FluxMatrix<dim>(this->cdp)*grad(mobileClustersIncrement)))*dV)   
+//    /* init */,mBWF((test(this->mobileGrad),-cdp.omega*this->mobileFlux)*dV)
+    /* init */,mBWF((test(grad(iDs*mobileClusters)),-cdp.omega*this->mobileFlux)*dV)
+    /* init */,dmBWF((test(grad(iDs*mobileClustersIncrement)),-cdp.omega*(FluxMatrix<dim>(this->cdp)*grad(mobileClustersIncrement)))*dV)   
     /* init */,mSolver(true,FLT_EPSILON)
     /* init */,solverInitialized(false)
     /* init */,cascadeGlobalProduction(((test(iDs*this->mobileClusters),make_constant(this->cdp.G))*dV).globalVector())
     // /* init */,cascadeGlobalProduction(((test(this->mobileClusters),make_constant(this->cdp.G))*dV).globalVector())
 
+    /* init */,rateEquations(cdp)
+    /* init */,useImmobileODESolver(getUseImmobileODESolver(ddBase))
+    /* init */,immobileODESolver(rateEquations,1.0e-8,1.0e-24)
+    /* init */,nucleationFractions(1,rateEquations.nucleationWeights())
     {
         mobileClustersIncrement.setConstant(Eigen::Matrix<double,mSize,1>::Zero());
         mobileClusters.setConstant(cdp.equilibriumMobileConcentration(0.0).matrix().transpose());
         // immobileClusters.setConstant(Eigen::Matrix<double,iSize,1>::Zero());
-        immobileClusters.setConstant(cdp.initLoopSinks);    
-        immobileClusterRate = Eigen::VectorXd::Zero(immobileClusters.gSize());    
+        if(useImmobileODESolver)
+        {// a family can start empty. The floor keeps the ratio content/density defined
+            immobileClusters.setConstant(cdp.initLoopSinks.max(immobileFloor));
+        }
+        else
+        {
+            immobileClusters.setConstant(cdp.initLoopSinks);
+        }
+        immobileClusterRate = Eigen::VectorXd::Zero(immobileClusters.gSize());
+    }
+
+    template<int dim>
+    bool ClusterDynamicsFEM<dim>::getUseImmobileODESolver(const DislocationDynamicsBase<dim>& ddBase)
+    {/*!\returns true if the immobile clusters are integrated by ImmobileODESolver.
+      * immobileIntegrator in ClusterDynamics.txt is cvode, euler, or auto.
+      * auto, or a missing key, selects cvode when MoDELib was built with SUNDIALS.
+      */
+        if(iSize==0)
+        {
+            return false;
+        }
+        std::string integrator("auto");
+        try
+        {
+            integrator=TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ClusterDynamics.txt").readString("immobileIntegrator",true);
+        }
+        catch(const std::runtime_error& e)
+        {
+            if(std::string(e.what()).find("does not cointain line with format")==std::string::npos)
+            {
+                throw;
+            }
+        }
+        integrator.erase(std::remove_if(integrator.begin(),integrator.end(),[](unsigned char x){return std::isspace(x);}),integrator.end());
+        if(integrator=="euler")
+        {
+            return false;
+        }
+        else if(integrator=="cvode")
+        {
+            if(!ImmobileODESolver<dim>::available())
+            {
+                throw std::runtime_error("ClusterDynamics: immobileIntegrator=cvode needs a build of MoDELib with SUNDIALS. Use immobileIntegrator=euler, or install SUNDIALS and configure again.");
+            }
+            return true;
+        }
+        else if(integrator=="auto")
+        {
+            if(!ImmobileODESolver<dim>::available())
+            {
+                std::cout<<redBoldColor<<"ClusterDynamics: MoDELib was built without SUNDIALS. The immobile clusters are integrated with immobileIntegrator=euler, without dissolution, emission and coalescence."<<defaultColor<<std::endl;
+            }
+            return ImmobileODESolver<dim>::available();
+        }
+        else
+        {
+            throw std::runtime_error("ClusterDynamics: unknown immobileIntegrator '"+integrator+"'. Use cvode, euler or auto.");
+        }
+    }
+
+    template<int dim>
+    template<typename SinkType>
+    void ClusterDynamicsFEM<dim>::solveMobileReactions(const SinkType& R1sink,const bool useImmobileClusters,const Eigen::VectorXd& production)
+    {/*!@param[in] R1sink the first-order reaction matrix of the absorption at the immobile clusters
+      * @param[in] useImmobileClusters true if that absorption is part of the equations
+      * @param[in] production the global vector of the sources that do not depend on the mobile concentrations
+      *
+      * Newton iterations of the steady reaction-diffusion equations of the mobile species.
+      */
+        const double cTol(1e-5);
+        double cError(1.0);
+        while(cError>cTol)
+        {
+            const auto R1((this->cdp.R1cd).eval());
+            auto bWF_R1((test(iDs*mobileClustersIncrement),R1*(-1.0*mobileClustersIncrement))*dV); // THIS SHOULD BE STORED SINCE IT IS ALWAYS THE SAME
+            auto lWF_R1((test(iDs*mobileClustersIncrement),eval(R1*mobileClusters))*dV);
+
+            auto bWF_R1sink((test(iDs*mobileClustersIncrement),R1sink*(-1.0*mobileClustersIncrement))*dV);
+            auto lWF_R1sink((test(iDs*mobileClustersIncrement),eval(R1sink*mobileClusters))*dV);
+
+            SecondOrderReaction<MobileTrialType> R2(mobileClusters,this->cdp);
+            auto bWF_R2((test(iDs*mobileClustersIncrement),R2*(-1.0*mobileClustersIncrement))*dV);
+            auto lWF_R2((test(iDs*mobileClustersIncrement),eval(R2*(0.5*mobileClusters)))*dV);
+
+            MobileReactionSolverType rSolver(false,FLT_EPSILON);
+
+            if(useImmobileClusters)
+            {
+                rSolver.compute(dmBWF+bWF_R1+bWF_R2+bWF_R1sink);
+            }
+            else
+            {
+                rSolver.compute(dmBWF+bWF_R1+bWF_R2);
+            }
+            mobileClustersIncrement=rSolver.solve(production-mSolver.getA()*mobileClusters.dofVector() + (useImmobileClusters? (lWF_R1+lWF_R2+lWF_R1sink).globalVector() : (lWF_R1+lWF_R2).globalVector()) );
+
+            Eigen::MatrixXd cOld(mobileClusters.dofVector());
+            cOld.resize(mSize,mobileClusters.gSize()/mSize);
+            mobileClusters += mobileClustersIncrement.dofVector();
+
+            Eigen::MatrixXd cNew(mobileClusters.dofVector());
+            cNew.resize(mSize,mobileClusters.gSize()/mSize);
+
+            const Eigen::VectorXd absErr((cNew-cOld).rowwise().norm());
+            const Eigen::VectorXd cNewNorm((cNew.rowwise().norm().array()+1.e-50).matrix());
+            const Eigen::VectorXd relErr((absErr.array()/cNewNorm.array()).matrix());
+
+            cError=relErr.maxCoeff();
+            std::cout<<"convergenceError="<<cError<<std::endl;
+        }
     }
 
     template<int dim>
     void ClusterDynamicsFEM<dim>::solveMobileClusters(const bool hasDiscreteLoops)
-    {
+    {/*! The mobile species are solved at steady state, for the immobile fields
+      * currently held. The method is that of v2.0.0. The immobile clusters
+      * enter through the sink term and, with ImmobileODESolver, through the
+      * vacancies that the vacancy clusters release.
+      */
         std::cout<<", mobile solver, "<<std::flush;
         mobileClusters=mSolver.solve(cascadeGlobalProduction);
         const bool useImmobileClusters(!hasDiscreteLoops && iSize > 0);
 
         if(this->cdp.computeReactions)
         {
-            const double cTol(1e-5);
-            double cError(1.0);
-            while(cError>cTol)
-            {
-                const auto R1((this->cdp.R1cd).eval());
-                auto bWF_R1((test(iDs*mobileClustersIncrement),R1*(-1.0*mobileClustersIncrement))*dV); // THIS SHOULD BE STORED SINCE IT IS ALWAYS THE SAME
-                auto lWF_R1((test(iDs*mobileClustersIncrement),eval(R1*mobileClusters))*dV);
-
-                FirstOrderReaction<MobileTrialType,ImmobileTrialType> R1sink(immobileClusters,this->cdp,ddBase.poly);
-                auto bWF_R1sink((test(iDs*mobileClustersIncrement),R1sink*(-1.0*mobileClustersIncrement))*dV); 
-                auto lWF_R1sink((test(iDs*mobileClustersIncrement),eval(R1sink*mobileClusters))*dV);
-                
-                auto lWF_R1sink2((test(mobileClustersIncrement),eval(R1sink*mobileClusters))*dV);
-
-                SecondOrderReaction<MobileTrialType> R2(mobileClusters,this->cdp);
-                auto bWF_R2((test(iDs*mobileClustersIncrement),R2*(-1.0*mobileClustersIncrement))*dV);
-                auto lWF_R2((test(iDs*mobileClustersIncrement),eval(R2*(0.5*mobileClusters)))*dV);
-
-                Eigen::SparseMatrix<double,Eigen::RowMajor> AcIR;
-                AcIR.resize(mobileClustersIncrement.gSize(),mobileClustersIncrement.gSize());
-
-                std::vector<Eigen::Triplet<double>> globalTripletsR(useImmobileClusters? (bWF_R1+bWF_R2+bWF_R1sink).globalTriplets() : (bWF_R1+bWF_R2).globalTriplets());
-                AcIR.setFromTriplets(globalTripletsR.begin(),globalTripletsR.end());
-                
-                MobileReactionSolverType rSolver(false,FLT_EPSILON);
-
+            if(useImmobileODESolver)
+            {// sink and source from the same rate equations that ImmobileODESolver integrates
+                LoopSinkReaction<MobileTrialType,ImmobileTrialType> R1sink(immobileClusters,rateEquations);
                 if(useImmobileClusters)
                 {
-                    rSolver.compute(dmBWF+bWF_R1+bWF_R2+bWF_R1sink); 
+                    VacancyLoopSource<MobileTrialType,ImmobileTrialType> vacancySource(immobileClusters,rateEquations);
+                    const Eigen::VectorXd production(cascadeGlobalProduction+((test(iDs*this->mobileClusters),vacancySource)*dV).globalVector());
+                    solveMobileReactions(R1sink,useImmobileClusters,production);
                 }
                 else
                 {
-                    rSolver.compute(dmBWF+bWF_R1+bWF_R2);
+                    solveMobileReactions(R1sink,useImmobileClusters,cascadeGlobalProduction);
                 }
-                mobileClustersIncrement=rSolver.solve(cascadeGlobalProduction-mSolver.getA()*mobileClusters.dofVector() + (useImmobileClusters? (lWF_R1+lWF_R2+lWF_R1sink).globalVector() : (lWF_R1+lWF_R2).globalVector()) );
-                
-                Eigen::MatrixXd cOld(mobileClusters.dofVector());
-                cOld.resize(mSize,mobileClusters.gSize()/mSize);
-                mobileClusters += mobileClustersIncrement.dofVector();
-                
-                Eigen::MatrixXd cNew(mobileClusters.dofVector());
-                cNew.resize(mSize,mobileClusters.gSize()/mSize);
-                
-                const Eigen::VectorXd absErr((cNew-cOld).rowwise().norm());
-                const Eigen::VectorXd cNewNorm((cNew.rowwise().norm().array()+1.e-50).matrix());
-                const Eigen::VectorXd relErr((absErr.array()/cNewNorm.array()).matrix());
-                
-                cError=relErr.maxCoeff();//aError/cInorm;
-                if(false)
-                {
-                    std::cout<<"max values="<<cNew.rowwise().maxCoeff().transpose()<<std::endl;
-                    std::cout<<"min values="<<cNew.rowwise().minCoeff().transpose()<<std::endl;
-                    std::cout<<"absolute errors="<<absErr.transpose()<<std::endl;
-                    std::cout<<"solution norms="<<cNewNorm.transpose()<<std::endl;
-                    std::cout<<"relative error="<<relErr.transpose()<<std::endl;
-                }
-                std::cout<<"convergenceError="<<cError<<std::endl;
+            }
+            else
+            {
+                FirstOrderReaction<MobileTrialType,ImmobileTrialType> R1sink(immobileClusters,this->cdp,ddBase.poly);
+                solveMobileReactions(R1sink,useImmobileClusters,cascadeGlobalProduction);
             }
         }
-        // Find immobile rate // did this below
-        // Find diffusive-displacement rate // did this below, i think
     }
 
     template<int dim>
@@ -198,6 +275,17 @@ template struct InvDscaling<3>;
     template<int dim>
     void ClusterDynamicsFEM<dim>::updateImmobileClusters(const double dt)
     {
+        if(useImmobileODESolver)
+        {// implicit integration of the rate equations at each node, with the mobile field of the last solve
+            std::cout<<", immobile ODE solver (CVODE)"<<std::flush;
+            const auto t0= std::chrono::system_clock::now();
+            Eigen::VectorXd& immobileDofs(TrialBase<ImmobileTrialType>::dofVector());
+            immobileODESolver.integrate(mobileClusters.dofVector(),immobileDofs,nucleationFractions,dt);
+            immobileDofs=immobileDofs.cwiseMax(immobileFloor);
+            std::cout<<", "<<immobileODESolver.lastInternalSteps()<<" internal steps, at most "<<immobileODESolver.lastMaxInternalSteps()<<" at a node"
+            /*     */<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+            return;
+        }
         TrialBase<ImmobileTrialType>::dofVector()+=immobileClusterRate * dt;
         for(size_t nodeID=0; nodeID<immobileClusters.nodeSize(); nodeID++)
         {
@@ -237,8 +325,8 @@ template struct InvDscaling<3>;
     {
         solveMobileClusters(hasDiscreteLoops);
         const bool useImmobileClusters(!hasDiscreteLoops && iSize > 0);
-        if(useImmobileClusters)
-        {
+        if(useImmobileClusters && !useImmobileODESolver)
+        {// rates for the explicit step. ImmobileODESolver needs none: it integrates in updateImmobileClusters
             solveImmobileClusters();
         }
     }

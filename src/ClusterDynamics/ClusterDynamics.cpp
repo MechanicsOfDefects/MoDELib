@@ -13,6 +13,8 @@
 #endif
 
 #include <random>
+#include <fstream>
+#include <iomanip>
 #include <array>
 #include <numeric>
 #include <ClusterDynamics.h>
@@ -202,6 +204,10 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             {
                 if(!hasDiscreteLoops)
                 {
+                    if(clusterDynamicsFEM->useImmobileODESolver && this->microstructures.size()>1)
+                    {// other physics can apply a stress, which orients the nucleation of the clusters
+                        updateNucleationFractions();
+                    }
                     clusterDynamicsFEM->updateImmobileClusters(dt);
                 }
 
@@ -215,6 +221,27 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             }
         }
         this->lastUpdateTime=this->microstructures.ddBase.simulationParameters.totalTime;
+    }
+
+    template<int dim>
+    void ClusterDynamics<dim>::updateNucleationFractions()
+    {/*! Computes, at each finite-element node, the fractions of the nucleating
+      * content taken by each immobile family under the local stress
+      * (ImmobileRateEquations::nucleationWeights).
+      */
+        const auto& nodes(this->microstructures.ddBase.fe->nodes());
+        clusterDynamicsFEM->nucleationFractions.resize(nodes.size());
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+        for(size_t i=0;i<nodes.size();++i)
+        {
+            const auto& node(nodes[i]);
+            const MatrixDim sigma(this->microstructures.stress(node.P0,&node,nullptr,nullptr));
+            const auto grains(this->pointGrains(node.P0,&node,nullptr,nullptr));
+            const Eigen::Matrix<double,dim,iSize/2> burgers((*grains.begin())->latticeBasis*cdp.immobileSpeciesBurgers);
+            clusterDynamicsFEM->nucleationFractions[node.gID]=clusterDynamicsFEM->rateEquations.nucleationWeights(sigma,burgers);
+        }
     }
 
     template<int dim>
@@ -232,6 +259,19 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             configIO.cdMatrix().resize(nNodes,mSize+iSize);
             configIO.cdMatrix().block(0,0,nNodes,mSize)=clusterDynamicsFEM->mobileClusters.dofVector().reshaped(mSize,nNodes).transpose();
             configIO.cdMatrix().block(0,mSize,nNodes,iSize)=clusterDynamicsFEM->immobileClusters.dofVector().reshaped(iSize,nNodes).transpose();
+            
+            // The rows of the cluster-dynamics block follow the finite-element nodes, which are not the nodes
+            // of the mesh file (the elements are quadratic). Their positions are written once, for post-processing
+            const std::string nodesFileName(this->microstructures.ddBase.simulationParameters.traitsIO.evlFolder+"/cdNodes.txt");
+            if(this->microstructures.ddBase.simulationParameters.runID==0 || !std::ifstream(nodesFileName).good())
+            {
+                std::ofstream nodesFile(nodesFileName);
+                nodesFile<<std::setprecision(15)<<std::scientific;
+                for(const auto& node : clusterDynamicsFEM->mobileClusters.fe().nodes())
+                {
+                    nodesFile<<node.gID<<" "<<node.P0.transpose()<<std::endl;
+                }
+            }
         }
         else
         {

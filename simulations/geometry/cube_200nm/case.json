@@ -1,0 +1,22 @@
+{
+  "description": "The GEOMETRY and MESH entries that generated cube_200nm.msh: DisloCluster's 200nmCube_Moments case (studies/run_200nm_moments.py, case cubic_200nm_o1_cb96efc60459e506). Written into each run's config.json.",
+  "geometry": {
+    "type": "cubic",
+    "size_nm": 200.0,
+    "height_nm": null,
+    "aspect": [1.0, 1.0, 1.0]
+  },
+  "mesh": {
+    "target_elements": 15000,
+    "lc_nm": 25.0,
+    "element_order": 1,
+    "boundary_layer": true,
+    "boundary_thickness_nm": 40.0,
+    "boundary_lc_nm": 10.0,
+    "boundary_layers_across": 5,
+    "boundary_size_ratio": 0.35,
+    "boundary_expansion": null,
+    "optimize": true,
+    "regenerate": false
+  }
+}

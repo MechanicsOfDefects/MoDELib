@@ -104,6 +104,21 @@ struct ClusterDynamicsParameters
     const std::map<std::pair<int,int>,double> loopNucChannels; // (species,species) -> rate coefficient of the nucleating reactions
     const Eigen::Array<double,1,iSize/2> clusteringShare; // share of the clustering nucleation taken by each family, within its polarity
 
+    // Kinetics of the immobile clusters integrated by ImmobileODESolver (optional keys of the material file)
+    const double tauVac; // lifetime of the vacancy clusters, tau0*exp(Ea/kB/T). Zero for no dissolution
+    const bool dissolveEmbryosOnly; // a dissolving vacancy cluster releases nNuc defects (it is an embryo) instead of the mean content of its family
+    const Eigen::Array<double,1,iSize/2> cLL; // rate coefficient of like-loop coalescence
+    const Eigen::Array<double,1,iSize/2> cLN; // rate coefficient of loop-network coalescence
+    const double kappaLL; // overlap coefficient of like-loop coalescence
+    const double kappaLN; // overlap coefficient of loop-network coalescence
+    const double rhoNetwork; // density of the dislocation network
+    const Eigen::Array<double,1,iSize/2> r_min; // radius below which a cluster no longer shrinks by absorption. Zero for no gate
+    const Eigen::Array<double,1,iSize/2> loopSinkScale; // factor on the sink strength of each family (fitted; 1 without the key)
+    const bool clusteringNucleationInODE; // ImmobileRateEquations: clusters are born from the reactions whose product is not mobile (true without the key)
+    const bool nucleationPerReaction; // DisloCluster form, for comparison: each clustering reaction creates one cluster holding the defects of the reaction. False (Eq. 37 of the D1/M1 report): the clustered content is divided by nNuc
+    const bool coalescenceClimbBurgers; // true (D1/M1 report): the climb speed of coalescence divides the absorbed volume by the Burgers-vector magnitude of the family. False: DisloCluster form, for comparison
+    const Eigen::Array<double,iSize/2,mSize> loopBias; // capture bias Z_km of each family (row) for each mobile species (column), loopSinkScale included
+
     // Irradiation Production
     // const double evc; // Vacancy cluster generation efficiency
     // const double Nvmax; // Satuatrion number density for vacancy loops in m^-3
@@ -136,6 +151,9 @@ struct ClusterDynamicsParameters
     std::vector<Eigen::Matrix<double,mSize,mSize>> getR2() const;
     static Eigen::Array<double,1,iSize/2> getOptionalFamilyArray(const std::string& materialFile,const std::string& key,const double& defaultValue);
     static int getOptionalInt(const std::string& materialFile,const std::string& key,const int& defaultValue);
+    static double getOptionalDouble(const std::string& materialFile,const std::string& key,const double& defaultValue);
+    static double getAtomicVolume(const DislocationDynamicsBase<dim>& ddBase);
+    Eigen::Array<double,iSize/2,mSize> getLoopBias() const;
     std::map<std::pair<int,int>,double> getLoopNucChannels() const;
     Eigen::Array<double,1,iSize/2> getClusteringShare() const;
     bool hasNucleation() const;

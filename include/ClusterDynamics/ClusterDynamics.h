@@ -110,6 +110,7 @@ namespace model
 
 
         void initializeDiscreteClimbLoops();
+        void updateNucleationFractions();
         
         
         static UniformControllerContainerType getUniformControllers(const DislocationDynamicsBase<dim>& ddBase,const ClusterDynamicsParameters<dim>& cdp);

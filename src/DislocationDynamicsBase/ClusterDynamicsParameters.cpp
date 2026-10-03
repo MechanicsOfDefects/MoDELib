@@ -23,7 +23,7 @@ namespace model
     ClusterDynamicsParameters<dim>::ClusterDynamicsParameters(const DislocationDynamicsBase<dim>& ddBase) :
     /* init */ kB(ddBase.poly.kB),
     /* init */ T(ddBase.poly.T),
-    /* init */ omega(ddBase.poly.Omega),
+    /* init */ omega(getAtomicVolume(ddBase)),
     /* init */ b(ddBase.poly.b),
     /* init */ G0(true? TextFileParser(ddBase.poly.materialFile).readScalar<double>("doseRate_dpaPerSec",true)*(ddBase.poly.b_SI/ddBase.poly.cs_SI) : 0.0),
     /* MOBILE SPECIES */
@@ -68,6 +68,20 @@ namespace model
     /* init */ useClusteringNucleation(iSize>0 && mSize>1 ? getOptionalInt(ddBase.poly.materialFile,"loopClusteringNucleation",0)>0 : false),
     /* init */ loopNucChannels(useClusteringNucleation ? getLoopNucChannels() : std::map<std::pair<int,int>,double>()),
     /* init */ clusteringShare(getClusteringShare()),
+    /* init */ tauVac(getOptionalDouble(ddBase.poly.materialFile,"tau0_vLoop_SI",0.0)*(ddBase.poly.cs_SI/ddBase.poly.b_SI)
+    /*      */        *exp(getOptionalDouble(ddBase.poly.materialFile,"Ea_vLoop_eV",0.0)*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3)/kB/T)),
+    /* init */ dissolveEmbryosOnly(iSize>0 ? getOptionalInt(ddBase.poly.materialFile,"dissolveEmbryosOnly",0)>0 : false),
+    /* init */ cLL(getOptionalFamilyArray(ddBase.poly.materialFile,"cLL",0.0)),
+    /* init */ cLN(getOptionalFamilyArray(ddBase.poly.materialFile,"cLN",0.0)),
+    /* init */ kappaLL(getOptionalDouble(ddBase.poly.materialFile,"kappaLL",0.0)),
+    /* init */ kappaLN(getOptionalDouble(ddBase.poly.materialFile,"kappaLN",0.0)),
+    /* init */ rhoNetwork(getOptionalDouble(ddBase.poly.materialFile,"rhoNetwork_SI",0.0)*ddBase.poly.b_SI*ddBase.poly.b_SI),
+    /* init */ r_min(getOptionalFamilyArray(ddBase.poly.materialFile,"r_min",0.0)/ddBase.poly.b_SI),
+    /* init */ loopSinkScale(getOptionalFamilyArray(ddBase.poly.materialFile,"loopSinkScale",1.0)),
+    /* init */ clusteringNucleationInODE(getOptionalInt(ddBase.poly.materialFile,"loopClusteringNucleation",1)>0),
+    /* init */ nucleationPerReaction(getOptionalInt(ddBase.poly.materialFile,"loopNucleationPerReaction",0)>0),
+    /* init */ coalescenceClimbBurgers(getOptionalInt(ddBase.poly.materialFile,"coalescenceClimbBurgers",1)>0),
+    /* init */ loopBias(getLoopBias()),
     /* init */ computeReactions((true && mSize>0 && mSize+iSize>1)? TextFileParser(ddBase.poly.materialFile).readScalar<int>("computeReactions",true) : 0),
 //    /* init */ use0DsinkStrength((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readScalar<int>("use0DsinkStrength",true) : 0),
 //    /* init */ Zv((true && iSize>0) ? TextFileParser(ddBase.poly.materialFile).readMatrix<double,1,dim>("Zv",true) : Eigen::Array<double,1,dim>::Zero()),
@@ -113,15 +127,21 @@ namespace model
             }
         }
         
-        if(fabs(vacancySum-1.0)>FLT_EPSILON)
+        if(vacancySum>1.0+FLT_EPSILON)
         {
-            //            throw std::runtime_error("vacancy cluster fraction does not sum to one.");
-            std::cout<<redBoldColor<<"Warning: vacancy cluster fraction does not sum to one."<<defaultColor<<std::endl;
+            std::cout<<redBoldColor<<"Warning: vacancy cluster fractions sum to more than one."<<defaultColor<<std::endl;
         }
-        if(fabs(interstitialSum-1.0)>FLT_EPSILON)
+        else if(vacancySum<1.0-FLT_EPSILON)
+        {// with immobileIntegrator=cvode the remainder is born in immobile clusters. With euler it is not produced
+            std::cout<<"vacancy cluster fractions sum to "<<vacancySum<<": the remainder "<<1.0-vacancySum<<" is not born as mobile or cascade-born clusters of loopCascadeFractions."<<std::endl;
+        }
+        if(interstitialSum>1.0+FLT_EPSILON)
         {
-            //            throw std::runtime_error("interstitial cluster fraction does not sum to one.");
-            std::cout<<redBoldColor<<"Warning: interstitial cluster fraction does not sum to one."<<defaultColor<<std::endl;
+            std::cout<<redBoldColor<<"Warning: interstitial cluster fractions sum to more than one."<<defaultColor<<std::endl;
+        }
+        else if(interstitialSum<1.0-FLT_EPSILON)
+        {// with immobileIntegrator=cvode the remainder is born in immobile clusters. With euler it is not produced
+            std::cout<<"interstitial cluster fractions sum to "<<interstitialSum<<": the remainder "<<1.0-interstitialSum<<" is not born as mobile or cascade-born clusters of loopCascadeFractions."<<std::endl;
         }
         
         for(const auto& pair: reactionMap)
@@ -389,6 +409,62 @@ namespace model
             }
             return defaultValue;
         }
+    }
+
+    template<int dim>
+    double ClusterDynamicsParameters<dim>::getOptionalDouble(const std::string& materialFile,const std::string& key,const double& defaultValue)
+    {
+        try
+        {
+            return TextFileParser(materialFile).readScalar<double>(key,true);
+        }
+        catch(const std::runtime_error& e)
+        {
+            if(std::string(e.what()).find("does not cointain line with format")==std::string::npos)
+            {// the key is present, and wrong
+                throw;
+            }
+            return defaultValue;
+        }
+    }
+
+    template<int dim>
+    double ClusterDynamicsParameters<dim>::getAtomicVolume(const DislocationDynamicsBase<dim>& ddBase)
+    {/*!\returns the atomic volume used by cluster dynamics, in units of b^3.
+      * It is that of the lattice, unless the material file gives atomicVolume_SI:
+      * a parameter set fitted with another value keeps its radii and rate coefficients.
+      */
+        const double atomicVolume_SI(getOptionalDouble(ddBase.poly.materialFile,"atomicVolume_SI",0.0));
+        return atomicVolume_SI>0.0? atomicVolume_SI/pow(ddBase.poly.b_SI,3) : ddBase.poly.Omega;
+    }
+
+    template<int dim>
+    Eigen::Array<double,ClusterDynamicsParameters<dim>::iSize/2,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::getLoopBias() const
+    {/*!\returns the capture bias Z_km = Z0_km*ZDAD_k(p_m) of each immobile family k
+      * for each mobile species m.
+      * Z0 is the row of discreteDislocationBias for the sign of the family
+      * (first row vacancy clusters, second row interstitial clusters).
+      * ZDAD is the diffusion-anisotropy factor, with p_m=(D_c/D_a)^(1/6):
+      * p_m for clusters in the basal plane, (p_m+p_m^-2)/2 for clusters in a
+      * plane that contains the c axis. It is 1 for isotropic diffusion.
+      * The fitted factor loopSinkScale of the family multiplies the result, so that
+      * it acts on the absorption, on the loss of the mobile species and on the emission alike.
+      */
+        Eigen::Array<double,iSize/2,mSize> temp(Eigen::Array<double,iSize/2,mSize>::Ones());
+        if(iSize>0)
+        {
+            const std::vector<Eigen::Matrix<double,dim,dim>> Dlocal(getDlocal());
+            for(int k=0;k<iSize/2;++k)
+            {
+                for(int m=0;m<mSize;++m)
+                {
+                    const double p(pow(Dlocal[m](2,2)/Dlocal[m](0,0),1.0/6.0));
+                    const double ZDAD(isBasalFamily(k)? p : 0.5*(p+1.0/(p*p)));
+                    temp(k,m)=discreteDislocationBias(immobileSpeciesVector(k)<0.0? 0 : 1,m)*ZDAD*loopSinkScale(k);
+                }
+            }
+        }
+        return temp;
     }
 
     template<int dim>

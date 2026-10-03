@@ -1,0 +1,227 @@
+# Publishes the Doxygen documentation of MoDELib as pages of the repository Wiki.
+# Procedure of Rain Chung (docs/manuals/Doxygen.pptx), as used in MoDELib2.
+#
+# Doxygen writes XML, doxybook2 converts it to Markdown, and the pages are pushed to the Wiki:
+# Home and the other \page documents of doxygen/dox, one page per class and per file,
+# the lists Classes and Files, and a sidebar.
+#
+# Before the first run, in the GitHub repository:
+# 1: Settings -> Features: enable Wikis, and create the first Wiki page (any content: it is replaced)
+# 2: Settings -> Actions -> General -> Workflow permissions: Read and write permissions
+#
+# The Wiki front page is the \page named Home (doxygen/dox/Home.dox): \mainpage is not used by the Wiki.
+# Images of doxygen/dox/Images are copied to the Wiki.
+
+name: Update Doxygen Wiki
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Doxygen
+        timeout-minutes: 10
+        run: |
+          wget https://github.com/doxygen/doxygen/releases/download/Release_1_9_1/doxygen-1.9.1.linux.bin.tar.gz
+          tar -xzf doxygen-1.9.1.linux.bin.tar.gz
+          sudo cp doxygen-1.9.1/bin/doxygen /usr/local/bin/doxygen
+
+          wget http://archive.ubuntu.com/ubuntu/pool/main/libf/libffi/libffi7_3.3-4_amd64.deb
+          wget http://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-9/libllvm9_9.0.1-12_amd64.deb
+          wget http://archive.ubuntu.com/ubuntu/pool/universe/l/llvm-toolchain-9/libclang1-9_9.0.1-12_amd64.deb
+          wget http://archive.ubuntu.com/ubuntu/pool/universe/l/llvm-toolchain-9/libclang-cpp9_9.0.1-12_amd64.deb
+          sudo apt-get install -y ./libffi7_3.3-4_amd64.deb ./libllvm9_9.0.1-12_amd64.deb ./libclang1-9_9.0.1-12_amd64.deb ./libclang-cpp9_9.0.1-12_amd64.deb
+
+          sudo apt-get update && sudo apt-get install -y graphviz
+          doxygen --version
+          
+      - name: Install doxybook2
+        run: |
+          DOXYBOOK2_VERSION=$(curl -s https://api.github.com/repos/matusnovak/doxybook2/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+          curl -sL "https://github.com/matusnovak/doxybook2/releases/download/${DOXYBOOK2_VERSION}/doxybook2-linux-amd64-${DOXYBOOK2_VERSION}.zip" -o doxybook2.zip
+          unzip doxybook2.zip -d doxybook2
+          sudo mv doxybook2/bin/doxybook2 /usr/local/bin/
+
+      - name: Run Doxygen
+        run: |
+          cd doxygen/
+          doxygen Doxyfile
+
+      - name: Convert XML to Markdown
+        run: |
+          mkdir -p wiki-output
+          mkdir -p doxybook-templates
+          touch doxybook-templates/meta.tmpl
+          doxybook2 --input doxygen/HTML/xml --output wiki-output --templates doxybook-templates
+    
+      - name: Checkout wiki repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+
+      - name: Copy generated docs into wiki
+        run: |
+          rm -rf wiki/*
+          cp -r wiki-output/Pages/* wiki/
+          mkdir -p wiki/images
+          if [ -d doxygen/dox/Images ] && [ -n "$(ls -A doxygen/dox/Images)" ]; then
+            cp -r doxygen/dox/Images/* wiki/images/
+          fi
+          
+          if [ -f "wiki-output/index_classes.md" ]; then
+            sed -n '/^# /,$p' wiki-output/index_classes.md \
+              | sed -E 's#(Classes|Files|Namespaces|Examples|Modules)/##g; s/\.md#/#/g; s/\.md\)/\)/g' \
+              | sed -E 's/\[[a-z]+\]\(([^)#]+)#/[\1]\(\1#/g' \
+              > wiki/Classes.md
+          fi
+          
+          if [ -d "wiki-output/Classes" ]; then
+            for f in wiki-output/Classes/*.md; do
+              cp "$f" wiki/
+            done
+          fi
+
+          if [ -d "wiki-output/Namespaces" ]; then
+            for f in wiki-output/Namespaces/*.md; do
+              cp "$f" wiki/
+            done
+          fi
+          
+          if [ -f "wiki-output/index_files.md" ]; then
+            sed -n '/^# /,$p' wiki-output/index_files.md \
+              | sed -E 's#Files/##g; s/\.md#/#/g; s/\.md\)/\)/g' \
+              | sed -E 's/\[[a-z]+\]\(([^)#]+)#/[\1]\(\1#/g' \
+              > wiki/Files.md
+          fi
+          
+          if [ -d "wiki-output/Files" ]; then
+            for f in wiki-output/Files/*.md; do
+              cp "$f" wiki/
+            done
+          fi
+          
+          if [ -f "wiki/_home.md" ]; then
+            mv wiki/_home.md wiki/Home.md
+          else
+            echo "# Welcome to the Wiki" > wiki/Home.md
+            echo "" >> wiki/Home.md
+            echo "- [Classes](Classes)" >> wiki/Home.md
+            echo "- [Files](Files)" >> wiki/Home.md
+          fi
+
+          cat > /tmp/nest.py << 'PYEOF'
+          import sys, re
+
+          def parse(lines):
+              root = {"depth": -1, "text": None, "children": []}
+              stack = [root]
+              for line in lines:
+                  if not line.strip() or not line.lstrip().startswith('* '):
+                      continue
+                  stripped = line.lstrip(' ')
+                  indent = len(line) - len(stripped)
+                  content = stripped[2:].rstrip()
+                  node = {"depth": indent, "text": content, "children": []}
+                  while stack[-1]["depth"] >= indent:
+                      stack.pop()
+                  stack[-1]["children"].append(node)
+                  stack.append(node)
+              return root
+
+          def label(text):
+              m = re.search(r'\[([^\]]+)\]', text)
+              return m.group(1) if m else re.sub(r'\*|\[|\]|\(|\)', '', text)
+
+          def render(node, out):
+              for child in node["children"]:
+                  if child["children"]:
+                      out.append("")
+                      out.append("<details>")
+                      out.append(f"<summary>{label(child['text'])}</summary>")
+                      out.append("")
+                      render(child, out)
+                      out.append("")
+                      out.append("</details>")
+                      out.append("")
+                  else:
+                      out.append(f"{child['text']}")
+                      out.append("")
+                      # out.append(f"- {child['text']}")
+
+          lines = open(sys.argv[1]).read().splitlines()
+          tree = parse(lines)
+          out = []
+          render(tree, out)
+          print("\n".join(out))
+          PYEOF
+
+          python3 /tmp/nest.py wiki-output/index_classes.md > /tmp/classes_nested.md
+          python3 /tmp/nest.py wiki-output/index_files.md > /tmp/files_nested.md
+          
+          {
+            echo "[Home](Home)"; echo ""
+            # echo "- [Home](Home)"
+            for f in wiki-output/Pages/*.md; do
+              filename=$(basename "$f" .md)
+              [ "$filename" == "_home" ] && continue
+              title=$(grep -m 1 '^# ' "$f" | sed 's/^# //')
+              [ -z "$title" ] && title="$filename"
+              echo "[$title]($filename)"; echo ""
+              # echo "- [$title]($filename)"
+            done
+
+            echo ""
+            echo "[Classes (full page)](Classes)"; echo ""
+            echo "[Files (full page)](Files)"; echo ""
+            # echo "- [Classes (full page)](Classes)"
+            # echo "- [Files (full page)](Files)"
+
+            echo ""; 
+            echo "<details>"
+            echo "<summary>Classes</summary>"; echo ""
+            cat /tmp/classes_nested.md
+            echo ""; echo "</details>"; echo ""
+
+            echo ""; 
+            echo "<details>"
+            echo "<summary>Files</summary>"; echo ""
+            cat /tmp/files_nested.md
+            echo ""; echo "</details>"; echo ""
+          } > wiki/_Sidebar.md
+
+          for f in wiki/struct*.md wiki/class*.md; do
+            [ -f "$f" ] || continue
+            base=$(basename "$f" .md)
+            graph=""
+            [ -f "doxygen/HTML/${base}__inherit__graph.jpg" ] && graph="${base}__inherit__graph.jpg"
+            [ -z "$graph" ] && [ -f "doxygen/HTML/${base}__coll__graph.jpg" ] && graph="${base}__coll__graph.jpg"
+            if [ -n "$graph" ]; then
+              cp "doxygen/HTML/$graph" "wiki/images/$graph"
+              awk -v img="images/$graph" 'NR==1{print; print ""; print "![Diagram](" img ")"; next} {print}' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+            fi
+          done
+  
+          find wiki -name "*.md" -exec sed -i -E \
+            -e 's#(Classes|Files|Namespaces|Examples|Modules|Pages)/##g' \
+            -e 's/\.md#/#/g' \
+            -e 's/\.md\)/\)/g' \
+            {} \;
+          
+      - name: Commit and push wiki changes
+        run: |
+          cd wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --staged --quiet || git commit -m "Auto-update docs from Doxygen ($GITHUB_SHA)"
+          git push

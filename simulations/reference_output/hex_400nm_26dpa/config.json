@@ -1,0 +1,38 @@
+{
+ "CASE": {
+  "geometry": "hex_400nm",
+  "tag": null
+ },
+ "MATERIAL": {
+  "material_file": "Zr_CD4opt.txt",
+  "temperature_K": 573.0,
+  "dose_rate_dpa_s": 1e-07,
+  "overrides": {
+   "loopClusteringNucleation": "0"
+  }
+ },
+ "MARCH": {
+  "doses": [
+   1.0,
+   6.0,
+   11.0,
+   16.0,
+   21.0,
+   26.0
+  ],
+  "steps_per_interval": 3,
+  "step_dpa": 1.0,
+  "immobile_integrator": "cvode"
+ },
+ "RUN": {
+  "threads": null,
+  "keep_all_configurations": false
+ },
+ "OUTPUT": {
+  "mesh_cut_figures": true,
+  "figure_doses": null,
+  "voronoi_samples": 2000000,
+  "population_dose": 6.0
+ },
+ "PRESET": "hex400"
+}

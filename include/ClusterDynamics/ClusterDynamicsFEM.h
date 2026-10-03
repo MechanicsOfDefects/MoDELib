@@ -27,6 +27,9 @@
 #include <SecondOrderReaction.h>
 #include <FirstOrderReaction.h>
 #include <ImmobileSinkRate.h>
+#include <ImmobileRateEquations.h>
+#include <ImmobileODESolver.h>
+#include <LoopSinkReaction.h>
 #include <MicrostructureContainer.h>
 
 namespace model
@@ -76,6 +79,7 @@ namespace model
         typedef FiniteElement<ElementType> FiniteElementType;
         static constexpr int dVorder=4;
         typedef IntegrationDomain<FiniteElementType,0,dVorder,GaussLegendre> VolumeIntegrationDomainType;
+        static constexpr double immobileFloor=1.0e-33; // smallest value of the immobile fields with ImmobileODESolver
         static constexpr int dVprojectionOrder=14; // exact for the mass matrix of the quadratic elements
         typedef IntegrationDomain<FiniteElementType,0,dVprojectionOrder,GaussLegendre> ProjectionIntegrationDomainType;
         static constexpr int mSize=ClusterDynamicsParameters<dim>::mSize;
@@ -156,6 +160,17 @@ namespace model
 
         const Eigen::VectorXd cascadeGlobalProduction;
         Eigen::VectorXd immobileClusterRate;
+
+        // Immobile clusters integrated by CVODE (immobileIntegrator=cvode in ClusterDynamics.txt)
+        typedef typename ImmobileRateEquations<dim>::ArrayChi ArrayChi;
+        const ImmobileRateEquations<dim> rateEquations; // rate equations of the immobile clusters at a point
+        const bool useImmobileODESolver; // true: ImmobileODESolver. false: projection of the rates and explicit step
+        ImmobileODESolver<dim> immobileODESolver;
+        std::vector<ArrayChi> nucleationFractions; // one entry per node, or one for all nodes
+
+        static bool getUseImmobileODESolver(const DislocationDynamicsBase<dim>& ddBase);
+        template<typename SinkType>
+        void solveMobileReactions(const SinkType& R1sink,const bool useImmobileClusters,const Eigen::VectorXd& production);
 
 //         ClusterDynamicsFEM(const DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
 //         void solveMobileClusters();

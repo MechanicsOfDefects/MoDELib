@@ -25,7 +25,7 @@
 # See also https://mcilloni.ovh/2021/02/09/cxx-cross-clang/
 
 cmake_minimum_required(VERSION 3.20)
-project(MoDELib VERSION 2.1.0 LANGUAGES C CXX)
+project(MoDELib VERSION 2.2.0 LANGUAGES C CXX)
 
 option(USE_PYBIND11 "enables pybind11" ON)
 option(BUILD_TOOLS "builds tools" ON)
@@ -99,6 +99,20 @@ else()
 	message(WARNING "UMFPACK not found")
 endif()
 
+### SUNDIALS (optional) ###
+# CVODE integrates the rate equations of the immobile cluster-dynamics species.
+# Without it they are integrated by the explicit scheme, which has no dissolution, emission and coalescence.
+option(USE_SUNDIALS "uses SUNDIALS (CVODE) for the immobile cluster-dynamics species, when found" ON)
+if(USE_SUNDIALS)
+	find_package(SUNDIALS 7.0 QUIET) # the interface of version 7 is used
+	if(SUNDIALS_FOUND)
+		message(STATUS "SUNDIALS_VERSION:" ${SUNDIALS_VERSION})
+		add_definitions(-D_MODEL_SUNDIALS_)
+	else()
+		message(WARNING "SUNDIALS 7 not found: the CVODE integrator of cluster dynamics is disabled. Install it (apt-get install libsundials-dev, brew install sundials) or pass -DCMAKE_PREFIX_PATH=<SUNDIALS install>")
+	endif()
+endif()
+
 ### fftw3 ### find_package is currently broken. Workaround using find_library
 find_library(FFTW3_LIBRARIES fftw3)  
 if(FFTW3_LIBRARIES)
@@ -167,6 +181,9 @@ include_directories(${MoDELib_INCLUDE_DIR}/DislocationDynamics/)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/ src)
 target_link_libraries(MoDELib PUBLIC ${FFTW3_LIBRARIES} ${pybind11_LIBRARIES} ${CHOLMOD_LIBRARIES} ${UMFPACK_LIBRARIES})
+if(USE_SUNDIALS AND SUNDIALS_FOUND)
+	target_link_libraries(MoDELib PUBLIC SUNDIALS::cvode SUNDIALS::nvecserial SUNDIALS::sunmatrixdense SUNDIALS::sunlinsoldense)
+endif()
 
 if(BUILD_TOOLS)
 	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tools tools)
