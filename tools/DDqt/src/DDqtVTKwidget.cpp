@@ -14,6 +14,10 @@
 #include <DDqtVTKwidget.h>
 #include <DefectiveCrystalActor.h>
 
+#ifndef MODELIB_TUTORIALS_DIR
+#define MODELIB_TUTORIALS_DIR "." // set by tools/DDqt/CMakeLists.txt
+#endif
+
 namespace model
 {
     
@@ -50,7 +54,7 @@ namespace model
     std::string DDqtVTKwidget::getWorkingDir() 
     {
         return QFileDialog::getExistingDirectory(this, tr("Open Directory"),
-                                                             "/Users/giacomo/Documents/MoDELib2/tutorials/DislocationDynamics",
+                                                             MODELIB_TUTORIALS_DIR,
                                                              QFileDialog::ShowDirsOnly
                                                              | QFileDialog::DontUseNativeDialog ).toStdString();
 

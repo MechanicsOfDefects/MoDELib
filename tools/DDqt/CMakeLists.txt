@@ -17,6 +17,7 @@ if (NOT VTK_FOUND)
 endif()
 
 add_executable(DDqt DDqt.cxx)
+target_compile_definitions(DDqt PRIVATE MODELIB_TUTORIALS_DIR="${CMAKE_SOURCE_DIR}/tutorials") # folder opened by the directory dialog
 set_target_properties(DDqt PROPERTIES AUTOMOC ON)
 set_target_properties(DDqt PROPERTIES AUTORCC ON)
 set_target_properties(DDqt PROPERTIES AUTOUIC ON)

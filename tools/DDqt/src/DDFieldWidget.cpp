@@ -13,6 +13,8 @@
 #include <string>
 #include <iostream>
 #include <iomanip>
+#include <cmath>
+#include <cfloat>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -57,6 +59,7 @@ void FieldDataPnt::compute(const DefectiveCrystal<3>& defectiveCrystal)
         displacement[mID]=mStruct->displacement(P,nullptr,ele,nullptr);
         stress[mID]=mStruct->stress(P,nullptr,ele,nullptr);
         mobileConcentration[mID]=mStruct->mobileConcentration(P,nullptr,ele,nullptr);
+        immobileClusters[mID]=mStruct->immobileClusters(P,nullptr,ele,nullptr);
         mID++;
     }
 }
@@ -210,9 +213,45 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
     }
     fieldComboBox->insertItem(6+3,"tr(stress)");
     fieldComboBox->insertItem(7+3,"stress_VM");
-    for(int k=0;k<ClusterDynamicsParameters<3>::mSize;++k)
+    // Cluster-dynamics fields, only with ClusterDynamics in physics, named after the species of the material file
+    const auto cd(defectiveCrystal.getUniqueTypedMicrostructure<ClusterDynamics<3>>());
+    if(cd)
     {
-        fieldComboBox->insertItem(8+3+k,"v");
+        for(int k=0;k<ClusterDynamicsParameters<3>::mSize;++k)
+        {// mobile species: -1 is Cv, +1 is Ci, +2 is C2i, ...
+            const int m(std::round(cd->cdp.msVector(k)));
+            const std::string name("CD_C"+(std::abs(m)>1? std::to_string(std::abs(m)) : std::string(""))+(m<0? "v" : "i"));
+            fieldComboBox->insertItem(8+3+k,QString::fromStdString(name));
+        }
+        
+        // immobile families: v or i from immobileSpeciesVector; in HEX, c, a or ca from the Burgers vector, numbered in order
+        const bool isHEX(defectiveCrystal.ddBase.poly.crystalStructure=="HEX");
+        std::vector<std::string> familyNames;
+        std::map<std::string,int> typeCount;
+        for(int k=0;k<ClusterDynamicsParameters<3>::iSize/2;++k)
+        {
+            const bool hasA(std::fabs(cd->cdp.immobileSpeciesBurgers(0,k))>FLT_EPSILON || std::fabs(cd->cdp.immobileSpeciesBurgers(1,k))>FLT_EPSILON);
+            const bool hasC(std::fabs(cd->cdp.immobileSpeciesBurgers(2,k))>FLT_EPSILON);
+            familyNames.push_back((cd->cdp.immobileSpeciesVector(k)<0.0? "v" : "i")+std::string(isHEX? (hasA? (hasC? "ca" : "a") : "c") : "L"));
+            typeCount[familyNames.back()]++;
+        }
+        std::map<std::string,int> typeIndex;
+        for(auto& name : familyNames)
+        {
+            if(typeCount[name]>1)
+            {
+                const std::string type(name);
+                name+=std::to_string(++typeIndex[type]);
+            }
+        }
+        for(int k=0;k<ClusterDynamicsParameters<3>::iSize/2;++k)
+        {// number densities, then defect contents, as in the immobile fields
+            fieldComboBox->insertItem(8+3+ClusterDynamicsParameters<3>::mSize+k,QString::fromStdString("CD_N_"+familyNames[k]));
+        }
+        for(int k=0;k<ClusterDynamicsParameters<3>::iSize/2;++k)
+        {
+            fieldComboBox->insertItem(8+3+ClusterDynamicsParameters<3>::mSize+ClusterDynamicsParameters<3>::iSize/2+k,QString::fromStdString("CD_C_"+familyNames[k]));
+        }
     }
     
     for(const auto& mstruct : defectiveCrystal.microstructures())
@@ -255,8 +294,9 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
 //    mainLayout->addWidget(inclusionsCheck,3,1,1,1);
 //    mainLayout->addWidget(cdCheck,4,1,1,1);
 //    mainLayout->addWidget(edCheck,5,1,1,1);
-    mainLayout->addWidget(customScaleBox,4+microstructuresCheck.size(),0,1,2);
-    mainLayout->addWidget(scaleBarBox,5+microstructuresCheck.size(),0,1,2);
+    const int nextRow(4+std::max(2,int(microstructuresCheck.size()))); // below the field menu (row 5) and the physics checkboxes
+    mainLayout->addWidget(customScaleBox,nextRow,0,1,2);
+    mainLayout->addWidget(scaleBarBox,nextRow+1,0,1,2);
 
     this->setLayout(mainLayout);
     
