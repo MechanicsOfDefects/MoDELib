@@ -23,9 +23,10 @@
 #            -DPython_EXECUTABLE=/opt/local/bin/python3.11 \
 #            -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
 # See also https://mcilloni.ovh/2021/02/09/cxx-cross-clang/
+# cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-18 -DPython3_EXECUTABLE=/opt/local/bin/python3.11 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake  -DPython_EXECUTABLE=/opt/local/bin/python3.11 -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
 
 cmake_minimum_required(VERSION 3.20)
-project(MoDELib VERSION 2.2.0 LANGUAGES C CXX)
+project(MoDELib VERSION 2.2.1 LANGUAGES C CXX)
 
 option(USE_PYBIND11 "enables pybind11" ON)
 option(BUILD_TOOLS "builds tools" ON)
