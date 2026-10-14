@@ -1,0 +1,12 @@
+materialFile=Zr_CD4opt.txt;
+absoluteTemperature=573.000000; # [K] simulation temperature
+meshFile=hex_400nm.msh; # mesh file
+F=1237.24095267553366 0 0
+  0 1071.48209557686368 0
+  0 0 2020.40581503247745; # mesh deformation gradient, x = F*(X-X0)
+X0=0 0 0; # mesh shift
+periodicFaceIDs=; # every face is a grain boundary
+C2G1 =
+1.0 0.0 0.0
+0.0 1.0 0.0
+0.0 0.0 1.0;

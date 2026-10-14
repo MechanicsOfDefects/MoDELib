@@ -470,7 +470,8 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
         
         if(cdMatrix().size())
         {
-            file<<cdMatrix()<<"\n";
+            // full precision: a study can start from the fields of another one
+            file<<cdMatrix().format(Eigen::IOFormat(Eigen::FullPrecision,0," ","\n"))<<"\n";
         }
 
     }

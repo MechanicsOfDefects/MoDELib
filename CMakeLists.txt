@@ -17,15 +17,17 @@
 #   Python_EXECUTABLE   Python interpreter to use for pybind11
 #
 # Example on macOS with MacPorts (clang 18, Python 3.11):
-# export LDFLAGS=-L/Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/usr/lib; LDFLAGS="$LDFLAGS -L/Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/usr/lib/system"
-#   cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-20 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake \
+#   export LDFLAGS=-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib
+#   export LDFLAGS="$LDFLAGS -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/system"
+#   cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-18 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake \
 #            -DPython_EXECUTABLE=/opt/local/bin/python3.11 \
 #            -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
-# cmake ..   -DCMAKE_CXX_COMPILER=clang++-mp-20 -DPython3_EXECUTABLE=/opt/local/bin/python3.11 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake  -DPython_EXECUTABLE=/opt/local/bin/python3.11 -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
 # See also https://mcilloni.ovh/2021/02/09/cxx-cross-clang/
+# cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-18 -DPython3_EXECUTABLE=/opt/local/bin/python3.11 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake  -DPython_EXECUTABLE=/opt/local/bin/python3.11 -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
+# cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-20 -DPython3_EXECUTABLE=/opt/local/bin/python3.11 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake  -DPython_EXECUTABLE=/opt/local/bin/python3.11 -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
 
 cmake_minimum_required(VERSION 3.20)
-project(MoDELib VERSION 2.0.0 LANGUAGES C CXX)
+project(MoDELib VERSION 2.2.1 LANGUAGES C CXX)
 
 option(USE_PYBIND11 "enables pybind11" ON)
 option(BUILD_TOOLS "builds tools" ON)
@@ -99,6 +101,20 @@ else()
 	message(WARNING "UMFPACK not found")
 endif()
 
+### SUNDIALS (optional) ###
+# CVODE integrates the rate equations of the immobile cluster-dynamics species.
+# It is needed only by cluster-dynamics runs with immobile species; without it those runs stop with an error.
+option(USE_SUNDIALS "uses SUNDIALS (CVODE) for the immobile cluster-dynamics species, when found" ON)
+if(USE_SUNDIALS)
+	find_package(SUNDIALS 7.0 QUIET) # the interface of version 7 is used
+	if(SUNDIALS_FOUND)
+		message(STATUS "SUNDIALS_VERSION:" ${SUNDIALS_VERSION})
+		add_definitions(-D_MODEL_SUNDIALS_)
+	else()
+		message(WARNING "SUNDIALS 7 not found: cluster dynamics with immobile species will not run. Install it (apt-get install libsundials-dev, brew install sundials) or pass -DCMAKE_PREFIX_PATH=<SUNDIALS install>")
+	endif()
+endif()
+
 ### fftw3 ### find_package is currently broken. Workaround using find_library
 find_library(FFTW3_LIBRARIES fftw3)  
 if(FFTW3_LIBRARIES)
@@ -167,6 +183,9 @@ include_directories(${MoDELib_INCLUDE_DIR}/DislocationDynamics/)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/ src)
 target_link_libraries(MoDELib PUBLIC ${FFTW3_LIBRARIES} ${pybind11_LIBRARIES} ${CHOLMOD_LIBRARIES} ${UMFPACK_LIBRARIES})
+if(USE_SUNDIALS AND SUNDIALS_FOUND)
+	target_link_libraries(MoDELib PUBLIC SUNDIALS::cvode SUNDIALS::nvecserial SUNDIALS::sunmatrixdense SUNDIALS::sunlinsoldense)
+endif()
 
 if(BUILD_TOOLS)
 	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tools tools)

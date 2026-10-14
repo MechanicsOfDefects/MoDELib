@@ -15,6 +15,8 @@
 #define model_ClusterDynamicsParameters_H_
 
 #include <TerminalColors.h>
+#include <tuple>
+#include <vector>
 //#include <DislocatedMaterialBase.h>
 #include <Polycrystal.h>
 #include <DislocationDynamicsBase.h>
@@ -40,6 +42,7 @@ struct ClusterDynamicsParameters
     // set by the CMake options MODELIB_CD_MSIZE and MODELIB_CD_ISIZE, and must match the material file.
     static constexpr int mSize=MODELIB_CD_MSIZE;     // e.g. Cv, Ci, C2i, C3i
     static constexpr int iSize=MODELIB_CD_ISIZE;  // e.g. Nc, Na1, Na2, Na3, cv, ca1, ca2, ca3
+    static_assert(iSize>=0 && iSize%2==0,"MODELIB_CD_ISIZE must be even: each immobile family carries a number density and a defect content");
 
     typedef Eigen::Matrix<double,dim,1> VectorDim;
     typedef Eigen::Matrix<double,dim,dim> MatrixDim;
@@ -61,22 +64,35 @@ struct ClusterDynamicsParameters
     const std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> D;   // map<grain_ID, vector of diffusion coeff for each species>
     const std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> invD;
     const std::map<size_t,Eigen::Array<double,mSize,1>> detD;
-    const Eigen::Array<double,1,mSize> Eb;
+    const Eigen::Array<double,1,mSize> Eb; // binding energy of each mobile cluster, for its dissociation. Not used for the single v and i
+    const Eigen::Array<double,1,mSize> mobileMeanDiffusivity; // orientation-averaged diffusion coefficient of each mobile species, det(D)^(1/3) (first grain)
+    const Eigen::Array<double,1,mSize> mobileCaptureRadius; // capture radius of each mobile species: sphere of one atomic volume for v and i, loop of |m| defects otherwise
+    const int vacancyIndex; // index of the single vacancy among the mobile species, or -1
+    const int interstitialIndex; // index of the single interstitial among the mobile species, or -1
+    const Eigen::Array<double,1,mSize> polarityM; // p_m: +1 interstitial, -1 vacancy
 
     // Irradiation Production
     const Eigen::Matrix<double,1,mSize> msCascadeFractions;
-    const double msSurvivingEfficiency; // Surviving effciency
+    const double vacancyLoopCascadeFraction; // epsilon_vL = 1 - f.M_v (Eq. 42): fraction of the cascade vacancies born in immobile clusters
+    const double interstitialLoopCascadeFraction; // epsilon_iL = 1 - f.M_i (Eq. 42): fraction of the cascade interstitials born in immobile clusters
+//  const double msSurvivingEfficiency; // Surviving effciency
     const Eigen::Matrix<double,mSize,1> G; // dpa/s, Effective dose rate
 
     // First-order reaction
-    const Eigen::Array<double,1,mSize> otherSinks;
-    const Eigen::Array<double,1,iSize/2> dislocationSinks;
-    const Eigen::Array<double,1,iSize> initLoopSinks;
+    const double dislocationSinkDensity; // density of the dislocation network: sink of the mobile species and target of loop-network coalescence
+    const Eigen::Array<double,1,mSize> mobileDislocationSinkEfficiency; // sink efficiency (bias) of the network for each mobile species
+    const Eigen::Array<double,1,mSize> otherSinks; // sink strength of the network for each mobile species, efficiency*density
+//  const Eigen::Array<double,1,iSize/2> dislocationSinks;
+//  const Eigen::Array<double,1,iSize> initLoopSinks;
+    const Eigen::Array<double,1,iSize> initialImmobileClusters;
     const std::map<std::pair<int,int>,double> reactionMap;
-    const Eigen::Matrix<double,mSize,mSize> R1;
-    const Eigen::Matrix<double,mSize,mSize> R1cd;
+//  const Eigen::Matrix<double,mSize,mSize> R1;
+//  const Eigen::Matrix<double,mSize,mSize> R1cd;
+    const Eigen::Matrix<double,mSize,mSize> mobileDissociationRate; // E: dissociation of the mobile clusters, content space
+    const Eigen::Matrix<double,mSize,mSize> mobileOtherSinkRate;    // diagonal -otherSinks*Dbar: background part of D, content space
     // Second-order reaction
-    const std::vector<Eigen::Matrix<double,mSize,mSize>> R2;
+//  const std::vector<Eigen::Matrix<double,mSize,mSize>> R2;
+    const std::vector<Eigen::Matrix<double,mSize,mSize>> mobileReactionRate; // R_2: second-order reactions between the mobile species, content space
 
     // Bias factors
     const Eigen::Array<double,2,mSize> discreteDislocationBias;
@@ -86,14 +102,47 @@ struct ClusterDynamicsParameters
     const Eigen::Array<double,1,iSize/2> immobileSpeciesRelRelaxVol;
     const Eigen::Matrix<double,dim,iSize/2> immobileSpeciesBurgers;
     const Eigen::Array<double,1,iSize/2> immobileSpeciesBurgersMagnitude;
-    const Eigen::Array<double,1,iSize/2> immobileBias;
-    const double a_bp; // bi-pyramid sink strength coefficient
-    const double delVPyramid;
-    const double w0;
-    const double n_s;
-    const Eigen::Array<double,1,iSize/2> nmin; // Critical size for <c> pyramid -> loop
-    const Eigen::Array<double,1,iSize/2> nmax;
-    const Eigen::Array<double,1,iSize/2> n_min; // minimal loop sizes
+    const Eigen::Array<double,1,iSize/2> polarityF; // p_k of each immobile family: +1 interstitial, -1 vacancy
+    const Eigen::Array<double,iSize/2,mSize> polarityFM; // p_k*p_m: +1 when family k and mobile species m have the same sign
+    const Eigen::Array<double,1,iSize/2> Iv; // vacancy selector of the families (report I_v)
+    const Eigen::Array<double,1,iSize/2> Ii; // interstitial selector of the families (report I_i)
+//  const Eigen::Array<double,1,mSize> immobileBias; // drift bias of the loops for each mobile species
+//  const double a_bp; // bi-pyramid sink strength coefficient
+    const double pyramidRelaxationVolume; // volume change of one bi-pyramid cluster (strain only)
+    const double shapeTransitionWidth; // width of the shape sigmoid, as a fraction of shapeTransitionMaxSize-shapeTransitionMinSize (w0, Eq. 33)
+//  const double n_s;
+    const Eigen::Array<double,1,iSize/2> shapeTransitionMinSize; // defects per cluster below which a cluster is a bi-pyramid (m_min, Eq. 33)
+    const Eigen::Array<double,1,iSize/2> shapeTransitionMaxSize; // defects per cluster above which a cluster is a loop (m_max, Eq. 33)
+//  const Eigen::Array<double,1,iSize/2> strainMinClusterSize; // lower bound on the defects per cluster in the strain
+    const double emptyFamilyThreshold; // clusters or defects per atom below which a family is treated as absent
+
+    // Nucleation of immobile clusters (optional keys of the material file; without them the number densities are constant)
+//  const Eigen::Array<double,1,iSize/2> loopCascadeFractions; // fraction of the surviving defects born in cascades as clusters of each family
+//  const Eigen::Array<double,1,iSize/2> nNuc; // defects per cascade-born cluster
+    const Eigen::Array<double,1,iSize/2> nucleatedClusterSize; // defects in a newly nucleated cluster
+//  const Eigen::Array<double,1,iSize/2> loopG; // content production rate of each family, G0*msSurvivingEfficiency*loopCascadeFractions
+//  const Eigen::Array<double,1,iSize/2> loopG; // content production rate of each family, G0*loopCascadeFractions
+//  const bool useClusteringNucleation; // clusters also nucleate from the mobile reactions whose product is larger than the largest mobile cluster
+//  const std::map<std::pair<int,int>,double> loopNucChannels; // (species,species) -> rate coefficient of the nucleating reactions
+//  const Eigen::Array<double,1,iSize/2> clusteringShare; // share of the clustering nucleation taken by each family, within its polarity
+
+    // Kinetics of the immobile clusters integrated by ImmobileSpeciesSolver (optional keys of the material file)
+//  const double tauVac; // lifetime of the vacancy clusters, tau0*exp(Ea/kB/T). Zero for no dissolution
+    const Eigen::Array<double,1,iSize/2> clusterBindingEnergy; // binding energy of a vacancy to the clusters of each vacancy family, for thermal emission (Eq. 53). Not used for the interstitial families
+    const Eigen::Array<double,1,iSize/2> clusterDissolutionRate; // nu_a=nu_a0*exp(-E_a/kB/T) of each immobile family (report Eq. 40). Zero: the family does not dissolve
+//  const bool dissolveEmbryosOnly; // a dissolving cluster releases nucleatedClusterSize defects (it is an embryo) instead of the mean content of its family
+    const Eigen::Array<double,1,iSize/2> cLL; // rate coefficient of like-loop coalescence
+    const Eigen::Array<double,1,iSize/2> cLN; // rate coefficient of loop-network coalescence
+    const double kappaLL; // overlap coefficient of like-loop coalescence
+    const double kappaLN; // overlap coefficient of loop-network coalescence
+//  const double rhoNetwork; // density of the dislocation network
+    const Eigen::Array<double,1,iSize/2> r_min; // radius below which a cluster no longer shrinks by absorption. Zero for no gate
+    const Eigen::Array<double,1,iSize/2> loopSinkScale; // factor on the sink strength of each family (fitted; 1 without the key)
+//  const bool clusteringNucleationInODE; // ImmobileRateEquations: clusters are born from the reactions whose product is not mobile (true without the key)
+    const std::vector<std::tuple<int,int,double,int>> nucleationChannels; // reactions between mobile species whose product is not mobile: (species a, species b, rate coefficient in content space, 0 vacancy/1 interstitial)
+//  const bool nucleationPerReaction; // DisloCluster form, for comparison: each clustering reaction creates one cluster holding the defects of the reaction. False (Eq. 37 of the D1/M1 report): the clustered content is divided by nucleatedClusterSize
+//  const bool coalescenceClimbBurgers; // true (D1/M1 report): the climb speed of coalescence divides the absorbed volume by the Burgers-vector magnitude of the family. False: DisloCluster form, for comparison
+    const Eigen::Array<double,iSize/2,mSize> loopBias; // capture bias Z_km of each family (row) for each mobile species (column), loopSinkScale included
 
     // Irradiation Production
     // const double evc; // Vacancy cluster generation efficiency
@@ -123,26 +172,52 @@ struct ClusterDynamicsParameters
     
     ClusterDynamicsParameters(const DislocationDynamicsBase<dim>& ddBase /*const Polycrystal<dim>& poly*/);
     std::map<std::pair<int,int>,double> getMap(const Eigen::Array<double,mSize*(mSize+1)/2,3> matrix_in) const;
-    Eigen::Matrix<double,mSize,mSize> getR1() const;
-    std::vector<Eigen::Matrix<double,mSize,mSize>> getR2() const;
+//  Eigen::Matrix<double,mSize,mSize> getR1() const;
+    Eigen::Matrix<double,mSize,mSize> getMobileDissociationRate() const;
+    Eigen::Matrix<double,mSize,mSize> getMobileOtherSinkRate() const;
+//  std::vector<Eigen::Matrix<double,mSize,mSize>> getR2() const;
+    std::vector<Eigen::Matrix<double,mSize,mSize>> getMobileReactionRate() const;
+    static Eigen::Array<double,1,iSize/2> getOptionalFamilyArray(const std::string& materialFile,const std::string& key,const double& defaultValue);
+    static int getOptionalInt(const std::string& materialFile,const std::string& key,const int& defaultValue);
+    static double getOptionalDouble(const std::string& materialFile,const std::string& key,const double& defaultValue);
+    static double getAtomicVolume(const DislocationDynamicsBase<dim>& ddBase);
+    Eigen::Array<double,iSize/2,mSize> getLoopBias() const;
+//  std::map<std::pair<int,int>,double> getLoopNucChannels() const;
+    Eigen::Array<double,1,mSize> getMobileMeanDiffusivity() const;
+    Eigen::Array<double,1,mSize> getMobileCaptureRadius() const;
+    int getMobileSpeciesIndex(const double& m) const;
+    std::vector<std::tuple<int,int,double,int>> getNucleationChannels() const;
+//  Eigen::Array<double,1,iSize/2> getClusteringShare() const;
+//  bool hasNucleation() const;
+    bool isBasalFamily(const int& k) const;
     Eigen::Array<double,1,iSize/2> getImmobileSpeciesBurgersMagnitude(const GrainContainerType& grains) const;
     std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> getD(const GrainContainerType& grains) const;
     std::vector<Eigen::Matrix<double,dim,dim>> getDlocal() const;
     std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> getInvD() const;
     std::map<size_t,Eigen::Array<double,mSize,1>> getDetD() const;
-    Eigen::Array<double,1,iSize> getInitLoopSinks(const Eigen::Array<double,1,iSize> initloopSinks_SI, const double b_SI) const;
+//  Eigen::Array<double,1,iSize> getInitLoopSinks(const Eigen::Array<double,1,iSize> initloopSinks_SI, const double b_SI) const;
+    Eigen::Array<double,1,iSize> getInitialImmobileClusters(const Eigen::Array<double,1,iSize> initialImmobileClusters_SI, const double b_SI) const;
     Eigen::Array<double,1,mSize> equilibriumMobileConcentration(const double& stressTrace) const;
     Eigen::Array<double,1,mSize> dislocationMobileConcentration(const VectorDim& b,const VectorDim& t,const VectorDim& fPK,const MatrixDim& stress) const;
     Eigen::Array<double,1,mSize> boundaryMobileConcentration(const double& stressTrace,const double& normalTraction) const;
-    Eigen::Array<double,1,iSize/2> sigmoid(const Eigen::Array<double,1,iSize/2>& n) const;
-    Eigen::Array<double,1,iSize/2> rpyr(const Eigen::Array<double,1,iSize/2>& n) const;
-    Eigen::Array<double,1,iSize/2> rloop(const Eigen::Array<double,1,iSize/2>& n) const;
-    Eigen::Array<double,1,iSize/2> sigmoidalVectorInterpolation(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N, const Eigen::Array<double,1,iSize/2>& lowValue, const Eigen::Array<double,1,iSize/2>& highValue) const;
-    Eigen::Array<double,1,iSize/2> clusterRadius(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N) const;
-    Eigen::Array<double,1,iSize/2> clusterDensity(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N) const;
-    Eigen::Array<double,dim,dim> sigmoidalMatrixInterpolation(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N, const Eigen::Array<double,dim,dim>& lowValue, const Eigen::Array<double,dim,dim>& highValue, const int& index) const;
-    Eigen::Array<double,1,iSize/2> sigmoidalPlotVectorInterpolation(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N, const Eigen::Array<double,1,iSize/2>& lowValue, const Eigen::Array<double,1,iSize/2>& highValue) const;
-    Eigen::Array<double,1,iSize/2> clusterPlotRadius(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N) const;
+//  Eigen::Array<double,1,iSize/2> sigmoid(const Eigen::Array<double,1,iSize/2>& n) const;
+//  Eigen::Array<double,1,iSize/2> rpyr(const Eigen::Array<double,1,iSize/2>& n) const;
+//  Eigen::Array<double,1,iSize/2> rloop(const Eigen::Array<double,1,iSize/2>& n) const;
+//  Eigen::Array<double,1,iSize/2> sigmoidalVectorInterpolation(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N, const Eigen::Array<double,1,iSize/2>& lowValue, const Eigen::Array<double,1,iSize/2>& highValue) const;
+//  Eigen::Array<double,1,iSize/2> clusterRadius(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N) const;
+//  Eigen::Array<double,1,iSize/2> clusterDensity(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N) const;
+//  Eigen::Array<double,dim,dim> sigmoidalMatrixInterpolation(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N, const Eigen::Array<double,dim,dim>& lowValue, const Eigen::Array<double,dim,dim>& highValue, const int& index) const;
+//  Eigen::Array<double,1,iSize/2> sigmoidalPlotVectorInterpolation(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N, const Eigen::Array<double,1,iSize/2>& lowValue, const Eigen::Array<double,1,iSize/2>& highValue) const;
+//  Eigen::Array<double,1,iSize/2> clusterPlotRadius(const Eigen::Array<double,1,iSize/2>& CI, const Eigen::Array<double,1,iSize/2>& N) const;
+    // Shape of the clusters (Eqs. 30-33), as functions of the number of defects per cluster m of each family
+    Eigen::Array<double,1,iSize/2> shapeSigmoid(const Eigen::Array<double,1,iSize/2>& m) const;
+    Eigen::Array<double,1,iSize/2> pyramidRadius(const Eigen::Array<double,1,iSize/2>& m) const;
+    Eigen::Array<double,1,iSize/2> loopRadius(const Eigen::Array<double,1,iSize/2>& m) const;
+    Eigen::Array<double,1,iSize/2> shapeInterpolation(const Eigen::Array<double,1,iSize/2>& m, const Eigen::Array<double,1,iSize/2>& lowValue, const Eigen::Array<double,1,iSize/2>& highValue) const;
+    Eigen::Array<double,dim,dim> shapeInterpolation(const Eigen::Array<double,1,iSize/2>& m, const Eigen::Array<double,dim,dim>& lowValue, const Eigen::Array<double,dim,dim>& highValue, const int& k) const;
+//  Eigen::Array<double,1,iSize/2> effectiveClusterRadius(const Eigen::Array<double,1,iSize/2>& m) const;
+    Eigen::Array<bool,1,iSize/2> populated(const Eigen::Array<double,1,iSize/2>& n, const Eigen::Array<double,1,iSize/2>& c) const;
+    Eigen::Array<double,1,iSize/2> effectiveClusterRadius(const Eigen::Array<double,1,iSize/2>& n, const Eigen::Array<double,1,iSize/2>& c) const;
 };
 
 }

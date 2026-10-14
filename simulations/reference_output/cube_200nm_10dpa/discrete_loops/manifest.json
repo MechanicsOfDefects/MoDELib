@@ -1,0 +1,138 @@
+{
+ "note": "One size per family at each node: the spread of sizes is that of the field over the grain. Overlapping loops are not merged.",
+ "doses": {
+  "0.0001": {
+   "c": {
+    "expected": 0.8049269945625409,
+    "drawn": 1,
+    "shown": 1,
+    "mean_radius_nm": 1.3892363591313148,
+    "spacing_nm": 200.0000000000002,
+    "diameter_over_spacing": 0.013892363591313135
+   },
+   "a1": {
+    "expected": 0.15654424602004152,
+    "drawn": 0,
+    "mean_radius_nm": 0.0,
+    "spacing_nm": 200.0000000000002,
+    "diameter_over_spacing": 0.0
+   },
+   "a2": {
+    "expected": 0.15654424602004152,
+    "drawn": 0,
+    "mean_radius_nm": 0.0,
+    "spacing_nm": 200.0000000000002,
+    "diameter_over_spacing": 0.0
+   },
+   "a3": {
+    "expected": 0.15654424602004152,
+    "drawn": 0,
+    "mean_radius_nm": 0.0,
+    "spacing_nm": 200.0000000000002,
+    "diameter_over_spacing": 0.0
+   }
+  },
+  "0.01": {
+   "c": {
+    "expected": 11.932810456189564,
+    "drawn": 12,
+    "shown": 12,
+    "mean_radius_nm": 1.7145497729790475,
+    "spacing_nm": 87.35804647362997,
+    "diameter_over_spacing": 0.039253390893913914
+   },
+   "a1": {
+    "expected": 14.00009148770855,
+    "drawn": 14,
+    "shown": 14,
+    "mean_radius_nm": 2.629276114955539,
+    "spacing_nm": 82.98265333662442,
+    "diameter_over_spacing": 0.06336929488840788
+   },
+   "a2": {
+    "expected": 14.00009148770855,
+    "drawn": 14,
+    "shown": 14,
+    "mean_radius_nm": 2.663763189788971,
+    "spacing_nm": 82.98265333662442,
+    "diameter_over_spacing": 0.06420048245464617
+   },
+   "a3": {
+    "expected": 14.00009148770855,
+    "drawn": 14,
+    "shown": 14,
+    "mean_radius_nm": 2.5037395703640675,
+    "spacing_nm": 82.98265333662442,
+    "diameter_over_spacing": 0.060343685570223654
+   }
+  },
+  "2": {
+   "c": {
+    "expected": 11.907909736091847,
+    "drawn": 12,
+    "shown": 12,
+    "mean_radius_nm": 29.195339381348507,
+    "spacing_nm": 87.35804647362997,
+    "diameter_over_spacing": 0.6684064161201557
+   },
+   "a1": {
+    "expected": 242.0696997001627,
+    "drawn": 242,
+    "shown": 242,
+    "mean_radius_nm": 2.214878396846954,
+    "spacing_nm": 32.094075775691515,
+    "diameter_over_spacing": 0.13802412708980596
+   },
+   "a2": {
+    "expected": 242.0696997001627,
+    "drawn": 242,
+    "shown": 242,
+    "mean_radius_nm": 2.22542085020429,
+    "spacing_nm": 32.094075775691515,
+    "diameter_over_spacing": 0.1386810990139092
+   },
+   "a3": {
+    "expected": 242.0696997001627,
+    "drawn": 242,
+    "shown": 242,
+    "mean_radius_nm": 2.215229662170728,
+    "spacing_nm": 32.094075775691515,
+    "diameter_over_spacing": 0.1380460168196258
+   }
+  },
+  "10": {
+   "c": {
+    "expected": 11.906391289014365,
+    "drawn": 12,
+    "shown": 12,
+    "mean_radius_nm": 31.835355575500017,
+    "spacing_nm": 87.35804647362997,
+    "diameter_over_spacing": 0.7288476988804892
+   },
+   "a1": {
+    "expected": 1106.1204866055466,
+    "drawn": 1106,
+    "shown": 1106,
+    "mean_radius_nm": 1.9331399739143642,
+    "spacing_nm": 19.33948715826192,
+    "diameter_over_spacing": 0.19991636366515722
+   },
+   "a2": {
+    "expected": 1106.1204866055466,
+    "drawn": 1106,
+    "shown": 1106,
+    "mean_radius_nm": 1.906613759988374,
+    "spacing_nm": 19.33948715826192,
+    "diameter_over_spacing": 0.1971731457391681
+   },
+   "a3": {
+    "expected": 1106.1204866055466,
+    "drawn": 1106,
+    "shown": 1106,
+    "mean_radius_nm": 1.932801266851873,
+    "spacing_nm": 19.33948715826192,
+    "diameter_over_spacing": 0.19988133615282255
+   }
+  }
+ }
+}

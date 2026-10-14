@@ -1,0 +1,62 @@
+namespace model {
+/*! \page Home MoDELib
+
+\section home_introduction Introduction
+
+MoDELib is the Mechanics of Defects Evolution Library, a C++ library for the discrete mechanics of crystal defects.
+One object, the DefectiveCrystal, holds every physics that a simulation enables:
+
+- dislocation dynamics: a network of discrete dislocation loops that glide, climb, react and nucleate (DislocationNetwork);
+- cluster dynamics: mobile point-defect species that diffuse and react on the finite-element mesh, and immobile loop populations that nucleate, grow, coalesce and dissolve (ClusterDynamics);
+- elastic deformation: a uniform deformation applied by a load controller, or a finite-element solution (ElasticDeformation);
+- inclusions: Eshelby inclusions, spherical or polyhedral (InclusionMicrostructure).
+
+These pages are generated from the comments of the source code by Doxygen, at each push to the master branch.
+The README of the repository describes the capabilities, the methodology, the installation, the input files and the tutorials.
+
+\section home_modules Modules
+
+- \ref DD_intro
+- \ref CD_intro
+- \ref FEM_intro
+- \ref Mesh_intro
+- \ref Quadrature_intro
+- \ref PIL
+
+\section home_navigation Finding a class or a file
+
+The sidebar lists the pages, then the classes and the files of the library, grouped as in the source tree.
+The pages Classes and Files hold the complete lists.
+The page of a class shows its inheritance or collaboration diagram, its members and the comments of its functions.
+
+\section home_build Building
+
+MoDELib needs a C++20 compiler with OpenMP, CMake 3.20 or later, Eigen 3 and FFTW 3.
+
+\code
+git clone https://github.com/MechanicsOfDefects/MoDELib.git
+cd MoDELib
+cmake -S . -B build
+cmake --build build -j
+\endcode
+
+Optional parts, each switched off when its dependency is not found or by its option:
+the Python bindings pyMoDELib (pybind11), the viewer DDqt (Qt 6 and VTK),
+the direct finite-element solvers (SuiteSparse) and the implicit integrator of the immobile
+cluster-dynamics species (SUNDIALS 7, CVODE).
+
+\section home_documentation Other documentation
+
+- the README of the repository;
+- the theory manual, manual_beta/MoDELib_manual.pdf;
+- the report of the cluster-dynamics model, docs/reports/GW_Phase4_D1M1.pdf;
+- the notebook simulations/run_simulation.ipynb, which builds MoDELib, runs a case of irradiated zirconium and gathers its figures.
+
+\section home_contributing Documenting your code
+
+Nothing needs to be done when a file is added or edited: the pages are generated again at the next push.
+A comment that begins with <tt>/*!</tt> before a class or a function becomes its description.
+A new page of text is a file of doxygen/dox that begins with <tt>\\page Name Title</tt>.
+
+*/
+}

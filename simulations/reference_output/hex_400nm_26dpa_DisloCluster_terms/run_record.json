@@ -1,0 +1,65 @@
+{
+ "status": "completed",
+ "started": "2026-10-02T23:27:32+00:00",
+ "intervals": [
+  {
+   "dose_from": 0.0,
+   "dose_to": 1.0,
+   "steps": 1,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 173.87165570259094,
+   "configuration": "evl_1.txt"
+  },
+  {
+   "dose_from": 1.0,
+   "dose_to": 6.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 467.4406270980835,
+   "configuration": "evl_6.txt"
+  },
+  {
+   "dose_from": 6.0,
+   "dose_to": 11.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 427.6446852684021,
+   "configuration": "evl_11.txt"
+  },
+  {
+   "dose_from": 11.0,
+   "dose_to": 16.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 420.5763478279114,
+   "configuration": "evl_16.txt"
+  },
+  {
+   "dose_from": 16.0,
+   "dose_to": 21.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 425.72972559928894,
+   "configuration": "evl_21.txt"
+  },
+  {
+   "dose_from": 21.0,
+   "dose_to": 26.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 426.1272027492523,
+   "configuration": "evl_26.txt"
+  }
+ ],
+ "finished": "2026-10-03T00:06:38+00:00",
+ "wall_s": 2346.566863298416,
+ "snapshots": {
+  "0": 0.0,
+  "1": 1.0,
+  "6": 6.0,
+  "11": 11.0,
+  "16": 16.0,
+  "21": 21.0,
+  "26": 26.0
+ }
+}

@@ -1,0 +1,157 @@
+{
+ "application": "MoDELib: spatially resolved cluster dynamics of irradiated zirconium",
+ "run": "20261002_205527_4b9e666-dirty_hex_400nm_hex400",
+ "status": "completed",
+ "started_utc": "2026-10-02T20:55:27+00:00",
+ "finished_utc": "2026-10-02T21:36:34+00:00",
+ "wall_s": 2467.8225502967834,
+ "modelib_commit": "4b9e666f31c9b51d5fe783a5d50d7beaa3f2dabe",
+ "dirty": true,
+ "machine": {
+  "system": "Windows-11-10.0.26200-SP0",
+  "processor": "AMD64",
+  "cpus": 24,
+  "python": "3.14.3",
+  "runs_through_WSL": true
+ },
+ "build": {
+  "sundials": true,
+  "sundials_prefix": "$HOME/sundials-install"
+ },
+ "configuration": {
+  "CASE": {
+   "geometry": "hex_400nm",
+   "tag": null
+  },
+  "MATERIAL": {
+   "material_file": "Zr_CD4opt.txt",
+   "temperature_K": 573.0,
+   "dose_rate_dpa_s": 1e-07,
+   "overrides": {
+    "loopClusteringNucleation": "0"
+   }
+  },
+  "MARCH": {
+   "doses": [
+    1.0,
+    6.0,
+    11.0,
+    16.0,
+    21.0,
+    26.0
+   ],
+   "steps_per_interval": 3,
+   "step_dpa": 1.0,
+   "immobile_integrator": "cvode"
+  },
+  "RUN": {
+   "threads": null,
+   "keep_all_configurations": false
+  },
+  "OUTPUT": {
+   "mesh_cut_figures": true,
+   "figure_doses": null,
+   "voronoi_samples": 2000000,
+   "population_dose": 6.0
+  },
+  "PRESET": "hex400"
+ },
+ "derived": {
+  "doses": [
+   1.0,
+   6.0,
+   11.0,
+   16.0,
+   21.0,
+   26.0
+  ],
+  "steps": [
+   1,
+   5,
+   5,
+   5,
+   5,
+   5
+  ],
+  "b_SI": 3.233e-10,
+  "cs_SI": 2249.7443617556937,
+  "time_unit_s": 1.4370521624407925e-13,
+  "omega_SI": 1.2e-29,
+  "size_b": 1237.2409526755337,
+  "extents_b": [
+   1237.2409526755337,
+   1071.4820955768637,
+   2020.4058150324774
+  ],
+  "geometry_type": "hexagonal",
+  "mobile_species": [
+   -1,
+   1,
+   2,
+   3
+  ],
+  "families": 4
+ },
+ "input_files": {
+  "ClusterDynamics.txt": "3ef98cfb543e376da6de1870e2930ac12c6315d64422a3de2c4398d98afbd952",
+  "DefectiveCrystal.txt": "2c9b9d929b2e071f372da9d1a264e9609c8a9cf14a041b09a09c2bce4d884f1b",
+  "hex_400nm.msh": "268415d6f1089b28ccfd226f9deb9d3605585afb96cf68e7edef8f5ae7aa1054",
+  "initialMicrostructure.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "polycrystal.txt": "db1b7862b02f418477bc7490b9b6956737adac4f614fcb1f9359d982b4f8a2eb",
+  "Zr_CD4opt.txt": "8373b5de7a21c7e20cd1d45f4cd16203b8f1d8d5eff5084ad0f0b576c968128c"
+ },
+ "executables": {
+  "DDomp": "9aefdaf608c02fbe42cc1b73dff7d9b4213724f4e9c688597b85b0ab89e561f5",
+  "microstructureGenerator": "eb618cb9028ba1469d1ae157fda44437aaa46d7d05d7f817658dcdada8934d09"
+ },
+ "intervals": [
+  {
+   "dose_from": 0.0,
+   "dose_to": 1.0,
+   "steps": 1,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 181.09075689315796,
+   "configuration": "evl_1.txt"
+  },
+  {
+   "dose_from": 1.0,
+   "dose_to": 6.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 476.84585547447205,
+   "configuration": "evl_6.txt"
+  },
+  {
+   "dose_from": 6.0,
+   "dose_to": 11.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 459.8311347961426,
+   "configuration": "evl_11.txt"
+  },
+  {
+   "dose_from": 11.0,
+   "dose_to": 16.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 457.36685061454773,
+   "configuration": "evl_16.txt"
+  },
+  {
+   "dose_from": 16.0,
+   "dose_to": 21.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 447.24104619026184,
+   "configuration": "evl_21.txt"
+  },
+  {
+   "dose_from": 21.0,
+   "dose_to": 26.0,
+   "steps": 5,
+   "dt": 6.958689643537561e+19,
+   "wall_s": 442.1277480125427,
+   "configuration": "evl_26.txt"
+  }
+ ]
+}

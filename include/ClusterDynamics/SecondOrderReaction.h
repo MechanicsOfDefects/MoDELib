@@ -37,16 +37,16 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
     typedef EvalExpression<TrialFunctionType> EvalFunctionType;
     const TrialFunctionType& c;       // concentration field
     const EvalFunctionType ce;
-    const Eigen::Matrix<double,rows,1> inFactors;
-    const Eigen::Matrix<double,rows,1> outFactors;
+//    const Eigen::Matrix<double,rows,1> inFactors;
+//    const Eigen::Matrix<double,rows,1> outFactors;
     
     /**********************************************************************/
     SecondOrderReaction(const TrialFunctionType& c_in, const ClusterDynamicsParameters<dim>& cdp_in) :
     /* init */ cdp(cdp_in),
     /* init */ c(c_in),
-    /* init */ ce(c_in),
-    /* init */ inFactors((1.0/cdp.msVector.abs()).matrix()),
-    /* init */ outFactors(cdp.msVector.abs().matrix())
+    /* init */ ce(c_in)
+//    /* init */ inFactors((1.0/cdp.msVector.abs()).matrix()),
+//    /* init */ outFactors(cdp.msVector.abs().matrix())
     {
         
     }
@@ -113,17 +113,20 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
         
         // Assume R2_abg=R2_agb
         // dot(c_a) = 1/2*R2_abg*cb*cg -> t_a*dot(c_a) = 1/2*t_a*(R2_abg*d(cb)*cg+R2_abg*cb*d(cg)) = t_a*(R2_abg*cg)*d(cb)
-        const Eigen::Matrix<double,rows,1> cvalue(inFactors.asDiagonal()*ce(ele,bary));
+//      const Eigen::Matrix<double,rows,1> cvalue(inFactors.asDiagonal()*ce(ele,bary));
+        const Eigen::Matrix<double,rows,1> cvalue(ce(ele,bary)); // content space: cdp.R2 includes the factors
 //        std::vector<Eigen::Matrix<double,rows,cols>> R2V(buildR2(cvalue));
         
         Eigen::Matrix<double,rows,cols> temp(Eigen::Matrix<double,rows,cols>::Zero());
         for(size_t r=0;r<rows;++r)
         {
 //            temp.row(r)=R2V[r]*cvalue;
-            temp.row(r)=cdp.R2[r]*cvalue;
+//          temp.row(r)=cdp.R2[r]*cvalue;
+            temp.row(r)=cdp.mobileReactionRate[r]*cvalue;
         }
 
-        return  outFactors.asDiagonal()*(temp)*inFactors.asDiagonal();
+//      return  outFactors.asDiagonal()*(temp)*inFactors.asDiagonal();
+        return  temp;
     }
     
 };

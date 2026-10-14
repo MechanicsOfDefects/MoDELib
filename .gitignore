@@ -83,3 +83,5 @@ Desktop.ini
 _ReSharper.*
 *.sln.cache
 build/
+*.docx
+tutorials/*/inputFiles/

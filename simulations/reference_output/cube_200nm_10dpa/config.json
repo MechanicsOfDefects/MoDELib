@@ -1,0 +1,38 @@
+{
+ "CASE": {
+  "geometry": "cube_200nm",
+  "tag": null
+ },
+ "MATERIAL": {
+  "material_file": "Zr_CD4opt.txt",
+  "temperature_K": 573.0,
+  "dose_rate_dpa_s": 1e-07,
+  "overrides": {}
+ },
+ "MARCH": {
+  "doses": [
+   0.0001,
+   0.001,
+   0.01,
+   0.1,
+   1.0,
+   2.0,
+   5.0,
+   10.0
+  ],
+  "steps_per_interval": 3,
+  "step_dpa": null,
+  "immobile_integrator": "cvode"
+ },
+ "RUN": {
+  "threads": null,
+  "keep_all_configurations": false
+ },
+ "OUTPUT": {
+  "mesh_cut_figures": true,
+  "figure_doses": null,
+  "voronoi_samples": 2000000,
+  "population_dose": null
+ },
+ "PRESET": "reference"
+}

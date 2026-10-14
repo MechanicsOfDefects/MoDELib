@@ -1,0 +1,23 @@
+{
+ "description": "Hexagonal prism of the D1/M1 report (its Figure 24, right, and Figure 27): 400 nm corner to corner, 346.4 nm flat to flat, 653.2 nm along the c axis. Mesh of DisloCluster, hexagonal_400nm_15000el_o1_bl_65b0ac58.msh: 4672 nodes, 20726 tetrahedra, 57.5 nm elements in the interior and 20.1 nm within 75 nm of the surface. The mesh file spans the unit box and is scaled by the extents.",
+ "geometry": {
+  "type": "hexagonal",
+  "size_nm": 400.0,
+  "height_nm": 653.2,
+  "extents_nm": [
+   400.0,
+   346.4101615,
+   653.1972
+  ],
+  "aspect": null
+ },
+ "mesh": {
+  "nodes": 4672,
+  "tetrahedra": 20726,
+  "element_order": 1,
+  "boundary_layer": true,
+  "boundary_thickness_nm": 75.0,
+  "lc_nm": 57.53,
+  "boundary_lc_nm": 20.14
+ }
+}

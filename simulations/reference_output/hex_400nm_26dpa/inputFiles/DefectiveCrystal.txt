@@ -1,0 +1,12 @@
+######################################
+# GENERAL SETTINGS
+physics=ClusterDynamics; # physics to simulate, separated by spaces: DislocationDynamics ClusterDynamics ElasticDeformation InclusionMicrostructure. At least one is required
+useFEM=1; # enables/disables FEM throughout MoDELib
+Nsteps=27;		# total number of simulation steps
+dtMax=6.958689643537561e+19; # max dt in b/cs
+maxResolveSteps=0;
+startAtTimeStep =-1;  # time step for restart. -1 means last available step in file F/F_0.txt
+periodicImageSize= 0 0 0; # number of images for each periodic shift vector
+EwaldLengthFactor=0;
+outputFrequency=1;
+outputBinary=0;

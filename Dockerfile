@@ -7,6 +7,8 @@
 #   build/tools/DDomp/DDomp                                      (also on PATH as DDomp)
 #   build/tools/MicrostructureGenerator/microstructureGenerator  (also on PATH)
 #   Library/  python/  lib/  tutorials/
+#   simulations/  (notebook, driver, geometries and the reference outputs of the two verification cases)
+#   testsPy/clusterDynamics/  (checks of the cluster-dynamics rate equations)
 # DDqt (Qt 6 and VTK) and pyMoDELib (pybind11) are not in the image.
 
 ############################
@@ -55,6 +57,8 @@ COPY Library   /opt/MoDELib/Library
 COPY python    /opt/MoDELib/python
 COPY lib       /opt/MoDELib/lib
 COPY tutorials /opt/MoDELib/tutorials
+COPY simulations /opt/MoDELib/simulations
+COPY testsPy/clusterDynamics /opt/MoDELib/testsPy/clusterDynamics
 
 RUN ln -s /opt/MoDELib/build/tools/DDomp/DDomp /usr/local/bin/DDomp \
  && ln -s /opt/MoDELib/build/tools/MicrostructureGenerator/microstructureGenerator /usr/local/bin/microstructureGenerator

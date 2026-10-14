@@ -1,0 +1,76 @@
+{
+ "run": "20261002_215830_4b9e666-dirty_cube_200nm_reference",
+ "doses": [
+  0.0,
+  0.0001,
+  0.001,
+  0.01,
+  0.1,
+  1.0,
+  2.0,
+  5.0,
+  10.0
+ ],
+ "nodes": 47828,
+ "wall_s": 2977.3220794200897,
+ "volume_means_at_last_dose": {
+  "Cv": 2.3126966490608758e-06,
+  "Ci": 2.92947507707557e-10,
+  "C2i": 2.4480792743042504e-12,
+  "C3i": 1.6045795296067424e-12,
+  "N_c": 1.4882989111267956e+21,
+  "N_a1": 1.3826506082569331e+23,
+  "N_a2": 1.3826506082569331e+23,
+  "N_a3": 1.3826506082569331e+23,
+  "C_c": 0.0027365946617576844,
+  "C_a1": 0.0005626939604012949,
+  "C_a2": 0.0005626939604012949,
+  "C_a3": 0.0005626939604012949
+ },
+ "interior_means_at_last_dose": {
+  "Cv": 4.523047979525157e-06,
+  "Ci": 5.68454566707515e-10,
+  "C2i": 6.1142221085888035e-12,
+  "C3i": 3.983416237026447e-12,
+  "N_c": 1.483848955118254e+21,
+  "N_a1": 1.390581096323654e+21,
+  "N_a2": 1.3905810963236536e+21,
+  "N_a3": 1.3905810963236536e+21,
+  "C_c": 0.002934169736951357,
+  "C_a1": 3.122992296689481e-05,
+  "C_a2": 3.1229922966894666e-05,
+  "C_a3": 3.1229922966894666e-05
+ },
+ "checks": [
+  {
+   "check": "no negative field",
+   "expected": "minimum >= 0",
+   "result": "minimum 1.30e-70",
+   "passed": true
+  },
+  {
+   "check": "the three <a> families are equal without stress",
+   "expected": "relative difference < 1e-8",
+   "result": "4.9e-13",
+   "passed": true
+  },
+  {
+   "check": "<c> density in the interior against production times lifetime",
+   "expected": "<= 1.493e+21 m^-3, equal while the loops do not coalesce",
+   "result": "1.484e+21 m^-3 at 10 dpa",
+   "passed": true
+  },
+  {
+   "check": "<c> density at the first dose beyond 20 lifetimes",
+   "expected": "1.493e+21 m^-3 within 5 %",
+   "result": "1.492e+21 m^-3 at 0.1 dpa",
+   "passed": true
+  },
+  {
+   "check": "vacancies at the grain boundary at thermal equilibrium",
+   "expected": "exp(-Ef/kT) = 8.459e-15",
+   "result": "largest relative difference 1.1e-05",
+   "passed": true
+  }
+ ]
+}

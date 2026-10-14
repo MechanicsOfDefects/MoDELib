@@ -1,0 +1,3 @@
+build/
+simulations/output/*/
+.git/
