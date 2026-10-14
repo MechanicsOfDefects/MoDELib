@@ -20,6 +20,8 @@
 #include <PeriodicDipoleGenerator.h>
 #include <PrismaticLoopGenerator.h>
 #include <SphericalInclusionsGenerator.h>
+#include <EllipsoidalInclusionsGenerator.h>
+#include <limits>
 #include <PolyhedronInclusionsGenerator.h>
 #include <StackingFaultTetrahedraGenerator.h>
 #include <CircularCrackGenerator.h>
@@ -130,6 +132,16 @@ void MicrostructureGenerator::addSphericalInclusionDensity(const SphericalInclus
 void MicrostructureGenerator::addSphericalInclusionIndividual(const SphericalInclusionIndividualSpecification& spec)
 {
     SphericalInclusionsGenerator gen(spec,*this);
+}
+
+void MicrostructureGenerator::addEllipsoidalInclusionDensity(const EllipsoidalInclusionDensitySpecification& spec)
+{
+    EllipsoidalInclusionsGenerator gen(spec,*this);
+}
+
+void MicrostructureGenerator::addEllipsoidalInclusionIndividual(const EllipsoidalInclusionIndividualSpecification& spec)
+{
+    EllipsoidalInclusionsGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPolyhedronInclusionIndividual(const PolyhedronInclusionIndividualSpecification& spec)
@@ -265,6 +277,23 @@ void MicrostructureGenerator::readMicrostructureFile()
             else
             {
                 throw std::runtime_error("Unkown style "+style+" for "+type);
+            }
+        }
+        else if(type=="EllipsoidalInclusions")
+        {
+            if(style=="Density" || style=="density")
+            {
+                EllipsoidalInclusionDensitySpecification spec(microstructureFileName);
+                addEllipsoidalInclusionDensity(spec);
+            }
+            else if(style=="Individual" || style=="individual")
+            {
+                EllipsoidalInclusionIndividualSpecification spec(microstructureFileName);
+                addEllipsoidalInclusionIndividual(spec);
+            }
+            else
+            {
+                throw std::runtime_error("Unknown style "+style+" for "+type);
             }
         }
         else if(type=="PolyhedronInclusions")
@@ -493,16 +522,47 @@ size_t MicrostructureGenerator::insertNetworkNode(const VectorDimD& networkNodeP
     return networkNodeID;
 }
 
+namespace
+{
+    size_t nextInclusionID(const DDconfigIO<3>& config)
+    {
+        size_t next=0;
+        const auto scan=[&](const auto& inclusions)
+        {
+            for(const auto& inclusion : inclusions)
+            {
+                if(inclusion.inclusionID==std::numeric_limits<size_t>::max())
+                {
+                    throw std::overflow_error("Inclusion IDs exhausted");
+                }
+                next=std::max(next,inclusion.inclusionID+1);
+            }
+        };
+        scan(config.sphericalInclusions());
+        scan(config.ellipsoidalInclusions());
+        scan(config.polyhedronInclusions());
+        return next;
+    }
+}
+
+size_t MicrostructureGenerator::insertInclusion(const VectorDimD& pos,const Eigen::Matrix3d& axes,
+                                               const Eigen::Matrix3d& eT,const double& vrc,const int& type)
+{
+    const size_t inclusionID=nextInclusionID(configIO);
+    configIO.ellipsoidalInclusions().emplace_back(inclusionID,pos,axes,eT,vrc,type);
+    return inclusionID;
+}
+
 size_t MicrostructureGenerator::insertInclusion(const VectorDimD& pos,const double& R, const Eigen::Matrix<double,dim,dim>& eT, const double& vrc,const int&type)
 {
-    const size_t inclusionID(configIO.sphericalInclusions().size()+configIO.polyhedronInclusions().size());
+    const size_t inclusionID(nextInclusionID(configIO));
     configIO.sphericalInclusions().emplace_back(inclusionID,pos,R,eT,vrc,type);
     return inclusionID;
 }
 
 size_t MicrostructureGenerator::insertInclusion(const std::map<size_t,Eigen::Vector3d>& polyNodes,const std::map<size_t,std::vector<size_t>>& faceMap, const Eigen::Matrix<double,dim,dim>& eT, const double& vrc,const int&type)
 {
-    const size_t inclusionID(configIO.sphericalInclusions().size()+configIO.polyhedronInclusions().size());
+    const size_t inclusionID(nextInclusionID(configIO));
     configIO.polyhedronInclusions().emplace_back(inclusionID,eT,vrc,type);
     
     const size_t startNodeID(configIO.polyhedronInclusionNodes().size());

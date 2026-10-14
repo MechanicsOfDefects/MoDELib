@@ -23,7 +23,7 @@ namespace model
     /* init */,mshFile(this->parser->readString("mshFile",true))
     /* init */,X0(this->parser->readMatrixCols<double>("x0",3,true))
     /* init */,F(this->parser->readMatrix<double>("F",3,3,true))
-    /* init */,eigenDistortion(this->parser->readMatrix<double>("eigenDistortion",1,3*3,true))
+    /* init */,crystalEigenDistortion(this->parser->readMatrix<double>("crystalEigenDistortion",1,3*3,true))
     /* init */,velocityReductionFactor(this->parser->readScalar<double>("velocityReductionFactor",true))
     /* init */,phaseID(this->parser->readScalar<int>("phaseID",true))
     {

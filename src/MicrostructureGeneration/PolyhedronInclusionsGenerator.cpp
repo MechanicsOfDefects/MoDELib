@@ -43,13 +43,35 @@
 #include <PolyhedronInclusionsGenerator.h>
 #include <PlaneLineIntersection.h>
 #include <GmshReader.h>
+#include <set>
 
 namespace model
 {
 
     bool PolyhedronInclusionsGenerator::generateSingle(MicrostructureGenerator& mg,const std::map<size_t,Eigen::Vector3d>& polyNodes,const std::map<size_t,std::vector<size_t>>& faceMap, const Eigen::Matrix<double,1,dim*dim>& eTrow, const double& vrc,const int&type)
     {
-        Eigen::Matrix<double,dim,dim> eT(Eigen::Map<const Eigen::Matrix<double,dim,dim>>(eTrow.data(),dim,dim).transpose());
+        // Match the simulation loader: all boundary vertices must belong to one grain.
+        std::set<size_t> grainIDs;
+        for(const auto &face : faceMap)
+        {
+            for(const auto nodeID : face.second)
+            {
+                const auto searchPair = mg.ddBase.mesh.search(polyNodes.at(nodeID));
+                if(!searchPair.first)
+                {
+                    throw std::runtime_error("Polyhedral inclusion node outside mesh; cannot determine crystal frame");
+                }
+                grainIDs.insert(searchPair.second->region->regionID);
+            }
+        }
+        if(grainIDs.size() != 1)
+        {
+            throw std::runtime_error("Polyhedral inclusion must belong to a single grain");
+        }
+        const auto &C2G = mg.ddBase.poly.grain(*grainIDs.begin())->C2G;
+        const Eigen::Matrix<double,dim,dim> crystalET(
+            Eigen::Map<const Eigen::Matrix<double,dim,dim>>(eTrow.data()).transpose());
+        const Eigen::Matrix<double,dim,dim> eT = C2G * crystalET * C2G.transpose();
         mg.insertInclusion(polyNodes,faceMap, eT, vrc,type);
         return true;
     }
@@ -61,7 +83,7 @@ namespace model
         
 //        std::cout<<spec.X0<<std::endl;
 //        std::cout<<spec.F<<std::endl;
-//        std::cout<<spec.eigenDistortion<<std::endl;
+//        std::cout<<spec.crystalEigenDistortion<<std::endl;
         
         Eigen::Vector3d nodeBary(Eigen::Vector3d::Zero());
         for(const auto& node : mshReader.nodes())
@@ -91,7 +113,7 @@ namespace model
                 
             }
             
-            generateSingle(mg,scaledNodes,faces, spec.eigenDistortion, spec.velocityReductionFactor,spec.phaseID);
+            generateSingle(mg,scaledNodes,faces, spec.crystalEigenDistortion, spec.velocityReductionFactor,spec.phaseID);
         }
     }
 }

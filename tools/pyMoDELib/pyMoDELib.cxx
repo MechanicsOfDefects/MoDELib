@@ -43,7 +43,7 @@
 #include <DislocationDynamicsBase.h>
 #include <DefectiveCrystal.h>
 #include <MicrostructureGenerator.h>
-//#include <EllipsoidalInclusionIndividualSpecification.h>
+#include <EllipsoidalInclusionIndividualSpecification.h>
 #include <DislocationMobilitySelector.h>
 #include <DislocationMobilityViscousDrag.h>
 #include <DislocationMobilityKinkPair.h>
@@ -484,6 +484,8 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def("addStackingFaultTetrahedraIndividual", &MicrostructureGenerator::addStackingFaultTetrahedraIndividual)
         .def("addSphericalInclusionDensity", &MicrostructureGenerator::addSphericalInclusionDensity)
         .def("addSphericalInclusionIndividual", &MicrostructureGenerator::addSphericalInclusionIndividual)
+        .def("addEllipsoidalInclusionDensity", &MicrostructureGenerator::addEllipsoidalInclusionDensity)
+        .def("addEllipsoidalInclusionIndividual", &MicrostructureGenerator::addEllipsoidalInclusionIndividual)
         .def("addPolyhedronInclusionIndividual", &MicrostructureGenerator::addPolyhedronInclusionIndividual)
         .def("writeConfigFiles", &MicrostructureGenerator::writeConfigFiles)
     ;
@@ -667,14 +669,14 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readwrite("diameterLognormalDistribution_M", &SphericalInclusionDensitySpecification::diameterLognormalDistribution_M)
         .def_readwrite("diameterLognormalDistribution_S", &SphericalInclusionDensitySpecification::diameterLognormalDistribution_S)
         .def_readwrite("diameterLognormalDistribution_A", &SphericalInclusionDensitySpecification::diameterLognormalDistribution_A)
-        .def_property( "transformationEigenDistortion",
+        .def_property( "crystalEigenDistortion",
                     [](const SphericalInclusionDensitySpecification& self )
                     {// Getter
-                        return self.transformationEigenDistortion;
+                        return self.crystalEigenDistortion;
                     },
                     []( SphericalInclusionDensitySpecification& self, const Eigen::Ref<const Eigen::Matrix<double,1,3*3>>& val )
                     {// Setter
-                        self.transformationEigenDistortion = val;
+                        self.crystalEigenDistortion = val;
                     }
                 )
         .def_property( "patternVector_SI",
@@ -708,14 +710,14 @@ PYBIND11_MODULE(pyMoDELib,m)
                         self.centers = val;
                     }
                 )
-        .def_property( "eigenDistortions",
+        .def_property( "crystalEigenDistortions",
                     [](const SphericalInclusionIndividualSpecification& self )
                     {// Getter
-                        return self.eigenDistortions;
+                        return self.crystalEigenDistortions;
                     },
                     []( SphericalInclusionIndividualSpecification& self, const Eigen::Ref<const Eigen::Matrix<double,Eigen::Dynamic,3*3>>& val )
                     {// Setter
-                        self.eigenDistortions = val;
+                        self.crystalEigenDistortions = val;
                     }
                 )
         .def_readwrite("velocityReductionFactors", &SphericalInclusionIndividualSpecification::velocityReductionFactors)
@@ -724,17 +726,33 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readwrite("allowOutside", &SphericalInclusionIndividualSpecification::allowOutside)
     ;
     
-//    py::class_<EllipsoidalInclusionIndividualSpecification>(m,"EllipsoidalInclusionIndividualSpecification")
-//        .def(py::init<>())
-//        .def(py::init<const std::string&>())
-//        .def_readwrite("center", &EllipsoidalInclusionIndividualSpecification::center)
-//        .def_readwrite("axes_SI", &EllipsoidalInclusionIndividualSpecification::axes_SI)
-//        .def_readwrite("eigenDistortion", &EllipsoidalInclusionIndividualSpecification::eigenDistortion)
-//        .def_readwrite("velocityReductionFactor", &EllipsoidalInclusionIndividualSpecification::velocityReductionFactor)
-//        .def_readwrite("phaseID", &EllipsoidalInclusionIndividualSpecification::phaseID)
-//        .def_readwrite("allowOverlap", &EllipsoidalInclusionIndividualSpecification::allowOverlap)
-//        .def_readwrite("allowOutside", &EllipsoidalInclusionIndividualSpecification::allowOutside)
-//    ;
+    py::class_<EllipsoidalInclusionDensitySpecification>(m,"EllipsoidalInclusionDensitySpecification")
+        .def(py::init<>())
+        .def(py::init<const std::string&>())
+        .def_readwrite("targetDensity", &EllipsoidalInclusionDensitySpecification::targetDensity)
+        .def_readwrite("crystalAxes", &EllipsoidalInclusionDensitySpecification::crystalAxes)
+        .def_readwrite("axesLognormalDistributionMean_SI", &EllipsoidalInclusionDensitySpecification::axesLognormalDistributionMean_SI)
+        .def_readwrite("axesLognormalDistributionStd_SI", &EllipsoidalInclusionDensitySpecification::axesLognormalDistributionStd_SI)
+        .def_readwrite("crystalEigenDistortion", &EllipsoidalInclusionDensitySpecification::crystalEigenDistortion)
+        .def_readwrite("patternVector_SI", &EllipsoidalInclusionDensitySpecification::patternVector_SI)
+        .def_readwrite("allowOverlap", &EllipsoidalInclusionDensitySpecification::allowOverlap)
+        .def_readwrite("allowOutside", &EllipsoidalInclusionDensitySpecification::allowOutside)
+        .def_readwrite("velocityReductionFactor", &EllipsoidalInclusionDensitySpecification::velocityReductionFactor)
+        .def_readwrite("phaseID", &EllipsoidalInclusionDensitySpecification::phaseID)
+        .def_readwrite("maxAttempts", &EllipsoidalInclusionDensitySpecification::maxAttempts)
+    ;
+
+    py::class_<EllipsoidalInclusionIndividualSpecification>(m,"EllipsoidalInclusionIndividualSpecification")
+        .def(py::init<>())
+        .def(py::init<const std::string&>())
+        .def_readwrite("center", &EllipsoidalInclusionIndividualSpecification::center)
+        .def_readwrite("crystalAxes_SI", &EllipsoidalInclusionIndividualSpecification::crystalAxes_SI)
+        .def_readwrite("crystalEigenDistortion", &EllipsoidalInclusionIndividualSpecification::crystalEigenDistortion)
+        .def_readwrite("velocityReductionFactor", &EllipsoidalInclusionIndividualSpecification::velocityReductionFactor)
+        .def_readwrite("phaseID", &EllipsoidalInclusionIndividualSpecification::phaseID)
+        .def_readwrite("allowOverlap", &EllipsoidalInclusionIndividualSpecification::allowOverlap)
+        .def_readwrite("allowOutside", &EllipsoidalInclusionIndividualSpecification::allowOutside)
+    ;
 
     py::class_<PolyhedronInclusionIndividualSpecification
     /*      */>(m,"PolyhedronInclusionIndividualSpecification")
@@ -761,14 +779,14 @@ PYBIND11_MODULE(pyMoDELib,m)
                         self.F = val;
                     }
                 )
-        .def_property( "eigenDistortion",
+        .def_property( "crystalEigenDistortion",
                     [](const PolyhedronInclusionIndividualSpecification& self )
                     {// Getter
-                        return self.eigenDistortion;
+                        return self.crystalEigenDistortion;
                     },
                     []( PolyhedronInclusionIndividualSpecification& self, const Eigen::Ref<const Eigen::Matrix<double,1,3*3>>& val )
                     {// Setter
-                        self.eigenDistortion = val;
+                        self.crystalEigenDistortion = val;
                     }
                 )
         .def_readwrite("velocityReductionFactor", &PolyhedronInclusionIndividualSpecification::velocityReductionFactor)

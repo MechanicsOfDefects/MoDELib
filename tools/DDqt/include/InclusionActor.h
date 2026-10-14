@@ -73,6 +73,9 @@ namespace model
         vtkSmartPointer<vtkActor> actor;
         vtkSmartPointer<vtkLookupTable> lookUpColors;
         
+        vtkSmartPointer<vtkPolyDataMapper> ellipsoidalMapper;
+        vtkSmartPointer<vtkActor> ellipsoidalActor;
+
         vtkSmartPointer<vtkDataSetMapper> polyhedronMapper;
         vtkSmartPointer<vtkActor> polyhedronActor;
                 

@@ -22,6 +22,7 @@
 #include <DislocationNodeIO.h>
 #include <DislocationSegmentIO.h>
 #include <SphericalInclusionIO.h>
+#include <EllipsoidalInclusionIO.h>
 #include <PolyhedronInclusionEdgeIO.h>
 #include <PolyhedronInclusionNodeIO.h>
 #include <PolyhedronInclusionIO.h>
@@ -44,6 +45,7 @@ namespace model
     /*              */,private std::vector<DislocationLoopNodeIO<dim>>
     /*              */,private std::vector<DislocationLoopLinkIO<dim>>
     /*              */,private std::vector<SphericalInclusionIO<dim>>
+    /*              */,private std::vector<EllipsoidalInclusionIO<dim>>
     /*              */,private std::vector<PolyhedronInclusionIO<dim>>
     /*              */,private std::vector<PolyhedronInclusionNodeIO<dim>>
     /*              */,private std::vector<PolyhedronInclusionEdgeIO>
@@ -75,6 +77,8 @@ namespace model
         std::vector<DislocationLoopLinkIO<dim> >& loopLinks();
         const std::vector<SphericalInclusionIO<dim> >& sphericalInclusions() const;
         std::vector<SphericalInclusionIO<dim> >& sphericalInclusions();
+        const std::vector<EllipsoidalInclusionIO<dim> >& ellipsoidalInclusions() const;
+        std::vector<EllipsoidalInclusionIO<dim> >& ellipsoidalInclusions();
         const std::vector<PolyhedronInclusionIO<dim> >& polyhedronInclusions() const;
         std::vector<PolyhedronInclusionIO<dim> >& polyhedronInclusions();
         const std::vector<PolyhedronInclusionNodeIO<dim> >& polyhedronInclusionNodes() const;

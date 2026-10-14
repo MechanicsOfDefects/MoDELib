@@ -83,3 +83,6 @@ Desktop.ini
 _ReSharper.*
 *.sln.cache
 build/
+
+# Test reports
+tests/**/reports/

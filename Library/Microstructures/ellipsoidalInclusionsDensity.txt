@@ -1,0 +1,17 @@
+type=EllipsoidalInclusions;
+style=density;
+targetDensity=1e20; # [m^-3] number density, rounded up to a whole inclusion
+# Columns are orthogonal unit vectors in the crystal frame (dimensionless).
+crystalAxes=1 0 0
+            0 1 0
+            0 0 1;
+# Arithmetic means and standard deviations of the three independent semiaxis lengths [m].
+axesLognormalDistributionMean_SI=3e-8 2e-8 1e-8;
+axesLognormalDistributionStd_SI=6e-9 4e-9 2e-9;
+crystalEigenDistortion=0.01 0 0 0 -0.005 0 0 0 0.02; # Crystal-frame, row-major
+patternVector_SI=0 0 1e-7; # Crystal plane normal times spacing [m]; zero disables pattern
+allowOverlap=0;
+allowOutside=0;
+velocityReductionFactor=1;
+phaseID=0;
+maxAttempts=10000; # Consecutive rejected placements before throwing; accepted records remain

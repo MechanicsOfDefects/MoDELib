@@ -55,7 +55,7 @@ namespace model
             //        const double inclusionsDiameterLognormalDistribution_M(this->parser.readScalar<double>("diameterLognormalDistribution_M",true) );
             //        const double inclusionsDiameterLognormalDistribution_S(this->parser.readScalar<double>("diameterLognormalDistribution_S",true));
             //        const double inclusionsDiameterLognormalDistribution_A(this->parser.readScalar<double>("diameterLognormalDistribution_A",true));
-            //        const Eigen::Matrix<double,1,dim*dim> inclusionsTransformationEigenDistortion(this->parser.readMatrix<double>("transformationEigenDistortion",1,dim*dim,true));
+            //        const Eigen::Matrix<double,1,dim*dim> inclusionsTransformationEigenDistortion(this->parser.readMatrix<double>("crystalEigenDistortion",1,dim*dim,true));
             //        const Eigen::Matrix<double,1,dim> patternVector(this->parser.readMatrix<double>("patternVector",1,dim,true)/mg.ddBase.poly.b_SI);
             //        const double velocityReductionFactor(this->parser.readScalar<double>("velocityReductionFactor",true));
             //        const int phaseIDs(this->parser.readScalar<int>("phaseID",true));
@@ -87,7 +87,7 @@ namespace model
                     const VectorDimD O(pointHeigth*globalVector);
                     P-=(P-O).dot(globalDir)*globalDir;
                 }
-                if(generateSingle(mg,P,radius,spec.transformationEigenDistortion,spec.velocityReductionFactor,spec.phaseID,spec.allowOutside,spec.allowOverlap))
+                if(generateSingle(mg,P,radius,spec.crystalEigenDistortion,spec.velocityReductionFactor,spec.phaseID,spec.allowOutside,spec.allowOverlap))
                 {
                     density+=1.0/mg.ddBase.mesh.volume()/std::pow(mg.ddBase.poly.b_SI,3);
                     std::cout<<"inclusion density="<<density<<std::endl;
@@ -119,7 +119,7 @@ namespace model
             
             for(size_t k=0;k<spec.radii_SI.size();++k)
             {
-                if(generateSingle(mg,spec.centers.row(k),spec.radii_SI[k]/mg.ddBase.poly.b_SI,spec.eigenDistortions.row(k),spec.velocityReductionFactors[k],spec.phaseIDs[k],spec.allowOutside,spec.allowOverlap))
+                if(generateSingle(mg,spec.centers.row(k),spec.radii_SI[k]/mg.ddBase.poly.b_SI,spec.crystalEigenDistortions.row(k),spec.velocityReductionFactors[k],spec.phaseIDs[k],spec.allowOutside,spec.allowOverlap))
                 {
                     std::cout<<"generated inclusion"<<std::endl;
                 }
@@ -131,7 +131,16 @@ namespace model
     bool SphericalInclusionsGenerator::generateSingle(MicrostructureGenerator& mg,const VectorDimD& C,const double& R, const Eigen::Matrix<double,1,dim*dim>& eTrow, const double& vrc,const int&type, const bool& allowOutside, const bool& allowOverlap)
     {
         
-        Eigen::Matrix<double,dim,dim> eT(Eigen::Map<const Eigen::Matrix<double,dim,dim>>(eTrow.data(),dim,dim).transpose());
+        const auto searchPair = mg.ddBase.mesh.search(C);
+        if(!searchPair.first)
+        {
+            std::cout << "Spherical inclusion center outside mesh; cannot determine crystal frame; not generated\n";
+            return false;
+        }
+        const auto &C2G = mg.ddBase.poly.grain(searchPair.second->region->regionID)->C2G;
+        const Eigen::Matrix<double,dim,dim> crystalET(
+            Eigen::Map<const Eigen::Matrix<double,dim,dim>>(eTrow.data()).transpose());
+        const Eigen::Matrix<double,dim,dim> eT = C2G * crystalET * C2G.transpose();
         
         
         bool isInside(allowOutside);
