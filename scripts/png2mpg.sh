@@ -1,15 +1,29 @@
 #!/bin/bash
-# Encode consecutive img_0.png, img_1.png, ... beside this script.
-# Usage: bash png2mpg.sh [output.mpg] [fps]
+# Example (from the repository root):
+# bash scripts/png2mpg.sh tutorials/inclusions/evl
+#
+# Encode img_<runID>.png in the supplied folder in numeric runID order.
+# Relative output paths are resolved inside folderContainingImages.
+# IDs may be sparse or start above zero; original images are never renamed.
+# Each image occupies one frame at the selected fps, regardless of runID gaps.
+# Usage: bash png2mpg.sh folderContainingImages [output.mpg] [fps]
 # Default: video.mpg at 25 fps. Existing output files are never overwritten.
 set -euo pipefail
-cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
-if [[ $# -gt 2 || ${1:-} == '--help' ]]; then
-    echo "Usage: $0 [output.mpg] [fps: 24, 25, 30, 50, or 60]"
+if [[ ${1:-} == '--help' ]]; then
+    echo "Usage: bash png2mpg.sh folderContainingImages [output.mpg] [fps]"
     exit 0
 fi
-output=${1:-video.mpg}
-fps=${2:-25}
+if [[ $# -lt 1 || $# -gt 3 ]]; then
+    echo "Usage: bash png2mpg.sh folderContainingImages [output.mpg] [fps]" >&2
+    exit 1
+fi
+if [[ ! -d "$1" ]]; then
+    echo "Image folder does not exist: $1" >&2
+    exit 1
+fi
+cd -- "$1"
+output=${2:-video.mpg}
+fps=${3:-25}
 case "$fps" in
     24|25|30|50|60) ;;
     *) echo "Unsupported MPEG frame rate: $fps" >&2; exit 1 ;;
@@ -22,27 +36,31 @@ if [[ -e "$output" || -L "$output" ]]; then
     echo "Output already exists: $output. Choose a different output name." >&2
     exit 1
 fi
-count=0
-for filename in img_*.png; do
-    if [[ -f "$filename" && "$filename" =~ ^img_([0-9]+)\.png$ ]]; then
-        count=$((count + 1))
-    fi
-done
+# Extract the whole numeric ID; lexical filename sorting puts 100 before 20.
+files=()
+while IFS=$'\t' read -r runID filename; do
+    files+=("$filename")
+done < <(
+    for filename in img_*.png; do
+        if [[ -f "$filename" && "$filename" =~ ^img_([0-9]+)\.png$ ]]; then
+            printf '%s\t%s\n' "${BASH_REMATCH[1]}" "$filename"
+        fi
+    done | LC_ALL=C sort -k1,1n -k2,2
+)
+count=${#files[@]}
 if [[ $count -eq 0 ]]; then
-    echo "No img_<number>.png images found." >&2
+    echo "No img_<runID>.png images found." >&2
     exit 1
 fi
-for ((k=0; k<count; ++k)); do
-    if [[ ! -f "img_${k}.png" ]]; then
-        echo "Missing img_${k}.png. Run renamePNG.sh on the completed image set first." >&2
-        exit 1
-    fi
-done
 staging=$(mktemp -d .png2mpg.XXXXXX)
-trap 'rm -f -- "$staging/video.mpg"; rmdir -- "$staging"' EXIT
+trap 'rm -f -- "$staging"/img_*.png "$staging/video.mpg"; rmdir -- "$staging"' EXIT
+# Sequential temporary symlinks let FFmpeg read sparse IDs at a constant fps.
+for ((k=0; k<count; ++k)); do
+    ln -s -- "../${files[k]}" "$staging/img_${k}.png"
+done
 # Pad odd image dimensions by at most one pixel for YUV 4:2:0 encoding.
 # qscale 1 gives high quality; MPEG-2 is explicitly selected for the MPG container.
-ffmpeg -hide_banner -nostdin -n -framerate "$fps" -start_number 0 -i 'img_%d.png' \
+ffmpeg -hide_banner -nostdin -n -framerate "$fps" -start_number 0 -i "$staging/img_%d.png" \
     -frames:v "$count" -an -vf 'pad=ceil(iw/2)*2:ceil(ih/2)*2' \
     -c:v mpeg2video -qscale:v 1 -pix_fmt yuv420p -f mpeg "$staging/video.mpg"
 mv -n -- "$staging/video.mpg" "$output"
