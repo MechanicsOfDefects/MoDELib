@@ -22,6 +22,7 @@
 #include <DislocationNodeIO.h>
 #include <DislocationSegmentIO.h>
 #include <SphericalInclusionIO.h>
+#include <EllipsoidalInclusionIO.h>
 #include <PolyhedronInclusionIO.h>
 #include <PolyhedronInclusionEdgeIO.h>
 #include <PolyhedronInclusionNodeIO.h>
@@ -83,6 +84,7 @@ void DDconfigIO<dim>::clear()
     loopLinks().clear();
     loopNodes().clear();
     sphericalInclusions().clear();
+    ellipsoidalInclusions().clear();
     polyhedronInclusions().clear();
     polyhedronInclusionNodes().clear();
     polyhedronInclusionEdges().clear();
@@ -165,6 +167,18 @@ const std::vector<SphericalInclusionIO<dim>>& DDconfigIO<dim>::sphericalInclusio
 
 template <int dim>
 std::vector<SphericalInclusionIO<dim>>& DDconfigIO<dim>::sphericalInclusions()
+{
+    return *this;
+}
+
+template <int dim>
+const std::vector<EllipsoidalInclusionIO<dim>>& DDconfigIO<dim>::ellipsoidalInclusions() const
+{
+    return *this;
+}
+
+template <int dim>
+std::vector<EllipsoidalInclusionIO<dim>>& DDconfigIO<dim>::ellipsoidalInclusions()
 {
     return *this;
 }
@@ -410,6 +424,7 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
         file<<loopLinks().size()<<"\n";
         file<<loopNodes().size()<<"\n";
         file<<sphericalInclusions().size()<<"\n";
+        file<<ellipsoidalInclusions().size()<<"\n";
         file<<polyhedronInclusions().size()<<"\n";
         file<<polyhedronInclusionNodes().size()<<"\n";
         file<<polyhedronInclusionEdges().size()<<"\n";
@@ -445,6 +460,12 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
             file<<ei<<"\n";
         }
         
+        // EllipsoidalInclusions
+        for(const auto& ei : ellipsoidalInclusions())
+        {
+            file<<ei<<"\n";
+        }
+
         // polyhedronInclusions
         for(const auto& pi : polyhedronInclusions())
         {
@@ -491,6 +512,7 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
             const size_t nE(loopLinks().size());
             const size_t nLN(loopNodes().size());
             const size_t nEI(sphericalInclusions().size());
+            const size_t nELI(ellipsoidalInclusions().size());
             const size_t nPI(polyhedronInclusions().size());
             const size_t nPIn(polyhedronInclusionNodes().size());
             const size_t nPIe(polyhedronInclusionEdges().size());
@@ -503,6 +525,7 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
             binWrite(file,nE);
             binWrite(file,nLN);
             binWrite(file,nEI);
+            binWrite(file,nELI);
             binWrite(file,nPI);
             binWrite(file,nPIn);
             binWrite(file,nPIe);
@@ -540,6 +563,12 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
                 binWrite(file,ei);
             }
             
+            // Write EllipsoidalInclusions
+            for(const auto& ei : ellipsoidalInclusions())
+            {
+                binWrite(file,ei);
+            }
+
             // polyhedronInclusions
             for(const auto& pi : polyhedronInclusions())
             {
@@ -628,12 +657,16 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
             infile.read (reinterpret_cast<char*>(&sizeLN), 1*sizeof(sizeLN));
             size_t sizeEI;
             infile.read (reinterpret_cast<char*>(&sizeEI), 1*sizeof(sizeEI));
+            size_t sizeELI;
+            infile.read (reinterpret_cast<char*>(&sizeELI), sizeof(sizeELI));
             size_t sizePI;
             infile.read (reinterpret_cast<char*>(&sizePI), 1*sizeof(sizePI));
             size_t sizePIn;
             infile.read (reinterpret_cast<char*>(&sizePIn), 1*sizeof(sizePIn));
             size_t sizePIe;
             infile.read (reinterpret_cast<char*>(&sizePIe), 1*sizeof(sizePIe));
+            size_t sizeDISP;
+            infile.read (reinterpret_cast<char*>(&sizeDISP), sizeof(sizeDISP));
             size_t sizeCD;
             infile.read (reinterpret_cast<char*>(&sizeCD), 1*sizeof(sizeCD));
 
@@ -652,12 +685,19 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
             // Read Eshlby Inclusions
             sphericalInclusions().resize(sizeEI);
             infile.read (reinterpret_cast<char*>(sphericalInclusions().data()),sphericalInclusions().size()*sizeof(SphericalInclusionIO<dim>));
+            ellipsoidalInclusions().resize(sizeELI);
+            infile.read (reinterpret_cast<char*>(ellipsoidalInclusions().data()),ellipsoidalInclusions().size()*sizeof(EllipsoidalInclusionIO<dim>));
             polyhedronInclusions().resize(sizePI);
             infile.read (reinterpret_cast<char*>(polyhedronInclusions().data()),polyhedronInclusions().size()*sizeof(PolyhedronInclusionIO<dim>));
             polyhedronInclusionNodes().resize(sizePIn);
             infile.read (reinterpret_cast<char*>(polyhedronInclusionNodes().data()),polyhedronInclusionNodes().size()*sizeof(PolyhedronInclusionNodeIO<dim>));
             polyhedronInclusionEdges().resize(sizePIe);
             infile.read (reinterpret_cast<char*>(polyhedronInclusionEdges().data()),polyhedronInclusionEdges().size()*sizeof(PolyhedronInclusionEdgeIO));
+
+            if(sizeDISP>0)
+            {
+                throw std::runtime_error("Binary reading of FEM displacement is disabled");
+            }
 
             if(sizeCD>0)
             {
@@ -716,6 +756,7 @@ void DDconfigIO<dim>::print() const
     std::cout<<"  "<<loopLinks().size()<<" loopLinks "<<std::endl;
     std::cout<<"  "<<loopNodes().size()<<" loopNodes "<<std::endl;
     std::cout<<"  "<<sphericalInclusions().size()<<" SphericalInclusions "<<std::endl;
+    std::cout<<"  "<<ellipsoidalInclusions().size()<<" EllipsoidalInclusions "<<std::endl;
     std::cout<<"  "<<polyhedronInclusions().size()<<" polyhedronInclusions "<<std::endl;
     std::cout<<"  "<<polyhedronInclusionNodes().size()<<" polyhedronInclusionNodes "<<std::endl;
     std::cout<<"  "<<polyhedronInclusionEdges().size()<<" polyhedronInclusionEdges "<<std::endl;
@@ -734,6 +775,7 @@ void DDconfigIO<dim>::print() const
         size_t sizeE;
         size_t sizeLN;
         size_t sizeEI;
+        size_t sizeELI;
         size_t sizePI;
         size_t sizePIn;
         size_t sizePIe;
@@ -772,6 +814,12 @@ void DDconfigIO<dim>::print() const
         std::getline(infile, line);
         ss<<line;
         ss >> sizeEI;
+        ss.str("");
+        ss.clear();
+
+        std::getline(infile, line);
+        ss<<line;
+        ss >> sizeELI;
         ss.str("");
         ss.clear();
         
@@ -850,6 +898,15 @@ void DDconfigIO<dim>::print() const
             ss.clear();
         }
         
+        for(size_t k=0; k<sizeELI; ++k)
+        {
+            std::getline(infile, line);
+            ss<<line;
+            ellipsoidalInclusions().emplace_back(ss);
+            ss.str("");
+            ss.clear();
+        }
+
         for(size_t k=0; k<sizePI; ++k)
         {
             std::getline(infile, line);

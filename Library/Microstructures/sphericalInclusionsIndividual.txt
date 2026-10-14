@@ -1,9 +1,10 @@
+# Eigen-distortion components are specified in the crystal frame (row-major).
 type=SphericalInclusions;
 style=individual;
 allowOverlap=0;
 allowOutside=0;
 radii_SI=3e-8;
 centers=50 300 300;
-eigenDistortions=0.03 0 0 0 0.03 0 0 0 0.03;
+crystalEigenDistortions=0.03 0 0 0 0.03 0 0 0 0.03;
 velocityReductionFactors=1;
 phaseIDs=0; # ID of secondPhase 

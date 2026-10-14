@@ -9,8 +9,8 @@ namespace model
     EllipsoidalInclusionIndividualSpecification::EllipsoidalInclusionIndividualSpecification() :
     MicrostructureSpecificationBase("EllipsoidalInclusion","Individual"),
     center(Eigen::Matrix<double,dim,1>::Zero()),
-    axes_SI(Eigen::Matrix<double,dim,dim>::Zero()),
-    eigenDistortion(Eigen::Matrix<double,1,dim*dim>::Zero()),
+    crystalAxes_SI(Eigen::Matrix<double,dim,dim>::Zero()),
+    crystalEigenDistortion(Eigen::Matrix<double,1,dim*dim>::Zero()),
     velocityReductionFactor(1.0), phaseID(0), allowOverlap(false), allowOutside(false)
     {
     }
@@ -18,8 +18,8 @@ namespace model
     EllipsoidalInclusionIndividualSpecification::EllipsoidalInclusionIndividualSpecification(const std::string& fileName) :
     MicrostructureSpecificationBase("EllipsoidalInclusion","Individual",fileName),
     center(this->parser->readMatrix<double>("center",dim,1,true)),
-    axes_SI(this->parser->readMatrix<double>("axes_SI",dim,dim,true)),
-    eigenDistortion(this->parser->readMatrix<double>("eigenDistortion",1,dim*dim,true)),
+    crystalAxes_SI(this->parser->readMatrix<double>("crystalAxes_SI",dim,dim,true)),
+    crystalEigenDistortion(this->parser->readMatrix<double>("crystalEigenDistortion",1,dim*dim,true)),
     velocityReductionFactor(this->parser->readScalar<double>("velocityReductionFactor",true)),
     phaseID(this->parser->readScalar<int>("phaseID",true)),
     allowOverlap(this->parser->readScalar<int>("allowOverlap",true)),

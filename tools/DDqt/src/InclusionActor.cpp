@@ -32,6 +32,9 @@
 #include <vtkIdList.h>
 //#include <vtkXMLUnstructuredGridWriter.h>
 #include <InclusionActor.h>
+#include <EllipsoidalInclusion.h>
+#include <EllipsoidalInclusionPolyData.h>
+#include <vtkAppendPolyData.h>
 
 
 // VTK documentation
@@ -47,6 +50,11 @@ namespace model
     {
         std::cout<<"Updating inclusions..."<<std::flush;
         const auto t0= std::chrono::system_clock::now();
+
+        // Replace the previous frame, including when no ellipsoids remain.
+        vtkNew<vtkPolyData> emptyEllipsoids;
+        ellipsoidalMapper->SetInputData(emptyEllipsoids);
+        vtkNew<vtkAppendPolyData> ellipsoids;
 
         if(inclusions)
         {
@@ -83,6 +91,13 @@ namespace model
                     colors->InsertNextValue(sphericalDerived->phaseID);
                 }
                 
+                auto* ellipsoidalDerived = dynamic_cast<EllipsoidalInclusion<dim>*>(inclusion.second.get());
+                if(ellipsoidalDerived)
+                {
+                    ellipsoids->AddInputData(ellipsoidalInclusionPolyData(
+                        ellipsoidalDerived->C,ellipsoidalDerived->axes));
+                }
+
                 auto* polyhedronDerived = dynamic_cast<PolyhedronInclusion<dim>*>(inclusion.second.get());
                 if (polyhedronDerived)
                 {
@@ -162,6 +177,11 @@ namespace model
             
 //            polyhedronMapper->SetInputData(polyhedronPoints->GetOutputPort());
             polyhedronMapper->SetInputData(ugrid);
+            if(ellipsoids->GetNumberOfInputConnections(0)>0)
+            {
+                ellipsoids->Update();
+                ellipsoidalMapper->SetInputData(ellipsoids->GetOutput());
+            }
             
         }
         std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
@@ -178,6 +198,8 @@ namespace model
     /* init */,mapper(vtkSmartPointer<vtkPolyDataMapper>::New())
     /* init */,actor(vtkSmartPointer<vtkActor>::New())
     /* init */,lookUpColors(vtkSmartPointer<vtkLookupTable>::New())
+    /* init */,ellipsoidalMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
+    /* init */,ellipsoidalActor(vtkSmartPointer<vtkActor>::New())
     /* init */,polyhedronMapper(vtkSmartPointer<vtkDataSetMapper>::New())
     /* init */,polyhedronActor(vtkSmartPointer<vtkActor>::New())
     /* init */,defectiveCrystal(defectiveCrystal_in)
@@ -207,11 +229,19 @@ namespace model
         actor->GetProperty()->SetOpacity(0.4); // Give some color to the mesh. (1,1,1) is white
         actor->SetMapper(mapper);
         
+        ellipsoidalMapper->ScalarVisibilityOff();
+        vtkNew<vtkPolyData> emptyEllipsoids;
+        ellipsoidalMapper->SetInputData(emptyEllipsoids);
+        ellipsoidalActor->SetMapper(ellipsoidalMapper);
+        ellipsoidalActor->GetProperty()->SetColor(0.5,0.5,0.5);
+        ellipsoidalActor->GetProperty()->SetOpacity(0.4);
+
         polyhedronActor->SetMapper(polyhedronMapper);
         polyhedronActor->GetProperty()->SetColor(0.5,0.5,0.5); // Give some color to the mesh. (1,1,1) is white
         polyhedronActor->GetProperty()->SetOpacity(0.4); // Give some color to the mesh. (1,1,1) is white
                 
         renderer->AddActor(actor);
+        renderer->AddActor(ellipsoidalActor);
         renderer->AddActor(polyhedronActor);
     }
 
@@ -219,6 +249,9 @@ namespace model
     {
         actor->SetVisibility(showInclusions->isChecked());
         actor->GetProperty()->SetOpacity(sliderInclusionOpacity->value()/10.0);
+
+        ellipsoidalActor->SetVisibility(showInclusions->isChecked());
+        ellipsoidalActor->GetProperty()->SetOpacity(sliderInclusionOpacity->value()/10.0);
 
         polyhedronActor->SetVisibility(showInclusions->isChecked());
         polyhedronActor->GetProperty()->SetOpacity(sliderInclusionOpacity->value()/10.0);

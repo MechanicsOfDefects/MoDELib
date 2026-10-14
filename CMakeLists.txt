@@ -27,6 +27,7 @@ project(MoDELib VERSION 2.0.0 LANGUAGES C CXX)
 
 option(USE_PYBIND11 "enables pybind11" ON)
 option(BUILD_TOOLS "builds tools" ON)
+option(BUILD_TESTS "builds tests" ON)
 option(BUILD_DDQT "builds the DDqt viewer (requires Qt 6 and VTK)" ON)
 set(MODELIB_MARCH "native" CACHE STRING "value passed to -march")
 set(MODELIB_CD_MSIZE "4" CACHE STRING "number of mobile cluster-dynamics species, e.g. Cv Ci C2i C3i")
@@ -169,4 +170,9 @@ target_link_libraries(MoDELib PUBLIC ${FFTW3_LIBRARIES} ${pybind11_LIBRARIES} ${
 if(BUILD_TOOLS)
 	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tools tools)
 else()
+endif()
+
+if(BUILD_TESTS)
+	enable_testing()
+	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tests tests)
 endif()

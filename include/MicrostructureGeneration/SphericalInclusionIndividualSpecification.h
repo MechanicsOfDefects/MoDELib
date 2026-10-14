@@ -24,7 +24,7 @@ namespace model
 
         std::vector<double> radii_SI;
         Eigen::Matrix<double,Eigen::Dynamic,3> centers;
-        Eigen::Matrix<double,Eigen::Dynamic,3*3> eigenDistortions;
+        Eigen::Matrix<double,Eigen::Dynamic,3*3> crystalEigenDistortions; // Crystal-frame components, one row per sphere.
         std::vector<double> velocityReductionFactors;
         std::vector<int> phaseIDs;
         bool allowOverlap;

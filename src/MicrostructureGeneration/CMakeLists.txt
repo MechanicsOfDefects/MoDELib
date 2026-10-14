@@ -20,6 +20,9 @@ target_sources(${PROJECT_NAME} PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/PlanarLoopGenerator.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/SphericalInclusionDensitySpecification.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/SphericalInclusionIndividualSpecification.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/EllipsoidalInclusionDensitySpecification.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/EllipsoidalInclusionIndividualSpecification.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/EllipsoidalInclusionsGenerator.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/SphericalInclusionsGenerator.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/PolyhedronInclusionIndividualSpecification.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/PolyhedronInclusionsGenerator.cpp
@@ -29,5 +32,4 @@ target_sources(${PROJECT_NAME} PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/CrackMeshGenerator.cpp
 #	${CMAKE_CURRENT_SOURCE_DIR}/VTKGenerator.cpp
 			)
-
 

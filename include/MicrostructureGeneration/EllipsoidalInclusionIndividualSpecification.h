@@ -15,9 +15,9 @@ namespace model
         static constexpr int dim=3;
 
         Eigen::Matrix<double,dim,1> center; // Simulation length units (Burgers vector).
-        Eigen::Matrix<double,dim,dim> axes_SI; // Columns are orthogonal semiaxis vectors [m].
-        // Dimensionless components 11,12,13,21,22,23,31,32,33, as in other specifications.
-        Eigen::Matrix<double,1,dim*dim> eigenDistortion;
+        Eigen::Matrix<double,dim,dim> crystalAxes_SI; // Columns are orthogonal semiaxis vectors in the crystal frame [m].
+        // Crystal-frame dimensionless components 11,12,13,21,22,23,31,32,33, as in other specifications.
+        Eigen::Matrix<double,1,dim*dim> crystalEigenDistortion;
         double velocityReductionFactor;
         int phaseID;
         bool allowOverlap;

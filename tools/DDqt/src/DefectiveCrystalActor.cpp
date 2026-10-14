@@ -49,7 +49,7 @@ namespace model
         /* init */,playFrameButton(new QPushButton(">>"))
         /* init */,stopFrameButton(new QPushButton("x"))
         /* init */,minusFrameButton(new QPushButton("<"))
-        /* init */,frameIncrementEdit(new QLineEdit("1"))
+        /* init */,frameIncrementEdit(new QLineEdit(QString::number(ddBase.simulationParameters.outputFrequency)))
         /* init */,saveImage(new QCheckBox(this))
         /* init */,tabWidget(new QTabWidget())
         {

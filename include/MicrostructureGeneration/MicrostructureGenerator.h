@@ -59,6 +59,8 @@
 #include <StackingFaultTetrahedraIndividualSpecification.h>
 #include <SphericalInclusionDensitySpecification.h>
 #include <SphericalInclusionIndividualSpecification.h>
+#include <EllipsoidalInclusionIndividualSpecification.h>
+#include <EllipsoidalInclusionDensitySpecification.h>
 #include <PolyhedronInclusionIndividualSpecification.h>
 #include <PlanarLoopIndividualSpecification.h>
 #include <CircularCrackIndividualSpecification.h>
@@ -114,6 +116,8 @@ struct PolyPoint
         void addStackingFaultTetrahedraIndividual(const StackingFaultTetrahedraIndividualSpecification& spec);
         void addSphericalInclusionDensity(const SphericalInclusionDensitySpecification& spec);
         void addSphericalInclusionIndividual(const SphericalInclusionIndividualSpecification& spec);
+        void addEllipsoidalInclusionDensity(const EllipsoidalInclusionDensitySpecification& spec);
+        void addEllipsoidalInclusionIndividual(const EllipsoidalInclusionIndividualSpecification& spec);
         void addPolyhedronInclusionIndividual(const PolyhedronInclusionIndividualSpecification& spec);
         void addPlanarLoopIndividual(const PlanarLoopIndividualSpecification& spec);
         void addCircularCrackIndividual(const CircularCrackIndividualSpecification& spec);
@@ -124,6 +128,7 @@ struct PolyPoint
         std::vector<size_t> insertLoopLinks(const size_t& loopID,const std::vector<size_t>& loopNodeIDs);
         size_t insertNetworkNode(const VectorDimD& networkNodePos);
         size_t insertInclusion(const VectorDimD& pos,const double& R, const Eigen::Matrix<double,dim,dim>& eT, const double& vrc,const int&type);
+        size_t insertInclusion(const VectorDimD& pos,const Eigen::Matrix3d& axes,const Eigen::Matrix3d& eT,const double& vrc,const int& type);
         size_t insertInclusion(const std::map<size_t,Eigen::Vector3d>& nodes,const std::map<size_t,std::vector<size_t>>& faceMap, const Eigen::Matrix<double,dim,dim>& eT, const double& vrc,const int&type);
         void writeConfigFiles(const size_t& fileID);
         bool insertJunctionLoop(const std::vector<VectorDimD>& loopNodePos,
