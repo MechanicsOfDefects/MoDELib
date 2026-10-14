@@ -43,7 +43,7 @@
 #include <DislocationDynamicsBase.h>
 #include <DefectiveCrystal.h>
 #include <MicrostructureGenerator.h>
-//#include <EllipsoidalInclusionIndividualSpecification.h>
+#include <EllipsoidalInclusionIndividualSpecification.h>
 #include <DislocationMobilitySelector.h>
 #include <DislocationMobilityViscousDrag.h>
 #include <DislocationMobilityKinkPair.h>
@@ -724,17 +724,17 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readwrite("allowOutside", &SphericalInclusionIndividualSpecification::allowOutside)
     ;
     
-//    py::class_<EllipsoidalInclusionIndividualSpecification>(m,"EllipsoidalInclusionIndividualSpecification")
-//        .def(py::init<>())
-//        .def(py::init<const std::string&>())
-//        .def_readwrite("center", &EllipsoidalInclusionIndividualSpecification::center)
-//        .def_readwrite("axes_SI", &EllipsoidalInclusionIndividualSpecification::axes_SI)
-//        .def_readwrite("eigenDistortion", &EllipsoidalInclusionIndividualSpecification::eigenDistortion)
-//        .def_readwrite("velocityReductionFactor", &EllipsoidalInclusionIndividualSpecification::velocityReductionFactor)
-//        .def_readwrite("phaseID", &EllipsoidalInclusionIndividualSpecification::phaseID)
-//        .def_readwrite("allowOverlap", &EllipsoidalInclusionIndividualSpecification::allowOverlap)
-//        .def_readwrite("allowOutside", &EllipsoidalInclusionIndividualSpecification::allowOutside)
-//    ;
+    py::class_<EllipsoidalInclusionIndividualSpecification>(m,"EllipsoidalInclusionIndividualSpecification")
+        .def(py::init<>())
+        .def(py::init<const std::string&>())
+        .def_readwrite("center", &EllipsoidalInclusionIndividualSpecification::center)
+        .def_readwrite("axes_SI", &EllipsoidalInclusionIndividualSpecification::axes_SI)
+        .def_readwrite("eigenDistortion", &EllipsoidalInclusionIndividualSpecification::eigenDistortion)
+        .def_readwrite("velocityReductionFactor", &EllipsoidalInclusionIndividualSpecification::velocityReductionFactor)
+        .def_readwrite("phaseID", &EllipsoidalInclusionIndividualSpecification::phaseID)
+        .def_readwrite("allowOverlap", &EllipsoidalInclusionIndividualSpecification::allowOverlap)
+        .def_readwrite("allowOutside", &EllipsoidalInclusionIndividualSpecification::allowOutside)
+    ;
 
     py::class_<PolyhedronInclusionIndividualSpecification
     /*      */>(m,"PolyhedronInclusionIndividualSpecification")
