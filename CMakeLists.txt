@@ -16,12 +16,10 @@
 #   CMAKE_PREFIX_PATH   where to find Qt 6, e.g. ~/Qt/6.7.3/macos/lib/cmake
 #   Python_EXECUTABLE   Python interpreter to use for pybind11
 #
-# Example on macOS with MacPorts (clang 18, Python 3.11):
-# export LDFLAGS=-L/Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/usr/lib; LDFLAGS="$LDFLAGS -L/Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/usr/lib/system"
-#   cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-20 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake \
-#            -DPython_EXECUTABLE=/opt/local/bin/python3.11 \
-#            -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
-# cmake ..   -DCMAKE_CXX_COMPILER=clang++-mp-20 -DPython3_EXECUTABLE=/opt/local/bin/python3.11 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake  -DPython_EXECUTABLE=/opt/local/bin/python3.11 -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
+# Example on macOS with MacPorts (clang 20, Python 3.14):
+#   export LDFLAGS=-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib
+#   export LDFLAGS="$LDFLAGS -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/system"
+# cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-20 -DCMAKE_PREFIX_PATH=$HOME/Applications/Qt/6.10.0//macos/lib/cmake -DPython_EXECUTABLE=/opt/local/bin/python3.14 -Dpybind11_DIR=$(/opt/local/bin/python3.14 -m pybind11 --cmakedir)
 # See also https://mcilloni.ovh/2021/02/09/cxx-cross-clang/
 
 cmake_minimum_required(VERSION 3.20)

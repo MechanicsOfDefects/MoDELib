@@ -43,6 +43,7 @@
 #include <DislocationDynamicsBase.h>
 #include <DefectiveCrystal.h>
 #include <MicrostructureGenerator.h>
+//#include <EllipsoidalInclusionIndividualSpecification.h>
 #include <DislocationMobilitySelector.h>
 #include <DislocationMobilityViscousDrag.h>
 #include <DislocationMobilityKinkPair.h>
@@ -302,6 +303,10 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readonly("primitiveVectors", &GlidePlaneBase::primitiveVectors)
         .def_readonly("gammaSurface", &GlidePlaneBase::gammaSurface)
     ;
+    
+    py::class_<GlidePlane<3>,std::shared_ptr<GlidePlane<3>>>(m,"GlidePlane")
+        .def("planeBaseID", &GlidePlane<3>::planeBaseID)
+    ;
 
     py::class_<SlipSystem,std::shared_ptr<SlipSystem>>(m,"SlipSystem")
 //        .def(py::init<const GlidePlaneBase&,const RationalLatticeDirection<3>&,const std::shared_ptr<DislocationMobilityBase>&,const std::shared_ptr<GlidePlaneNoise>&>())
@@ -414,6 +419,8 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def("solidAngle",&LoopType::solidAngle)
         .def("meshed",&LoopType::meshed)
         .def("slippedArea",&LoopType::slippedArea)
+        .def_readonly("glidePlane", &LoopType::glidePlane)
+        .def("averagePlasticDistortion",&LoopType::averagePlasticDistortion)
     ;
     
     py::class_<MeshedDislocationLoop
@@ -717,6 +724,18 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readwrite("allowOutside", &SphericalInclusionIndividualSpecification::allowOutside)
     ;
     
+//    py::class_<EllipsoidalInclusionIndividualSpecification>(m,"EllipsoidalInclusionIndividualSpecification")
+//        .def(py::init<>())
+//        .def(py::init<const std::string&>())
+//        .def_readwrite("center", &EllipsoidalInclusionIndividualSpecification::center)
+//        .def_readwrite("axes_SI", &EllipsoidalInclusionIndividualSpecification::axes_SI)
+//        .def_readwrite("eigenDistortion", &EllipsoidalInclusionIndividualSpecification::eigenDistortion)
+//        .def_readwrite("velocityReductionFactor", &EllipsoidalInclusionIndividualSpecification::velocityReductionFactor)
+//        .def_readwrite("phaseID", &EllipsoidalInclusionIndividualSpecification::phaseID)
+//        .def_readwrite("allowOverlap", &EllipsoidalInclusionIndividualSpecification::allowOverlap)
+//        .def_readwrite("allowOutside", &EllipsoidalInclusionIndividualSpecification::allowOutside)
+//    ;
+
     py::class_<PolyhedronInclusionIndividualSpecification
     /*      */>(m,"PolyhedronInclusionIndividualSpecification")
         .def(py::init<>())
