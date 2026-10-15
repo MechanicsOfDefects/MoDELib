@@ -39,6 +39,8 @@
 #include <NetworkNodeActor.h>
 #include <vtkRenderer.h>
 
+#include <DDqtControls.h>
+
 namespace model
 {
     
@@ -97,14 +99,23 @@ namespace model
             velocityActor->SetVisibility(false);
             velocityScaleEdit->setEnabled(false);
 
-
-            mainLayout->addWidget(showNodes,0,0,1,1);
-            mainLayout->addWidget(sliderNodeRadius,0,1,1,1);
-            mainLayout->addWidget(showNodeLabels,1,0,1,1);
-            mainLayout->addWidget(showSpecificNodeLabel,2,0,1,1);
-            mainLayout->addWidget(showSpecificNodeLabelEdit,2,1,1,1);
-            mainLayout->addWidget(showVelocities,3,0,1,1);
-            mainLayout->addWidget(velocityScaleEdit,3,1,1,1);
+            auto *nodesBox = controls::box("Nodes", this, "Show or hide network-node markers.", showNodes);
+            controls::field(controls::grid(nodesBox), 0, "Radius", sliderNodeRadius,
+                            "Marker radius in simulation length units b. Changes apply immediately.");
+            auto *labelsBox = controls::box("Node labels", this, "Show IDs for all network nodes.", showNodeLabels);
+            auto *selectedBox = controls::box("Selected node labels", this, "Show IDs only for the specified nodes.",
+                                              showSpecificNodeLabel);
+            controls::field(controls::grid(selectedBox), 0, "Node IDs", showSpecificNodeLabelEdit,
+                            "Enter space-separated node IDs. Press Enter to update the labels.");
+            auto *velocityBox =
+                controls::box("Velocities", this, "Show velocity arrows at network nodes.", showVelocities);
+            controls::field(controls::grid(velocityBox), 0, "Scale", velocityScaleEdit,
+                            "Multiply each velocity vector by this display scale. Press Enter to apply.");
+            mainLayout->addWidget(nodesBox, 0, 0);
+            mainLayout->addWidget(labelsBox, 1, 0);
+            mainLayout->addWidget(selectedBox, 2, 0);
+            mainLayout->addWidget(velocityBox, 3, 0);
+            mainLayout->setRowStretch(4, 1);
             this->setLayout(mainLayout);
 
             connect(showNodes,SIGNAL(stateChanged(int)), this, SLOT(modify()));

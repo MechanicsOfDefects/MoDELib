@@ -56,6 +56,7 @@
 
 #include <SimplicialMeshActor.h>
 
+#include <DDqtControls.h>
 
 namespace model
 {
@@ -197,21 +198,33 @@ namespace model
 //            axesWidget->SetEnabled( true );
 //            axesWidget->InteractiveOn();
 
-
-            mainLayout->addWidget(showMesh,0,0,1,1);
-            mainLayout->addWidget(showExternalFaceIDs,0,1,1,1);
-//            mainLayout->addWidget(showMeshLabel,0,1,1,1);
-            mainLayout->addWidget(showFaceBoundaries,1,0,1,1);
-            mainLayout->addWidget(showPeriodicFaces,1,1,1,1);
-//            mainLayout->addWidget(showFaceBoundariesLabel,1,1,1,1);
-//            mainLayout->addWidget(showGrainColors,2,0,1,1);
-  //          mainLayout->addWidget(showGrainColorsLabel,2,1,1,1);
-            mainLayout->addWidget(showRegionBoundaries,2,0,1,1);
-            mainLayout->addWidget(sliderRegionBoundaries,2,1,1,2);
-            mainLayout->addWidget(showClipPlane,3,0,1,1);
-            mainLayout->addWidget(sliderClipPlane,3,1,1,2);
-            mainLayout->addWidget(showAxes,4,0,1,1);
-            mainLayout->addWidget(showPeriodicityVectors,5,0,1,1);
+            auto *meshBox = controls::box("Mesh", this, "Show or hide the simulation mesh.", showMesh);
+            mainLayout->addWidget(meshBox, 0, 0);
+            auto *faceIDsBox = controls::box("Face IDs", this, "Show IDs of exterior mesh faces.", showExternalFaceIDs);
+            mainLayout->addWidget(faceIDsBox, 1, 0);
+            auto *facesBox =
+                controls::box("Face boundaries", this, "Show the boundary edges of mesh faces.", showFaceBoundaries);
+            mainLayout->addWidget(facesBox, 2, 0);
+            auto *periodicFacesBox = controls::box(
+                "Periodic faces", this, "Highlight faces paired by periodic boundary conditions.", showPeriodicFaces);
+            mainLayout->addWidget(periodicFacesBox, 3, 0);
+            auto *regionsBox = controls::box("Grain boundaries", this, "Show or hide internal region boundaries.",
+                                             showRegionBoundaries);
+            mainLayout->addWidget(regionsBox, 4, 0);
+            auto *clippedBox =
+                controls::box("Clipped boundaries", this, "Show the clipped grain-boundary surface.", showClipPlane);
+            mainLayout->addWidget(clippedBox, 5, 0);
+            auto *axesBox = controls::box("Axes", this, "Show or hide the coordinate axes.", showAxes);
+            mainLayout->addWidget(axesBox, 6, 0);
+            auto *periodicityBox =
+                controls::box("Periodicity vectors", this, "Show periodic translation vectors of the simulation cell.",
+                              showPeriodicityVectors);
+            mainLayout->addWidget(periodicityBox, 7, 0);
+            controls::field(controls::grid(regionsBox), 0, "Opacity", sliderRegionBoundaries,
+                            "Grain-boundary opacity: 0 is transparent, 10 is opaque.");
+            controls::field(controls::grid(clippedBox), 0, "Opacity", sliderClipPlane,
+                            "Opacity of the clipped boundary surface: 0 is transparent, 10 is opaque.");
+            mainLayout->setRowStretch(8, 1);
             sliderRegionBoundaries->setOrientation(Qt::Horizontal);
             sliderRegionBoundaries->setMinimum(0);
             sliderRegionBoundaries->setMaximum(10);
@@ -224,7 +237,7 @@ namespace model
 
    //         mainLayout->addWidget(showRegionBoundariesLabel,3,1,1,1);
             mainLayout->setColumnStretch(0, 1);
-            mainLayout->setColumnStretch(1, 12);
+
             this->setLayout(mainLayout);
 
             connect(showMesh,SIGNAL(stateChanged(int)), this, SLOT(modify()));

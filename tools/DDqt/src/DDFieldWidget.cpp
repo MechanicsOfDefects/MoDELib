@@ -26,6 +26,8 @@
 #include <vtkAxis.h>
 #include <DDFieldWidget.h>
 
+#include <DDqtControls.h>
+
 namespace model
 {
 
@@ -156,20 +158,20 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
 /* init */ mainLayout(new QGridLayout(this))
 /* init */,boxLabel(new QLabel(tr("# of planes")))
 /* init */,spinBox(new QSpinBox(this))
-/* init */,groupBox(new QGroupBox(tr("&Planes")))
+/* init */,groupBox(new controls::GroupBox(tr("&Planes")))
 /* init */,linesBoxLabel(new QLabel(tr("# of lines")))
 /* init */,linesSpinBox(new QSpinBox(this))
-/* init */,linesGroupBox(new QGroupBox(tr("&Lines")))
+/* init */,linesGroupBox(new controls::GroupBox(tr("&Lines")))
 /* init */,computeButton(new QPushButton(tr("Compute")))
 /* init */,fieldComboBox(new QComboBox(this))
 ///* init */,dislocationsCheck(new QCheckBox("dislocations",this))
 ///* init */,inclusionsCheck(new QCheckBox("inclusions",this))
 ///* init */,cdCheck(new QCheckBox("cluster dynamics",this))
 ///* init */,edCheck(new QCheckBox("elastic deformation",this))
-/* init */,customScaleBox(new QGroupBox(tr("&Custom scale")))
+/* init */,customScaleBox(new controls::GroupBox(tr("&Custom scale")))
 /* init */,minScale(new QLineEdit(tr("0")))
 /* init */,maxScale(new QLineEdit(tr("1")))
-/* init */,scaleBarBox(new QGroupBox(tr("&ScaleBar")))
+/* init */,scaleBarBox(new controls::GroupBox(tr("&ScaleBar")))
 /* init */,lut(vtkSmartPointer<vtkLookupTable>::New())
 /* init */,scalarBar(vtkSmartPointer<vtkScalarBarActor>::New())
 /* init */,renWin(renWin_in)
@@ -187,9 +189,12 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
     QGridLayout* autoscaleLayout = new QGridLayout();
     customScaleBox->setCheckable(true);
     customScaleBox->setChecked(false);
-    
-    autoscaleLayout->addWidget(minScale,0,0,1,1);
-    autoscaleLayout->addWidget(maxScale,0,1,1,1);
+
+    controls::field(
+        autoscaleLayout, 0, "Minimum", minScale,
+        "Lower field color-scale bound. Press Enter to apply; disable Custom scale to use automatic bounds.");
+    controls::field(autoscaleLayout, 1, "Maximum", maxScale, "Upper field color-scale bound. Press Enter to apply.");
+
     customScaleBox->setLayout(autoscaleLayout);
     
     scaleBarBox->setCheckable(true);
@@ -235,29 +240,38 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
     connect(customScaleBox,SIGNAL(toggled(bool)), this, SLOT(plotField()));
     connect(scaleBarBox,SIGNAL(toggled(bool)), this, SLOT(plotField()));
 
-    
-    
-    mainLayout->addWidget(boxLabel,0,0,1,1);
-    mainLayout->addWidget(spinBox,0,1,1,1);
-    mainLayout->addWidget(groupBox,1,0,1,2);
-    
-    mainLayout->addWidget(linesBoxLabel,2,0,1,1);
-    mainLayout->addWidget(linesSpinBox,2,1,1,1);
-    mainLayout->addWidget(linesGroupBox,3,0,1,2);
-    
-    mainLayout->addWidget(computeButton,4,0,1,1);
-    mainLayout->addWidget(fieldComboBox,5,0,1,1);
+    boxLabel->hide();
+    linesBoxLabel->hide();
+    auto *samplingBox = controls::box("Sampling", this, "Choose how many sampling planes and lines to configure.");
+    controls::field(controls::grid(samplingBox), 0, "Planes", spinBox,
+                    "Number of field-sampling planes. Changing this resets the plane definitions.");
+    controls::field(controls::grid(samplingBox), 1, "Lines", linesSpinBox,
+                    "Number of line profiles. Changing this resets the line definitions.");
+    auto *displayBox = controls::box("Field display", this, "Compute and display the selected field component.");
+    controls::field(controls::grid(displayBox), 0, "Quantity", fieldComboBox,
+                    "Field component to plot: displacement, stress or concentration in simulation units.");
+    controls::grid(displayBox)->addWidget(computeButton, 1, 0, 1, 2);
+    computeButton->setToolTip("Evaluate fields on all configured sampling planes and lines, then refresh their plots.");
+    auto *physicsBox =
+        controls::box("Physics", this, "Choose which microstructure contributions are summed for the displayed field.");
     for(size_t k=0;k<microstructuresCheck.size();++k)
     {
-        mainLayout->addWidget(microstructuresCheck[k],4+k,1,1,1);
+        controls::grid(physicsBox)->addWidget(microstructuresCheck[k], static_cast<int>(k), 0, 1, 2);
+        microstructuresCheck[k]->setToolTip(
+            "Include this physics contribution in the plotted field. This changes the sum of already computed values.");
     }
-//    mainLayout->addWidget(dislocationsCheck,2,1,1,1);
-//    mainLayout->addWidget(inclusionsCheck,3,1,1,1);
-//    mainLayout->addWidget(cdCheck,4,1,1,1);
-//    mainLayout->addWidget(edCheck,5,1,1,1);
-    mainLayout->addWidget(customScaleBox,4+microstructuresCheck.size(),0,1,2);
-    mainLayout->addWidget(scaleBarBox,5+microstructuresCheck.size(),0,1,2);
-
+    customScaleBox->setToolTip("Use the entered limits instead of the automatic field color scale.");
+    scaleBarBox->setToolTip("Show or hide the field color legend in the viewer.");
+    groupBox->setToolTip("Configure individual sampling planes; each plane checkbox controls its visibility.");
+    linesGroupBox->setToolTip("Configure individual line profiles; each line checkbox controls its visibility.");
+    mainLayout->addWidget(samplingBox, 0, 0);
+    mainLayout->addWidget(groupBox, 1, 0);
+    mainLayout->addWidget(linesGroupBox, 2, 0);
+    mainLayout->addWidget(displayBox, 3, 0);
+    mainLayout->addWidget(physicsBox, 4, 0);
+    mainLayout->addWidget(customScaleBox, 5, 0);
+    mainLayout->addWidget(scaleBarBox, 6, 0);
+    mainLayout->setRowStretch(7, 1);
     this->setLayout(mainLayout);
     
     
@@ -534,7 +548,7 @@ DDPlaneField::DDPlaneField(vtkGenericOpenGLRenderWindow* const renWin_in,
                            vtkRenderer* const renderer_in,
                            const DefectiveCrystal<3>& defectiveCrystal_in):
 /* init */ mainLayout(new QGridLayout(this))
-/* init */,groupBox(new QGroupBox(tr("&Plane")))
+/* init */,groupBox(new controls::GroupBox(tr("&Plane")))
 /* init */,posEdit(new QLineEdit("0 0 0"))
 /* init */,normalEdit(new QLineEdit("1 1 1"))
 /* init */,meshSizeEdit(new QLineEdit("1000"))
@@ -553,11 +567,17 @@ DDPlaneField::DDPlaneField(vtkGenericOpenGLRenderWindow* const renWin_in,
     normalEdit->setText(QString::fromStdString(std::to_string(n(0))+" "+std::to_string(n(1))+" "+std::to_string(n(2))));
     
     QGridLayout* groupBoxLayout = new QGridLayout();
-    groupBoxLayout->addWidget(posEdit,0,0,1,1);
-    groupBoxLayout->addWidget(normalEdit,1,0,1,1);
-    groupBoxLayout->addWidget(meshSizeEdit,2,0,1,1);
+    controls::field(groupBoxLayout, 0, "Center (b)", posEdit,
+                    "Global x y z of a point on the sampling plane, in b. Press Enter to rebuild the plane.");
+    controls::field(groupBoxLayout, 1, "Normal", normalEdit,
+                    "Global nx ny nz of the sampling-plane normal. Enter a nonzero vector and press Enter.");
+    controls::field(groupBoxLayout, 2, "Mesh area (b²)", meshSizeEdit,
+                    "Maximum triangle area of the sampling mesh in b squared. Smaller values sample more points. Press "
+                    "Enter to rebuild.");
+
     groupBox->setLayout(groupBoxLayout);
-    
+
+    groupBox->setToolTip("Show or hide this field-sampling geometry and its plot.");
     groupBox->setCheckable(true);
     mainLayout->addWidget(groupBox,0,0,1,1);
     this->setLayout(mainLayout);
@@ -693,7 +713,7 @@ DDLineField::DDLineField(vtkGenericOpenGLRenderWindow* const renWin_in,
                            vtkRenderer* const renderer_in,
                            const DefectiveCrystal<3>& defectiveCrystal_in):
 /* init */ mainLayout(new QGridLayout(this))
-/* init */,groupBox(new QGroupBox(tr("&Line")))
+/* init */,groupBox(new controls::GroupBox(tr("&Line")))
 /* init */,posEdit(new QLineEdit("0 0 0"))
 /* init */,directionEdit(new QLineEdit("1 0 0"))
 /* init */,numPoinEdit(new QLineEdit("1000"))
@@ -721,12 +741,17 @@ DDLineField::DDLineField(vtkGenericOpenGLRenderWindow* const renWin_in,
     directionEdit->setText(QString::fromStdString(std::to_string(n(0))+" "+std::to_string(n(1))+" "+std::to_string(n(2))));
     
     QGridLayout* groupBoxLayout = new QGridLayout();
-    groupBoxLayout->addWidget(posEdit,0,0,1,2);
-    groupBoxLayout->addWidget(directionEdit,1,0,1,2);
-    groupBoxLayout->addWidget(numPoinEdit,2,0,1,1);
-//    groupBoxLayout->addWidget(clrDialog,2,1,1,1);
+    controls::field(groupBoxLayout, 0, "Center (b)", posEdit,
+                    "Global x y z of a point on the sampling line, in b. Press Enter to rebuild the line.");
+    controls::field(groupBoxLayout, 1, "Direction", directionEdit,
+                    "Global dx dy dz direction of the sampling line. Enter a nonzero vector and press Enter.");
+    controls::field(groupBoxLayout, 2, "Points", numPoinEdit,
+                    "Number of samples along the line within the simulation box. Enter an integer and press Enter.");
+
+    //    groupBoxLayout->addWidget(clrDialog,2,1,1,1);
     groupBox->setLayout(groupBoxLayout);
-    
+
+    groupBox->setToolTip("Show or hide this field-sampling geometry and its plot.");
     groupBox->setCheckable(true);
     mainLayout->addWidget(groupBox,0,0,1,1);
     this->setLayout(mainLayout);

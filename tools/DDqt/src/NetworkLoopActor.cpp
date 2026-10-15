@@ -38,11 +38,15 @@
 #include <vtkPolygon.h>
 #include <vtkCellArray.h>
 #include <vtkTriangle.h>
+#include <vtkUnsignedCharArray.h>
+#include <QLabel>
 
 #include <DDconfigIO.h>
 #include <MeshPlane.h>
 #include <NetworkLoopActor.h>
 #include <DislocationLoopPatches.h>
+
+#include <DDqtControls.h>
 
 namespace model
 {
@@ -54,9 +58,11 @@ NetworkLoopActor::NetworkLoopActor(vtkGenericOpenGLRenderWindow* const renWin,vt
 /* init */ renderWindow(renWin)
 /* init */,mainLayout(new QGridLayout(this))
 /* init */,showLoops(new QCheckBox(this))
-/* init */,slippedAreaBox(new QGroupBox(tr("&Slipped Area")))
+/* init */,colorScheme(new QComboBox(this))
+/* init */,manualColorButton(new QPushButton("Choose color…", this))
+/* init */,slippedAreaBox(new controls::GroupBox(tr("&Slipped Area")))
 /* init */,sliderSlippedArea(new QSlider(this))
-/* init */,meshAreaBox(new QGroupBox(tr("&Slipped Mesh")))
+/* init */,meshAreaBox(new controls::GroupBox(tr("&Slipped Mesh")))
 /* init */,nodePolyData(vtkSmartPointer<vtkPolyData>::New())
 /* init */,nodeGlyphs(vtkSmartPointer<vtkGlyph3D>::New())
 /* init */,nodeMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
@@ -120,9 +126,11 @@ NetworkLoopActor::NetworkLoopActor(vtkGenericOpenGLRenderWindow* const renWin,vt
     sliderSlippedArea->setOrientation(Qt::Horizontal);
     
     //            colorSlippedArea->setWindowFlags(Qt::Widget );
-    
-    QVBoxLayout *slippedAreaLayout = new QVBoxLayout();
-    slippedAreaLayout->addWidget(sliderSlippedArea);
+
+    QGridLayout *slippedAreaLayout = new QGridLayout();
+    controls::field(slippedAreaLayout, 0, "Opacity", sliderSlippedArea,
+                    "Opacity of slipped-area polygons: 0 is transparent and 10 is opaque.");
+
     //            slippedAreaLayout->addWidget(colorSlippedArea);
     slippedAreaBox->setLayout(slippedAreaLayout);
     
@@ -141,13 +149,48 @@ NetworkLoopActor::NetworkLoopActor(vtkGenericOpenGLRenderWindow* const renWin,vt
     //                groupBox->setChecked(true);
     
     QGridLayout *meshAreaLayout = new QGridLayout();
-    meshAreaLayout->addWidget(globalMeshSizeEdit,0,0,1,1);
-    meshAreaLayout->addWidget(localMeshSizeEdit,1,0,1,1);
+    controls::field(
+        meshAreaLayout, 0, "Global size", globalMeshSizeEdit,
+        "Maximum triangle area away from the loop boundary, in b squared. Press Enter to rebuild the slipped mesh.");
+    controls::field(meshAreaLayout, 1, "Local size", localMeshSizeEdit,
+                    "Spacing between refinement points along dislocation segments, in Burgers-vector units. Press "
+                    "Enter to rebuild the slipped mesh.");
+
     meshAreaBox->setLayout(meshAreaLayout);
 
-    mainLayout->addWidget(showLoops,0,0,1,1);
-    mainLayout->addWidget(slippedAreaBox,1,0,1,1);
-    mainLayout->addWidget(meshAreaBox,2,0,1,1);
+    auto *loopsBox =
+        controls::box("Loops", this, "Show or hide loop outlines, loop nodes and loop-node IDs.", showLoops);
+    auto *appearanceBox = controls::box(
+        "Appearance", this, "Color settings shared by outlines, node markers, slipped areas and slipped meshes.");
+    mainLayout->addWidget(loopsBox, 0, 0, 1, 2);
+    colorScheme->setObjectName("loopColorScheme");
+    colorScheme->addItems({"Manual", "Slip system"});
+    manualColorButton->setObjectName("loopManualColor");
+    controls::field(controls::grid(appearanceBox), 0, "Coloring", colorScheme,
+                    "Manual uses one chosen color. Slip system follows the SlipSystems palette and its live updates.");
+    controls::grid(appearanceBox)->addWidget(manualColorButton, 1, 0, 1, 2);
+    manualColorButton->setToolTip("Choose the manual color for all loop geometry. Default is light green.");
+    mainLayout->addWidget(appearanceBox, 1, 0, 1, 2);
+    mainLayout->addWidget(slippedAreaBox, 2, 0, 1, 2);
+    mainLayout->addWidget(meshAreaBox, 3, 0, 1, 2);
+    mainLayout->setRowStretch(4, 1);
+    slippedAreaBox->setToolTip("Show or hide the area swept by each dislocation loop.");
+    meshAreaBox->setToolTip("Show or hide triangulated slipped areas; enabling this group builds the mesh.");
+    connect(colorScheme, &QComboBox::currentIndexChanged, this,
+            [this](int)
+            {
+                applyColors();
+                modify();
+            });
+    connect(manualColorButton, &QPushButton::clicked, this,
+            [this]()
+            {
+                const QColor chosen = QColorDialog::getColor(manualColor, this, "Loop color");
+                if(chosen.isValid())
+                {
+                    setManualColor(chosen);
+                }
+            });
 
     //            mainLayout->addWidget(sliderSlippedArea,1,1,1,1);
     //            mainLayout->addWidget(colorSlippedArea,1,2,1,1);
@@ -158,7 +201,18 @@ NetworkLoopActor::NetworkLoopActor(vtkGenericOpenGLRenderWindow* const renWin,vt
     connect(showLoops,SIGNAL(stateChanged(int)), this, SLOT(modify()));
     //            connect(slippedAreaBox,SIGNAL(stateChanged(int)), this, SLOT(modify()));
     connect(slippedAreaBox,SIGNAL(toggled(bool)), this, SLOT(modify()));
-    
+    const auto refreshMesh = [this]()
+    {
+        if(meshAreaBox->isChecked())
+        {
+            updateConfiguration(slipSystemColors);
+        }
+        modify();
+    };
+    connect(meshAreaBox, &QGroupBox::toggled, this, refreshMesh);
+    connect(globalMeshSizeEdit, &QLineEdit::returnPressed, this, refreshMesh);
+    connect(localMeshSizeEdit, &QLineEdit::returnPressed, this, refreshMesh);
+
     connect(sliderSlippedArea,SIGNAL(valueChanged(int)), this, SLOT(modify()));
 //    connect(globalMeshSizeEdit,SIGNAL(returnPressed()), this, SLOT(updateConfiguration()));
 //    connect(localMeshSizeEdit,SIGNAL(returnPressed()), this, SLOT(updateConfiguration()));
@@ -182,6 +236,7 @@ NetworkLoopActor::NetworkLoopActor(vtkGenericOpenGLRenderWindow* const renWin,vt
     meshPolydata->Allocate();
     meshMapper->SetInputData(meshPolydata);
     meshActor->SetMapper ( meshMapper );
+    meshActor->SetVisibility(false);
     meshActor->GetProperty()->SetOpacity(0.8); //Make the mesh have some transparency.
 
     renderer->AddActor(nodeActor);
@@ -189,6 +244,7 @@ NetworkLoopActor::NetworkLoopActor(vtkGenericOpenGLRenderWindow* const renWin,vt
     renderer->AddActor(loopActor);
     renderer->AddActor(areaActor);
     renderer->AddActor(meshActor);
+    applyColors();
 
     //            std::vector<Eigen::Vector2d> clippedPolygonTemp(SutherlandHodgman::clip(polygon2d,box2d));
     
@@ -209,6 +265,7 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
 
 //        std::map<size_t,size_t> loopNodesMap; // nodeID,nodePositionInDDauxIO
 //        size_t k=0;
+        nodeSlipSystems.clear();
         for(const auto& weakNode : dislocationNetwork->loopNodes())
         {
             const auto& loopNode(weakNode.second.lock());
@@ -216,6 +273,7 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
             const auto& P(loopNode->get_P());
             points->InsertNextPoint(P.data());
             nodeLabels->InsertNextTuple1(loopNode->sID);
+            nodeSlipSystems.push_back(loopNode->loop()->slipSystem().get());
   //          k++;
         }
         
@@ -229,12 +287,15 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
 
         
         vtkSmartPointer<vtkCellArray> cells(vtkSmartPointer<vtkCellArray>::New());
+        lineSlipSystems.clear();
+        areaSlipSystems.clear();
         for(const auto& loopLink : dislocationNetwork->loopLinks())
         {
             vtkSmartPointer<vtkLine> line(vtkSmartPointer<vtkLine>::New());
             line->GetPointIds()->SetId(0, loopLink.second.source->networkID()); // the second 0 is the index of the Origin in linesPolyData's points
             line->GetPointIds()->SetId(1, loopLink.second.  sink->networkID());
             cells->InsertNextCell(line);
+            lineSlipSystems.push_back(loopLink.second.loop->slipSystem().get());
 
             
 //            const auto sourceIter(loopNodesMap.find(loopLink.first.first));
@@ -265,8 +326,7 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
         // Slipped area
         vtkNew<vtkPoints> areaPoints;
         vtkNew<vtkCellArray> areaPolygons;
-        vtkSmartPointer<vtkUnsignedCharArray> areaColors(vtkSmartPointer<vtkUnsignedCharArray>::New());
-        areaColors->SetNumberOfComponents(3);
+
 
         size_t areaPointID(0);
         for(const auto& weakloop : dislocationNetwork->loops())
@@ -283,22 +343,12 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
                 }
                 areaPolygons->InsertNextCell(polygon);
                 
-                Eigen::Matrix<int,3,1> areaClr((Eigen::Matrix<int,3,1>()<<255,255,255).finished());
-                if(loop->slipSystem())
-                {
-                    const auto ssIter(sscm.find(loop->slipSystem().get()));
-                    if(ssIter!=sscm.end())
-                    {
-                        areaClr=ssIter->second->rgb();
-                    }
-                }
-                areaColors->InsertNextTuple3(areaClr(0),areaClr(1),areaClr(2)); // use this to assig color to each vertex
+                areaSlipSystems.push_back(loop->slipSystem().get());
 
             }
         }
         areaPolyData->SetPoints(areaPoints);
         areaPolyData->SetPolys(areaPolygons);
-        areaPolyData->GetCellData()->SetScalars(areaColors);
         areaPolyData->Modified();
         areaMapper->SetScalarModeToUseCellData();
 
@@ -309,8 +359,7 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
         {
             vtkSmartPointer<vtkPoints> meshPts(vtkSmartPointer<vtkPoints>::New());
             vtkSmartPointer<vtkCellArray> meshTriangles(vtkSmartPointer<vtkCellArray>::New());
-            vtkSmartPointer<vtkUnsignedCharArray> meshColors(vtkSmartPointer<vtkUnsignedCharArray>::New());
-            meshColors->SetNumberOfComponents(3);
+            meshSlipSystems.clear();
 
             const double meshSize(std::atof(globalMeshSizeEdit->text() .toStdString().c_str()));
             const double localMeshSize(std::atof(localMeshSizeEdit->text() .toStdString().c_str()));
@@ -331,9 +380,7 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
                         triangle->GetPointIds()->SetId (1,tri(1)+ptsIncrement);
                         triangle->GetPointIds()->SetId (2,tri(2)+ptsIncrement);
                         meshTriangles->InsertNextCell ( triangle );
-                        const auto triColor(Eigen::Matrix<int,1,3>::Random()*255);
-                        meshColors->InsertNextTuple3(triColor(0),triColor(1),triColor(2)); // use this to assig color to each vertex
-//                        meshColors->InsertNextTuple3(153,153,255); // use this to assig color to each vertex
+                        meshSlipSystems.push_back(loop->slipSystem().get());
 
                     }
                     ptsIncrement+=patchMesh.points.size();
@@ -341,7 +388,6 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
             }
             meshPolydata->SetPoints ( meshPts );
             meshPolydata->SetPolys ( meshTriangles );
-            meshPolydata->GetCellData()->SetScalars(meshColors);
             meshPolydata->Modified();
             meshMapper->SetScalarModeToUseCellData();
 //            renWin->Render();
@@ -350,7 +396,72 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
         }
 //        renderWindow->Render();
     }
+    updateColors(sscm);
     std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+}
+
+void NetworkLoopActor::applyColors()
+{
+    const bool manual = colorScheme->currentIndex() == 0;
+    manualColorButton->setVisible(manual);
+    manualColorButton->setStyleSheet(QString("background-color: %1; color: %2;")
+        .arg(manualColor.name(), manualColor.lightness() > 128 ? "black" : "white"));
+    const auto apply = [&](vtkPolyData* data, vtkPolyDataMapper* mapper, vtkActor* actor,
+                           const std::vector<const SlipSystem*>& systems, bool pointData)
+    {
+        actor->GetProperty()->SetColor(manualColor.redF(), manualColor.greenF(), manualColor.blueF());
+        mapper->SetScalarVisibility(!manual);
+        if(!manual)
+        {
+            auto colors = vtkSmartPointer<vtkUnsignedCharArray>::New();
+            colors->SetNumberOfComponents(3);
+            colors->SetName("Slip system colors");
+            for(const auto* system : systems)
+            {
+                Eigen::Vector3i color(255, 255, 255);
+                const auto found = slipSystemColors.find(system);
+                if(found != slipSystemColors.end())
+                {
+                    color = found->second->rgb();
+                }
+                colors->InsertNextTuple3(color.x(), color.y(), color.z());
+            }
+            if(pointData)
+            {
+                data->GetPointData()->SetScalars(colors);
+                mapper->SetScalarModeToUsePointData();
+            }
+            else
+            {
+                data->GetCellData()->SetScalars(colors);
+                mapper->SetScalarModeToUseCellData();
+            }
+            data->Modified();
+            mapper->SetColorModeToDirectScalars();
+        }
+    };
+    apply(nodePolyData, nodeMapper, nodeActor, nodeSlipSystems, true);
+    apply(loopPolyData, loopMapper, loopActor, lineSlipSystems, false);
+    apply(areaPolyData, areaMapper, areaActor, areaSlipSystems, false);
+    apply(meshPolydata, meshMapper, meshActor, meshSlipSystems, false);
+    areaTriangleFilter->Update();
+    nodeGlyphs->Update();
+}
+
+void NetworkLoopActor::setManualColor(const QColor& color)
+{
+    if(color.isValid())
+    {
+        manualColor = color;
+        applyColors();
+        modify();
+    }
+}
+
+void NetworkLoopActor::updateColors(const SlipSystemTab::SlipSystemColorMapType& sscm)
+{
+    slipSystemColors = sscm;
+    applyColors();
 }
 
 void NetworkLoopActor::modify()
@@ -363,9 +474,13 @@ void NetworkLoopActor::modify()
     
     loopActor->SetVisibility(showLoops->isChecked());
     areaActor->SetVisibility(slippedAreaBox->isChecked());
+    meshActor->SetVisibility(meshAreaBox->isChecked());
     areaActor->GetProperty()->SetOpacity(sliderSlippedArea->value()/10.0);
     
-    renderWindow->Render();
+    if(renderWindow->GetReadyForRendering())
+    {
+        renderWindow->Render();
+    }
 }
 
 } // namespace model

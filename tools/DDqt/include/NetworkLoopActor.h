@@ -21,6 +21,8 @@
 #include <QGroupBox>
 #include <QVBoxLayout>
 #include <QLineEdit>
+#include <QComboBox>
+#include <QPushButton>
 
 #include <vtkGenericOpenGLRenderWindow.h>
 #include <vtkVersion.h>
@@ -62,6 +64,15 @@ namespace model
 
         QGridLayout* mainLayout;
         QCheckBox* showLoops;
+        QComboBox* colorScheme;
+        QPushButton* manualColorButton;
+        QColor manualColor{144, 238, 144};
+        SlipSystemTab::SlipSystemColorMapType slipSystemColors;
+        std::vector<const SlipSystem*> nodeSlipSystems;
+        std::vector<const SlipSystem*> lineSlipSystems;
+        std::vector<const SlipSystem*> areaSlipSystems;
+        std::vector<const SlipSystem*> meshSlipSystems;
+        void applyColors();
         
         QGroupBox* slippedAreaBox;
         QSlider* sliderSlippedArea;
@@ -101,6 +112,8 @@ namespace model
 
         NetworkLoopActor(vtkGenericOpenGLRenderWindow* const,vtkRenderer* const,const DefectiveCrystal<3>& defectiveCrystal_in);
         void updateConfiguration(const SlipSystemTab::SlipSystemColorMapType& sscm);
+        void updateColors(const SlipSystemTab::SlipSystemColorMapType& sscm);
+        void setManualColor(const QColor& color);
         
     };
     

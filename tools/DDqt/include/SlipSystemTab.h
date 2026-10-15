@@ -45,6 +45,9 @@ class SlipSystemButton : public QPushButton
         Q_OBJECT
         
         
+    signals:
+        void colorsChanged();
+
     private slots:
         
         void changeColor();

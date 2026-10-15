@@ -43,6 +43,8 @@
 // http://hiraku0n.blogspot.com/2012/10/writing-scalar-and-vector-field-in-vtk.html
 // http://vtk.1045678.n5.nabble.com/Glyphing-vtkImageData-scalars-3D-as-arrows-td3199837.html
 
+#include <DDqtControls.h>
+
 namespace model
 {
 
@@ -207,7 +209,10 @@ namespace model
     {
         showInclusions->setChecked(true);
         showInclusions->setText("show inclusions");
-        mainLayout->addWidget(showInclusions,0,0,1,1);
+        auto *inclusionBox =
+            controls::box("Inclusions", this, "Show spherical, ellipsoidal and polyhedral inclusions.", showInclusions);
+        mainLayout->addWidget(inclusionBox, 0, 0);
+        mainLayout->setRowStretch(1, 1);
         this->setLayout(mainLayout);
         connect(showInclusions,SIGNAL(stateChanged(int)), this, SLOT(modify()));
         
@@ -216,9 +221,9 @@ namespace model
         sliderInclusionOpacity->setValue(5);
         sliderInclusionOpacity->setOrientation(Qt::Horizontal);
         connect(sliderInclusionOpacity,SIGNAL(valueChanged(int)), this, SLOT(modify()));
-        mainLayout->addWidget(sliderInclusionOpacity,1,0,1,1);
+        controls::field(controls::grid(inclusionBox), 0, "Opacity", sliderInclusionOpacity,
+                        "Set inclusion opacity from transparent (0) to opaque (10).");
 
-        
         sphereSource->SetPhiResolution(20);
         sphereSource->SetThetaResolution(20);
         glyph3D->SetInputData(grid);

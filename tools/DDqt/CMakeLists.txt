@@ -35,3 +35,16 @@ if(BUILD_TESTS)
     vtk_module_autoinit(TARGETS testEllipsoidalInclusionPolyData MODULES
         VTK::CommonCore VTK::CommonDataModel VTK::FiltersSources VTK::FiltersGeneral)
 endif()
+
+if(BUILD_TESTS)
+    add_executable(testSurfaceMesh tests/testSurfaceMesh.cpp src/SurfaceMeshActor.cpp)
+    target_include_directories(testSurfaceMesh PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(testSurfaceMesh PRIVATE MoDELib ${VTK_LIBRARIES} Qt6::Widgets Qt6::OpenGL)
+    vtk_module_autoinit(TARGETS testSurfaceMesh MODULES ${VTK_LIBRARIES})
+endif()
+
+if(BUILD_TESTS)
+    add_executable(testWrappingTabWidget tests/testWrappingTabWidget.cpp)
+    target_include_directories(testWrappingTabWidget PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(testWrappingTabWidget PRIVATE Qt6::Widgets)
+endif()

@@ -43,6 +43,7 @@
 #include <NetworkLinkActor.h>
 #include <Vector2Color.h>
 
+#include <DDqtControls.h>
 
 namespace model
 {
@@ -87,12 +88,18 @@ namespace model
         linksColorBox->addItem("glissile/sessile");
         linksColorBox->addItem("edge/screw");
         linksColorBox->addItem("slip system");
-        
-        mainLayout->addWidget(showLinks,0,0,1,1);
-        mainLayout->addWidget(sliderLinksRadius,0,1,1,1);
-        mainLayout->addWidget(linksColorBox,1,0,1,1);
-        mainLayout->addWidget(showZeroLinks,2,0,1,1);
-        
+
+        auto *segmentsBox = controls::box("Segments", this, "Show or hide dislocation segments.", showLinks);
+        controls::field(controls::grid(segmentsBox), 0, "Radius", sliderLinksRadius,
+                        "Tube radius in simulation length units b. Changes apply immediately.");
+        controls::field(
+            controls::grid(segmentsBox), 1, "Coloring", linksColorBox,
+            "Choose which dislocation property determines segment color. Slip system uses the SlipSystems palette.");
+        auto *zeroBox = controls::box("Zero-Burgers segments", this, "Show segments whose net Burgers vector is zero.",
+                                      showZeroLinks);
+        mainLayout->addWidget(segmentsBox, 0, 0);
+        mainLayout->addWidget(zeroBox, 1, 0);
+        mainLayout->setRowStretch(2, 1);
         this->setLayout(mainLayout);
         
         connect(showLinks,SIGNAL(stateChanged(int)), this, SLOT(modify()));

@@ -23,6 +23,8 @@
 #include <GlidePlaneActor.h>
 #include <Polygon2D.h>
 
+#include <DDqtControls.h>
+
 namespace model
 {
 
@@ -88,9 +90,9 @@ namespace model
     /* init */,defectiveCrystal(defectiveCrystal_in)
     /* init */,dislocationNetwork(defectiveCrystal.template getUniqueTypedMicrostructure<DislocationNetwork<3>>())
     /* init */,mainLayout(new QGridLayout(this))
-    /* init */,glidePlanesGroup(new QGroupBox(tr("&Planes")))
+    /* init */,glidePlanesGroup(new controls::GroupBox(tr("&Planes")))
     /* init */,lut(vtkSmartPointer<vtkLookupTable>::New())
-    /* init */,glidePlanesNoiseGroup(new QGroupBox(tr("&Noise")))
+    /* init */,glidePlanesNoiseGroup(new controls::GroupBox(tr("&Noise")))
     /* init */,noiseMeshSizeLabel(new QLabel("mesh size",this))
     /* init */,noiseMeshSizeEdit(new QLineEdit("2.0"))
     /* init */,grainNoiseLabel(new QLabel("grain",this))
@@ -106,7 +108,7 @@ namespace model
     /* init */,noisePolydata(vtkSmartPointer<vtkPolyData>::New())
     /* init */,noiseMapper(vtkSmartPointer<vtkDataSetMapper>::New())
     /* init */,noiseActor(vtkSmartPointer<vtkActor>::New())
-    /* init */,stackingFaultGroup(new QGroupBox(tr("&Stacking Faults")))
+    /* init */,stackingFaultGroup(new controls::GroupBox(tr("&Stacking Faults")))
     /* init */,glidePlanePolydata(vtkSmartPointer<vtkPolyData>::New())
     /* init */,glidePlaneMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
     /* init */,glidePlaneActor(vtkSmartPointer<vtkActor>::New())
@@ -151,29 +153,46 @@ namespace model
         
         QGridLayout *noiseLayout = new QGridLayout();
         glidePlanesNoiseGroup->setLayout(noiseLayout);
-        noiseLayout->addWidget(noiseMeshSizeLabel,0,0,1,1);
-        noiseLayout->addWidget(noiseMeshSizeEdit,0,1,1,1);
-        noiseLayout->addWidget(grainNoiseLabel,1,0,1,1);
-        noiseLayout->addWidget(grainNoiseBox,1,1,1,1);
-        noiseLayout->addWidget(slipSystemNoiseBox,2,0,1,1);
-        noiseLayout->addWidget(glidePlanesNoiseBox,2,1,1,1);
-        noiseLayout->addWidget(ss1NoiseMin,3,0,1,1);
-        noiseLayout->addWidget(ss1NoiseMax,3,1,1,1);
-        noiseLayout->addWidget(ss2NoiseMin,4,0,1,1);
-        noiseLayout->addWidget(ss2NoiseMax,4,1,1,1);
-        noiseLayout->addWidget(sfNoiseMin,5,0,1,1);
-        noiseLayout->addWidget(sfNoiseMax,5,1,1,1);
-        
+        noiseMeshSizeLabel->hide();
+        grainNoiseLabel->hide();
+        controls::field(noiseLayout, 0, "Mesh area", noiseMeshSizeEdit,
+                        "Sampling mesh size for glide-plane noise. Press Enter to recompute.");
+        controls::field(noiseLayout, 1, "Grain", grainNoiseBox,
+                        "Grain whose slip planes and noise fields are displayed.");
+        controls::field(noiseLayout, 2, "Slip system", slipSystemNoiseBox, "Slip system for the selected grain.");
+        controls::field(noiseLayout, 3, "Noise field", glidePlanesNoiseBox,
+                        "Choose the solid-solution or stacking-fault noise component.");
+        controls::field(noiseLayout, 4, "SS1 minimum", ss1NoiseMin,
+                        "Lower color-scale limit for solid-solution noise component 1. Press Enter to apply.");
+        controls::field(noiseLayout, 5, "SS1 maximum", ss1NoiseMax,
+                        "Upper color-scale limit for solid-solution noise component 1. Press Enter to apply.");
+        controls::field(noiseLayout, 6, "SS2 minimum", ss2NoiseMin,
+                        "Lower color-scale limit for solid-solution noise component 2. Press Enter to apply.");
+        controls::field(noiseLayout, 7, "SS2 maximum", ss2NoiseMax,
+                        "Upper color-scale limit for solid-solution noise component 2. Press Enter to apply.");
+        controls::field(noiseLayout, 8, "SF minimum", sfNoiseMin,
+                        "Lower color-scale limit for stacking-fault noise. Press Enter to apply.");
+        controls::field(noiseLayout, 9, "SF maximum", sfNoiseMax,
+                        "Upper color-scale limit for stacking-fault noise. Press Enter to apply.");
+
         QGridLayout *stackingFaultLayout = new QGridLayout();
-        stackingFaultLayout->addWidget(sfeMinEdit,0,0,1,1);
-        stackingFaultLayout->addWidget(sfeMaxEdit,0,1,1,1);
+        controls::field(stackingFaultLayout, 0, "Minimum", sfeMinEdit,
+                        "Lower stacking-fault energy color-scale limit. Press Enter to apply.");
+        controls::field(stackingFaultLayout, 1, "Maximum", sfeMaxEdit,
+                        "Upper stacking-fault energy color-scale limit. Press Enter to apply.");
+
         stackingFaultGroup->setLayout(stackingFaultLayout);
 
         
         mainLayout->addWidget(glidePlanesGroup,0,0,1,1);
         mainLayout->addWidget(glidePlanesNoiseGroup,1,0,1,1);
         mainLayout->addWidget(stackingFaultGroup,2,0,1,1);
-        
+
+        glidePlanesGroup->setToolTip(
+            "Show or hide the glide planes associated with the current dislocation configuration.");
+        glidePlanesNoiseGroup->setToolTip("Show or hide sampled noise on the selected grain and slip system.");
+        stackingFaultGroup->setToolTip("Show or hide stacking-fault energy on glide planes.");
+        mainLayout->setRowStretch(3, 1);
         this->setLayout(mainLayout);
         connect(glidePlanesGroup,SIGNAL(toggled(bool)), this, SLOT(modify()));
         connect(glidePlanesNoiseGroup,SIGNAL(toggled(bool)), this, SLOT(modify()));
@@ -188,6 +207,8 @@ namespace model
         connect(sfNoiseMin,SIGNAL(returnPressed()), this, SLOT(modify()));
         connect(sfNoiseMax,SIGNAL(returnPressed()), this, SLOT(modify()));
         connect(noiseMeshSizeEdit,SIGNAL(returnPressed()), this, SLOT(computeGlidePlaneNoise()));
+        connect(sfeMinEdit, &QLineEdit::returnPressed, this, &GlidePlaneActor::computeStackingFaults);
+        connect(sfeMaxEdit, &QLineEdit::returnPressed, this, &GlidePlaneActor::computeStackingFaults);
 
         // GlidePlane boundaries
         glidePlaneMapper->SetInputData(glidePlanePolydata);
