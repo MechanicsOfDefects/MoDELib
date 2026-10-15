@@ -16,3 +16,8 @@ if(TARGET testDDqtFrameWorkflow)
     add_test(NAME DDqtFrameWorkflow COMMAND testDDqtFrameWorkflow "${PROJECT_SOURCE_DIR}")
     set_tests_properties(DDqtFrameWorkflow PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
 endif()
+
+add_executable(testPeriodicMesh testPeriodicMesh.cpp)
+target_link_libraries(testPeriodicMesh PRIVATE MoDELib)
+add_test(NAME periodicMesh COMMAND testPeriodicMesh "${PROJECT_SOURCE_DIR}")
+set_tests_properties(periodicMesh PROPERTIES TIMEOUT 120)

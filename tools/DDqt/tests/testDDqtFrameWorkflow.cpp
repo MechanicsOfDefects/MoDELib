@@ -4,6 +4,9 @@
 #include <QPointer>
 #include <QEventLoop>
 #include <vtkRenderer.h>
+#include <vtkPolyDataMapper.h>
+#include <vtkActor2D.h>
+#include <vtkProperty.h>
 #include <filesystem>
 #include <fstream>
 #include <chrono>
@@ -16,6 +19,95 @@ void check(bool condition, const char *message)
     if(!condition)
     {
         throw std::runtime_error(message);
+    }
+}
+
+void checkPeriodicImages()
+{
+    auto window = vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New();
+    window->SetReadyForRendering(false);
+    auto renderer = vtkSmartPointer<vtkRenderer>::New();
+    window->AddRenderer(renderer);
+    auto source = vtkSmartPointer<vtkActor>::New();
+    auto mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+    auto data = vtkSmartPointer<vtkPolyData>::New();
+    mapper->SetInputData(data);
+    source->SetMapper(mapper);
+    source->SetPosition(1, 2, 3);
+    source->RotateZ(30);
+    source->SetScale(2, 3, 4);
+    renderer->AddActor(source);
+    auto overlay = vtkSmartPointer<vtkActor2D>::New();
+    renderer->AddActor2D(overlay);
+    {
+        model::PeriodicImages images(renderer);
+        images.setTranslations({Eigen::Vector3d(10, 20, 30)});
+        check(renderer->GetViewProps()->GetNumberOfItems() == 3, "Incorrect periodic copy count");
+        auto* copy = vtkActor::SafeDownCast(renderer->GetViewProps()->GetLastProp());
+        check(copy && copy != source && copy->GetMapper() == mapper, "Copy does not share source geometry");
+        for(int row = 0; row < 4; ++row)
+        {
+            for(int col = 0; col < 4; ++col)
+            {
+                const double shift = col == 3 && row < 3 ? 10.0 * (row + 1) : 0.0;
+                check(std::abs(copy->GetMatrix()->GetElement(row, col) -
+                      source->GetMatrix()->GetElement(row, col) - shift) < 1.e-12,
+                      "Periodic translation corrupted source transformation");
+            }
+        }
+        source->VisibilityOff();
+        source->GetProperty()->SetOpacity(0.25);
+        auto replacement = vtkSmartPointer<vtkPolyDataMapper>::New();
+        replacement->SetInputData(data);
+        source->SetMapper(replacement);
+        renderer->InvokeEvent(vtkCommand::StartEvent);
+        check(!copy->GetVisibility() && copy->GetProperty()->GetOpacity() == 0.25 &&
+              copy->GetMapper() == replacement, "Render callback did not synchronize actor settings");
+        check(renderer->GetViewProps()->GetNumberOfItems() == 3, "Copies recursively replicated");
+        renderer->RemoveActor(source);
+        renderer->InvokeEvent(vtkCommand::StartEvent);
+        check(renderer->GetViewProps()->GetNumberOfItems() == 1, "Removed source retained its copies");
+        renderer->AddActor(source);
+        renderer->InvokeEvent(vtkCommand::StartEvent);
+        check(renderer->GetViewProps()->GetNumberOfItems() == 3, "New actor was not replicated");
+    }
+    check(renderer->GetViewProps()->GetNumberOfItems() == 2, "Periodic images leaked on destruction");
+    Eigen::Matrix<double, 3, Eigen::Dynamic> basis(3, 2);
+    basis << 10, 3, 0, 20, 0, 4;
+    {
+        model::PeriodicImagesWidget controls(window, renderer, basis, nullptr);
+        auto* group = controls.findChild<QGroupBox*>("periodicImagesGroup");
+        auto* first = controls.findChild<QSpinBox*>("periodicImageCount1");
+        auto* second = controls.findChild<QSpinBox*>("periodicImageCount2");
+        check(group && first && second && !group->isChecked(), "Missing periodic controls or wrong default");
+        first->setValue(1);
+        second->setValue(1);
+        group->setChecked(true);
+        check(renderer->GetViewProps()->GetNumberOfItems() == 10, "Two directions did not create nine cells");
+        std::set<std::array<int, 3>> actual;
+        vtkCollectionSimpleIterator iterator;
+        renderer->GetViewProps()->InitTraversal(iterator);
+        while(auto* prop = renderer->GetViewProps()->GetNextProp(iterator))
+        {
+            if(auto* actor = vtkActor::SafeDownCast(prop))
+            {
+                std::array<int, 3> shift;
+                for(int row = 0; row < 3; ++row)
+                {
+                    shift[row] = std::lround(actor->GetMatrix()->GetElement(row, 3) - source->GetMatrix()->GetElement(row, 3));
+                }
+                actual.insert(shift);
+            }
+        }
+        for(int i = -1; i <= 1; ++i)
+        {
+            for(int j = -1; j <= 1; ++j)
+            {
+                check(actual.count({10*i + 3*j, 20*j, 4*j}) == 1, "Missing oblique lattice image");
+            }
+        }
+        group->setChecked(false);
+        check(renderer->GetViewProps()->GetNumberOfItems() == 2, "Disabling images did not restore original scene");
     }
 }
 
@@ -39,6 +131,7 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     try
     {
+        checkPeriodicImages();
         check(argc == 2, "Expected repository root");
         const std::filesystem::path root(argv[1]);
         const auto dir =
@@ -64,8 +157,14 @@ int main(int argc, char **argv)
               << "ExternalStrain0=0 0 0 0 0 0;\nExternalStrainRate=0 0 0 0 0 0;\n"
               << "stiffnessRatio=0 0 0 0 0 0;\n";
         }
+        // Reopening a visualization-only tutorial leaves empty history files.
+        // Explicit startAtTimeStep=0 must not attempt to dereference a missing row.
+        std::ofstream(dir / "F/F_0.txt").close();
+        std::ofstream(dir / "F/F_labels.txt").close();
         {
             model::DislocationDynamicsBase<3> base(dir.string());
+            check(base.simulationParameters.runID == 0 && base.simulationParameters.totalTime == 0.0,
+                  "Empty history did not retain the default restart state");
 
             model::DDconfigIO<3> config((dir / "evl").string());
             model::DDauxIO<3> aux((dir / "evl").string());

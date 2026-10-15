@@ -86,3 +86,6 @@ build/
 
 # Test reports
 tests/**/reports/
+
+# Generated tutorial inputs
+/tutorials/**/inputFiles/

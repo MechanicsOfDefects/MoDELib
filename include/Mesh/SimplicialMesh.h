@@ -53,6 +53,7 @@ namespace model
         VectorDim _xC;
 
         double vol0;
+        Eigen::Matrix<double,_dim,Eigen::Dynamic> _periodicBasis = Eigen::Matrix<double,_dim,Eigen::Dynamic>(_dim,0);
         
         void createMesh(const std::set<int>&);
         
@@ -87,6 +88,9 @@ namespace model
         
         void updateRegionBoundaries();
         
+        // Discover the full valid lattice first, then select active translations using
+        // external face IDs. Only integer-combination pairs are activated; unmatched
+        // faces remain physical boundaries. -1 enables all; an empty set disables pairing.
         void identifyParallelFaces(const std::set<int>&);
         
         Eigen::Matrix<double,dim,Eigen::Dynamic> periodicBasis() const;

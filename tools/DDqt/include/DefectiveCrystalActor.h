@@ -29,6 +29,7 @@
 #include <DDFieldWidget.h>
 #include <SurfaceMeshActor.h>
 #include <FrameCameraRotation.h>
+#include <PeriodicImagesWidget.h>
 #include <SimplicialMesh.h>
 #include <NetworkNodeActor.h>
 #include <NetworkLinkActor.h>
@@ -78,6 +79,7 @@ namespace model
         bool updatingFrame = false;
         void refreshFrame(size_t frameID);
         vtkRenderer *const renderer;
+        PeriodicImagesWidget* periodicImages;
         FrameCameraRotation frameRotation;
         Eigen::Vector3d rotationAxis = Eigen::Vector3d::UnitZ();
         double rotationDegreesPerFrame = 0.0;

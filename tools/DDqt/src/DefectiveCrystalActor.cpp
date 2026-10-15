@@ -141,6 +141,8 @@ namespace model
             framesLayout->addWidget(frameStatus, 4, 0, 1, 2);
             saveImage->setToolTip("Save a PNG of each loaded frame to the simulation output folder.");
             mainLayout->addWidget(framesBox, 0, 0, 1, 6);
+            periodicImages = new PeriodicImagesWidget(renderWindow, renderer, ddBase.mesh.periodicBasis(), this);
+            mainLayout->addWidget(periodicImages, 1, 0, 1, 6);
             mainLayout->addWidget(tabWidget,2,0,1,6);
             this->setLayout(mainLayout);
 
@@ -239,6 +241,7 @@ namespace model
             stopConfigurations();
             // Actors and field samplers reference defectiveCrystal and ddBase.
             // Destroy them before those members and their data are released.
+            delete periodicImages;
             delete tabWidget;
         }
 

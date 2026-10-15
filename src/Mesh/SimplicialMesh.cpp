@@ -31,6 +31,7 @@
 //#include <SimplicialMeshFace.h>
 #include <GmshReader.h>
 #include <SimplicialMesh.h>
+#include <PeriodicMeshFacePairing.h>
 
 
 namespace model
@@ -229,215 +230,50 @@ namespace model
     template<int dim>
     void SimplicialMesh<dim>::identifyParallelFaces(const std::set<int>& periodicFaceIDs)
     {
-        
-        typedef std::map<VectorDim,PlanarMeshFace<dim>*,CompareVectorsByComponent<double,dim,float>> MultipleShiftMapType;
-        
-        std::map<PlanarMeshFace<dim>*,MultipleShiftMapType> faceShiftsMap;
-        for(const auto& region1 : this->regions())
+        std::vector<PlanarMeshFace<dim>*> faces;
+        std::set<int> available;
+        for(const auto& region : this->regions())
         {
-            for(const auto& face1 : region1.second->faces())
+            for(const auto& face : region.second->faces())
             {
-                if(face1.second->isExternal())
+                if(face.second->isExternal())
                 {
-                    for(const auto& region2 : this->regions())
-                    {
-                        for(const auto& face2 : region2.second->faces())
-                        {
-                            if(face2.second->isExternal() && face2.second!=face1.second && face1.second->convexHull().size()==face2.second->convexHull().size())
-                            {// distinct parallel external faces
-                                if(abs(face1.second->outNormal().dot(face2.second->outNormal())+1.0)<FLT_EPSILON)
-                                {// opposite normals
-                                    const VectorDim shift(face1.second->center()-face2.second->center());
-                                    std::set<const Simplex<dim,0>*> secondFaceVertices;
-                                    
-                                    for(const auto& face2Vertex : face2.second->convexHull())
-                                    {
-                                        secondFaceVertices.insert(face2Vertex);
-                                    }
-                                    for(const auto& face1Vertex : face1.second->convexHull())
-                                    {
-                                        for(const auto& face2Vertex : secondFaceVertices)
-                                        {
-                                            if((face1Vertex->P0-face2Vertex->P0-shift).norm()<FLT_EPSILON)
-                                            {
-                                                secondFaceVertices.erase(face2Vertex);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    if(secondFaceVertices.size()==0)
-                                    {//all vertices of face1 have been paired to a single vertex of face2 in a translation by shift
-                                        const bool success(faceShiftsMap[face1.second.get()].emplace(-shift,face2.second.get()).second);
-                                        if(!success)
-                                        {
-                                            throw std::runtime_error("Cannot insert shift for face "+std::to_string(face1.second->sID));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    faces.push_back(face.second.get());
+                    available.insert(face.second->sID);
                 }
             }
         }
-        
-        std::map<PlanarMeshFace<dim>*,std::pair<VectorDim,PlanarMeshFace<dim>*>> uniqueFaceShiftMap;
-        for(const auto& pair : faceShiftsMap)
+        for(const auto id : periodicFaceIDs)
         {
-            //            std::cout<<"Face "<<pair.first->sID<<" has "<<pair.second.size()<<" parallel faces"<<std::endl;
-            //            std::cout<<pair.second.begin()->first.transpose()<<std::endl;
-            if(pair.second.size()==1)
+            if(id != -1 && !available.count(id))
             {
-                uniqueFaceShiftMap.emplace(pair.first,std::make_pair(pair.second.begin()->first,pair.second.begin()->second));
-            }
-            else
-            {
-                MultipleShiftMapType allowedShifts; // allowedShifts for current face
-                for(const auto& currentShift : pair.second)
-                {
-                    bool shiftAllowed(true);
-                    for(const auto& otherPair : faceShiftsMap)
-                    {
-                        if(pair.first!=otherPair.first)
-                        {
-                            const bool shiftIsParallel(std::fabs(otherPair.first->outNormal().dot(currentShift.first))<FLT_EPSILON);
-                            const bool shiftIsSame(otherPair.second.find(currentShift.first)!=otherPair.second.end() || otherPair.second.find(-currentShift.first)!=otherPair.second.end());
-                            //                        std::cout<<" face "<<otherPair.first->sID<<" "<<shiftIsParallel<<" "<<shiftIsSame<<std::endl;
-                            shiftAllowed= shiftAllowed && (shiftIsParallel || shiftIsSame);
-                        }
-                    }
-                    if(shiftAllowed)
-                    {
-                        allowedShifts.emplace(currentShift.first,currentShift.second);
-                    }
-                }
-                if(allowedShifts.size())
-                {
-                    if(allowedShifts.size()==1)
-                    {
-                        uniqueFaceShiftMap.emplace(pair.first,std::make_pair(allowedShifts.begin()->first,allowedShifts.begin()->second));
-                    }
-                    else
-                    {
-                        throw std::runtime_error("Multiple periodic shift for face "+std::to_string(pair.first->sID));
-                    }
-                }
-                else
-                {
-                    //            std::cout<<"Face non periodic"
-                }
-            }
-            
-        }
-        
-        for(auto& pair : uniqueFaceShiftMap)
-        {
-            const auto parallelIter(uniqueFaceShiftMap.find(pair.second.second));
-            if(parallelIter!=uniqueFaceShiftMap.end())
-            {// the parallel face is also in the map
-                if((parallelIter->second.first+pair.second.first).norm()<FLT_EPSILON)
-                {
-                    if(   periodicFaceIDs.find(pair.first->sID)!=periodicFaceIDs.end()
-                       || periodicFaceIDs.find(parallelIter->first->sID)!=periodicFaceIDs.end()
-                       || periodicFaceIDs.find(-1)!=periodicFaceIDs.end()
-                       )
-                    {
-                        pair.first->periodicFacePair=std::make_pair(pair.second.first,pair.second.second);
-                        std::cout<<"Face "<<pair.first->sID<<" found periodic face "<<pair.first->periodicFacePair.second->sID<<", shift="<<pair.first->periodicFacePair.first.transpose()<<std::endl;
-                    }
-                    else
-                    {
-                        std::cout<<"Face not labelled periodic"<<std::endl;
-                    }
-                }
-                else
-                {
-                    std::cout<<"face "<< pair.first->sID<<" shift="<<pair.second.first.transpose()<<std::endl;
-                    std::cout<<"parallel face "<<parallelIter->first->sID<<" shift="<<parallelIter->second.first.transpose()<<std::endl;
-                    throw std::runtime_error("Parallel Face shift not opposite");
-                }
-            }
-            else
-            {
-                std::cout<<"face "<< pair.first->sID<<" parallel to "<< pair.second.second->sID<<", shift="<<pair.second.first.transpose()<<std::endl;
-                throw std::runtime_error("Parallel Face not in map");
+                throw std::runtime_error("Unknown external periodic face ID " + std::to_string(id));
             }
         }
-        
-        // Check that periodic faces have been correclty identified
-        for(const auto& region1 : this->regions())
+        const double tolerance = 1.e-8*(xMax()-xMin()).norm()
+            + 64.0*std::numeric_limits<double>::epsilon()*std::max(xMin().norm(),xMax().norm());
+        PeriodicMeshLattice<dim> lattice;
+        if(!periodicFaceIDs.empty())
         {
-            for(const auto& face1 : region1.second->faces())
-            {
-                if(face1.second->isExternal())
-                {
-                    if(face1.second->periodicFacePair.second)
-                    {// a parallel face found
-                        if(   periodicFaceIDs.find(face1.second->sID)!=periodicFaceIDs.end()
-                           || periodicFaceIDs.find(face1.second->periodicFacePair.second->sID)!=periodicFaceIDs.end()
-                           || periodicFaceIDs.find(-1)!=periodicFaceIDs.end())
-                        {// all good, ID found
-                            
-                        }
-                        else
-                        {
-                            std::cout<<"Face "<<face1.second->sID<<std::endl;
-                            std::cout<<"Parallel pace "<<face1.second->periodicFacePair.second->sID<<std::endl;
-                            throw std::runtime_error("Found parallel faces but their IDs are not in periodicFaceIDs");
-                        }
-                    }
-                    else
-                    {// a parallel face not found
-                        if(   periodicFaceIDs.find(face1.second->sID)!=periodicFaceIDs.end()
-                           || periodicFaceIDs.find(-1)!=periodicFaceIDs.end())
-                        {// all good, ID found
-                            std::cout<<"Face "<<face1.second->sID<<std::endl;
-                            throw std::runtime_error("Face in periodicFaceIDs but no parallel face found");
-                        }
-                        else
-                        {// all good, not a periodic face
-                            
-                        }
-                    }
-                }
-            }
+            const auto full = discoverPeriodicMeshLattice(faces,tolerance);
+            lattice = selectPeriodicMeshLattice(full,periodicFaceIDs,tolerance);
+        }
+        const auto& selected = lattice.pairs;
+        // Commit only after discovery and selection have both succeeded.
+        _periodicBasis = lattice.basis;
+        for(auto* face : faces)
+        {
+            const auto found = selected.find(face);
+            face->periodicFacePair = found == selected.end()
+                ? std::make_pair(VectorDim(VectorDim::Zero()), static_cast<const PlanarMeshFace<dim>*>(nullptr))
+                : std::make_pair(found->second.first, static_cast<const PlanarMeshFace<dim>*>(found->second.second));
         }
     }
 
     template<int dim>
     typename SimplicialMesh<dim>::PeriodicBasisType SimplicialMesh<dim>::periodicBasis() const
     {
-        const VectorDim meshSize(xMax()-xMin());
-        PeriodicBasisType basis(PeriodicBasisType::Zero(dim,0));
-        size_t basisRank(0);
-        
-        for(const auto& region : this->regions())
-        {
-            for(const auto& face : region.second->faces())
-            {
-                if(face.second->periodicFacePair.second)
-                {// face is a periodic face
-                    PeriodicBasisType newBasis(PeriodicBasisType::Zero(dim,basis.cols()+1));
-                    newBasis.block(0,0,dim,basis.cols())=basis;
-                    if(meshSize.dot(face.second->periodicFacePair.first)>0.0)
-                    {
-                        newBasis.col(basis.cols())=face.second->periodicFacePair.first;
-                    }
-                    else
-                    {
-                        newBasis.col(basis.cols())=-face.second->periodicFacePair.first;
-                    }
-                    Eigen::FullPivLU<Eigen::Matrix<double,dim,Eigen::Dynamic>> lu(newBasis);
-                    const size_t newBasisRank(lu.rank());
-                    if(newBasisRank>basisRank)
-                    {
-                        basis=newBasis;
-                        basisRank=newBasisRank;
-                    }
-                }
-            }
-        }
-        return basis;
+        return _periodicBasis;
     }
 
     template<int dim>

@@ -22,7 +22,17 @@ namespace model
             if (vReader.isGood(0,true))
             {// F/F_0.txt exists
                 vReader.read(0,true);
-                if(runID<0)
+                if(vReader.empty())
+                {
+                    // DDqt opens the history files for append even when no
+                    // simulation steps are run. An empty history has no restart
+                    // time data; retain defaults and the explicitly requested frame.
+                    if(runID<0)
+                    {
+                        runID=0;
+                    }
+                }
+                else if(runID<0)
                 {// Restart from last available step
                     if(vReader.size())
                     {// at least a line is available

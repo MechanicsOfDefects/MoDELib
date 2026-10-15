@@ -103,7 +103,7 @@ class PolyCrystalFile(dict):
         polyFile.write('  '+' '.join(map(str, self.F[1,:]))+'\n')
         polyFile.write('  '+' '.join(map(str, self.F[2,:]))+'; # mesh deformation gradient. Mesh nodes X are mapped to x=F*(X-X0) \n')
         polyFile.write('X0='+' '.join(map(str, self.X0))+'; # mesh shift. Mesh nodes X are mapped to x=F*(X-X0) \n')
-        polyFile.write('periodicFaceIDs='+' '.join(map(str, self.periodicFaceIDs))+'; # IDs of faces labelled as periodic \n')
+        polyFile.write('periodicFaceIDs='+' '.join(map(str, self.periodicFaceIDs))+'; # Seed face IDs selecting active translations from the full detected lattice; -1 enables all \n')
         polyFile.close()
 
 def readEVLtxt(filename):
