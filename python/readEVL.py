@@ -1,13 +1,15 @@
 import numpy as np
 # Reader of the configuration files evl/evl_<n>.txt and of evl/cdNodes.txt.
 #
-# evl_<n>.txt starts with ten counts, one per line, followed by the blocks in the same order
-# (DDconfigIO::writeTxtStream):
+# evl_<n>.txt starts with one count per block, one per line, followed by the blocks in the same order
+# (DDconfigIO::writeTxtStream). Files written since the ellipsoidal inclusions were added have eleven
+# counts; older files have ten (no ellipsoidal block). Both are read:
 #   network nodes      sID  P(3)  V(3)  climbVelocityScalar  velocityReduction  meshLocation
 #   loops              sID  B(3)  N(3)  P(3)  grainID  loopType  loopLength(4)  slippedArea
 #   loop links         loopID  sourceID  sinkID  hasNetworkLink  meshLocation
 #   loop nodes         loopID  sID  P(3)  networkNodeID  periodicShift(3)  edgeID1  edgeID2
-#   spherical inclusions, polyhedron inclusions, polyhedron inclusion nodes, polyhedron inclusion edges
+#   spherical inclusions, ellipsoidal inclusions (eleven-count files only), polyhedron inclusions,
+#   polyhedron inclusion nodes, polyhedron inclusion edges
 #   displacement       one row per finite-element node of ElasticDeformation
 #   cluster dynamics   one row per finite-element node: the mobile contents (defects per atom), then the
 #                      number densities of the immobile families (per unit volume, in b^-3), then their
@@ -31,6 +33,7 @@ class EVL:
     loopNodesPos=np.empty([0,3])
     # other blocks, as read
     sphericalInclusions=np.empty([0,0])
+    ellipsoidalInclusions=np.empty([0,0])
     polyhedronInclusions=np.empty([0,0])
     polyhedronInclusionNodes=np.empty([0,0])
     polyhedronInclusionEdges=np.empty([0,0])
@@ -45,9 +48,18 @@ def readBlock(lines,start,count):
 def readEVLtxt(filename):
     with open(filename+'.txt', "r") as evlFile:
         lines=evlFile.read().splitlines()
-    counts=[int(lines[k]) for k in range(10)]
+    nCounts=0 # the header: the leading lines that hold a single integer
+    while nCounts<len(lines) and len(lines[nCounts].split())==1 and lines[nCounts].strip().lstrip('-').isdigit():
+        nCounts+=1
+    if nCounts==10: # file written before the ellipsoidal inclusions: no ellipsoidal block
+        counts=[int(lines[j]) for j in range(5)]+[0]+[int(lines[j]) for j in range(5,10)]
+    elif nCounts>=11:
+        nCounts=11
+        counts=[int(lines[j]) for j in range(11)]
+    else:
+        raise ValueError(filename+'.txt: unexpected header of %d counts'%nCounts)
     evl=EVL()
-    k=10
+    k=nCounts
     data,k=readBlock(lines,k,counts[0])
     if counts[0]>0:
         evl.nodes=data[:,1:4]
@@ -69,11 +81,12 @@ def readEVLtxt(filename):
         evl.loopNodesID=data[:,1]
         evl.loopNodesPos=data[:,2:5]
     evl.sphericalInclusions,k=readBlock(lines,k,counts[4])
-    evl.polyhedronInclusions,k=readBlock(lines,k,counts[5])
-    evl.polyhedronInclusionNodes,k=readBlock(lines,k,counts[6])
-    evl.polyhedronInclusionEdges,k=readBlock(lines,k,counts[7])
-    evl.displacement,k=readBlock(lines,k,counts[8])
-    evl.clusterDynamics,k=readBlock(lines,k,counts[9])
+    evl.ellipsoidalInclusions,k=readBlock(lines,k,counts[5])
+    evl.polyhedronInclusions,k=readBlock(lines,k,counts[6])
+    evl.polyhedronInclusionNodes,k=readBlock(lines,k,counts[7])
+    evl.polyhedronInclusionEdges,k=readBlock(lines,k,counts[8])
+    evl.displacement,k=readBlock(lines,k,counts[9])
+    evl.clusterDynamics,k=readBlock(lines,k,counts[10])
     return evl
 
 # Positions of the cluster-dynamics nodes (rows of evl.clusterDynamics), in units of b

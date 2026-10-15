@@ -1,7 +1,7 @@
 import numpy as np
 import sys, os
 from matplotlib import pyplot as plt
-sys.path.append('../../lib/')
+sys.path.append('../../python/')
 
 from readF import *
 from readFile import *

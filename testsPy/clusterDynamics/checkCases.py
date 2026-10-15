@@ -16,8 +16,11 @@ def value(fileName, key):
 
 def fields(case, step):
     lines = open(case + '/evl/evl_%d.txt' % step).read().split('\n')
-    nNodes = int(lines[9])  # the cluster-dynamics block is the last of the file
-    rows = [l for l in lines[10:] if l.strip()]
+    nCounts = 0  # the header: one count per line (ten, or eleven since the ellipsoidal inclusions)
+    while len(lines[nCounts].split()) == 1 and lines[nCounts].strip().isdigit():
+        nCounts += 1
+    nNodes = int(lines[nCounts - 1])  # the cluster-dynamics block is the last of the file, and its count the last of the header
+    rows = [l for l in lines[nCounts:] if l.strip()]
     return np.array([[float(x) for x in r.split()] for r in rows[-nNodes:]])
 
 results = []

@@ -6,7 +6,7 @@
 # Contents of the image, under /opt/MoDELib:
 #   build/tools/DDomp/DDomp                                      (also on PATH as DDomp)
 #   build/tools/MicrostructureGenerator/microstructureGenerator  (also on PATH)
-#   Library/  python/  lib/  tutorials/
+#   Library/  python/  tutorials/
 #   testsPy/clusterDynamics/  (checks of the cluster-dynamics rate equations)
 # DDqt (Qt 6 and VTK) and pyMoDELib (pybind11) are not in the image.
 
@@ -54,7 +54,6 @@ COPY --from=build /opt/MoDELib/build/tools/MicrostructureGenerator/microstructur
                   /opt/MoDELib/build/tools/MicrostructureGenerator/microstructureGenerator
 COPY Library   /opt/MoDELib/Library
 COPY python    /opt/MoDELib/python
-COPY lib       /opt/MoDELib/lib
 COPY tutorials /opt/MoDELib/tutorials
 COPY testsPy/clusterDynamics /opt/MoDELib/testsPy/clusterDynamics
 

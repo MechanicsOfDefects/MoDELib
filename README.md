@@ -97,7 +97,7 @@ Slip systems are named by their crystallography, for example `a/2<111>{110}` ins
 - **`pyMoDELib`:** bindings for the mobility laws, the noise generators, gamma surfaces, slip systems, lattices, the stress of a straight segment and the interpolants.
 - **`DDqt`:** a slip-system tab with a color per slip system, segments and slipped areas coloured by slip system, stacking faults coloured by misfit energy, animated playback, and face labels and periodic faces on the mesh.
 - **Tutorials:** `annealing`, `dipoles`, `spatialCDtest` and `uniformLoadController` are new; `dipoleNoise` is rewritten; `crossSlip` and `polycrystal` are removed.
-- **Scripts:** `lib/` holds readers of the output files; `testsPy/` holds verification scripts.
+- **Scripts:** `lib/` (now in `python/`) holds readers of the output files; `testsPy/` holds verification scripts.
 - **Build:** portable `CMakeLists.txt` with options for the optional parts ([section 5](#5-installation)).
 
 ### 1.5 Cluster dynamics since 2.0.0
@@ -380,9 +380,9 @@ MoDELib/
 │   ├── DDconverter/              # binary configuration files to text
 │   ├── DDsegments/               # reads segments from an OVITO DXA .vtk file
 │   └── QuadratureGeneration/     # generates the Gauss–Legendre tables
-├── python/                       # modlibUtils.py (input and output helpers), examples of the bindings,
-│                                 # MLglideSolver.py, DDMobilityPy.py
-├── lib/                          # readers of the evl, ddAux and F files, used by the plotting scripts
+├── python/                       # modlibUtils.py (input and output helpers), readers of the evl, ddAux and F files
+│                                 # (readEVL.py, readAUX.py, readF.py, readFile.py, getLoops.py), examples of the
+│                                 # bindings, MLglideSolver.py, DDMobilityPy.py
 ├── Library/                      # templates copied into each simulation
 │   ├── DefectiveCrystal/         # DefectiveCrystal.txt
 │   ├── DislocationDynamics/      # DD.txt
@@ -501,7 +501,7 @@ The configuration prints `SUNDIALS_VERSION:7.1.1` when it is found, and a warnin
 
 ### Container image
 
-Each release is also published as a container image with the command-line tools, `Library/`, `python/`, `lib/` and the tutorials:
+Each release is also published as a container image with the command-line tools, `Library/`, `python/` and the tutorials:
 
 ```bash
 docker pull ghcr.io/mechanicsofdefects/modelib:v2.2.0
@@ -650,7 +650,7 @@ Further points:
 - **Columns of `F_0.txt`.** The crystal writes `runID`, `time`, `dt`, the nine components of `betaP`, its trace and norm, and the same for its rate. `DislocationDynamics` adds the glissile, sessile, boundary and grain-boundary densities in m$^{-2}$; the densities and the plastic distortion per slip system, and the elastic and core energies, when the corresponding switches of `DD.txt` are set. `ElasticDeformation` adds the strain and stress components (with the uniform controller). `ClusterDynamics` adds no column: its strain is in `betaP`.
 - **Format and frequency.** `outputBinary` and `outputFrequency` are in `DefectiveCrystal.txt`. `tools/DDconverter` converts the binary files in `./evl` to text; it has its own `Makefile` and is not part of the CMake build.
 - **Restart.** `startAtTimeStep=-1` restarts from the last step recorded in `F/F_0.txt`.
-- **Reading in Python.** `lib/readEVL.py` reads a configuration file `evl_<n>.txt` (network nodes, loops, links, loop nodes, inclusions, displacement and cluster-dynamics blocks) and `evl/cdNodes.txt`; `lib/readAUX.py` reads `ddAux_<n>.txt`; `lib/readF.py` reads the `F` files (`readFfile`, `getFarray(F, labels, label)`); `lib/readFile.py` reads values from the input files; `lib/getLoops.py` gives the center and mean radius of each loop. `python/modlibUtils.py` has simpler versions of `readEVLtxt`, `readAUXtxt` and `readFfile`.
+- **Reading in Python.** `python/readEVL.py` reads a configuration file `evl_<n>.txt` (network nodes, loops, links, loop nodes, inclusions, ellipsoidal inclusions, displacement and cluster-dynamics blocks) with a header of ten or eleven counts, and `evl/cdNodes.txt`; `python/readAUX.py` reads `ddAux_<n>.txt`; `python/readF.py` reads the `F` files (`readFfile`, `getFarray(F, labels, label)`); `python/readFile.py` reads values from the input files; `python/getLoops.py` gives the center and mean radius of each loop. `python/modlibUtils.py` has simpler versions of `readEVLtxt`, `readAUXtxt` and `readFfile`.
 - **Viewing.** `DDqt` opens a simulation folder and displays its configurations.
 
 ## 9. Migrating input files from 1.0.0
