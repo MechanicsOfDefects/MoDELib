@@ -534,7 +534,7 @@ namespace model
             validDisplacement = true;
             actor->SetVisibility(showSurface->isChecked());
             updateLighting();
-            status->setText(QString("%1 nodes; %2 surface triangles; %3 wall triangles. Updated for the current frame.")
+            status->setText(QString("%1 nodes; %2 surface triangles; %3 wall triangles.")
                                 .arg(geometry.referencePoints.size())
                                 .arg(geometry.triangles.size())
                                 .arg(geometry.walls.size()));

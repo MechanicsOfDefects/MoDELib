@@ -1,4 +1,4 @@
-target_sources(DDqt PRIVATE 
+target_sources(DDqtActors PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/SurfaceMeshActor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/SurfaceMeshActor.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/../include/SimplicialMeshActor.h

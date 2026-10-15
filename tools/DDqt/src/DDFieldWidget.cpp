@@ -13,6 +13,7 @@
 #include <string>
 #include <iostream>
 #include <iomanip>
+#include <exception>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -400,6 +401,11 @@ void DDFieldWidget::plotField()
                 }
         }
             
+            if(minValue > maxValue)
+            {
+                scalarBar->SetVisibility(false);
+                return;
+            }
             minScale->setText(QString::fromStdString(to_string_exact(minValue,7)));
             maxScale->setText(QString::fromStdString(to_string_exact(maxValue,7)));
         }
@@ -450,7 +456,10 @@ void DDFieldWidget::plotField()
                 }
                 
                 scalarBar->SetVisibility(scaleBarBox->isChecked());
-                renWin->Render();
+                if(renWin->GetReadyForRendering())
+                {
+                    renWin->Render();
+                }
             }
             catch (const std::exception& e)
             {
@@ -469,13 +478,32 @@ void DDPlaneField::compute(const DefectiveCrystal<3>& defectiveCrystal)
     std::cout<<"DDPlaneField computing "<<dataPnts().size()<<" points..."<<std::flush;
     const auto t0= std::chrono::system_clock::now();
 //    const Simplex<3,3>* gessSimplex(&defectiveCrystal.ddBase.mesh.simplices().begin()->second);
+    std::exception_ptr failure;
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
     for(size_t vtkID=0;vtkID<dataPnts().size();++vtkID)
     {
-        auto& vtx(dataPnts()[vtkID]);
-        vtx.compute(defectiveCrystal);
+        try
+        {
+            dataPnts()[vtkID].compute(defectiveCrystal);
+        }
+        catch(...)
+        {
+#ifdef _OPENMP
+#pragma omp critical(ddqtFieldFailure)
+#endif
+            {
+                if(!failure)
+                {
+                    failure = std::current_exception();
+                }
+            }
+        }
+    }
+    if(failure)
+    {
+        std::rethrow_exception(failure);
     }
     std::cout<<magentaColor<<"["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
 }
@@ -685,7 +713,10 @@ void DDPlaneField::resetPlane()
                     meshPolydata->GetCellData()->SetScalars(meshColors);
                     meshPolydata->Modified();
                     meshMapper->SetScalarModeToUseCellData();
+                    if(renWin->GetReadyForRendering())
+                {
                     renWin->Render();
+                }
                 }
                 else
                 {
@@ -904,7 +935,10 @@ void DDLineField::resetLine()
 //                    meshPolydata->GetCellData()->SetScalars(meshColors);
 //                    meshPolydata->Modified();
 //                    meshMapper->SetScalarModeToUseCellData();
-//                    renWin->Render();
+//                    if(renWin->GetReadyForRendering())
+                {
+                    renWin->Render();
+                }
                 }
                 else
                 {
@@ -939,13 +973,32 @@ void DDLineField::compute(const DefectiveCrystal<3>&)
 {
     std::cout<<"DDLineField computing "<<dataPnts().size()<<" points..."<<std::flush;
     const auto t0= std::chrono::system_clock::now();
+    std::exception_ptr failure;
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
     for(size_t vtkID=0;vtkID<dataPnts().size();++vtkID)
     {
-        auto& vtx(dataPnts()[vtkID]);
-        vtx.compute(defectiveCrystal);
+        try
+        {
+            dataPnts()[vtkID].compute(defectiveCrystal);
+        }
+        catch(...)
+        {
+#ifdef _OPENMP
+#pragma omp critical(ddqtFieldFailure)
+#endif
+            {
+                if(!failure)
+                {
+                    failure = std::current_exception();
+                }
+            }
+        }
+    }
+    if(failure)
+    {
+        std::rethrow_exception(failure);
     }
     std::cout<<magentaColor<<"["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
 }

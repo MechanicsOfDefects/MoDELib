@@ -16,7 +16,7 @@
 #include <WrappingTabWidget.h>
 #include <QTextEdit>
 #include <QLineEdit>
-#include <QPushButton>
+#include <QToolButton>
 #include <QVTKOpenGLStereoWidget.h>
 
 #include <vtkRenderer.h>
@@ -41,13 +41,12 @@
 #include <QCheckBox>
 
 // added std library
-#include <atomic>
+#include <memory>
+#include <QTimer>
 
 namespace model
 {
     struct DefectiveCrystalActor : public QWidget
-                        ,private DDconfigIO<3>
-                        ,private DDauxIO<3>
     {
         
         Q_OBJECT
@@ -72,7 +71,12 @@ namespace model
         SlipSystemTab* slipSystemTab;
         
     private:
-        std::atomic<bool> m_stopRequested{false};
+        std::unique_ptr<DDconfigIO<3>> configuration;
+        std::unique_ptr<DDauxIO<3>> auxiliary;
+        QTimer *const playbackTimer;
+        bool playing = false;
+        bool updatingFrame = false;
+        void refreshFrame(size_t frameID);
         vtkRenderer *const renderer;
         FrameCameraRotation frameRotation;
         Eigen::Vector3d rotationAxis = Eigen::Vector3d::UnitZ();
@@ -87,26 +91,33 @@ namespace model
         bool nextConfiguration();
         bool prevConfiguration();
         void playConfigurations();
+
+    public slots:
         void stopConfigurations();
+
+    signals:
+        void frameChanged(qulonglong frameID);
 
         public:
         
         QGridLayout* mainLayout;
         QLineEdit* frameIDedit;
-        QPushButton* plusFrameButton;
-        QPushButton* playFrameButton;
-        QPushButton* stopFrameButton;
-        QPushButton* minusFrameButton;
+        QToolButton* plusFrameButton;
+        QToolButton* playFrameButton;
+        QToolButton* stopFrameButton;
+        QToolButton* minusFrameButton;
         QLineEdit* frameIncrementEdit;
         QLineEdit* rotationAxisEdit;
         QLineEdit* rotationAngleEdit;
         QCheckBox* saveImage;
+        QLabel* frameStatus;
         WrappingTabWidget* tabWidget;
 
         DefectiveCrystalActor(vtkGenericOpenGLRenderWindow* const,
                     vtkRenderer* const ren,
                     QVTKOpenGLStereoWidget* const qvtkGLwidget_in,
                     DislocationDynamicsBase<3>& ddBase_in);
+        ~DefectiveCrystalActor() override;
         bool updateConfiguration(const size_t& frameID);
         void modify();
         const DDconfigIO<3>& configIO() const;

@@ -62,8 +62,17 @@ namespace model
         mainLayout->setColumnStretch(0, 3);
         mainLayout->setColumnStretch(1, 7);
         this->setLayout(mainLayout);
+        defectiveCrystalActor->updateConfiguration(0);
     }
     
+
+    DDqtVTKwidget::~DDqtVTKwidget()
+    {
+        defectiveCrystalActor->stopConfigurations();
+        delete tabWidget; // Destroy actors while ddBase and renderer still exist.
+        renderer->RemoveAllViewProps();
+        delete openglWidget;
+    }
 
     std::string DDqtVTKwidget::getWorkingDir() 
     {

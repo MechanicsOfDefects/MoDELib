@@ -47,7 +47,17 @@ namespace model
 
 void DDqtMainWindow::closeTab(int tabID)
 {
+    auto *page = tabWidget->widget(tabID);
+    if(!page)
+    {
+        return;
+    }
+    if(auto *viewer = qobject_cast<DDqtVTKwidget*>(page))
+    {
+        viewer->defectiveCrystalActor->stopConfigurations();
+    }
     tabWidget->removeTab(tabID);
+    page->deleteLater();
 }
 
 

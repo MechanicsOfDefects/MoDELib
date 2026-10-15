@@ -12,10 +12,13 @@
 #include <algorithm>
 #include <QString>
 #include <QApplication>
-#include <QFuture>
+
 #include <QtCore>
-#include <QtConcurrent/QtConcurrentRun>
+
 #include <QImage>
+#include <QStyle>
+#include <QScopedValueRollback>
+#include <limits>
 
 #include <DefectiveCrystalActor.h>
 #include <SimplicialMesh.h>
@@ -30,9 +33,7 @@ namespace model
         DefectiveCrystalActor::DefectiveCrystalActor(vtkGenericOpenGLRenderWindow* const renWin,vtkRenderer* const ren,
                                  QVTKOpenGLStereoWidget* const qvtkGLwidget_in,
                                  DislocationDynamicsBase<3>& ddBase_in) :
-        /* init */ DDconfigIO<3>(ddBase_in.simulationParameters.traitsIO.evlFolder)
-        /* init */,DDauxIO<3>(ddBase_in.simulationParameters.traitsIO.auxFolder)
-        /* init */,renderWindow(renWin)
+        /* init */ renderWindow(renWin)
         /* init */,qvtkGLwidget(qvtkGLwidget_in)
         /* init */,ddBase(ddBase_in)
 //        /* init */,configFields(ddBase,*this)
@@ -48,17 +49,21 @@ namespace model
         /* init */,ddField(new DDFieldWidget(renderWindow,ren,defectiveCrystal))
         /* init */,surfaceMesh(new SurfaceMeshActor(renderWindow,ren,defectiveCrystal))
         /* init */,slipSystemTab(new SlipSystemTab(defectiveCrystal))
+        /* init */,configuration(std::make_unique<DDconfigIO<3>>(ddBase.simulationParameters.traitsIO.evlFolder))
+        /* init */,auxiliary(std::make_unique<DDauxIO<3>>(ddBase.simulationParameters.traitsIO.auxFolder))
+        /* init */,playbackTimer(new QTimer(this))
         /* init */,renderer(ren)
         /* init */,mainLayout(new QGridLayout(this))
         /* init */,frameIDedit(new QLineEdit("0"))
-        /* init */,plusFrameButton(new QPushButton(">"))
-        /* init */,playFrameButton(new QPushButton(">>"))
-        /* init */,stopFrameButton(new QPushButton("x"))
-        /* init */,minusFrameButton(new QPushButton("<"))
+        /* init */,plusFrameButton(new QToolButton(this))
+        /* init */,playFrameButton(new QToolButton(this))
+        /* init */,stopFrameButton(new QToolButton(this))
+        /* init */,minusFrameButton(new QToolButton(this))
         /* init */,frameIncrementEdit(new QLineEdit(QString::number(ddBase.simulationParameters.outputFrequency)))
         /* init */,rotationAxisEdit(new QLineEdit("0 0 1"))
         /* init */,rotationAngleEdit(new QLineEdit("0"))
         /* init */,saveImage(new QCheckBox(this))
+        /* init */,frameStatus(new QLabel(this))
         /* init */,tabWidget(new WrappingTabWidget())
         {
 
@@ -76,7 +81,7 @@ namespace model
             saveImage->setText("save PNG");
 
             auto *framesBox =
-                controls::box("Frames", this, "Select simulation outputs, control playback and capture images.");
+                controls::box("Navigation", this, "Select simulation outputs, control playback and capture images.");
             auto *framesLayout = controls::grid(framesBox);
             auto *frameIDLayout = new QGridLayout();
             auto *incrementLayout = new QGridLayout();
@@ -105,16 +110,35 @@ namespace model
             auto *playback = new QWidget(this);
             auto *playbackLayout = new QHBoxLayout(playback);
             playbackLayout->setContentsMargins(0, 0, 0, 0);
-            playbackLayout->addWidget(minusFrameButton);
-            playbackLayout->addWidget(plusFrameButton);
-            playbackLayout->addWidget(playFrameButton);
-            playbackLayout->addWidget(stopFrameButton);
+            minusFrameButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipBackward));
+            playFrameButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+            stopFrameButton->setIcon(style()->standardIcon(QStyle::SP_MediaStop));
+            plusFrameButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipForward));
+            minusFrameButton->setAccessibleName("Previous frame");
+            playFrameButton->setAccessibleName("Play");
+            stopFrameButton->setAccessibleName("Stop");
+            plusFrameButton->setAccessibleName("Next frame");
+            for(auto *button : {minusFrameButton, plusFrameButton, playFrameButton, stopFrameButton})
+            {
+                button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+                button->setIconSize(QSize(20, 20));
+                button->setFixedSize(32, 32);
+                if(button == playFrameButton)
+                {
+                    playbackLayout->addSpacing(12);
+                }
+                playbackLayout->addWidget(button);
+            }
+            playbackLayout->addStretch();
             minusFrameButton->setToolTip("Load the previous output using the frame increment.");
             plusFrameButton->setToolTip("Load the next output using the frame increment.");
             playFrameButton->setToolTip("Advance through available frames until stopped.");
             stopFrameButton->setToolTip("Stop automatic playback.");
             framesLayout->addWidget(playback, 2, 0, 1, 2);
             framesLayout->addWidget(saveImage, 3, 0, 1, 2);
+            frameStatus->setObjectName("frameStatus");
+            frameStatus->setWordWrap(true);
+            framesLayout->addWidget(frameStatus, 4, 0, 1, 2);
             saveImage->setToolTip("Save a PNG of each loaded frame to the simulation output folder.");
             mainLayout->addWidget(framesBox, 0, 0, 1, 6);
             mainLayout->addWidget(tabWidget,2,0,1,6);
@@ -136,15 +160,22 @@ namespace model
             connect(playFrameButton,SIGNAL(pressed()), this, SLOT(playConfigurations()));
             connect(stopFrameButton,SIGNAL(pressed()), this, SLOT(stopConfigurations()));
 
-            connect(frameIDedit,SIGNAL(returnPressed()), ddField, SLOT(compute()));
-            connect(plusFrameButton,SIGNAL(pressed()), ddField, SLOT(compute()));
-            connect(minusFrameButton,SIGNAL(pressed()), ddField, SLOT(compute()));
-            connect(playFrameButton,SIGNAL(pressed()), ddField, SLOT(compute()));
-            connect(stopFrameButton,SIGNAL(pressed()), ddField, SLOT(compute()));
+            playbackTimer->setObjectName("framePlaybackTimer");
+            playbackTimer->setSingleShot(true);
+            playbackTimer->setInterval(100);
+            stopFrameButton->setEnabled(false);
+            connect(playbackTimer, &QTimer::timeout, this, [this]()
+            {
+                if(playing && nextConfiguration() && playing)
+                {
+                    playbackTimer->start();
+                }
+                else
+                {
+                    stopConfigurations();
+                }
+            });
 
-            
-            QApplication::processEvents();
-            updateConfiguration(0);
         }
 
         bool DefectiveCrystalActor::readRotationSettings()
@@ -185,158 +216,199 @@ namespace model
 
         const DDconfigIO<3>& DefectiveCrystalActor::configIO() const
         {
-            return *this;
+            return *configuration;
         }
 
         DDconfigIO<3>& DefectiveCrystalActor::configIO()
         {
-            return *this;
+            return *configuration;
         }
 
         const DDauxIO<3>& DefectiveCrystalActor::auxIO() const
         {
-            return *this;
+            return *auxiliary;
         }
 
         DDauxIO<3>& DefectiveCrystalActor::auxIO()
         {
-            return *this;
+            return *auxiliary;
         }
 
-        /*
-        The timer's timeout() signal calls the lambda repeatedly
-        and each call executes nextConfiguration(). When nextConfiguration()
-        returns false, the timer deletes itself (deleteLater)
-        */
+        DefectiveCrystalActor::~DefectiveCrystalActor()
+        {
+            stopConfigurations();
+            // Actors and field samplers reference defectiveCrystal and ddBase.
+            // Destroy them before those members and their data are released.
+            delete tabWidget;
+        }
+
         void DefectiveCrystalActor::playConfigurations()
         {
-            m_stopRequested = false;
-
-            // Get target frame rate (hardcoded, maybe implement a slider in the UI)
-            const int fps = 10;
-            const int delayMs = 1000 / std::max(1, fps);
-
-            // Timer Setup
-            QTimer* timer = new QTimer(this);
-            // Lambda Connection
-            connect(timer, &QTimer::timeout, [this, timer]() {
-                // also, stops the iteration if stop is requested (m_stopRequested)
-                if (m_stopRequested || !nextConfiguration()) {
-                    timer->stop();
-                    timer->deleteLater();
-                    return;
-                }
-                // Let VTK handle rendering at its own pace
-                qvtkGLwidget->update(); // Queues a paint event (non-blocking)
-                timer->start(delayMs); 
-            });
-            // Triggers timeout() signal after event processing and wait for delayMs
-            timer->start(delayMs); 
+            if(playing)
+            {
+                return;
+            }
+            playing = true;
+            playFrameButton->setEnabled(false);
+            stopFrameButton->setEnabled(true);
+            playbackTimer->start();
         }
 
-        /*
-        stop animation play button
-        private class definition is added in the header file
-        */
         void DefectiveCrystalActor::stopConfigurations()
         {
-            m_stopRequested = true;
+            playing = false;
+            playbackTimer->stop();
+            playFrameButton->setEnabled(true);
+            stopFrameButton->setEnabled(false);
         }
 
         bool DefectiveCrystalActor::nextConfiguration()
         {
-            const long int currentFrameID(std::atoi(frameIDedit->text() .toStdString().c_str()));
-            const long int currentIncrement(std::atoi(frameIncrementEdit->text() .toStdString().c_str()));
-            const long int nextFrameID(std::max((long int)0,currentFrameID+currentIncrement));
-            frameIDedit->setText(QString::fromStdString(std::to_string(nextFrameID)));
-            const bool updated(updateConfiguration());
-            if(!updated)
+            bool ok = false;
+            const auto increment = frameIncrementEdit->text().toULongLong(&ok);
+            const size_t current = frameLoaded ? loadedFrameID : 0;
+            if(!ok || increment == 0 || increment > std::numeric_limits<size_t>::max() - current)
             {
-                frameIDedit->setText(QString::fromStdString(std::to_string(currentFrameID)));
+                frameStatus->setText("Enter a positive frame increment within the runID range.");
+                stopConfigurations();
+                return false;
             }
-            return updated;
+            return updateConfiguration(current + static_cast<size_t>(increment));
         }
 
         bool DefectiveCrystalActor::prevConfiguration()
         {
-            const long int currentFrameID(std::atoi(frameIDedit->text() .toStdString().c_str()));
-            const long int currentIncrement(std::atoi(frameIncrementEdit->text() .toStdString().c_str()));
-            const long int nextFrameID(std::max((long int)0,currentFrameID-currentIncrement));
-            frameIDedit->setText(QString::fromStdString(std::to_string(nextFrameID)));
-            const bool updated(updateConfiguration());
-            if(!updated)
+            bool ok = false;
+            const auto increment = frameIncrementEdit->text().toULongLong(&ok);
+            if(!ok || increment == 0)
             {
-                frameIDedit->setText(QString::fromStdString(std::to_string(currentFrameID)));
+                frameStatus->setText("Enter a positive frame increment.");
+                stopConfigurations();
+                return false;
             }
-            return updated;
+            const size_t current = frameLoaded ? loadedFrameID : 0;
+            return updateConfiguration(increment > current ? 0 : current - static_cast<size_t>(increment));
         }
 
         bool DefectiveCrystalActor::updateConfiguration()
         {
-            const size_t frameID(std::atoi(frameIDedit->text() .toStdString().c_str()));
-            if(updateConfiguration(frameID))
+            bool ok = false;
+            const auto requested = frameIDedit->text().toULongLong(&ok);
+            if(!ok || requested > std::numeric_limits<size_t>::max())
             {
-                renderWindow->Render();
-                return true;
-            }
-            else
-            {
+                frameStatus->setText("Enter a nonnegative integer frame ID.");
+                frameIDedit->setText(QString::number(loadedFrameID));
+                stopConfigurations();
                 return false;
             }
+            return updateConfiguration(static_cast<size_t>(requested));
+        }
+
+        void DefectiveCrystalActor::refreshFrame(size_t frameID)
+        {
+            DislocationNode<3>::force_count(0);
+            DislocationLoopNode<3>::force_count(0);
+            DislocationLoop<3>::force_count(0);
+            EshelbyInclusionBase<3>::force_count(0);
+            defectiveCrystal.initializeConfiguration(configIO());
+            nodes->updateConfiguration(configIO());
+            segments->updateConfiguration(nodes->nodePolyData, slipSystemTab->slipSystemColorMap);
+            loops->updateConfiguration(slipSystemTab->slipSystemColorMap);
+            inclusions->updateConfiguration();
+            surfaceMesh->updateConfiguration();
+            glidePlanes->updateConfiguration();
+            quadrature->updateConfiguration(auxIO());
+            chartActor->updateConfiguration(frameID);
+            ddField->compute();
         }
 
         bool DefectiveCrystalActor::updateConfiguration(const size_t& frameID)
         {
-            try
+            if(updatingFrame)
             {
-                DislocationNode<3>::force_count(0);
-                DislocationLoopNode<3>::force_count(0);
-                DislocationLoop<3>::force_count(0);
-                EshelbyInclusionBase<3>::force_count(0);
-
-                configIO().read(frameID);
-                auxIO().read(frameID);
-                //configFields.updateConfiguration();
-                defectiveCrystal.initializeConfiguration(*this);
-                nodes->updateConfiguration(*this);
-                segments->updateConfiguration(nodes->nodePolyData,slipSystemTab->slipSystemColorMap);
-                loops->updateConfiguration(slipSystemTab->slipSystemColorMap);
-                inclusions->updateConfiguration();
-                surfaceMesh->updateConfiguration();
-//                glidePlanes->updateConfiguration(*this);
-                glidePlanes->updateConfiguration();
-                quadrature->updateConfiguration(*this);
-                chartActor->updateConfiguration(frameID);
-//                ddField->compute(); // this causes segFault at DDFieldWidget::plotField::renWin->Render();
-                
-                loadedFrameID = frameID;
-                frameLoaded = true;
-                // Navigation must use the visible values, even when the user has
-                // not pressed Enter. Invalid edits retain the last valid settings.
-                readRotationSettings();
-                frameRotation.apply(renderer->GetActiveCamera(),
-                                    0.5 * (ddBase.mesh.xMin() + ddBase.mesh.xMax()),
-                                    rotationAxis, rotationDegreesPerFrame, frameID);
-                renderer->ResetCameraClippingRange();
-                if(saveImage->isChecked())
-                {
-                    renderWindow->Render();
-                    //qDebug() << "Saving frame:" << frameID 
-                    //<< "| UI shows:" << frameIDedit->text();
-                    //qvtkGLwidget->repaint(); // Force render update
-                    //QCoreApplication::processEvents(); // Ensure paint completes
-                    QImage img=qvtkGLwidget->grabFramebuffer();
-                    img.save(QString::fromStdString(ddBase.simulationParameters.traitsIO.evlFolder+"/img_"+std::to_string(frameID)+".png"), "PNG", -1);
-                }
-                return true;
-            }
-            catch(const std::exception& e)
-            {
-                std::cout<<e.what()<<std::endl;
                 return false;
             }
+            QScopedValueRollback<bool> updating(updatingFrame, true);
+            auto nextConfig = std::make_unique<DDconfigIO<3>>(ddBase.simulationParameters.traitsIO.evlFolder);
+            auto nextAux = std::make_unique<DDauxIO<3>>(ddBase.simulationParameters.traitsIO.auxFolder);
+            try
+            {
+                // Read both files before touching the displayed frame. DDauxIO's
+                // missing-file path asserts, so check availability explicitly.
+                nextConfig->read(frameID);
+                if(!nextAux->isBinGood(frameID) && !nextAux->isTxtGood(frameID))
+                {
+                    throw std::runtime_error("No auxiliary file for frame " + std::to_string(frameID));
+                }
+                nextAux->read(frameID);
+            }
+            catch(const std::exception& error)
+            {
+                frameStatus->setText(QString::fromStdString(error.what()));
+                frameIDedit->setText(QString::number(loadedFrameID));
+                stopConfigurations();
+                return false;
+            }
+
+            const bool ready = renderWindow->GetReadyForRendering();
+            renderWindow->SetReadyForRendering(false);
+            configuration.swap(nextConfig);
+            auxiliary.swap(nextAux);
+            try
+            {
+                refreshFrame(frameID);
+            }
+            catch(const std::exception& error)
+            {
+                configuration.swap(nextConfig);
+                auxiliary.swap(nextAux);
+                QString message = QString::fromStdString(error.what());
+                try
+                {
+                    refreshFrame(loadedFrameID);
+                }
+                catch(const std::exception& restoreError)
+                {
+                    message += " Restoration failed: " + QString::fromStdString(restoreError.what());
+                }
+                renderWindow->SetReadyForRendering(ready);
+                frameIDedit->setText(QString::number(loadedFrameID));
+                frameStatus->setText(message);
+                stopConfigurations();
+                return false;
+            }
+
+            // Commit the frame only after every actor and Fields has been updated.
+            loadedFrameID = frameID;
+            frameLoaded = true;
+            frameIDedit->setText(QString::number(frameID));
+            readRotationSettings();
+            frameRotation.apply(renderer->GetActiveCamera(),
+                                0.5 * (ddBase.mesh.xMin() + ddBase.mesh.xMax()),
+                                rotationAxis, rotationDegreesPerFrame, frameID);
+            renderer->ResetCameraClippingRange();
+            renderWindow->SetReadyForRendering(ready);
+            frameStatus->clear();
+            if(ready)
+            {
+                renderWindow->Render();
+            }
+            // Capture only the completed frame, after Fields and camera updates.
+            // A capture failure does not undo an otherwise valid frame load.
+            if(saveImage->isChecked())
+            {
+                const QString filename = QString::fromStdString(ddBase.simulationParameters.traitsIO.evlFolder +
+                                                               "/img_" + std::to_string(frameID) + ".png");
+                if(!ready || !qvtkGLwidget || !qvtkGLwidget->grabFramebuffer().save(filename, "PNG"))
+                {
+                    frameStatus->setText("Frame loaded, but PNG capture failed.");
+                    stopConfigurations();
+                }
+            }
+            emit frameChanged(static_cast<qulonglong>(frameID));
+            return true;
         }
-        
+
         void DefectiveCrystalActor::modify()
         {
 //            nodes.modify();

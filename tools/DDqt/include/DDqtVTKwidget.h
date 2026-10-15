@@ -62,6 +62,7 @@ public:
     DefectiveCrystalActor* defectiveCrystalActor;
     
     DDqtVTKwidget(QWidget *parent);
+    ~DDqtVTKwidget() override;
     
 
 };
