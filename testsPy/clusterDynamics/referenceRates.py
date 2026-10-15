@@ -36,7 +36,7 @@ class Model:
         self.cs = np.sqrt(self.mu_SI / v('rho_SI')[0])
         time = self.b_SI / self.cs  # [s]
         self.kT_code = self.kT * eV / (self.mu_SI * self.b_SI**3)  # in units of mu*b^3
-        self.omega = v('atomicVolume_SI')[0] / self.b_SI**3
+        self.omega = np.sqrt(2.0) / v('atomsPerUnitCell')[0]  # HEX: det(lattice basis) = sqrt(2) b^3, as Polycrystal::getAtomicVolume
         self.ms = v('mobileSpeciesVector')
         self.pM = np.sign(self.ms)
         nM = len(self.ms)
@@ -61,23 +61,26 @@ class Model:
         self.burgers = lattice @ latticeBurgers
         self.bMag = np.linalg.norm(self.burgers, axis=0)
         basal = (np.abs(latticeBurgers[2]) > 0) & (np.abs(latticeBurgers[0]) == 0) & (np.abs(latticeBurgers[1]) == 0)
-        Z0 = matrix(materialFile, 'discreteDislocationBias', 2)  # rows: vacancy loops, interstitial loops
-        self.Z = np.array([[Z0[0 if self.pF[k] < 0 else 1, m] * (p[m] if basal[k] else 0.5 * (p[m] + p[m]**-2)) for m in range(nM)] for k in range(nF)])
-        try:
-            self.Z = self.Z * v('loopSinkScale')[:, None]  # fitted factor on the sink strength of each family
-        except RuntimeError:
-            pass
+        # Z0 = matrix(materialFile, 'discreteDislocationBias', 2)  # rows: vacancy loops, interstitial loops
+        # self.Z = np.array([[Z0[0 if self.pF[k] < 0 else 1, m] * (p[m] if basal[k] else 0.5 * (p[m] + p[m]**-2)) for m in range(nM)] for k in range(nF)])
+        # try:
+        #     self.Z = self.Z * v('loopSinkScale')[:, None]  # fitted factor on the sink strength of each family
+        # except RuntimeError:
+        #     pass
+        Z0 = matrix(materialFile, 'immobileSpeciesBias', nF)  # rows: immobile families, fitted factor included
+        self.Z = np.array([[Z0[k, m] * (p[m] if basal[k] else 0.5 * (p[m] + p[m]**-2)) for m in range(nM)] for k in range(nF)])
         # self.nmin, self.nmax, self.nNuc = v('shapeTransitionMinSize'), v('shapeTransitionMaxSize'), v('nNuc')
         self.nmin, self.nmax, self.nNuc = v('shapeTransitionMinSize'), v('shapeTransitionMaxSize'), v('nucleatedClusterSize')
 #       self.w0, self.n_s = v('w0')[0], v('n_s')[0]
         self.w0 = v('shapeTransitionWidth')[0]
 #       self.tau = v('tau0_vLoop_SI')[0] * np.exp(v('Ea_vLoop_eV')[0] / self.kT) / time
-        self.nu = v('clusterDissolutionRatePrefactor') * np.exp(-v('clusterDissolutionRateEnergy') / self.kT) * time  # dissolution rate of each family, Eq. (40)
+        self.nu = v('clusterDissolutionRatePrefactor') * np.exp(-v('clusterDissolutionEnergy') / self.kT) * time  # dissolution rate of each family, Eq. (40)
         self.cLL, self.cLN = v('cLL'), v('cLN')
         self.kLL, self.kLN = v('kappaLL')[0], v('kappaLN')[0]
 #       self.rhoN = v('rhoNetwork_SI')[0] * self.b_SI**2
         self.rhoN = v('dislocationSinkDensity_SI')[0] * self.b_SI**2
-        self.rmin = v('r_min') / self.b_SI
+        # self.rmin = v('r_min') / self.b_SI
+        self.mFloor = np.array([max(-self.ms.min(), 0) + 1 if self.pF[k] < 0 else max(self.ms.max(), 0) + 1 for k in range(nF)])  # smallest immobile cluster of each family
 #       try:
 #           self.embryosOnly = v('dissolveEmbryosOnly')[0] > 0
 #       except RuntimeError:
@@ -118,6 +121,17 @@ class Model:
         S = self.sigmoid(k, m)
         return (1.0 - S) * (m * self.omega / np.sqrt(8.0))**(1.0 / 3.0) + S * self.loopRadius(k, m)
 
+    def captureLength(self, k, m):  # sink strength per cluster / Z: (1-S)*4*pi*R_pyr + S*2*pi*R_loop (as in MoDELib3)
+        S = self.sigmoid(k, m)
+        return (1.0 - S) * 4.0 * np.pi * (m * self.omega / np.sqrt(8.0))**(1.0 / 3.0) + S * 2.0 * np.pi * self.loopRadius(k, m)
+
+    def radiusDerivative(self, k, m):  # dR/dm of Eq. (29), change of shape included
+        S = self.sigmoid(k, m)
+        w = self.w0 * (self.nmax[k] - self.nmin[k])
+        dS = S * (1.0 - S) / w if w > 0 else 0.0
+        rl, rp = self.loopRadius(k, m), (m * self.omega / np.sqrt(8.0))**(1.0 / 3.0)
+        return S * rl / (2.0 * m) + (1.0 - S) * rp / (3.0 * m) + dS * (rl - rp)
+
     def chi(self, stress=None):  # Eq. (38). stress in units of mu
         nF = len(self.pF)
         w = np.ones(nF)
@@ -154,14 +168,19 @@ class Model:
             if n[k] > 1e-30 and c[k] > 1e-30:
                 m = c[k] / n[k]
                 R = self.radius(k, m)
-                x = (R / self.rmin[k] - 1.0) / 0.3 if self.rmin[k] > 0 else 1.0
+                L = self.captureLength(k, m)
+                # x = (R / self.rmin[k] - 1.0) / 0.3 if self.rmin[k] > 0 else 1.0
+                x = m / self.mFloor[k] - 1.0
                 gate = 0.0 if x <= 0 else (1.0 if x >= 1 else x * x * (3.0 - 2.0 * x))
                 gain = 0.0
+                net = 0.0  # like - opposite - emission: the growth that drives coalescence
                 for mi in range(len(self.ms)):
                     like = self.pF[k] * self.pM[mi] > 0
-                    Gamma = (1.0 if like else gate) * self.Dbar[mi] * 2.0 * np.pi * self.Z[k, mi] * R * n[k] / self.omega * cM[mi]  # Eq. (42)
+#                   Gamma = (1.0 if like else gate) * self.Dbar[mi] * 2.0 * np.pi * self.Z[k, mi] * R * n[k] / self.omega * cM[mi]  # Eq. (42)
+                    Gamma = (1.0 if like else gate) * self.Dbar[mi] * self.Z[k, mi] * L * n[k] / self.omega * cM[mi]  # Eq. (42), 2*pi*R -> capture length L
                     cDot[k] += Gamma if like else -Gamma
                     gain += Gamma if like else 0.0
+                    net += Gamma if like else -Gamma
 #               if vac:
 #                   nDot[k] -= n[k] / self.tau  # Eq. (39)
 #                   cDot[k] -= (min(self.nNuc[k] * n[k], c[k]) if self.embryosOnly else c[k]) / self.tau  # Eq. (51), or the content of the embryos
@@ -171,12 +190,19 @@ class Model:
                 cDot[k] -= self.nu[k] * min(self.nNuc[k] * n[k], c[k])  # content of the embryos (0D code; Eq. (51) removes c)
 #               if vac:
 #                   cDot[k] -= self.Dbar[self.iv] * 2.0 * np.pi * self.Z[k, self.iv] * R * n[k] / self.omega * np.exp(-self.Eb[self.iv] / self.kT)  # Eq. (54)
+                emission = 0.0
                 if vac:
-                    cDot[k] -= self.Dbar[self.iv] * 2.0 * np.pi * self.Z[k, self.iv] * R * n[k] / self.omega * np.exp(-self.EbC[k] / self.kT)  # Eq. (54)
-                r = self.loopRadius(k, m)
+                    # cDot[k] -= self.Dbar[self.iv] * 2.0 * np.pi * self.Z[k, self.iv] * R * n[k] / self.omega * np.exp(-self.EbC[k] / self.kT)  # Eq. (54)
+#                   emission = self.Dbar[self.iv] * 2.0 * np.pi * self.Z[k, self.iv] * R * n[k] / self.omega * np.exp(-self.EbC[k] / self.kT)  # Eq. (54)
+                    emission = self.Dbar[self.iv] * self.Z[k, self.iv] * L * n[k] / self.omega * np.exp(-self.EbC[k] / self.kT)  # Eq. (54), 2*pi*R -> capture length L
+                    cDot[k] -= emission
+                    net -= emission
+                r = self.radius(k, m)  # effective radius (Eq. 29), as in the absorption
                 N = n[k] / self.omega
 #               vAbs = 0.5 * r * gain / c[k] * (1.0 if self.climbBurgers else self.bMag[k])
-                vAbs = 0.5 * r * gain / c[k]
+                # vAbs = 0.5 * r * gain / c[k]
+                # vAbs = 0.5 * r * max(net, 0.0) / c[k]  # net growth (like - opposite - emission)
+                vAbs = self.radiusDerivative(k, m) * m * max(net, 0.0) / c[k]  # dR/dt from the net growth, change of shape included
                 rLL, rLN = min(r, N**(-1.0 / 3.0)), min(r, self.rhoN**-0.5)
                 LL = self.cLL[k] * vAbs * N**(1.0 / 3.0) * (1.0 - np.exp(-self.kLL * 4.0 / 3.0 * np.pi * rLL**3 * N))   # Eqs. (58), (59)
                 LN = self.cLN[k] * vAbs * np.sqrt(self.rhoN) * (1.0 - np.exp(-self.kLN * np.pi * rLN**2 * self.rhoN))

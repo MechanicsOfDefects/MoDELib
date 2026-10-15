@@ -172,7 +172,11 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             {
                 clusterDynamicsFEM->initializeSolver();
             }
-            std::cout<<", mobile BCs"<<std::flush;
+            else
+            {// after the first step: start the line of this step
+                std::cout<<std::endl;
+            }
+            std::cout<<"    mobile BCs, "<<std::flush;
             applyBoundaryConditions();
 
             auto DN(this->microstructures.template getUniqueTypedMicrostructure<DislocationNetwork<dim>>());
@@ -359,26 +363,6 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             }
         }
     }
-
-//  template<int dim>
-//  typename ClusterDynamics<dim>::VectorISize ClusterDynamics<dim>::immobileClusters(const VectorDim& x,const NodeType* const node,const ElementType* const ele,const SimplexDim* const guess) const
-//  {
-//      if(node)
-//      {
-//          return eval(clusterDynamicsFEM->immobileClusters)(*node);
-//      }
-//      else
-//      {
-//          if(ele)
-//          {
-//              return eval(clusterDynamicsFEM->immobileClusters)(*ele,ele->simplex.pos2bary(x));
-//          }
-//          else
-//          {
-//              return eval(clusterDynamicsFEM->immobileClusters)(x,guess);
-//          }
-//      }
-//  }
 
     template<int dim>
     typename ClusterDynamics<dim>::VectorISize ClusterDynamics<dim>::immobileClusters(const VectorDim& x,const NodeType* const node,const ElementType* const ele,const SimplexDim* const guess) const

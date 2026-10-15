@@ -5,6 +5,10 @@
 #include<Eigen/SparseLU>
 #include<Eigen/IterativeLinearSolvers>
 
+#include<chrono>
+#include<iostream>
+#include<iomanip>
+
 #include<TrialBase.h>
 
 namespace model
@@ -112,8 +116,18 @@ namespace model
             return T*x+g;
         }
 
+        static void printSeconds(const std::chrono::steady_clock::time_point& a,const std::chrono::steady_clock::time_point& b)
+        {// prints the time from a to b in seconds, with one decimal, and restores the format of std::cout
+            const std::ios_base::fmtflags oldFlags(std::cout.flags());
+            const std::streamsize oldPrecision(std::cout.precision());
+            std::cout<<" "<<std::fixed<<std::setprecision(1)<<std::chrono::duration<double>(b-a).count()<<" s"<<std::flush;
+            std::cout.flags(oldFlags);
+            std::cout.precision(oldPrecision);
+        }
+
         template<typename BilinearWeakFormType>
-        void compute(const BilinearWeakFormType& bWF)
+//      void compute(const BilinearWeakFormType& bWF)
+        void compute(const BilinearWeakFormType& bWF,const bool& printStages=false)
         {
             dirichletConditions=&TrialBase<typename BilinearWeakFormType::TrialFunctionType>::dirichletConditions();
             dofVector=&TrialBase<typename BilinearWeakFormType::TrialFunctionType>::dofVector();
@@ -121,9 +135,13 @@ namespace model
             cSize=dirichletConditions->size();
             tSize = gSize-cSize;
 
+            const auto t0(std::chrono::steady_clock::now());
+            if(printStages) std::cout<<"    assembling"<<std::flush;
             A.resize(gSize,gSize);
             const auto aTriplets(bWF.globalTriplets());
             A.setFromTriplets(aTriplets.begin(),aTriplets.end());
+            const auto t1(std::chrono::steady_clock::now());
+//          if(printStages){printSeconds(t0,t1); std::cout<<" | boundary conditions"<<std::flush;}
             
             std::vector<Eigen::Triplet<double> > tTriplets;
             tTriplets.reserve(tSize);
@@ -148,6 +166,9 @@ namespace model
             T.setFromTriplets(tTriplets.begin(),tTriplets.end());
             
             A1=T.transpose()*A*T; // store new A1
+            const auto t2(std::chrono::steady_clock::now());
+//          if(printStages){printSeconds(t1,t2); std::cout<<" | factorizing"<<std::flush;}
+            if(printStages){printSeconds(t0,t2); std::cout<<" | factorizing"<<std::flush;}
             
             if(use_directSolver)
             {
@@ -165,6 +186,19 @@ namespace model
                     throw std::runtime_error("FixedDirichletSolver failed.");
                 }
             }
+            const auto t3(std::chrono::steady_clock::now());
+//          if(printStages)
+//          {// times of the stages, printed for the decomposition of the first step
+//              const std::ios_base::fmtflags oldFlags(std::cout.flags());
+//              const std::streamsize oldPrecision(std::cout.precision());
+//              std::cout<<std::fixed<<std::setprecision(1)
+//                       <<"    assembling "<<std::chrono::duration<double>(t1-t0).count()<<" s"
+//                       <<" | boundary conditions "<<std::chrono::duration<double>(t2-t1).count()<<" s"
+//                       <<" | factorizing "<<std::chrono::duration<double>(t3-t2).count()<<" s"<<std::endl;
+//              std::cout.flags(oldFlags);
+//              std::cout.precision(oldPrecision);
+//          }
+            if(printStages){printSeconds(t2,t3); std::cout<<std::endl;}
         }
     };
 

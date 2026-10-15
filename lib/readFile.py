@@ -79,6 +79,8 @@ def get_matrix(file_path, variable_name):
                         print(f"Found variable {variable_name} in the line: {line.strip()}")
                         found_variable = True
                         matrix_lines.append(value.strip())
+                        if ';' in line:
+                            break  # the matrix fits on one line
                 elif found_variable:
                     # Continue collecting lines until a semicolon is encountered
                     if ';' in line:

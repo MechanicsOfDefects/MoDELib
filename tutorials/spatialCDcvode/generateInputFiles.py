@@ -37,7 +37,6 @@ clusterDynamicsFileTemplate='../../Library/ClusterDynamics/'+clusterDynamicsFile
 print("\033[1;32mCreating  clusterDynamicsFile\033[0m")
 shutil.copy2(clusterDynamicsFileTemplate,'inputFiles/'+clusterDynamicsFile)
 setInputVariable('inputFiles/'+clusterDynamicsFile,'useClusterDynamicsFEM','1')  # 1=spatial FEM solver, 0=uniform controllers
-setInputVariable('inputFiles/'+clusterDynamicsFile,'immobileIntegrator','cvode')  # implicit integration of the immobile species
 
 # Create polycrystal.txt using local material file
 meshFile='unitCube_15K.msh';

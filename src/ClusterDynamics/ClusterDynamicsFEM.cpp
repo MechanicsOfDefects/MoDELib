@@ -88,9 +88,6 @@ template struct InvDscaling<3>;
     /* init */,nodeListInternalExternal(ddBase.isPeriodicDomain ? -1 : ddBase.fe->template createNodeList<ExternalAndInternalBoundary>())
     /* init */,mobileClustersIncrement(ddBase.fe->template trial<'d',mSize>())
     /* init */,dV(ddBase.fe->template domain<EntireDomain,dVorder,GaussLegendre>())
-//    /* init */,dVprojection(ddBase.fe->template domain<EntireDomain,dVprojectionOrder,GaussLegendre>())
-//    /* init */,mBWF((test(this->mobileGrad),-cdp.omega*this->mobileFlux)*dV)
-//  /* init */,mBWF((test(grad(iDs*mobileClusters)),-cdp.omega*this->mobileFlux)*dV)
     /* init */,R1((cdp.mobileDissociationRate+cdp.mobileOtherSinkRate).eval())
     /* init */,mBWF((test(grad(iDs*mobileClusters)),-cdp.omega*this->mobileFlux)*dV+(test(iDs*mobileClusters),R1*(-1.0*mobileClusters))*dV)
     /* init */,dmBWF((test(grad(iDs*mobileClustersIncrement)),-cdp.omega*(FluxMatrix<dim>(this->cdp)*grad(mobileClustersIncrement)))*dV)   
@@ -98,116 +95,40 @@ template struct InvDscaling<3>;
     /* init */,solverInitialized(false)
     /* init */,mobileFieldInitialized(false)
     /* init */,cascadeGlobalProduction(((test(iDs*this->mobileClusters),make_constant(this->cdp.G))*dV).globalVector())
-    // /* init */,cascadeGlobalProduction(((test(this->mobileClusters),make_constant(this->cdp.G))*dV).globalVector())
-
     /* init */,rateEquations(cdp)
-//    /* init */,useImmobileODESolver(getUseImmobileODESolver(ddBase))
     /* init */,immobileSpeciesSolver(rateEquations,1.0e-8,1.0e-24)
     /* init */,nucleationFractions(1,rateEquations.nucleationWeights())
     {
         mobileClustersIncrement.setConstant(Eigen::Matrix<double,mSize,1>::Zero());
         mobileClusters.setConstant(cdp.equilibriumMobileConcentration(0.0).matrix().transpose());
         // immobileClusters.setConstant(Eigen::Matrix<double,iSize,1>::Zero());
-//        if(useImmobileODESolver)
-//        {// a family can start empty. The floor keeps the ratio content/density defined
-//          immobileClusters.setConstant(cdp.initLoopSinks.max(immobileFloor)); // a family can start empty. The floor keeps the ratio content/density defined
-//          Eigen::Array<double,1,iSize> initialValues(cdp.initLoopSinks); // initLoopSinks_SI: number densities per unit volume, then contents per atom
-            Eigen::Array<double,1,iSize> initialValues(cdp.initialImmobileClusters); // initialImmobileClusters_SI: number densities per unit volume, then contents per atom
-            initialValues.head(iSize/2)*=cdp.omega; // clusters per atom
-            immobileClusters.setConstant(initialValues.max(immobileFloors.transpose().array())); // a family can start empty. The floor keeps the ratio content/density defined
-//        }
-//        else
-//        {
-//            immobileClusters.setConstant(cdp.initLoopSinks);
-//        }
-//        immobileClusterRate = Eigen::VectorXd::Zero(immobileClusters.gSize());
+        Eigen::Array<double,1,iSize> initialValues(cdp.initialImmobileClusters); // initialImmobileClusters_SI: number densities per unit volume, then contents per atom
+        initialValues.head(iSize/2)*=cdp.omega; // clusters per atom
+        immobileClusters.setConstant(initialValues.max(immobileFloors.transpose().array())); // a family can start empty. The floor keeps the ratio content/density defined
         if(iSize>0 && !ImmobileSpeciesSolver<dim>::available())
         {// the immobile species are integrated by CVODE
             throw std::runtime_error("ClusterDynamics: the immobile species need a build of MoDELib with SUNDIALS 7 (CVODE). Install SUNDIALS and configure again.");
         }
     }
 
-//    template<int dim>
-//    bool ClusterDynamicsFEM<dim>::getUseImmobileODESolver(const DislocationDynamicsBase<dim>& ddBase)
-//    {/*!\returns true if the immobile clusters are integrated by ImmobileSpeciesSolver.
-//      * immobileIntegrator in ClusterDynamics.txt is cvode, euler, or auto.
-//      * auto, or a missing key, selects cvode when MoDELib was built with SUNDIALS.
-//      */
-//        if(iSize==0)
-//        {
-//            return false;
-//        }
-//        std::string integrator("auto");
-//        try
-//        {
-//            integrator=TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ClusterDynamics.txt").readString("immobileIntegrator",true);
-//        }
-//        catch(const std::runtime_error& e)
-//        {
-//            if(std::string(e.what()).find("does not cointain line with format")==std::string::npos)
-//            {
-//                throw;
-//            }
-//        }
-//        integrator.erase(std::remove_if(integrator.begin(),integrator.end(),[](unsigned char x){return std::isspace(x);}),integrator.end());
-//        if(integrator=="euler")
-//        {
-//            return false;
-//        }
-//        else if(integrator=="cvode")
-//        {
-//            if(!ImmobileSpeciesSolver<dim>::available())
-//            {
-//                throw std::runtime_error("ClusterDynamics: immobileIntegrator=cvode needs a build of MoDELib with SUNDIALS. Use immobileIntegrator=euler, or install SUNDIALS and configure again.");
-//            }
-//            return true;
-//        }
-//        else if(integrator=="auto")
-//        {
-//            if(!ImmobileSpeciesSolver<dim>::available())
-//            {
-//                std::cout<<redBoldColor<<"ClusterDynamics: MoDELib was built without SUNDIALS. The immobile clusters are integrated with immobileIntegrator=euler, without dissolution, emission and coalescence."<<defaultColor<<std::endl;
-//            }
-//            return ImmobileSpeciesSolver<dim>::available();
-//        }
-//        else
-//        {
-//            throw std::runtime_error("ClusterDynamics: unknown immobileIntegrator '"+integrator+"'. Use cvode, euler or auto.");
-//        }
-//    }
 
     template<int dim>
-    template<typename SinkType>
-//  void ClusterDynamicsFEM<dim>::solveMobileReactions(const SinkType& R1sink,const bool useImmobileClusters,const Eigen::VectorXd& production)
-//  {/*!@param[in] R1sink the first-order reaction matrix of the absorption at the immobile clusters
-    void ClusterDynamicsFEM<dim>::solveMobileReactions(const SinkType& IS,const bool useImmobileClusters,const Eigen::VectorXd& production)
-    {/*!@param[in] IS the sink matrix of the immobile clusters (LoopSinkReaction)
-      * @param[in] useImmobileClusters true if that absorption is part of the equations
+    void ClusterDynamicsFEM<dim>::solveMobileReactions(const bool useImmobileClusters,const Eigen::VectorXd& production)
+    {/*!@param[in] useImmobileClusters true if the absorption at the immobile clusters (LoopSinkReaction) is part of the equations
       * @param[in] production the global vector of the sources that do not depend on the mobile concentrations
       *
       * Newton iterations of the steady reaction-diffusion equations of the mobile species.
       */
         const double cTol(1e-5);
         double cError(1.0);
+
+        const auto DR((this->cdp.mobileDissociationRate).eval());
+        const auto OS((this->cdp.mobileOtherSinkRate).eval());
+        auto bWF_DR((test(iDs*mobileClustersIncrement),DR*(-1.0*mobileClustersIncrement))*dV);
+        auto bWF_OS((test(iDs*mobileClustersIncrement),OS*(-1.0*mobileClustersIncrement))*dV);
+        
         while(cError>cTol)
         {
-//          const auto R1((this->cdp.R1cd).eval());
-//          auto bWF_R1((test(iDs*mobileClustersIncrement),R1*(-1.0*mobileClustersIncrement))*dV); // THIS SHOULD BE STORED SINCE IT IS ALWAYS THE SAME
-//          auto lWF_R1((test(iDs*mobileClustersIncrement),eval(R1*mobileClusters))*dV);
-            const auto DR((this->cdp.mobileDissociationRate).eval());
-            const auto OS((this->cdp.mobileOtherSinkRate).eval());
-
-            auto bWF_DR((test(iDs*mobileClustersIncrement),DR*(-1.0*mobileClustersIncrement))*dV); // THIS SHOULD BE STORED SINCE IT IS ALWAYS THE SAME
-//          auto lWF_DR((test(iDs*mobileClustersIncrement),eval(DR*mobileClusters))*dV);
-
-            auto bWF_OS((test(iDs*mobileClustersIncrement),OS*(-1.0*mobileClustersIncrement))*dV); // THIS SHOULD BE STORED SINCE IT IS ALWAYS THE SAME
-//          auto lWF_OS((test(iDs*mobileClustersIncrement),eval(OS*mobileClusters))*dV);
-
-//          auto bWF_R1sink((test(iDs*mobileClustersIncrement),R1sink*(-1.0*mobileClustersIncrement))*dV);
-//          auto lWF_R1sink((test(iDs*mobileClustersIncrement),eval(R1sink*mobileClusters))*dV);
-            auto bWF_IS((test(iDs*mobileClustersIncrement),IS*(-1.0*mobileClustersIncrement))*dV);
-            auto lWF_IS((test(iDs*mobileClustersIncrement),eval(IS*mobileClusters))*dV);
-
             SecondOrderReaction<MobileTrialType> R2(mobileClusters,this->cdp);
             auto bWF_R2((test(iDs*mobileClustersIncrement),R2*(-1.0*mobileClustersIncrement))*dV);
             auto lWF_R2((test(iDs*mobileClustersIncrement),eval(R2*(0.5*mobileClusters)))*dV);
@@ -215,19 +136,18 @@ template struct InvDscaling<3>;
             MobileReactionSolverType rSolver(false,FLT_EPSILON);
 
             if(useImmobileClusters)
-            {
-//              rSolver.compute(dmBWF+bWF_R1+bWF_R2+bWF_R1sink);
+            {// absorption at the immobile clusters, from the same rate equations that ImmobileSpeciesSolver integrates
+                LoopSinkReaction<MobileTrialType,ImmobileTrialType> IS(immobileClusters,rateEquations);
+                auto bWF_IS((test(iDs*mobileClustersIncrement),IS*(-1.0*mobileClustersIncrement))*dV);
+                auto lWF_IS((test(iDs*mobileClustersIncrement),eval(IS*mobileClusters))*dV);
                 rSolver.compute(dmBWF+bWF_DR+bWF_OS+bWF_R2+bWF_IS);
+                mobileClustersIncrement=rSolver.solve(production-mSolver.getA()*mobileClusters.dofVector()+(lWF_R2+lWF_IS).globalVector());
             }
             else
-            {
-//              rSolver.compute(dmBWF+bWF_R1+bWF_R2);
+            {// no immobile fields (no immobile species, or discrete loops): the same Newton step without their absorption
                 rSolver.compute(dmBWF+bWF_DR+bWF_OS+bWF_R2);
+                mobileClustersIncrement=rSolver.solve(production-mSolver.getA()*mobileClusters.dofVector()+lWF_R2.globalVector());
             }
-//          mobileClustersIncrement=rSolver.solve(production-mSolver.getA()*mobileClusters.dofVector() + (useImmobileClusters? (lWF_R1+lWF_R2+lWF_R1sink).globalVector() : (lWF_R1+lWF_R2).globalVector()) );
-//          mobileClustersIncrement=rSolver.solve(production-mSolver.getA()*mobileClusters.dofVector() + (useImmobileClusters? (lWF_DR+lWF_OS+lWF_R2+lWF_IS).globalVector() : (lWF_DR+lWF_OS+lWF_R2).globalVector()) );
-            // mSolver.getA() holds the diffusion and R1=DR+OS, so their residual is mSolver.getA()*c
-            mobileClustersIncrement=rSolver.solve(production-mSolver.getA()*mobileClusters.dofVector() + (useImmobileClusters? (lWF_R2+lWF_IS).globalVector() : lWF_R2.globalVector()) );
 
             Eigen::MatrixXd cOld(mobileClusters.dofVector());
             cOld.resize(mSize,mobileClusters.gSize()/mSize);
@@ -241,7 +161,7 @@ template struct InvDscaling<3>;
             const Eigen::VectorXd relErr((absErr.array()/cNewNorm.array()).matrix());
 
             cError=relErr.maxCoeff();
-            std::cout<<"convergenceError="<<cError<<std::endl;
+            std::cout<<"        convergenceError="<<cError<<std::endl;
         }
     }
 
@@ -252,8 +172,7 @@ template struct InvDscaling<3>;
       * enter through the sink term and through the vacancies that the vacancy
       * clusters release.
       */
-        std::cout<<", mobile solver, "<<std::flush;
-//      mobileClusters=mSolver.solve(cascadeGlobalProduction);
+        std::cout<<"    mobile solver"<<std::endl;
         if(!this->cdp.computeReactions || !mobileFieldInitialized)
         {// linear solve: diffusion and R1. It is the solution without reactions, or the first guess of the Newton iterations
             mobileClusters=mSolver.solve(cascadeGlobalProduction);
@@ -271,80 +190,32 @@ template struct InvDscaling<3>;
 
         if(this->cdp.computeReactions)
         {
-//            if(useImmobileODESolver)
-            {// sink and source from the same rate equations that ImmobileSpeciesSolver integrates
-//              LoopSinkReaction<MobileTrialType,ImmobileTrialType> R1sink(immobileClusters,rateEquations);
-                LoopSinkReaction<MobileTrialType,ImmobileTrialType> IS(immobileClusters,rateEquations);
-                if(useImmobileClusters)
-                {
-                    ImmobileClusterSource<MobileTrialType,ImmobileTrialType> ICS(immobileClusters,rateEquations);
-                    const Eigen::VectorXd production(cascadeGlobalProduction+((test(iDs*this->mobileClusters),ICS)*dV).globalVector());
-//                  solveMobileReactions(R1sink,useImmobileClusters,production);
-                    solveMobileReactions(IS,useImmobileClusters,production);
-                }
-                else
-                {
-//                  solveMobileReactions(R1sink,useImmobileClusters,cascadeGlobalProduction);
-                    solveMobileReactions(IS,useImmobileClusters,cascadeGlobalProduction);
-                }
+            if(useImmobileClusters)
+            {// the immobile clusters release defects (ICS) and absorb them (in solveMobileReactions)
+                ImmobileClusterSource<MobileTrialType,ImmobileTrialType> ICS(immobileClusters,rateEquations);
+                const Eigen::VectorXd production(cascadeGlobalProduction+((test(iDs*this->mobileClusters),ICS)*dV).globalVector());
+                solveMobileReactions(useImmobileClusters,production);
             }
-//            else
-//            {
-//                FirstOrderReaction<MobileTrialType,ImmobileTrialType> R1sink(immobileClusters,this->cdp,ddBase.poly);
-//                solveMobileReactions(R1sink,useImmobileClusters,cascadeGlobalProduction);
-//            }
+            else
+            {// no immobile fields: the Newton iterations still solve diffusion, DR, OS and R2
+                solveMobileReactions(useImmobileClusters,cascadeGlobalProduction);
+            }
         }
     }
 
-//    template<int dim>
-//    void ClusterDynamicsFEM<dim>::solveImmobileClusters()
-//    {
-//        if (iSize > 0)
-//        {
-//            std::cout<<", immobile solver, "<<std::flush;
-//            ImmobileSinkRate<MobileTrialType,ImmobileTrialType> immobileRate(mobileClusters,immobileClusters,this->cdp,ddBase.poly);
-//            // The rates are projected on the finite-element space with a quadrature that is exact for the mass
-//            // matrix. With the 4-point rule of dV that matrix is singular: the nodal field with 6 at the vertices
-//            // and 1 at the mid-edge nodes vanishes at every quadrature point, and the projected rates held an
-//            // arbitrary multiple of it.
-//            auto lWFsink((test(immobileClusters),immobileRate)*dVprojection);
-//            // The rates of the number densities are orders of magnitude smaller than those of the contents,
-//            // and the tolerance is relative to the norm of all of them
-//            SpatialODESolver iSolver(immobileClusters,dVprojection,false,1e-12);
-//            immobileClusterRate = iSolver.solve(lWFsink.globalVector());
-//            std::cout<<"convergenceError="<<iSolver.error()<<std::endl;
-//        }
-//    }
 
 
     template<int dim>
     void ClusterDynamicsFEM<dim>::updateImmobileClusters(const double dt)
     {
-//        if(useImmobileODESolver)
-        {// implicit integration of the rate equations at each node, with the mobile field of the last solve
-            std::cout<<", immobile ODE solver (CVODE)"<<std::flush;
-            const auto t0= std::chrono::system_clock::now();
-            Eigen::VectorXd& immobileDofs(TrialBase<ImmobileTrialType>::dofVector());
-            immobileSpeciesSolver.integrate(mobileClusters.dofVector(),immobileDofs,nucleationFractions,dt);
-//          immobileDofs=immobileDofs.cwiseMax(immobileFloor);
-            applyImmobileFloors(immobileDofs);
-            std::cout<<", "<<immobileSpeciesSolver.lastInternalSteps()<<" internal steps, at most "<<immobileSpeciesSolver.lastMaxInternalSteps()<<" at a node"
-            /*     */<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
-//            return;
-        }
-//        TrialBase<ImmobileTrialType>::dofVector()+=immobileClusterRate * dt;
-//        for(size_t nodeID=0; nodeID<immobileClusters.nodeSize(); nodeID++)
-//        {
-//            for(int dof=0;dof<iSize/2;dof++)
-//            { // Corrected sink strength is to adjust for negative values at the barycenter of the quadratic elements where we have a sharp gradient of sink values between two end nodes
-//                // rmin = r_min * omega * N
-//                const double cmin = this->cdp.n_min(dof)*this->cdp.omega*TrialBase<ImmobileTrialType>::dofVector()(iSize*nodeID+dof);
-//                if(TrialBase<ImmobileTrialType>::dofVector()(iSize*nodeID+iSize/2+dof)<cmin) //  Nc, Na1, Na2, Na3, c, ca1, ca2, ca3
-//                { // Loop size cannot be smaller than a minimal value
-//                    TrialBase<ImmobileTrialType>::dofVector()(iSize*nodeID+iSize/2+dof)=cmin;                
-//                }
-//            }
-//        }
+        // implicit integration of the rate equations at each node, with the mobile field of the last solve
+        std::cout<<", immobile ODE solver (CVODE)"<<std::flush;
+        const auto t0= std::chrono::system_clock::now();
+        Eigen::VectorXd& immobileDofs(TrialBase<ImmobileTrialType>::dofVector());
+        immobileSpeciesSolver.integrate(mobileClusters.dofVector(),immobileDofs,nucleationFractions,dt);
+        applyImmobileFloors(immobileDofs);
+        std::cout<<", "<<immobileSpeciesSolver.lastInternalSteps()<<" internal steps, at most "<<immobileSpeciesSolver.lastMaxInternalSteps()<<" at a node"
+        /*     */<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
     }
 
 
@@ -356,13 +227,10 @@ template struct InvDscaling<3>;
       * Scales the number density and the defect content of a family by the
       * same factor, which leaves the size of its clusters unchanged.
       */
-//      const double floorValue(1.0e-33); // keeps the ratio content/density defined when nothing remains
         for(size_t nodeID=0; nodeID<immobileClusters.nodeSize(); nodeID++)
         {
             double& N(TrialBase<ImmobileTrialType>::dofVector()(iSize*nodeID+family));
             double& c(TrialBase<ImmobileTrialType>::dofVector()(iSize*nodeID+iSize/2+family));
-//          N=std::max(N*factor,floorValue);
-//          c=std::max(c*factor,floorValue);
             N=std::max(N*factor,immobileFloors(family)); // clusters per atom
             c=std::max(c*factor,immobileFloors(iSize/2+family));
         }
@@ -396,17 +264,12 @@ template struct InvDscaling<3>;
     void ClusterDynamicsFEM<dim>::solve(const bool hasDiscreteLoops)
     {
         solveMobileClusters(hasDiscreteLoops);
-    //    const bool useImmobileClusters(!hasDiscreteLoops && iSize > 0);
-    //    if(useImmobileClusters && !useImmobileODESolver)
-    //    {// rates for the explicit step. ImmobileSpeciesSolver needs none: it integrates in updateImmobileClusters
-    //        solveImmobileClusters();
-    //    }
     }
 
     template<int dim>
     void ClusterDynamicsFEM<dim>::initializeSolver()
     {
-        std::cout<<" decomposing"<<std::flush;
+        std::cout<<" decomposing:"<<std::endl;
         std::array<bool,mSize> allComps;
         for(int k=0;k<mSize;++k)
         {
@@ -415,7 +278,7 @@ template struct InvDscaling<3>;
         
         mobileClusters.addDirichletCondition(nodeListInternalExternal,Fix(),allComps); // apply to the four components of c
         mobileClustersIncrement.addDirichletCondition(nodeListInternalExternal,Fix(),allComps); // apply to the four components of c
-        mSolver.compute(mBWF); // call this after assigning the BCs
+        mSolver.compute(mBWF,true); // call this after assigning the BCs; prints the times of the stages
         solverInitialized=true;
     }
 
@@ -426,7 +289,6 @@ template struct InvDscaling<3>;
         {
             const size_t nNodes(mobileClusters.fe().nodes().size());
             mobileClusters=configIO.cdMatrix().block(0,0,nNodes,mSize).transpose().reshaped(mobileClusters.gSize(),1);
-//          immobileClusters=configIO.cdMatrix().block(0,mSize,nNodes,iSize).transpose().reshaped(immobileClusters.gSize(),1);
             immobileClusters=configIO.cdMatrix().block(0,mSize,nNodes,iSize).transpose().reshaped(immobileClusters.gSize(),1);
             for(size_t node=0;node<nNodes;++node)
             {// the evl file holds the number densities per unit volume: clusters per atom in the field
@@ -476,95 +338,40 @@ template struct InvDscaling<3>;
     }
 
 
-//  template<int dim>
-//  std::vector<Eigen::Matrix<double,dim,dim>> ClusterDynamicsFEM<dim>::betaP(const ElementType& ele, const BaryType& bary) const
-//  {
-//      std::vector<Eigen::Matrix<double,dim,dim>> strainVector;
-//      const Eigen::Matrix<double,iSize,1> sinkValue(eval(immobileClusters)(ele,bary));
-//      Eigen::Matrix<double,iSize,1> correctedSinkValue(sinkValue);
-//      for(int dof=0;dof<iSize/2;dof++)
-//      {
-//          const double cmin = cdp.n_min(dof)*cdp.omega*correctedSinkValue(dof);
-//          if(correctedSinkValue(iSize/2+dof)<cmin)
-//          { // Loop size cannot be smaller than a minimal value
-//              correctedSinkValue(iSize/2+dof)=cmin;
-//          }
-//      }
-//      const size_t gID(ele.simplex.region->regionID);
-//      const Eigen::Matrix<double,dim,dim> lat(ddBase.poly.grains.at(gID)->latticeBasis);
-//      const Eigen::Matrix<double,dim,iSize/2> localBurgers(lat*cdp.immobileSpeciesBurgers);
-//      const Eigen::Array<double,1,iSize/2> cr(cdp.clusterRadius(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0)));
-//      for(int k=0; k<iSize/2; k++)
-//      { // N A b ^b*^b
-//          Eigen::Matrix<double,dim,dim> tempStrain(Eigen::Matrix<double,dim,dim>::Zero());
-//          const double Area=M_PI*std::pow(cr(k),2);
-//          const Eigen::Matrix<double,dim,dim> highValue(cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*Area*localBurgers.col(k)*localBurgers.col(k).normalized().transpose());
-//          const Eigen::Matrix<double,dim,dim> lowValue(cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*cdp.delVPyramid*Eigen::Matrix<double,dim,dim>::Identity()/3.0); // isotropic, in any crystal
-//          tempStrain+=cdp.sigmoidalMatrixInterpolation(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0),lowValue,highValue,k).matrix();
-//          strainVector.push_back(tempStrain);
-//      }
-//      return strainVector;
-//  }
 
-//  template<int dim>
-//  std::vector<Eigen::Matrix<double,dim,dim>> ClusterDynamicsFEM<dim>::immobileStrain(const Eigen::Matrix<double,iSize,1>& value,const size_t& gID,const bool& relaxation) const
-//  {/*!@param[in] value the immobile fields at one node: number densities per unit volume, then contents per atom
-//    * @param[in] gID the grain, which orients the Burgers vectors
-//    * @param[in] relaxation true: weighted by immobileSpeciesRelRelaxVol (betaV). false: betaP
-//    *\returns the strain of each immobile family (the loop body of the former betaP and betaV)
-//    */
-//      std::vector<Eigen::Matrix<double,dim,dim>> strainVector;
-//      Eigen::Matrix<double,iSize,1> correctedSinkValue(value);
-//      for(int dof=0;dof<iSize/2;dof++)
-//      {
-//          const double cmin = cdp.strainMinClusterSize(dof)*cdp.omega*correctedSinkValue(dof);
-//          if(correctedSinkValue(iSize/2+dof)<cmin)
-//          { // Loop size cannot be smaller than a minimal value
-//              correctedSinkValue(iSize/2+dof)=cmin;
-//          }
-//      }
-//      const Eigen::Matrix<double,dim,dim> lat(ddBase.poly.grains.at(gID)->latticeBasis);
-//      const Eigen::Matrix<double,dim,iSize/2> localBurgers(lat*cdp.immobileSpeciesBurgers);
-//      const Eigen::Array<double,1,iSize/2> cr(cdp.clusterRadius(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0)));
-//      const Eigen::Array<double,1,iSize/2> CI(correctedSinkValue.template block<iSize/2,1>(iSize/2,0)); // defects per atom
-//      const Eigen::Array<double,1,iSize/2> N(correctedSinkValue.template block<iSize/2,1>(0,0)); // clusters per unit volume
-//      const Eigen::Array<double,1,iSize/2> m(CI/N/cdp.omega); // defects per cluster
-//      const Eigen::Array<double,1,iSize/2> cr(cdp.effectiveClusterRadius(m));
-//      for(int k=0; k<iSize/2; k++)
-//      { // N A b ^b*^b
-//          const double scale(relaxation? cdp.immobileSpeciesRelRelaxVol(k) : 1.0);
-//          const double Area=M_PI*std::pow(cr(k),2);
-//          const Eigen::Matrix<double,dim,dim> highValue(scale*cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*Area*localBurgers.col(k)*localBurgers.col(k).normalized().transpose());
-//          const Eigen::Matrix<double,dim,dim> lowValue(scale*cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*cdp.pyramidRelaxationVolume*Eigen::Matrix<double,dim,dim>::Identity()/3.0); // isotropic, in any crystal
-//          strainVector.push_back(cdp.sigmoidalMatrixInterpolation(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0),lowValue,highValue,k).matrix());
-//          strainVector.push_back(cdp.shapeInterpolation(m,lowValue,highValue,k).matrix());
-//      }
-//      return strainVector;
-//  }
 
     template<int dim>
     std::vector<Eigen::Matrix<double,dim,dim>> ClusterDynamicsFEM<dim>::immobileStrain(const Eigen::Matrix<double,iSize,1>& value,const size_t& gID,const bool& relaxation) const
     {/*!@param[in] value the immobile fields at one node: clusters per atom, then defects per atom
       * @param[in] gID the grain, which orients the Burgers vectors
       * @param[in] relaxation true: weighted by immobileSpeciesRelRelaxVol (betaV). false: betaP
-      *\returns the strain of each immobile family: N*(volume change of one cluster), with N=n/Omega the clusters per unit volume
+      *\returns the strain of each immobile family (report Eqs. 34-35, summed over the clusters):
+      *
+      *   p_k*c_k*[(1-S_k)*I/3 + S_k*bhat_k^bhat_k]   (times immobileSpeciesRelRelaxVol for betaV)
+      *
+      * Each cluster changes the volume by -Omega per vacancy (+Omega per interstitial) in both shapes:
+      * isotropically as a bi-pyramid, along its Burgers vector as a loop (Christiaen et al.,
+      * Acta Mater. 179 (2019) 93, Eqs. 10-11 and Figs. 7-8). N*m*Omega = c, so the content c_k
+      * (defects per atom) sets the volume change and the sigmoid only its anisotropy.
       */
         std::vector<Eigen::Matrix<double,dim,dim>> strainVector;
         const Eigen::Array<double,1,iSize/2> n(value.template block<iSize/2,1>(0,0)); // clusters per atom
-//      const Eigen::Array<double,1,iSize/2> cField(value.template block<iSize/2,1>(iSize/2,0)); // defects per atom
-//      const Eigen::Array<double,1,iSize/2> c(cField.max(cdp.strainMinClusterSize*n)); // at least strainMinClusterSize defects per cluster
         const Eigen::Array<double,1,iSize/2> c(value.template block<iSize/2,1>(iSize/2,0)); // defects per atom
-        const Eigen::Array<double,1,iSize/2> m(c/n); // defects per cluster
-        const Eigen::Array<double,1,iSize/2> N(n/cdp.omega); // clusters per unit volume
+//      const Eigen::Array<double,1,iSize/2> m(c/n); // defects per cluster
+        const Eigen::Array<double,1,iSize/2> m(cdp.populated(n,c).select(c/n,1.0)); // defects per cluster (1 for an absent family, whose strain is zero)
+//      const Eigen::Array<double,1,iSize/2> N(n/cdp.omega); // clusters per unit volume
         const Eigen::Matrix<double,dim,dim> lat(ddBase.poly.grains.at(gID)->latticeBasis);
         const Eigen::Matrix<double,dim,iSize/2> localBurgers(lat*cdp.immobileSpeciesBurgers);
-        const Eigen::Array<double,1,iSize/2> cr(cdp.effectiveClusterRadius(n,c));
+//      const Eigen::Array<double,1,iSize/2> cr(cdp.effectiveClusterRadius(n,c));
         for(int k=0; k<iSize/2; k++)
         { // N A b ^b*^b
             const double scale(relaxation? cdp.immobileSpeciesRelRelaxVol(k) : 1.0);
-            const double Area=M_PI*std::pow(cr(k),2);
-            const Eigen::Matrix<double,dim,dim> highValue(scale*cdp.immobileSpeciesVector(k)*N(k)*Area*localBurgers.col(k)*localBurgers.col(k).normalized().transpose());
-            const Eigen::Matrix<double,dim,dim> lowValue(scale*cdp.immobileSpeciesVector(k)*N(k)*cdp.pyramidRelaxationVolume*Eigen::Matrix<double,dim,dim>::Identity()/3.0); // isotropic, in any crystal
+//          const double Area=M_PI*std::pow(cr(k),2);
+//          const Eigen::Matrix<double,dim,dim> highValue(scale*cdp.immobileSpeciesVector(k)*N(k)*Area*localBurgers.col(k)*localBurgers.col(k).normalized().transpose());
+//          const Eigen::Matrix<double,dim,dim> lowValue(scale*cdp.immobileSpeciesVector(k)*N(k)*cdp.pyramidRelaxationVolume*Eigen::Matrix<double,dim,dim>::Identity()/3.0); // isotropic, in any crystal
+            const Eigen::Matrix<double,dim,1> bHat(localBurgers.col(k).normalized());
+            const Eigen::Matrix<double,dim,dim> highValue(scale*cdp.immobileSpeciesVector(k)*c(k)*bHat*bHat.transpose()); // loop: volume change along the Burgers vector
+            const Eigen::Matrix<double,dim,dim> lowValue(scale*cdp.immobileSpeciesVector(k)*c(k)*Eigen::Matrix<double,dim,dim>::Identity()/3.0); // bi-pyramid: the same volume change, isotropic, in any crystal
             strainVector.push_back(cdp.shapeInterpolation(m,lowValue,highValue,k).matrix());
         }
         return strainVector;
@@ -591,46 +398,6 @@ template struct InvDscaling<3>;
     }
 
 
-//  template<int dim>
-//  std::vector<Eigen::Matrix<double,dim,dim>> ClusterDynamicsFEM<dim>::betaV(const ElementType& ele, const BaryType& bary) const
-//  {
-//      std::vector<Eigen::Matrix<double,dim,dim>> strainVector;
-//      const Eigen::Matrix<double,iSize,1> sinkValue(eval(immobileClusters)(ele,bary));
-//      Eigen::Matrix<double,iSize,1> correctedSinkValue(sinkValue);
-//      for(int dof=0;dof<iSize/2;dof++)
-//      {
-//      const double cmin = cdp.n_min(dof)*cdp.omega*correctedSinkValue(dof);
-//          if(correctedSinkValue(iSize/2+dof)<cmin)
-//          { // Loop size cannot be smaller than a minimal valu
-//              correctedSinkValue(iSize/2+dof)=cmin;
-//          }
-//      }
-//      const size_t gID(ele.simplex.region->regionID);
-//      const Eigen::Matrix<double,dim,dim> lat(ddBase.poly.grains.at(gID)->latticeBasis);
-//      const Eigen::Matrix<double,dim,iSize/2> localBurgers(lat*cdp.immobileSpeciesBurgers);
-//      const Eigen::Array<double,1,iSize/2> cr(cdp.clusterRadius(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0)));
-//      for(int k=0; k<iSize/2; k++)
-//      { // N A b ^b*^b
-//          Eigen::Matrix<double,dim,dim> tempStrain(Eigen::Matrix<double,dim,dim>::Zero());
-//          const double Area=M_PI*std::pow(cr(k),2);
-//          const Eigen::Matrix<double,dim,dim> highValue(cdp.immobileSpeciesRelRelaxVol(k)*cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*Area*localBurgers.col(k)*localBurgers.col(k).normalized().transpose());
-//          const Eigen::Matrix<double,dim,dim> lowValue(cdp.immobileSpeciesRelRelaxVol(k)*cdp.immobileSpeciesVector(k)*correctedSinkValue(k)*cdp.delVPyramid*Eigen::Matrix<double,dim,dim>::Identity()/3.0); // isotropic, in any crystal
-//          tempStrain+=cdp.sigmoidalMatrixInterpolation(correctedSinkValue.template block<iSize/2,1>(iSize/2,0),correctedSinkValue.template block<iSize/2,1>(0,0),lowValue,highValue,k).matrix();
-//          strainVector.push_back(tempStrain);
-//      }
-//     // Add up the contribution from the mobile species
-//      Eigen::Matrix<double,dim,dim> tempStrain(Eigen::Matrix<double,dim,dim>::Zero());
-////      const Eigen::Matrix<double,mSize,1> inFactors((1.0/cdp.msVector.abs()).matrix());
-////      const Eigen::Matrix<double,mSize,1> localConcentration(inFactors.asDiagonal()*eval(mobileClusters)(ele,bary)); // Local concentration
-//      const Eigen::Matrix<double,mSize,1> localConcentration(eval(mobileClusters)(ele,bary)); // content, defects per atom
-//      for(int k=0; k<mSize; k++)
-//      {
-////          tempStrain += 1.0/3.0*cdp.msVector(k)*localConcentration(k)*cdp.msRelRelaxVol(k)*Eigen::Matrix<double,dim,dim>::Identity();
-//          tempStrain += 1.0/3.0*(cdp.msVector(k)>0.0? 1.0 : -1.0)*localConcentration(k)*cdp.msRelRelaxVol(k)*Eigen::Matrix<double,dim,dim>::Identity(); // content space
-//      }
-//      strainVector.push_back(tempStrain);
-//      return strainVector;
-//  }
 
     template<int dim>
     std::vector<Eigen::Matrix<double,dim,dim>> ClusterDynamicsFEM<dim>::betaV(const ElementType& ele, const BaryType& bary) const

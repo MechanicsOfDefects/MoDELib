@@ -47,88 +47,67 @@ glidePlaneNoise = none;
 enabledSecondPhases=;
 
 #- ClusterDynamics -#
-# Parameters of the D1/M1 report (docs/reports/GW_Phase4_D1M1.pdf), fitted with the 0D model at zero stress and isotropic diffusion.
-# The reaction prefactors and the bias factors hold at 573 K. Use with immobileIntegrator=cvode.
-atomicVolume_SI=1.2e-29; # [m^3] atomic volume used in the fit. Without this key the atomic volume of the lattice is used
-doseRate_dpaPerSec=1.0e-7; 		# [dpa/s] irradiation dose rate
-mobileSpeciesVector=-1 +1 +2 +3;			# v i 2i 3i
-mobileSpeciesCascadeFractions=0.995 0.97788714 0.01 0.01; # fractions of the cascade defects born as each mobile species. The remainder of the vacancies (0.005) and of the interstitials (0.00211286) is born in immobile clusters
-mobileSpeciesRelRelaxVol=0.405 1.2 1.2 1.2; 	# [-] relative relaxation volume
-mobileSpeciesEnergyFormation_eV=1.6 3.0 6.0 8.0; 	# [eV]  formation energy
-mobileSpeciesBindingEnergy_eV= 0 0 0.957033 2.0; # [eV] binding energy of each mobile cluster, for its dissociation (2i, 3i). The entries of the single v and i are not used
-mobileSpeciesEnergyMigration_eV=1.2      0.0 0.0 1.2      0.0 1.2
-                                0.759101 0.0 0.0 0.759101 0.0 0.759101
-                                0.759101 0.0 0.0 0.759101 0.0 0.759101
-                                0.759101 0.0 0.0 0.759101 0.0 0.759101;  # [eV] migration energies, components [11 12 13 22 23 33]. The slower jump frequency of 2i and 3i (1.36292 eV) is in the reaction prefactors
+doseRate_dpaPerSec=1.0e-7; 		                            # [dpa/s] irradiation dose rate
+mobileSpeciesVector=-1 +1 +2 +3;                            # [ ... v i 2i 3i ... ]
+mobileSpeciesCascadeFractions=0.995 0.97788714 0.01 0.01;   # fractions of the cascade defects born as each mobile species. The remainder of the vacancies (0.005) and of the interstitials (0.00211286) is born in immobile clusters
+mobileSpeciesRelRelaxVol=0.405 1.2 1.2 1.2; 	            # [-] relative relaxation volume
+mobileSpeciesEnergyFormation_eV=1.6 3.0 6.0 8.0; 	        # [eV]  formation energy
+mobileSpeciesBindingEnergy_eV= 0 0 1.42 3.0;                # [eV] binding energy of each mobile cluster, for its dissociation (2i, 3i). The entries of the single v and i are not used
+mobileSpeciesEnergyMigration_eV=1.20 0.0 0.0 1.2 0.0 1.2
+                                0.76 0.0 0.0 0.76 0.0 0.76
+                                0.55 0.0 0.0 0.55 0.0 0.70
+                                0.50 0.0 0.0 0.50 0.0 0.65;  # [eV] migration energies, components [11 12 13 22 23 33]. The slower jump frequency of 2i and 3i (1.36292 eV) is in the reaction prefactors
 mobileSpeciesD0_SI=5.21645e-7 0.0 0.0 5.21645e-7 0.0 5.21645e-7
                    5.21645e-7 0.0 0.0 5.21645e-7 0.0 5.21645e-7
                    5.21645e-7 0.0 0.0 5.21645e-7 0.0 5.21645e-7
                    5.21645e-7 0.0 0.0 5.21645e-7 0.0 5.21645e-7; # [m^2/s] pre-exponential diffusion coefficients, components [11 12 13 22 23 33]
 computeReactions=1;
 reactionPrefactorMap=-1 -1 0.0
-             -1  1 0.773363
-             -1  2 2.039512e-04
-             -1  3 1.826184e-04
-              1  1 1.546726
-              1  2 0.742786
-              1  3 0.665093
-              2  2 1.396465e-05
-              2  3 6.276966e-06
-              3  3 0.0; # Reaction map between species (species,species,reaction prefactor). At 573 K the rate coefficients are the sums of the jump frequencies of the reactants
-discreteDislocationBias=1.1079 0.9279 0.9279 0.9279
-                        0.8921 1.0721 1.0721 1.0721; # [-] basic bias of the loops for the mobile species [v,i,2i,3i]. First row vacancy loops, second row interstitial loops
+             -1  1 2
+             -1  2 1
+             -1  3 1
+              1  1 1
+              1  2 1
+              1  3 1
+              2  2 1
+              2  3 1
+              3  3 1; # Reaction map between species (species,species,reaction prefactor). At 573 K the rate coefficients are the sums of the jump frequencies of the reactants
 
 #- Immobile Species -#
-immobileSpeciesVector=-1 +1 +1 +1; #[c a1 a2 a3], loop sign vectors
+immobileSpeciesVector=-1 +1 +1 +1;              # [c a1 a2 a3], loop sign vectors
 immobileSpeciesBurgers=0 1 0 -1
-                        0 0 1 1
-                        1 0 0 0; # Each column is a Burgers vector (component for lattice basis) for immobile loops
-immobileSpeciesRelRelaxVol= 0.405 1.2 1.2 1.2; # Relative relaxation volume for loops [... c a1 a2 a3 ...]
+                       0 0 1 1
+                       0.5 0 0 0;               # Each column is a Burgers vector (component for lattice basis) for immobile loops
+immobileSpeciesRelRelaxVol= 0.1 0.01 0.01 0.01; # [-] relaxation volume of the clusters of each family [c a1 a2 a3], relative to their volume change (one atomic volume per defect): 10% for <c>, 1% for <a>
 
 #- Initial Defect Densities -#
-initialImmobileClusters_SI= 0 0 0 0 0 0 0 0; # [m^-3] and [-] initial number densities and defect contents of the families
-dislocationSinkDensity_SI=1.88e14; # [m^-2] density of the dislocation network: sink of the mobile species and target of loop-network coalescence
-mobileDislocationSinkEfficiency=1 1.01 1.01 1.01; # [-] sink efficiency (bias) of the network for each mobile species [v,i,2i,3i]. Sink strength = efficiency*density
+initialImmobileClusters_SI= 0 0 0 0 0 0 0 0;        # [m^-3] and [-] initial number densities and defect contents of the families
+dislocationSinkDensity_SI=1.88e14;                  # [m^-2] density of the dislocation network: sink of the mobile species and target of loop-network coalescence
+mobileDislocationSinkEfficiency=1 1.01 1.01 1.01;   # [-] sink efficiency (bias) of the network for each mobile species [v,i,2i,3i]. Sink strength = efficiency*density
 
 #- Bi-Pyramids -#
-pyramidRelaxationVolume_SI = 1.2e-29; # [m^3] volume change of one bi-pyramid cluster (strain only)
-shapeTransitionWidth = 0.15; # [-] controls width of sigmoid (steepness)
-shapeTransitionMinSize = 100 40 40 40; # [-]  number of defects below which a cluster is a bi-pyramid
-shapeTransitionMaxSize = 800 300 300 300; # [-] number of defects above which a cluster is a loop
+shapeTransitionWidth = 0.15;                # [-] controls width of sigmoid (steepness)
+shapeTransitionMinSize = 10 1 1 1;      # [-]  number of defects below which a cluster is a bi-pyramid
+shapeTransitionMaxSize = 10000 2 2 2;   # [-] number of defects above which a cluster is a loop
 
 #- Kinetics of the immobile clusters -#
-clusterBindingEnergy_eV=5.0 0 0 0; # [eV] binding energy of a vacancy to the clusters of each vacancy family, for thermal emission (Eq. 53). Not used for the interstitial families
-nucleatedClusterSize=400 300 300 300; # [-] number of defects in a new cluster
-clusterDissolutionRatePrefactor=0.9510675733510866 0 0 0; # [1/s] dissolution rate of the clusters of each immobile family, prefactor (=1/tau0_vLoop_SI for the vacancy family). 0: no dissolution
-clusterDissolutionRateEnergy=0.470079 0 0 0; # [eV] dissolution rate of the clusters of each immobile family, activation energy
-
-#coalescenceClimbBurgers=1; # 1, or no key: the climb speed of coalescence divides the absorbed volume by the Burgers-vector magnitude (report). 0: as in the DisloCluster code (for comparison)
-
-cLL=0.162483 120.577 120.577 120.577; # [-] rate coefficient of like-loop coalescence
-cLN=2.95829 1130.85 1130.85 1130.85; # [-] rate coefficient of loop-network coalescence
-kappaLL=2.0; # [-] overlap coefficient of like-loop coalescence
-kappaLN=0.4; # [-] overlap coefficient of loop-network coalescence
-r_min=1.0e-9 1.0e-9 1.0e-9 1.0e-9; # [m] radius below which a cluster no longer shrinks by absorption
-loopSinkScale=0.291528 0.792317 0.792317 0.792317; # [-] fitted factor on the sink strength of each family (Q of the report for <c>; the 0D radius convention for <a>)
-
-# TO BE REMOVED / ALREADY REPLACED
-#immobileBias=1.0 1.0 1.0 1.0; # [-] used by immobileIntegrator=euler only
-#n_s = 0; # [-] subtracted from the median vacancy value - controls centering point
-#mobileSpeciesSurvivingEfficiency=1.0; # Surviving efficiency. No longer used: P_M = G f, the cascade fractions are those of the surviving defects
-#tau0_vLoop_SI=1.05145; # [s] lifetime of the vacancy clusters, prefactor
-#Ea_vLoop_eV=0.470079; # [eV] lifetime of the vacancy clusters, activation energy
-#dislocationSinks_SI=0e11 0e11 0e11 0e11; # [m^-2], used by immobileIntegrator=euler only
-#alpha_bp = 1.0; # [-] used by immobileIntegrator=euler only
-#strainMinClusterSize = 8 8 8 8; # [-] Minimal defects per cluster in the strain
-#otherSinks_SI=1.88e14 1.8988e14 1.8988e14 1.8988e14; # [m^-2], sink line length of other sinks (dislocation network, etc.) for each mobile species
-#loopNucleationPerReaction=0; # 0, or no key: the clustered content is divided by nucleatedClusterSize (Eq. 37 of the report). 1: each reaction creates one cluster holding its defects, as in the DisloCluster code (for comparison)
-#loopClusteringNucleation=1; # 1, or no key: clusters are also born from the reactions between mobile species whose product is not mobile (Eq. 46 of the report). 0: from cascades only, as in the runs of the report
-#dissolveEmbryosOnly=1; # 1: a dissolving cluster releases nucleatedClusterSize defects, as in the 0D code that fitted these parameters. 0, or no key: it releases the mean content of its family (Eq. 51 of the report)
-# rhoNetwork_SI=1.88e14; # [m^-2] density of the dislocation network
-
+clusterBindingEnergy_eV=1.5 0 0 0;          # [eV] binding energy of a vacancy to the clusters of each vacancy family, for thermal emission (Eq. 53). Not used for the interstitial families
+nucleatedClusterSize=200 200 200 200;       # [-] number of defects in a new cluster
+clusterDissolutionRatePrefactor=0.95 0 0 0; # [1/s] dissolution rate of the clusters of each immobile family, prefactor (=1/tau0_vLoop_SI for the vacancy family). 0: no dissolution
+clusterDissolutionEnergy=0.36 0 0 0;        # [eV] dissolution rate of the clusters of each immobile family, activation energy
+cLL=0.162 120.577 120.577 120.577;          # [-] rate coefficient of like-loop coalescence
+cLN=2.958 1130.85 1130.85 1130.85;          # [-] rate coefficient of loop-network coalescence
+kappaLL=2.0;                                # [-] overlap coefficient of like-loop coalescence
+kappaLN=0.4;                                # [-] overlap coefficient of loop-network coalescence
+immobileSpeciesBias=1.00 1.00 1.00 1.00
+                    1.00 1.2 1.2 1.2
+                    1.00 1.2 1.2 1.2
+                    1.00 1.2 1.2 1.2;    # [-] capture bias of each immobile family [c a1 a2 a3] (rows) for the mobile species [v,i,2i,3i] (columns), fitted factor included (Q of the report for <c>). The code multiplies by the diffusion-anisotropy factor
 
 #- Discretization -#
-# At clusterDiscretizationTime the immobile fields are replaced by discrete prismatic loops. Needs DislocationDynamics in physics
-clusterDiscretizationTime=0.5e30; # [s] time of the conversion
-clusterDiscretizationFactor=100; # [-] number of clusters that one discrete loop stands for. 1 gives the population of the fields
-minimumLoopSize = 0e9; # [m] loops of smaller radius are not created, and stay in the fields
+clusterDiscretizationTime=0.5e30;                   # [s] time of the conversion
+clusterDiscretizationFactor=100;                    # [-] number of clusters that one discrete loop stands for. 1 gives the population of the fields
+minimumLoopSize = 0e9;                              # [m] loops of smaller radius are not created, and stay in the fields
+discreteDislocationBias=1.1079 0.9279 0.9279 0.9279
+                        0.8921 1.0721 1.0721 1.0721; # [-] basic bias of the discrete dislocation loops for the mobile species [v,i,2i,3i], used only by the discrete dislocation segments. First row vacancy loops, second row interstitial loops
+                                                     # At clusterDiscretizationTime the immobile fields are replaced by discrete prismatic loops. Needs DislocationDynamics in physics
