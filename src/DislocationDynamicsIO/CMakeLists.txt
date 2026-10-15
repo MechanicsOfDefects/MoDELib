@@ -4,5 +4,5 @@ target_sources(${PROJECT_NAME} PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/DDauxIO.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/DDtraitsIO.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/DDbaseIO.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/EllipsoidalInclusionIO.cpp
 	)
-

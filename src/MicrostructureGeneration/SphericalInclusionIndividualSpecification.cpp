@@ -24,7 +24,7 @@ namespace model
     /* init */ MicrostructureSpecificationBase("SphericalInclusion","Individual",fileName)
     /* init */,radii_SI(this->parser->readArray<double>("radii_SI",true))
     /* init */,centers(radii_SI.size()? this->parser->readMatrix<double>("centers",radii_SI.size(),3,true) : Eigen::Matrix<double,Eigen::Dynamic,3>::Zero(0,3))
-    /* init */,eigenDistortions(radii_SI.size()? this->parser->readMatrix<double>("eigenDistortions",radii_SI.size(),3*3,true) : Eigen::Matrix<double,Eigen::Dynamic,3>::Zero(0,3))
+    /* init */,crystalEigenDistortions(radii_SI.size()? this->parser->readMatrix<double>("crystalEigenDistortions",radii_SI.size(),3*3,true) : Eigen::Matrix<double,Eigen::Dynamic,3>::Zero(0,3))
     /* init */,velocityReductionFactors(radii_SI.size()? this->parser->readArray<double>("velocityReductionFactors",true) : std::vector<double>())
     /* init */,phaseIDs(radii_SI.size()? this->parser->readArray<int>("phaseIDs",true) : std::vector<int>())
     /* init */,allowOverlap(radii_SI.size()? this->parser->readScalar<int>("allowOverlap",true) : false)
@@ -34,7 +34,7 @@ namespace model
         {
 //            const std::vector<int> periodicDipoleExitFaceIDs(this->parser->readArray<int>("periodicDipoleExitFaceIDs",true));
 //            const Eigen::Matrix<double,Eigen::Dynamic,3> centers(this->parser->readMatrix<double>("centers",radii_SI.size(),3,true));
-//            const Eigen::Matrix<double,Eigen::Dynamic,3*3> eigenDistortions(this->parser->readMatrix<double>("eigenDistortions",radii_SI.size(),3*3,true));
+//            const Eigen::Matrix<double,Eigen::Dynamic,3*3> crystalEigenDistortions(this->parser->readMatrix<double>("crystalEigenDistortions",radii_SI.size(),3*3,true));
 //            const std::vector<double> velocityReductionFactors(this->parser->readArray<double>("inclusionVelocityReductionFactors",true));
 //            const std::vector<int> phaseIDs(this->parser->readArray<int>("phaseIDs",true));
 
@@ -42,9 +42,9 @@ namespace model
             {
                 throw std::runtime_error("radii_SI.size()="+std::to_string(radii_SI.size())+" NOT EQUAL TO centers.rows()="+std::to_string(centers.rows()));
             }
-            if(int(radii_SI.size())!=eigenDistortions.rows())
+            if(int(radii_SI.size())!=crystalEigenDistortions.rows())
             {
-                throw std::runtime_error("radii_SI.size()="+std::to_string(radii_SI.size())+" NOT EQUAL TO eigenDistortions.rows()="+std::to_string(eigenDistortions.rows()));
+                throw std::runtime_error("radii_SI.size()="+std::to_string(radii_SI.size())+" NOT EQUAL TO crystalEigenDistortions.rows()="+std::to_string(crystalEigenDistortions.rows()));
             }
             if(radii_SI.size()!=velocityReductionFactors.size())
             {

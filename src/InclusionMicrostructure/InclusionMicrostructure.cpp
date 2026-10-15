@@ -9,6 +9,8 @@
 #define model_InclusionMicrostructure_cpp_
 
 #include <InclusionMicrostructure.h>
+#include <EllipsoidalInclusion.h>
+#include <limits>
 
 namespace model
 {
@@ -24,6 +26,27 @@ namespace model
     {
         this->lastUpdateTime=this->ddBase.simulationParameters.totalTime;
         
+        // IDs are shared across inclusion shapes. Reject collisions before loading.
+        std::set<size_t> inclusionIDs;
+        const auto checkIDs=[&](const auto& inclusions)
+        {
+            for(const auto& inclusion : inclusions)
+            {
+                if(inclusion.inclusionID==std::numeric_limits<size_t>::max())
+                {
+                    throw std::runtime_error("Inclusion ID leaves no room for the next ID.");
+                }
+                if(!inclusionIDs.insert(inclusion.inclusionID).second)
+                {
+                    throw std::runtime_error("Duplicate inclusionID in configuration.");
+                }
+            }
+        };
+        checkIDs(configIO.sphericalInclusions());
+        checkIDs(configIO.ellipsoidalInclusions());
+        checkIDs(configIO.polyhedronInclusions());
+
+        // Restore saved IDs even when shapes are interleaved or a configuration is reloaded.
         this->eshelbyInclusions().clear();
         this->polyhedronInclusionNodes().clear();
         for(const auto& inclusion : configIO.sphericalInclusions())
@@ -37,7 +60,7 @@ namespace model
                 if(inclusion.phaseID<int(grain->secondPhases().size()))
                 {
                     const auto secondPhase(grain->secondPhases().at(inclusion.phaseID));
-                    EshelbyInclusionBase<dim>::set_count(inclusion.inclusionID);
+                    EshelbyInclusionBase<dim>::force_count(inclusion.inclusionID);
                     std::shared_ptr<EshelbyInclusionBase<dim>> iptr(new SphericalInclusion<dim>(inclusion.C,inclusion.a,inclusion.eT,this->ddBase.poly.nu,this->ddBase.poly.mu,inclusion.mobilityReduction,inclusion.phaseID,secondPhase));
                     this->eshelbyInclusions().emplace(inclusion.inclusionID,iptr);
                 }
@@ -48,6 +71,25 @@ namespace model
             }
         }
         
+        for(const auto& inclusion : configIO.ellipsoidalInclusions())
+        {
+            const auto searchPair(this->ddBase.mesh.search(inclusion.C));
+            if(searchPair.first)
+            {
+                const auto& grain(this->ddBase.poly.grain(searchPair.second->region->regionID));
+                const auto phaseIter(grain->secondPhases().find(inclusion.phaseID));
+                if(phaseIter==grain->secondPhases().end())
+                {
+                    throw std::runtime_error("Ellipsoidal inclusion phaseID does not exist in grain.");
+                }
+                EshelbyInclusionBase<dim>::force_count(inclusion.inclusionID);
+                auto iptr=std::make_shared<EllipsoidalInclusion<dim>>(
+                    inclusion.C,inclusion.axes,inclusion.eT,this->ddBase.poly.nu,
+                    this->ddBase.poly.mu,inclusion.mobilityReduction,inclusion.phaseID,phaseIter->second);
+                this->eshelbyInclusions().emplace(inclusion.inclusionID,iptr);
+            }
+        }
+
         for(const auto& piNode : configIO.polyhedronInclusionNodes())
         {
             this->polyhedronInclusionNodes().emplace(piNode.nodeID,piNode);
@@ -105,7 +147,7 @@ namespace model
                         if(inclusion.phaseID<int(grain->secondPhases().size()))
                         {
                             const auto secondPhase(grain->secondPhases().at(inclusion.phaseID));
-                            EshelbyInclusionBase<dim>::set_count(inclusion.inclusionID);
+                            EshelbyInclusionBase<dim>::force_count(inclusion.inclusionID);
                             std::shared_ptr<EshelbyInclusionBase<dim>> iptr(new PolyhedronInclusion<dim>(this->polyhedronInclusionNodes(),faces,inclusion.eT,this->ddBase.poly.nu,this->ddBase.poly.mu,inclusion.mobilityReduction,inclusion.phaseID,secondPhase));
                             this->eshelbyInclusions().emplace(inclusion.inclusionID,iptr);
                         }
@@ -128,6 +170,10 @@ namespace model
             {
                 throw std::runtime_error("inclusionID not found in faceMap");
             }
+        }
+        if(!inclusionIDs.empty())
+        {
+            EshelbyInclusionBase<dim>::force_count(*inclusionIDs.rbegin()+1);
         }
     }
 
@@ -173,6 +219,12 @@ void InclusionMicrostructure<dim>::reSolve()
                 configIO.sphericalInclusions().emplace_back(*sphericalDerived);
             }
             
+            auto* ellipsoidalDerived = dynamic_cast<EllipsoidalInclusion<dim>*>(ei.second.get());
+            if(ellipsoidalDerived)
+            {
+                configIO.ellipsoidalInclusions().emplace_back(*ellipsoidalDerived);
+            }
+
             auto* polyhedronDerived = dynamic_cast<PolyhedronInclusion<dim>*>(ei.second.get());
             if (polyhedronDerived)
             {

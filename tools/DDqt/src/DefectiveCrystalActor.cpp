@@ -20,6 +20,10 @@
 #include <DefectiveCrystalActor.h>
 #include <SimplicialMesh.h>
 
+#include <DDqtControls.h>
+#include <QHBoxLayout>
+#include <sstream>
+
 namespace model
 {
         
@@ -42,16 +46,20 @@ namespace model
         /* init */,quadrature(new QuadratureActor(renWin,ren,ddBase.poly,ddBase.simulationParameters.traitsIO))
         /* init */,chartActor(new ChartActor(ddBase.simulationParameters.traitsIO,renderWindow,ren))
         /* init */,ddField(new DDFieldWidget(renderWindow,ren,defectiveCrystal))
+        /* init */,surfaceMesh(new SurfaceMeshActor(renderWindow,ren,defectiveCrystal))
         /* init */,slipSystemTab(new SlipSystemTab(defectiveCrystal))
+        /* init */,renderer(ren)
         /* init */,mainLayout(new QGridLayout(this))
         /* init */,frameIDedit(new QLineEdit("0"))
         /* init */,plusFrameButton(new QPushButton(">"))
         /* init */,playFrameButton(new QPushButton(">>"))
         /* init */,stopFrameButton(new QPushButton("x"))
         /* init */,minusFrameButton(new QPushButton("<"))
-        /* init */,frameIncrementEdit(new QLineEdit("1"))
+        /* init */,frameIncrementEdit(new QLineEdit(QString::number(ddBase.simulationParameters.outputFrequency)))
+        /* init */,rotationAxisEdit(new QLineEdit("0 0 1"))
+        /* init */,rotationAngleEdit(new QLineEdit("0"))
         /* init */,saveImage(new QCheckBox(this))
-        /* init */,tabWidget(new QTabWidget())
+        /* init */,tabWidget(new WrappingTabWidget())
         {
 
             tabWidget->addTab(nodes, tr(std::string("Nodes").c_str()));
@@ -62,22 +70,65 @@ namespace model
             tabWidget->addTab(quadrature, tr(std::string("Quadrature").c_str()));
             tabWidget->addTab(chartActor, tr(std::string("Chart").c_str()));
             tabWidget->addTab(ddField, tr(std::string("Fields").c_str()));
+            tabWidget->addTab(surfaceMesh, tr("SurfaceMesh"));
             tabWidget->addTab(slipSystemTab, tr(std::string("SlipSystems").c_str()));
 
             saveImage->setText("save PNG");
 
-
-            mainLayout->addWidget(frameIDedit,0,0,1,1);
-            mainLayout->addWidget(minusFrameButton,0,1,1,1);
-            mainLayout->addWidget(plusFrameButton,0,2,1,1);
-            mainLayout->addWidget(playFrameButton,0,3,1,1);
-            mainLayout->addWidget(stopFrameButton,0,4,1,1);
-            mainLayout->addWidget(frameIncrementEdit,0,5,1,1);
-            mainLayout->addWidget(saveImage,1,0,1,1);
-
-
+            auto *framesBox =
+                controls::box("Frames", this, "Select simulation outputs, control playback and capture images.");
+            auto *framesLayout = controls::grid(framesBox);
+            auto *frameIDLayout = new QGridLayout();
+            auto *incrementLayout = new QGridLayout();
+            framesLayout->addLayout(frameIDLayout, 0, 0);
+            framesLayout->addLayout(incrementLayout, 0, 1);
+            framesLayout->setColumnStretch(0, 1);
+            framesLayout->setColumnStretch(1, 1);
+            controls::field(
+                frameIDLayout, 0, "Frame ID", frameIDedit,
+                "Simulation output runID to display. Press Enter to load it; output IDs may not be consecutive.");
+            controls::field(
+                incrementLayout, 0, "Increment", frameIncrementEdit,
+                "RunID increment used by previous, next and playback controls. Normally matches outputFrequency.");
+            auto *axisLayout = new QGridLayout();
+            auto *angleLayout = new QGridLayout();
+            framesLayout->addLayout(axisLayout, 1, 0);
+            framesLayout->addLayout(angleLayout, 1, 1);
+            rotationAxisEdit->setObjectName("frameRotationAxis");
+            rotationAngleEdit->setObjectName("frameRotationAngle");
+            controls::field(axisLayout, 0, "Axis", rotationAxisEdit,
+                            "Global x y z rotation axis through the simulation-box center. Automatic rotation keeps the box centered. Enter a nonzero vector; it is normalized automatically. Applies on Enter or when loading a frame.");
+            controls::field(angleLayout, 0, "Angle/frame (°)", rotationAngleEdit,
+                            "View rotation in degrees equals this value times the simulation frameID, including skipped IDs. Positive angles follow the right-hand rule. Zero disables rotation. Applies on Enter or when loading a frame.");
+            connect(rotationAxisEdit, &QLineEdit::returnPressed, this, &DefectiveCrystalActor::updateRotationSettings);
+            connect(rotationAngleEdit, &QLineEdit::returnPressed, this, &DefectiveCrystalActor::updateRotationSettings);
+            auto *playback = new QWidget(this);
+            auto *playbackLayout = new QHBoxLayout(playback);
+            playbackLayout->setContentsMargins(0, 0, 0, 0);
+            playbackLayout->addWidget(minusFrameButton);
+            playbackLayout->addWidget(plusFrameButton);
+            playbackLayout->addWidget(playFrameButton);
+            playbackLayout->addWidget(stopFrameButton);
+            minusFrameButton->setToolTip("Load the previous output using the frame increment.");
+            plusFrameButton->setToolTip("Load the next output using the frame increment.");
+            playFrameButton->setToolTip("Advance through available frames until stopped.");
+            stopFrameButton->setToolTip("Stop automatic playback.");
+            framesLayout->addWidget(playback, 2, 0, 1, 2);
+            framesLayout->addWidget(saveImage, 3, 0, 1, 2);
+            saveImage->setToolTip("Save a PNG of each loaded frame to the simulation output folder.");
+            mainLayout->addWidget(framesBox, 0, 0, 1, 6);
             mainLayout->addWidget(tabWidget,2,0,1,6);
             this->setLayout(mainLayout);
+
+            connect(slipSystemTab, &SlipSystemTab::colorsChanged, this,
+                    [this]()
+                    {
+                        loops->updateColors(slipSystemTab->slipSystemColorMap);
+                        if(renderWindow->GetReadyForRendering())
+                        {
+                            renderWindow->Render();
+                        }
+                    });
 
             connect(frameIDedit,SIGNAL(returnPressed()), this, SLOT(updateConfiguration()));
             connect(plusFrameButton,SIGNAL(pressed()), this, SLOT(nextConfiguration()));
@@ -94,6 +145,42 @@ namespace model
             
             QApplication::processEvents();
             updateConfiguration(0);
+        }
+
+        bool DefectiveCrystalActor::readRotationSettings()
+        {
+            Eigen::Vector3d axis;
+            std::istringstream input(rotationAxisEdit->text().toStdString());
+            std::string extra;
+            const bool validAxis = static_cast<bool>(input >> axis[0] >> axis[1] >> axis[2]) &&
+                                   !(input >> extra) && axis.allFinite() && axis.stableNorm() > 0.0;
+            bool validAngle = false;
+            const double angle = rotationAngleEdit->text().toDouble(&validAngle);
+            validAngle = validAngle && std::isfinite(angle);
+            rotationAxisEdit->setStyleSheet(validAxis ? "" : "QLineEdit { border: 1px solid #c44; }");
+            rotationAngleEdit->setStyleSheet(validAngle ? "" : "QLineEdit { border: 1px solid #c44; }");
+            if(!validAxis || !validAngle)
+            {
+                return false;
+            }
+            rotationAxis = axis.stableNormalized();
+            rotationDegreesPerFrame = angle;
+            return true;
+        }
+
+        void DefectiveCrystalActor::updateRotationSettings()
+        {
+            if(readRotationSettings() && frameLoaded)
+            {
+                frameRotation.apply(renderer->GetActiveCamera(),
+                                    0.5 * (ddBase.mesh.xMin() + ddBase.mesh.xMax()),
+                                    rotationAxis, rotationDegreesPerFrame, loadedFrameID);
+                renderer->ResetCameraClippingRange();
+                if(renderWindow->GetReadyForRendering())
+                {
+                    renderWindow->Render();
+                }
+            }
         }
 
         const DDconfigIO<3>& DefectiveCrystalActor::configIO() const
@@ -215,14 +302,25 @@ namespace model
                 segments->updateConfiguration(nodes->nodePolyData,slipSystemTab->slipSystemColorMap);
                 loops->updateConfiguration(slipSystemTab->slipSystemColorMap);
                 inclusions->updateConfiguration();
+                surfaceMesh->updateConfiguration();
 //                glidePlanes->updateConfiguration(*this);
                 glidePlanes->updateConfiguration();
                 quadrature->updateConfiguration(*this);
                 chartActor->updateConfiguration(frameID);
 //                ddField->compute(); // this causes segFault at DDFieldWidget::plotField::renWin->Render();
                 
+                loadedFrameID = frameID;
+                frameLoaded = true;
+                // Navigation must use the visible values, even when the user has
+                // not pressed Enter. Invalid edits retain the last valid settings.
+                readRotationSettings();
+                frameRotation.apply(renderer->GetActiveCamera(),
+                                    0.5 * (ddBase.mesh.xMin() + ddBase.mesh.xMax()),
+                                    rotationAxis, rotationDegreesPerFrame, frameID);
+                renderer->ResetCameraClippingRange();
                 if(saveImage->isChecked())
                 {
+                    renderWindow->Render();
                     //qDebug() << "Saving frame:" << frameID 
                     //<< "| UI shows:" << frameIDedit->text();
                     //qvtkGLwidget->repaint(); // Force render update

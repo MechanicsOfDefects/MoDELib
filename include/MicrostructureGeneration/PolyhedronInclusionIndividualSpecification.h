@@ -25,7 +25,7 @@ namespace model
         std::string mshFile;
         Eigen::Matrix<double,Eigen::Dynamic,3> X0;
         Eigen::Matrix<double,3,3> F;
-        Eigen::Matrix<double,1,3*3> eigenDistortion;
+        Eigen::Matrix<double,1,3*3> crystalEigenDistortion; // Crystal-frame components, row-major.
         double velocityReductionFactor;
         int phaseID;
 

@@ -85,3 +85,6 @@ _ReSharper.*
 build/
 *.docx
 tutorials/*/inputFiles/
+
+# Test reports
+tests/**/reports/

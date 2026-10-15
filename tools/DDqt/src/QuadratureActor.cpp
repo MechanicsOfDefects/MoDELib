@@ -16,6 +16,8 @@
 
 #include <QuadratureActor.h>
 
+#include <DDqtControls.h>
+
 namespace model
 {
 
@@ -23,13 +25,13 @@ namespace model
     /* init */ renderWindow(renWin)
     /* init */,renderer(ren)
     /* init */,mainLayout(new QGridLayout(this))
-    /* init */,pkBox(new QGroupBox(tr("&PK forces")))
+    /* init */,pkBox(new controls::GroupBox(tr("&PK forces")))
     /* init */,pkScaleEdit(new QLineEdit("10000"))
-    /* init */,sfBox(new QGroupBox(tr("&stacking fault forces")))
+    /* init */,sfBox(new controls::GroupBox(tr("&stacking fault forces")))
     /* init */,sfScaleEdit(new QLineEdit("10000"))
-    /* init */,ltBox(new QGroupBox(tr("&line tension forces")))
+    /* init */,ltBox(new controls::GroupBox(tr("&line tension forces")))
     /* init */,ltScaleEdit(new QLineEdit("10000"))
-    /* init */,velocityBox(new QGroupBox(tr("&velocities")))
+    /* init */,velocityBox(new controls::GroupBox(tr("&velocities")))
     /* init */,velocityScaleEdit(new QLineEdit("100"))
     /* init */,pkPolydata(vtkSmartPointer<vtkPolyData>::New())
     /* init */,pkGlyphs(vtkSmartPointer<vtkGlyph3D>::New())
@@ -52,30 +54,40 @@ namespace model
         pkBox->setCheckable(true);
         pkBox->setChecked(false);
         pkActor->SetVisibility(false);
-        QVBoxLayout *pkLayout = new QVBoxLayout();
-        pkLayout->addWidget(pkScaleEdit);
+        QGridLayout *pkLayout = new QGridLayout();
+        controls::field(
+            pkLayout, 0, "Scale", pkScaleEdit,
+            "Display multiplier for Peach-Koehler force arrows at quadrature points. Press Enter to apply.");
+        pkBox->setToolTip("Show or hide Peach-Koehler force arrows at quadrature points.");
         pkBox->setLayout(pkLayout);
     
         sfBox->setCheckable(true);
         sfBox->setChecked(false);
         sfActor->SetVisibility(false);
-        QVBoxLayout *sfLayout = new QVBoxLayout();
-        sfLayout->addWidget(sfScaleEdit);
+        QGridLayout *sfLayout = new QGridLayout();
+        controls::field(
+            sfLayout, 0, "Scale", sfScaleEdit,
+            "Display multiplier for stacking-fault force arrows at quadrature points. Press Enter to apply.");
+        sfBox->setToolTip("Show or hide stacking-fault force arrows at quadrature points.");
         sfBox->setLayout(sfLayout);
 
     ltBox->setCheckable(true);
     ltBox->setChecked(false);
     ltActor->SetVisibility(false);
-    QVBoxLayout *ltLayout = new QVBoxLayout();
-    ltLayout->addWidget(ltScaleEdit);
+    QGridLayout *ltLayout = new QGridLayout();
+    controls::field(ltLayout, 0, "Scale", ltScaleEdit,
+                    "Display multiplier for line-tension force arrows at quadrature points. Press Enter to apply.");
+    ltBox->setToolTip("Show or hide line-tension force arrows at quadrature points.");
     ltBox->setLayout(ltLayout);
 
     
         velocityBox->setCheckable(true);
         velocityBox->setChecked(false);
         velocityActor->SetVisibility(false);
-        QVBoxLayout *velocityLayout = new QVBoxLayout();
-        velocityLayout->addWidget(velocityScaleEdit);
+        QGridLayout *velocityLayout = new QGridLayout();
+        controls::field(velocityLayout, 0, "Scale", velocityScaleEdit,
+                        "Display multiplier for velocity arrows at quadrature points. Press Enter to apply.");
+        velocityBox->setToolTip("Show or hide velocity arrows at quadrature points.");
         velocityBox->setLayout(velocityLayout);
 
         
@@ -83,8 +95,8 @@ namespace model
         mainLayout->addWidget(sfBox,1,0,1,1);
         mainLayout->addWidget(ltBox,2,0,1,1);
         mainLayout->addWidget(velocityBox,3,0,1,1);
+        mainLayout->setRowStretch(4, 1);
 
-        
         this->setLayout(mainLayout);
 
         connect(pkBox,SIGNAL(toggled(bool)), this, SLOT(modify()));

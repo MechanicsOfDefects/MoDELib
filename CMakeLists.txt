@@ -16,12 +16,10 @@
 #   CMAKE_PREFIX_PATH   where to find Qt 6, e.g. ~/Qt/6.7.3/macos/lib/cmake
 #   Python_EXECUTABLE   Python interpreter to use for pybind11
 #
-# Example on macOS with MacPorts (clang 18, Python 3.11):
+# Example on macOS with MacPorts (clang 20, Python 3.14):
 #   export LDFLAGS=-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib
 #   export LDFLAGS="$LDFLAGS -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/system"
-#   cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-18 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake \
-#            -DPython_EXECUTABLE=/opt/local/bin/python3.11 \
-#            -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
+# cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-20 -DCMAKE_PREFIX_PATH=$HOME/Applications/Qt/6.10.0//macos/lib/cmake -DPython_EXECUTABLE=/opt/local/bin/python3.14 -Dpybind11_DIR=$(/opt/local/bin/python3.14 -m pybind11 --cmakedir)
 # See also https://mcilloni.ovh/2021/02/09/cxx-cross-clang/
 # cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-18 -DPython3_EXECUTABLE=/opt/local/bin/python3.11 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake  -DPython_EXECUTABLE=/opt/local/bin/python3.11 -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
 # cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-20 -DPython3_EXECUTABLE=/opt/local/bin/python3.11 -DCMAKE_PREFIX_PATH=$HOME/Qt/6.7.3/macos/lib/cmake  -DPython_EXECUTABLE=/opt/local/bin/python3.11 -Dpybind11_DIR=$(/opt/local/bin/python3.11 -m pybind11 --cmakedir)
@@ -31,6 +29,7 @@ project(MoDELib VERSION 2.2.1 LANGUAGES C CXX)
 
 option(USE_PYBIND11 "enables pybind11" ON)
 option(BUILD_TOOLS "builds tools" ON)
+option(BUILD_TESTS "builds tests" ON)
 option(BUILD_DDQT "builds the DDqt viewer (requires Qt 6 and VTK)" ON)
 set(MODELIB_MARCH "native" CACHE STRING "value passed to -march")
 set(MODELIB_CD_MSIZE "4" CACHE STRING "number of mobile cluster-dynamics species, e.g. Cv Ci C2i C3i")
@@ -190,4 +189,9 @@ endif()
 if(BUILD_TOOLS)
 	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tools tools)
 else()
+endif()
+
+if(BUILD_TESTS)
+	enable_testing()
+	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tests tests)
 endif()

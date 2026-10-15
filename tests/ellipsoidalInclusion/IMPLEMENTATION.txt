@@ -1,0 +1,126 @@
+EllipsoidalInclusion usage, formulation, and limitations
+
+Example (all vectors and the symmetric strain are in global coordinates):
+
+  Eigen::Vector3d C(0,0,0);
+  Eigen::Matrix3d axes=Eigen::Vector3d(3,2,1).asDiagonal();
+  Eigen::Matrix3d eT=Eigen::Matrix3d::Zero();
+  eT(0,0)=0.01; eT(1,1)=-0.002;
+  eT(0,1)=eT(1,0)=0.003;
+  model::EllipsoidalInclusion<3> inc(
+      C,axes,eT,0.31,43.0,1.0,0,nullptr);
+  Eigen::Matrix3d sigma=inc.stress(Eigen::Vector3d(4,1,2));
+
+The first two arguments are center and a 3x3 axes matrix. Its columns are
+mutually orthogonal SEMIAXIS vectors; their norms are radii, not diameters.
+For rotated axes, use axes=Q*lengths.asDiagonal() with orthogonal Q.
+Zero-length, nonfinite, and nonorthogonal columns are rejected. Arbitrary orientations,
+permutations and signs are supported. Equal lengths give a sphere.
+The last optional arguments are quadratureTolerance (default 1e-3) and
+quadratureMaxDepth (default 30). To request tighter quadrature, pass an
+explicit tolerance after sph, e.g.:
+  model::EllipsoidalInclusion<3> inc(C,axes,eT,nu,mu,1.0,0,nullptr,1e-10);
+The allowed tolerance range is [1e-14,1e-3].
+Geometry is immutable to keep the cached interior integrals valid. The public axes matrix stores the supplied semiaxis
+columns; a separate private rotation matrix stores normalized directions.
+This replaces the constructor taking three vectors and the a1/a2/a3 fields.
+There is intentionally no single sphere radius a.
+
+Physical scope
+- Three dimensions; infinite, homogeneous, linear isotropic elastic matrix.
+- Equal inclusion and matrix moduli, mu>0 and -1<nu<0.5.
+- Uniform symmetric eigenstrain, including shear and deviatoric strains.
+- Coherent interface, no interface elasticity or applied far-field loading.
+- stress() returns elastic Cauchy stress, with eigenstress subtracted inside.
+- No elastic anisotropy, modulus contrast, nonuniform eigenstrain, finite
+  boundaries, interactions that modify eigenstrain, or nonlinear elasticity.
+- Units must be consistent. Stress has the units supplied for mu.
+
+Mathematical formulation (independently derived from the Kelvin tensor)
+Let Phi(r)=integral_Omega 1/|r-y| dV and Psi(r)=integral_Omega |r-y| dV.
+Set p=2 mu [eT+nu/(1-2nu) tr(eT) I], H=Hessian(Phi), and
+T_ij=p_kl Psi_,ijkl. Then
+
+  u = -[4(1-nu) p.grad(Phi) - grad(p:Hessian(Psi))]
+      /[16 pi mu (1-nu)],
+
+  sigma = -[2(1-nu)(p H+H p)-T+2nu(p:H) I]/[8 pi(1-nu)] - chi_Omega p.
+
+These replace the general-eigenstrain equations (6), (7), and (24) in the
+referenced chat, whose Kelvin-tensor coefficients/signs were inconsistent.
+The chat's dilatational formulas remain consistent with this implementation.
+
+In principal coordinates define B(s)=diag(1/(a_i^2+s)),
+Delta(s)=sqrt(product_i(a_i^2+s)), and f(s)=1-r.B(s).r.
+For exterior points ell is the unique nonnegative solution f(ell)=0;
+for interior points ell=0. The relevant potentials can be represented by
+
+  Phi = pi abc integral_ell^infinity f(s)/Delta(s) ds,
+  Psi = -pi abc/4 integral_ell^infinity s f(s)^2/Delta(s) ds,
+
+where the second expression is regularized by subtracting its divergent,
+position-independent constant. Only its fourth derivatives are used.
+Differentiation gives two families of convergent one-dimensional integrals:
+
+  J_i    = integral_ell^infinity 1/[(a_i^2+s) Delta(s)] ds,
+  K_ij   = integral_ell^infinity s/[(a_i^2+s)(a_j^2+s) Delta(s)] ds.
+
+The integral parts of H and T are
+  H_ii = -2 pi abc J_i,
+  T_ij = -2 pi abc [2 p_ij K_ij + delta_ij sum_k p_kk K_ik].
+Outside, the code adds analytic moving-lower-limit terms using grad(ell)
+and Hessian(ell). No spatial finite differences enter production stresses.
+A local orthonormal frame is used internally, then stress is rotated back.
+
+Numerical behavior and limitations
+- Lengths are normalized by the largest semiaxis. Safeguarded Newton solves the
+  exterior coordinate equation with its analytic derivative. A monotone
+  bracket is maintained; nonfinite, out-of-bracket, or insufficiently
+  contracting Newton steps fall back to bisection. Convergence uses both
+  residual and correction size, or a sufficiently narrow bracket.
+- s=(1+ell)/t^2-1 maps the infinite integral to t in [0,1] after normalization.
+  Embedded Gauss 7/Kronrod 15 integration adapts on all 12 positive integrals;
+  far-field scaling prevents an absolute tolerance from swallowing the tail.
+- Integral accuracy is an estimator, not a rigorous bound on final stress.
+  Cancellation can make relative errors large for near-zero stress components.
+- Interior integrals and the full uniform interior stress are cached. A cache
+  hit checks the current eT and returns the stored stress. A changed eT is
+  validated and triggers recomputation on the next interior call. Immutable
+  snapshots published through atomic shared-pointer operations protect cache
+  refresh against concurrent readers. Exterior calls use adaptive quadrature.
+  There is no analytic sphere special case.
+- Axis ratios greater than 1e6 are rejected. This is a conditioning guard,
+  NOT a validation claim up to that ratio. The validation exercises ratios
+  through 100. More extreme shapes may exhaust the recursion/work limit or
+  suffer floating-point cancellation; conduct convergence checks for them.
+- Orthogonality is checked to 1e-12 in the normalized Gram matrix. Accepted
+  roundoff-size errors are removed by orthonormalization. Eigenstrain symmetry
+  is checked to a relative 1e-12; accepted roundoff is symmetrized.
+- Invalid inputs throw std::invalid_argument. Quadrature/root failures throw
+  std::runtime_error; detected overflow throws std::overflow_error. No silent
+  approximation is returned on failed convergence. The work cap is 200000
+  quadrature panels; maximum depth can be set from 1 through 50.
+- nu=0.5 is unsupported. Values very close to 0.5 are poorly conditioned in
+  this eigenstress formulation; tested nu values are -0.8, 0, 0.31 and 0.49.
+- contains() uses a strict interior test. stress() uses the interior value
+  when the normalized level set is exactly <=1, matching the sphere's branch
+  convention. Floating-point evaluation can select either side for a point
+  intended to lie on the interface. Full stress jumps there; traction does not.
+  Offset points deliberately to select one-sided limits. No tolerance band
+  smears the interface or changes the shape.
+- Very large coordinates relative to semiaxes, underflow-scale far stresses,
+  and subtraction of nearly equal huge global coordinates are not guaranteed.
+- Unlike the supplied sphere, small nonzero eigenstrains are not discarded
+  using FLT_EPSILON. Exact-zero eigenstress returns zero.
+- stress() tracks the base's public eT and refreshes the interior cache when
+  it changes; exterior calls recompute eigenstress. If eT is changed,
+  this class honors it even if base pT/eTNorm are stale. Other MoDELib code can
+  still rely on those fields; update all base fields coherently in applications.
+  Direct changes to pT alone do not change this class's stress. Concurrent
+  evaluation is safe while user-visible fields are not being modified; cache
+  refresh itself supports concurrent readers. Changes to eT must be made
+  between parallel evaluation phases, never concurrently with stress().
+  Copies initially share an immutable snapshot, but refresh independently.
+
+
+For build and test instructions, see README.txt in this directory.

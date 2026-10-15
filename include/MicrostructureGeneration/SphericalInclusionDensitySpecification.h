@@ -26,7 +26,7 @@ namespace model
         double diameterLognormalDistribution_M;
         double diameterLognormalDistribution_S;
         double diameterLognormalDistribution_A;
-        Eigen::Matrix<double,1,dim*dim> transformationEigenDistortion;
+        Eigen::Matrix<double,1,dim*dim> crystalEigenDistortion; // Crystal-frame components, row-major.
         Eigen::Matrix<double,1,dim> patternVector_SI;
         bool allowOverlap;
         bool allowOutside;

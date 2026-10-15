@@ -1,0 +1,12 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+NamespaceIndentation: All
+BreakBeforeBraces: Allman
+InsertBraces: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+SpaceBeforeParens: Never
+ColumnLimit: 120
+SortIncludes: Never

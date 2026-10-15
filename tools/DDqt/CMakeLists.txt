@@ -27,3 +27,25 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src src)
 
 target_link_libraries(DDqt MoDELib ${FFTW3_LIBRARIES} ${VTK_LIBRARIES} Qt6::Widgets Qt6::OpenGL Qt6::Core)
 vtk_module_autoinit(TARGETS DDqt MODULES ${VTK_LIBRARIES} Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Core)
+
+if(BUILD_TESTS)
+    add_executable(testEllipsoidalInclusionPolyData tests/testEllipsoidalInclusionPolyData.cpp)
+    target_include_directories(testEllipsoidalInclusionPolyData PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(testEllipsoidalInclusionPolyData PRIVATE
+        VTK::CommonCore VTK::CommonDataModel VTK::FiltersSources VTK::FiltersGeneral)
+    vtk_module_autoinit(TARGETS testEllipsoidalInclusionPolyData MODULES
+        VTK::CommonCore VTK::CommonDataModel VTK::FiltersSources VTK::FiltersGeneral)
+endif()
+
+if(BUILD_TESTS)
+    add_executable(testSurfaceMesh tests/testSurfaceMesh.cpp src/SurfaceMeshActor.cpp)
+    target_include_directories(testSurfaceMesh PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(testSurfaceMesh PRIVATE MoDELib ${VTK_LIBRARIES} Qt6::Widgets Qt6::OpenGL)
+    vtk_module_autoinit(TARGETS testSurfaceMesh MODULES ${VTK_LIBRARIES})
+endif()
+
+if(BUILD_TESTS)
+    add_executable(testWrappingTabWidget tests/testWrappingTabWidget.cpp)
+    target_include_directories(testWrappingTabWidget PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(testWrappingTabWidget PRIVATE Qt6::Widgets)
+endif()

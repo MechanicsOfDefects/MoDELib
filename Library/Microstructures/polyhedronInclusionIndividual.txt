@@ -1,3 +1,4 @@
+# Eigen-distortion components are specified in the crystal frame (row-major).
 type=PolyhedronInclusions;
 style=individual;
 #mshFile=../../../Library/Meshes/sphere2D.msh;
@@ -9,6 +10,6 @@ x0=0 0 0;
 F=200 0 0
   0 300 0
   0 0 100];
-eigenDistortion=0.03 0 0 0 0.03 0 0 0 0.03;
+crystalEigenDistortion=0.03 0 0 0 0.03 0 0 0 0.03;
 velocityReductionFactor=1;
 phaseID=0; # ID of secondPhase 

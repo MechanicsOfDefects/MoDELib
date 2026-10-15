@@ -22,6 +22,8 @@
 #include <ChartActor.h>
 #include <vtkTextProperty.h>
 
+#include <DDqtControls.h>
+#include <cmath>
 
 namespace model
 {
@@ -35,10 +37,10 @@ namespace model
         /* init */,yComboBox(new QComboBox(this))
         /* init */,xAxisLog(new QCheckBox(this))
         /* init */,yAxisLog(new QCheckBox(this))
-        /* init */,customScaleBoxX(new QGroupBox(tr("&Custom scale X")))
+        /* init */,customScaleBoxX(new controls::GroupBox(tr("&Custom scale X")))
         /* init */,minScaleX(new QLineEdit(tr("0")))
         /* init */,maxScaleX(new QLineEdit(tr("1")))
-        /* init */,customScaleBoxY(new QGroupBox(tr("&Custom scale Y")))
+        /* init */,customScaleBoxY(new controls::GroupBox(tr("&Custom scale Y")))
         /* init */,minScaleY(new QLineEdit(tr("0")))
         /* init */,maxScaleY(new QLineEdit(tr("1")))
         /* init */,renderWindow(renderWindow_in)
@@ -104,32 +106,53 @@ namespace model
             }
             
             QGridLayout* autoscaleLayoutX = new QGridLayout();
+            customScaleBoxX->setToolTip("Override automatic X-axis bounds with the entered limits.");
             customScaleBoxX->setCheckable(true);
 //            customScaleBoxX->setEnabled(false);
             customScaleBoxX->setChecked(false);
-            autoscaleLayoutX->addWidget(minScaleX,0,0,1,1);
-            autoscaleLayoutX->addWidget(maxScaleX,0,1,1,1);
+            controls::field(autoscaleLayoutX, 0, "Minimum", minScaleX,
+                            "X-axis bound used when custom scaling is enabled. Press Enter to apply.");
+
+            controls::field(autoscaleLayoutX, 1, "Maximum", maxScaleX,
+                            "X-axis bound used when custom scaling is enabled. Press Enter to apply.");
+
             customScaleBoxX->setLayout(autoscaleLayoutX);
 
             QGridLayout* autoscaleLayoutY = new QGridLayout();
+            customScaleBoxY->setToolTip("Override automatic Y-axis bounds with the entered limits.");
             customScaleBoxY->setCheckable(true);
 //            customScaleBoxY->setEnabled(false);
             customScaleBoxY->setChecked(false);
-            autoscaleLayoutY->addWidget(minScaleY,0,0,1,1);
-            autoscaleLayoutY->addWidget(maxScaleY,0,1,1,1);
+            controls::field(autoscaleLayoutY, 0, "Minimum", minScaleY,
+                            "Y-axis bound used when custom scaling is enabled. Press Enter to apply.");
+
+            controls::field(autoscaleLayoutY, 1, "Maximum", maxScaleY,
+                            "Y-axis bound used when custom scaling is enabled. Press Enter to apply.");
+
             customScaleBoxY->setLayout(autoscaleLayoutY);
 
-
-            mainLayout->addWidget(showChart,0,0,1,1);
-            mainLayout->addWidget(chartUpdate,0,1,1,1);
-            mainLayout->addWidget(xComboBox,1,0,1,1);
-            mainLayout->addWidget(xAxisLog,1,1,1,1);
-            mainLayout->addWidget(customScaleBoxX,2,0,1,2);
-            mainLayout->addWidget(yComboBox,3,0,1,1);
-            mainLayout->addWidget(yAxisLog,3,1,1,1);
-            mainLayout->addWidget(customScaleBoxY,4,0,1,2);
-            mainLayout->setColumnStretch(0, 1);
-            mainLayout->setColumnStretch(1, 12);
+            auto *chartBox = controls::box("Chart", this, "Show or hide the simulation-history chart.", showChart);
+            auto *chartLayout = controls::grid(chartBox);
+            chartLayout->addWidget(chartUpdate, 0, 0, 1, 2);
+            chartUpdate->setToolTip("Reload the simulation history file and refresh the chart.");
+            auto *xBox =
+                controls::box("X axis", this, "Select the plotted quantity, axis scaling and optional bounds.");
+            controls::field(controls::grid(xBox), 0, "Quantity", xComboBox,
+                            "Simulation-history column to plot on this axis.");
+            controls::grid(xBox)->addWidget(xAxisLog, 1, 0, 1, 2);
+            xAxisLog->setToolTip("Use a logarithmic axis. Displayed values must be positive.");
+            controls::grid(xBox)->addWidget(customScaleBoxX, 2, 0, 1, 2);
+            chartLayout->addWidget(xBox, 1, 0, 1, 2);
+            auto *yBox =
+                controls::box("Y axis", this, "Select the plotted quantity, axis scaling and optional bounds.");
+            controls::field(controls::grid(yBox), 0, "Quantity", yComboBox,
+                            "Simulation-history column to plot on this axis.");
+            controls::grid(yBox)->addWidget(yAxisLog, 1, 0, 1, 2);
+            yAxisLog->setToolTip("Use a logarithmic axis. Displayed values must be positive.");
+            controls::grid(yBox)->addWidget(customScaleBoxY, 2, 0, 1, 2);
+            chartLayout->addWidget(yBox, 2, 0, 1, 2);
+            mainLayout->addWidget(chartBox, 0, 0);
+            mainLayout->setRowStretch(1, 1);
             this->setLayout(mainLayout);
 
             connect(showChart,SIGNAL(stateChanged(int)), this, SLOT(modify()));
@@ -138,6 +161,12 @@ namespace model
             connect(xComboBox,SIGNAL(currentIndexChanged(int)), this, SLOT(modify()));
             connect(yComboBox,SIGNAL(currentIndexChanged(int)), this, SLOT(modify()));
             connect(chartUpdate,SIGNAL(released()), this, SLOT(reload()));
+            connect(customScaleBoxX, &QGroupBox::toggled, this, &ChartActor::modify);
+            connect(customScaleBoxY, &QGroupBox::toggled, this, &ChartActor::modify);
+            for(auto *edit : {minScaleX, maxScaleX, minScaleY, maxScaleY})
+            {
+                connect(edit, &QLineEdit::returnPressed, this, &ChartActor::modify);
+            }
 
             chartScene->AddItem(chart);
             chartActor->SetScene(chartScene);
@@ -244,23 +273,32 @@ void ChartActor::updatePlots()
         {
             currentPoints->SetInputData(currentTable, xComboBox->currentIndex(), yComboBox->currentIndex());
         }
-        
+
+        const auto applyRange = [](vtkAxis *axis, QGroupBox *group, QLineEdit *minimum, QLineEdit *maximum)
+        {
+            bool minimumOK = false;
+            bool maximumOK = false;
+            const double lower = minimum->text().toDouble(&minimumOK);
+            const double upper = maximum->text().toDouble(&maximumOK);
+            const bool valid = minimumOK && maximumOK && std::isfinite(lower) && std::isfinite(upper) &&
+                               lower < upper && (!axis->GetLogScale() || lower > 0.0);
+            const bool invalid = group->isChecked() && !valid;
+            for(auto *edit : {minimum, maximum})
+            {
+                edit->setStyleSheet(invalid ? "QLineEdit { border: 1px solid #c44; }" : "");
+                edit->setToolTip("Enter finite limits with minimum < maximum; logarithmic limits must be positive. "
+                                 "Press Enter to apply. Invalid limits use automatic scaling.");
+            }
+            axis->SetBehavior(group->isChecked() && valid ? vtkAxis::FIXED : vtkAxis::AUTO);
+            if(group->isChecked() && valid)
+            {
+                axis->SetUnscaledRange(lower, upper);
+            }
+        };
+        applyRange(chart->GetAxis(1), customScaleBoxX, minScaleX, maxScaleX);
+        applyRange(chart->GetAxis(0), customScaleBoxY, minScaleY, maxScaleY);
         chart->RecalculateBounds();
-        
-        
-        
         chart->Modified();
-//        if(customScaleBoxX->isChecked())
-//        {
-////            chart->GetAxis(0)->setMinimum();
-//        }
-//        else
-//        {
-//            chart->GetAxis(0)->AutoScale();
-//            std::cout<<"Min/Max="<<chart->GetAxis(0)->GetMinimum()<<", "<<chart->GetAxis(0)->GetMaximum()<<std::endl;
-//            minScaleX->setText(QString::fromStdString(std::to_string(chart->GetAxis(0)->GetMinimum())));
-//            maxScaleX->setText(QString::fromStdString(std::to_string(chart->GetAxis(0)->GetMaximum())));
-//        }
 
     }
 }

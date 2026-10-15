@@ -13,7 +13,7 @@
 #include <QGridLayout>
 #include <QCheckBox>
 #include <QLabel>
-#include <QTabWidget>
+#include <WrappingTabWidget.h>
 #include <QTextEdit>
 #include <QLineEdit>
 #include <QPushButton>
@@ -27,6 +27,8 @@
 #include <DefectiveCrystal.h>
 #include <DDauxIO.h>
 #include <DDFieldWidget.h>
+#include <SurfaceMeshActor.h>
+#include <FrameCameraRotation.h>
 #include <SimplicialMesh.h>
 #include <NetworkNodeActor.h>
 #include <NetworkLinkActor.h>
@@ -66,10 +68,19 @@ namespace model
         QuadratureActor* quadrature;
         ChartActor* chartActor;
         DDFieldWidget* ddField;
+        SurfaceMeshActor* surfaceMesh;
         SlipSystemTab* slipSystemTab;
         
     private:
         std::atomic<bool> m_stopRequested{false};
+        vtkRenderer *const renderer;
+        FrameCameraRotation frameRotation;
+        Eigen::Vector3d rotationAxis = Eigen::Vector3d::UnitZ();
+        double rotationDegreesPerFrame = 0.0;
+        size_t loadedFrameID = 0;
+        bool frameLoaded = false;
+        bool readRotationSettings();
+        void updateRotationSettings();
 
         private slots:
         bool updateConfiguration();
@@ -87,8 +98,10 @@ namespace model
         QPushButton* stopFrameButton;
         QPushButton* minusFrameButton;
         QLineEdit* frameIncrementEdit;
+        QLineEdit* rotationAxisEdit;
+        QLineEdit* rotationAngleEdit;
         QCheckBox* saveImage;
-        QTabWidget* tabWidget;
+        WrappingTabWidget* tabWidget;
 
         DefectiveCrystalActor(vtkGenericOpenGLRenderWindow* const,
                     vtkRenderer* const ren,

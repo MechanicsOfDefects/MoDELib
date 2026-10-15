@@ -10,6 +10,10 @@
 #define model_DDqtVTKwidget_cpp_
 
 #include <QFileDialog>
+#include <QScrollArea>
+#include <QVTKInteractor.h>
+#include <vtkInteractorStyle.h>
+#include <vtkInteractorStyleSwitch.h>
 
 #include <DDqtVTKwidget.h>
 #include <DefectiveCrystalActor.h>
@@ -37,10 +41,24 @@ namespace model
         renderWindow->SetMultiSamples(4);
         
         openglWidget->setRenderWindow(renderWindow);
+        auto* cameraStyle = vtkInteractorStyle::SafeDownCast(openglWidget->interactor()->GetInteractorStyle());
+        if(auto* styleSwitch = vtkInteractorStyleSwitch::SafeDownCast(cameraStyle))
+        {
+            cameraStyle = styleSwitch->GetCurrentStyle();
+        }
+        if(cameraStyle)
+        {
+            // Use smaller zoom steps for precise framing; leave rotation and pan unchanged.
+            cameraStyle->SetMouseWheelMotionFactor(0.25);
+        }
 
         
         tabWidget->addTab(defectiveCrystalActor, tr(std::string("Defects").c_str()));
-        tabWidget->addTab(meshActor, tr(std::string("Mesh").c_str()));
+        auto *meshScroll = new QScrollArea(this);
+        meshScroll->setWidgetResizable(true);
+        meshScroll->setFrameShape(QFrame::NoFrame);
+        meshScroll->setWidget(meshActor);
+        tabWidget->addTab(meshScroll, tr("Mesh"));
 
         mainLayout->addWidget(workingDirLabel,0,0,1,2);
         mainLayout->addWidget(tabWidget,1,0,1,1);
