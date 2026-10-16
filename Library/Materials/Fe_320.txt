@@ -1,0 +1,35 @@
+materialName=Fe;
+crystalStructure=BCC;
+atomsPerUnitCell=1;
+enabledSlipSystems=a/2<111>{110}; # types of slip systems enabled e.g. enabledSlipSystems=a/2<111>{110} a<100>{110};
+b_SI=2.472784982900877e-10;	# [m] 		Burgers vector magnitude
+mu0_SI=41e9;	# [Pa] 		temperature-independent shear modulus coeff in mu=mu0+mu1*T (the LML tutorials set 49e9 or 82e9 to match MD)
+mu1_SI=0.0;		# [Pa/K] 	temperature-dependent shear modulus coeff in mu=mu0+mu1*T
+nu=0.291;		# [-]		Poisson's ratio
+rho_SI=7865.8;	# [kg/m^3]	mass density
+T=320;			# [K]		temperature
+Tm=1181.0;		# [K]		melting temperature
+
+# Mobility parameters
+# Machine-learned (GPR) mobility for Fe at 320 K, used by the LML_MD runs.
+# The path is relative to this file once it is copied to tutorials/<name>/inputFiles.
+mobility_a/2<111>{110}=python ../../../python/MobilityLaws/Fe320_GPR/DDMobilityPy_Fe320.py; # full python mobility, returns m/s
+
+# Phenomenological BCC mobility parameters kept from the LANL Fe_320.txt (G.Po et al. Acta Mater 119, 2016), not used by the python mobility:
+# B0e_SI=4.2e-4; B1e_SI=0; B0s_SI=9.5884e-4; B1s_SI=3.2e-7; Bk_SI=7.5e-04; dH0_eV=0.76; p=0.593; q=1.223; Tf=0.6; tauC_SI=542e6; a0=1.0; a1=0.61; a2=0.23; a3=0.55;
+
+# GlidePlane Noise
+glidePlaneNoise = none;
+
+# Second Phases
+enabledSecondPhases=;
+
+# ClusterDynamics
+doseRate_dpaPerSec=0.0e-7; 		# [dpa/s] irradiation dose rate
+mobileSpeciesVector=-1;			# single vacancies
+mobileSpeciesSurvivingEfficiency = 0.01; # Surviving efficiency
+mobileSpeciesRelRelaxVol= 0.0; 	# [-] relative vacancy relaxation volume
+mobileSpeciesEnergyFormation_eV=0.0; 	# [eV] vacancy formation energy
+mobileSpeciesEnergyMigration_eV=0.0 0 0 0.0 0 0.0; 	# [eV] anisotropic migration energies, components [11 12 13 22 23 33]
+mobileSpeciesD0_SI=0.0 0 0 0.0 0 0.0; # [m^2/s] anisotropic pre-exponential diffusion coefficients, components [11 12 13 22 23 33]
+otherSinks_SI=0.0;

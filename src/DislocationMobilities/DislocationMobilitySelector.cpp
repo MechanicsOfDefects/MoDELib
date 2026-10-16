@@ -13,6 +13,7 @@
 #include <DislocationMobilitySelector.h>
 #include <DislocationMobilityEdgeScrew.h>
 #include <DislocationMobilityPy.h>
+#include <DislocationMobilityPyComponent.h>
 #include <DislocationMobilityInterpolated.h>
 #include <DislocationMobilityViscousDrag.h>
 #include <DislocationMobilityKinkPair.h>
@@ -174,6 +175,18 @@ namespace model
                                                                                                 std::stod(a2_in),
                                                                                                 std::stod(a3_in),
                                                                                                 std::stod(conjugateAngle_deg)));
+        }
+        else if(StrUtilities::lowercase(StrUtilities::removeSpaces((mobilityType)))=="python")
+        {// python <path/to/module.py> <soluteContent>
+            std::string pyPath;
+            sstream >> pyPath;
+            std::string soluteContent;
+            sstream >> soluteContent;
+            if(pyPath.empty() || soluteContent.empty())
+            {
+                throw std::runtime_error("python mobility component requires: python <path/to/module.py> <soluteContent>. Got: "+tag);
+            }
+            return std::shared_ptr<DislocationMobilityPyComponent>(new DislocationMobilityPyComponent(material,pyPath,std::stod(soluteContent)));
         }
         else
         {

@@ -66,11 +66,14 @@ typedef DislocationNetwork<3> DislocationNetworkType;
 typedef typename TypeTraits<DislocationNetworkType>::LoopNodeType LoopNodeType;
 typedef typename TypeTraits<DislocationNetworkType>::LoopType LoopType;
 typedef typename TypeTraits<DislocationNetworkType>::NetworkNodeType NetworkNodeType;
+typedef typename TypeTraits<DislocationNetworkType>::NetworkLinkType NetworkLinkType;
 
 #ifdef _MODEL_PYBIND11_
 
 PYBIND11_MAKE_OPAQUE(std::map<typename LoopNodeType::KeyType,const std::weak_ptr<LoopNodeType>>);
 PYBIND11_MAKE_OPAQUE(std::map<typename LoopType::KeyType,const std::weak_ptr<LoopType>>);
+PYBIND11_MAKE_OPAQUE(std::map<typename NetworkNodeType::KeyType,const std::weak_ptr<NetworkNodeType>>);
+PYBIND11_MAKE_OPAQUE(std::map<typename NetworkLinkType::KeyType,const std::weak_ptr<NetworkLinkType>>);
 PYBIND11_MAKE_OPAQUE(std::vector<MeshedDislocationLoop>);
 PYBIND11_MAKE_OPAQUE(GlidePlaneNoiseBase<1>); // opaque: pybind11 is not going to try to guess the data type for python
 PYBIND11_MAKE_OPAQUE(GlidePlaneNoiseBase<2>);
@@ -436,6 +439,51 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readwrite("triangles", &MeshedDislocationLoop::triangles)
     ;
 
+    // NetworkNode
+    py::bind_map<std::map<typename NetworkNodeType::KeyType,const std::weak_ptr<NetworkNodeType>>>(m, "NetworkNodeWeakPtrMap");
+
+    py::class_<WeakPtrFactory<DislocationNetworkType,NetworkNodeType>
+    /*      */,std::map<typename NetworkNodeType::KeyType,const std::weak_ptr<NetworkNodeType>>
+    /*      */>(m,"NetworkNodeWeakPtrFactory")
+        .def(py::init<>())
+        .def("getRef",&WeakPtrFactory<DislocationNetworkType,NetworkNodeType>::getRef,pybind11::return_value_policy::reference)
+    ;
+
+    py::class_<NetworkNodeType,std::shared_ptr<NetworkNodeType>
+    /*      */ >(m,"NetworkNode")
+        .def("networkID",&NetworkNodeType::networkID)
+        .def("gID",&NetworkNodeType::gID)
+        .def("loopIDs",&NetworkNodeType::loopIDs)
+        .def("position",&NetworkNodeType::get_P)
+        .def("isBoundaryNode",&NetworkNodeType::isBoundaryNode)
+    ;
+
+    // NetworkLink
+    py::bind_map<std::map<typename NetworkLinkType::KeyType,const std::weak_ptr<NetworkLinkType>>>(m, "NetworkLinkWeakPtrMap");
+
+    py::class_<WeakPtrFactory<DislocationNetworkType,NetworkLinkType>
+    /*      */,std::map<typename NetworkLinkType::KeyType,const std::weak_ptr<NetworkLinkType>>
+    /*      */>(m,"NetworkLinkWeakPtrFactory")
+        .def(py::init<>())
+        .def("getRef",&WeakPtrFactory<DislocationNetworkType,NetworkLinkType>::getRef,pybind11::return_value_policy::reference)
+    ;
+
+    py::class_<NetworkLinkType,std::shared_ptr<NetworkLinkType>
+    /*      */ >(m,"NetworkLink")
+        .def_readonly("source",&NetworkLinkType::source)
+        .def_readonly("sink",&NetworkLinkType::sink)
+        .def("loopIDs",&NetworkLinkType::loopIDs)
+        .def("burgers",&NetworkLinkType::burgers)
+        .def("chord",&NetworkLinkType::chord)
+        .def("glidePlaneNormal",&NetworkLinkType::glidePlaneNormal)
+        .def("slipSystem",&NetworkLinkType::slipSystem)
+        .def("hasZeroBurgers",&NetworkLinkType::hasZeroBurgers)
+        .def("isBoundarySegment",&NetworkLinkType::isBoundarySegment)
+        .def("isGrainBoundarySegment",&NetworkLinkType::isGrainBoundarySegment)
+        .def("isGlissile",&NetworkLinkType::isGlissile)
+        .def("isSessile",&NetworkLinkType::isSessile)
+    ;
+
     py::class_<LoopNetwork<DislocationNetworkType>
     /*      */,WeakPtrFactory<DislocationNetworkType,LoopType>
     /*      */,WeakPtrFactory<DislocationNetworkType,LoopNodeType>
@@ -443,6 +491,8 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def(py::init<>())
         .def("loops", static_cast<const WeakPtrFactory<DislocationNetworkType,LoopType>& (LoopNetwork<DislocationNetworkType>::*)()const>(&LoopNetwork<DislocationNetworkType>::loops),pybind11::return_value_policy::reference)
         .def("loopNodes", static_cast<const WeakPtrFactory<DislocationNetworkType,LoopNodeType>& (LoopNetwork<DislocationNetworkType>::*)()const>(&LoopNetwork<DislocationNetworkType>::loopNodes),pybind11::return_value_policy::reference)
+        .def("networkNodes", static_cast<const WeakPtrFactory<DislocationNetworkType,NetworkNodeType>& (LoopNetwork<DislocationNetworkType>::*)()const>(&LoopNetwork<DislocationNetworkType>::networkNodes),pybind11::return_value_policy::reference)
+        .def("networkLinks", static_cast<const WeakPtrFactory<DislocationNetworkType,NetworkLinkType>& (LoopNetwork<DislocationNetworkType>::*)()const>(&LoopNetwork<DislocationNetworkType>::networkLinks),pybind11::return_value_policy::reference)
     ;
     
     py::class_<DislocationNetworkType
@@ -466,6 +516,7 @@ PYBIND11_MODULE(pyMoDELib,m)
     /*      */>(m,"DDconfigIO")
         .def(py::init<const std::string&>())
         .def("read", &DDconfigIO<3>::read)
+        .def("readTxt", &DDconfigIO<3>::readTxt)
     ;
     
     py::class_<MicrostructureGenerator

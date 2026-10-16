@@ -11,6 +11,11 @@
 #include <numbers>
 
 #include <DislocationNetwork.h>
+#ifdef _MODEL_PYBIND11_
+    #undef slots
+    #include <pybind11/embed.h>
+    #define slots Q_SLOTS
+#endif
 #include <DislocationNucleation.h>
 #include <algorithm>
 
@@ -845,6 +850,10 @@ void DislocationNetwork<dim>::reSolve()
         }
         
         std::cout <<" ,updating qPoints (" << nThreads << " threads) " << std::flush;
+        {// Python mobilities acquire the GIL in each thread, so the main thread must release it here
+    #ifdef _MODEL_PYBIND11_
+        pybind11::gil_scoped_release release;
+    #endif
     #ifdef _OPENMP
     #pragma omp parallel for
         for (size_t k = 0; k < this->networkLinks().size(); ++k)
@@ -877,6 +886,7 @@ void DislocationNetwork<dim>::reSolve()
             //            }
         }
     #endif
+        }// GIL re-acquired here
         
         Eigen::VectorXd X(Eigen::VectorXd::Zero(0));
         if(isClimbingStep)

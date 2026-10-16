@@ -24,6 +24,10 @@ namespace model
     /* init */,pyModuleName(pyModuleName_in)
     {// Set up pyModule
         std::filesystem::path modulePath(pyModuleName);
+        if(modulePath.is_relative())
+        {// a relative path is relative to the folder of the material file (the inputFiles folder)
+            modulePath=(std::filesystem::path(material.materialFile).parent_path()/modulePath).lexically_normal();
+        }
         const std::string moduleStem(modulePath.stem().string());
         const std::string moduleDir(modulePath.parent_path().string());
         std::cout<<"moduleStem="<<moduleStem<<std::endl;
@@ -49,11 +53,12 @@ namespace model
         Eigen::VectorXd normal(n); // Vector Direction
         const double temp(T); // K
         
+        pybind11::gil_scoped_acquire gil; // velocity may be called from OpenMP threads
         try
         {
            pybind11::object mobilitySolver = pyModule.attr("MobilitySolver")();
-           double qpPythonVelocity = mobilitySolver.attr("velocityPy")(stress, burgers, tangent, normal, temp, dL, dt).cast<double>();
-           return qpPythonVelocity*100/cs; //Convert from A/ps to code units
+           const double velocity_SI = mobilitySolver.attr("velocityPy")(stress, burgers, tangent, normal, temp, dL, dt).cast<double>(); // m/s
+           return velocity_SI/cs; // m/s to code units
         }
         catch (const pybind11::error_already_set& e)
         {

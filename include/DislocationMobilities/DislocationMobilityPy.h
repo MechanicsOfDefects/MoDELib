@@ -38,6 +38,14 @@
 namespace model
 {
     
+    /*! A full dislocation mobility evaluated by a Python module. Selected in the material file with
+     *      mobility_<slipSystem>=python <path/to/module.py>;
+     *  The module must define a class MobilitySolver with a method
+     *      velocityPy(stress, burgers, tangent, normal, temp, dL, dt)
+     *  where stress is in GPa and temp in K. velocityPy must return the
+     *  magnitude of the dislocation velocity in m/s.
+     *  A relative module path is relative to the folder of the material file.
+     */
     struct DislocationMobilityPy : public DislocationMobility
     {
         
