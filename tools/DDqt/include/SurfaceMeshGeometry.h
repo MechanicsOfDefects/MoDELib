@@ -32,41 +32,63 @@ namespace model
             std::set<const Simplex<3, 2> *> faces;
         };
 
+        static const Simplex<3,3>* samplingParent(const Simplex<3,2>* face)
+        {
+            const Simplex<3,3>* result=nullptr;
+            for(const auto& entry : face->parents())
+            {
+                if(!result || entry.second->region->regionID<result->region->regionID)
+                {
+                    result=entry.second;
+                }
+            }
+            return result;
+        }
+
+        // Default to the exterior; explicit selection can include internal faces.
+        static SurfaceMeshGeometry build(const SimplicialMesh<3>& mesh,double maxArea)
+        {
+            std::set<size_t> selected;
+            for(const auto& region : mesh.regions())
+            {
+                for(const auto& face : region.second->faces())
+                {
+                    if(face.second->isExternal())
+                    {
+                        selected.insert(face.second->sID);
+                    }
+                }
+            }
+            return build(mesh,maxArea,selected);
+        }
+
         static SurfaceMeshGeometry build(const SimplicialMesh<3> &mesh, double maxArea,
-                                         const std::set<size_t> &excludedFaceIDs = {})
+                                         const std::set<size_t> &selectedFaceIDs)
         {
             if(!std::isfinite(maxArea) || maxArea <= 0.0)
             {
                 throw std::invalid_argument("Maximum triangle area must be finite and positive");
             }
-            std::set<const Simplex<3, 2> *> excludedSimplices;
+            std::set<const Simplex<3, 2> *> selectedSimplices;
             for(const auto &region : mesh.regions())
             {
                 for(const auto &face : region.second->faces())
                 {
-                    if(face.second->isExternal() && excludedFaceIDs.count(face.second->sID))
+                    if(selectedFaceIDs.count(face.second->sID))
                     {
-                        excludedSimplices.insert(face.second->simplices().begin(), face.second->simplices().end());
+                        selectedSimplices.insert(face.second->simplices().begin(),face.second->simplices().end());
                     }
                 }
             }
-            std::vector<const Simplex<3, 2> *> faces;
-            double largestArea = 0.0;
-            for(const auto &entry : mesh.observer<2>())
+            std::vector<const Simplex<3, 2> *> faces(selectedSimplices.begin(),selectedSimplices.end());
+            double largestArea=0.0;
+            for(const auto* face : faces)
             {
-                if(entry.second->isBoundarySimplex() && !excludedSimplices.count(entry.second))
-                {
-                    faces.push_back(entry.second);
-                    largestArea = std::max(largestArea, entry.second->vol0);
-                }
+                largestArea=std::max(largestArea,face->vol0);
             }
             if(faces.empty())
             {
-                if(!excludedSimplices.empty())
-                {
-                    return {};
-                }
-                throw std::runtime_error("No external boundary triangles in this mesh");
+                return {};
             }
             // A common subdivision count makes all shared edge samples identical.
             const double subdivisions = std::max(1.0, std::ceil(std::sqrt(largestArea / maxArea)));
@@ -101,12 +123,12 @@ namespace model
                         if(inserted.second)
                         {
                             result.referencePoints.push_back(position);
-                            result.parents.push_back(face->parents().begin()->second);
+                            result.parents.push_back(samplingParent(face));
                         }
                         local.emplace(std::make_pair(i, j), inserted.first->second);
                     }
                 }
-                const Vector normal = face->outNormal();
+                const Vector normal = face->outNormal(samplingParent(face)->region->regionID);
                 auto append = [&](size_t a, size_t b, size_t c)
                 {
                     if((result.referencePoints[b] - result.referencePoints[a])
@@ -279,7 +301,7 @@ namespace model
                         // A convex combination stays in the original boundary simplex
                         // and its FEM parent, including at intersecting slip traces.
                         result.samplePoints.push_back(Vector(p + fraction * (center - p)));
-                        result.parents.push_back(face->parents().begin()->second);
+                        result.parents.push_back(samplingParent(face));
                     }
                     for(size_t j = 1; j + 1 < polygon.size(); ++j)
                     {
@@ -310,7 +332,7 @@ namespace model
                             {
                                 std::swap(qa, qb);
                             }
-                            const Vector normal = face->outNormal();
+                            const Vector normal = face->outNormal(samplingParent(face)->region->regionID);
                             const EdgeKey key{static_cast<long long>(k),
                                               qa[0],
                                               qa[1],

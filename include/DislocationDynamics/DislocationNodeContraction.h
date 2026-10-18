@@ -22,10 +22,12 @@ namespace model
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         
         std::vector<std::set<std::shared_ptr<NetworkNodeType>>> contractBoundary(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
-        bool contractSecondAndVirtual(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
-        bool contractYoungest(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
-        bool contractToPosition(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const VectorDim& X, const double& maxRange);
+        bool contractSecondAndVirtual(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary);
+        bool contractYoungest(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary);
+        bool contractToPosition(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const VectorDim& X, const double& maxRange,const bool reconcileBoundary);
 
+        bool canReach(const std::shared_ptr<NetworkNodeType>& node,const VectorDim& target) const;
+        bool commitContraction(std::shared_ptr<NetworkNodeType> a,std::shared_ptr<NetworkNodeType> b,const VectorDim& target,const bool reconcileBoundary);
         DislocationNetworkType& DN;
 
     public:
@@ -33,7 +35,7 @@ namespace model
         const int verboseNodeContraction;
 
         DislocationNodeContraction(DislocationNetworkType& DN_in);
-        bool contract(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
+        bool contract(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary=true);
     };
 }
 #endif

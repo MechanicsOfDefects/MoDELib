@@ -10,6 +10,8 @@
 #define model_DDqtVTKwidget_cpp_
 
 #include <QFileDialog>
+#include <QCoreApplication>
+#include <QDir>
 #include <QScrollArea>
 #include <QVTKInteractor.h>
 #include <vtkInteractorStyle.h>
@@ -76,10 +78,25 @@ namespace model
 
     std::string DDqtVTKwidget::getWorkingDir() 
     {
+        QDir directory(QCoreApplication::applicationDirPath());
+        QString initialDirectory=directory.absolutePath();
+        // Find tutorials from the executable location, including build/tools/DDqt
+        // and application-bundle layouts, independently of the launch directory.
+        do
+        {
+            const QDir tutorials(directory.filePath("tutorials"));
+            if(tutorials.exists())
+            {
+                initialDirectory=tutorials.absolutePath();
+                break;
+            }
+        }
+        while(directory.cdUp());
+
         return QFileDialog::getExistingDirectory(this, tr("Open Directory"),
-                                                             "/Users/giacomo/Documents/MoDELib2/tutorials/DislocationDynamics",
-                                                             QFileDialog::ShowDirsOnly
-                                                             | QFileDialog::DontUseNativeDialog ).toStdString();
+                                                 initialDirectory,
+                                                 QFileDialog::ShowDirsOnly
+                                                 | QFileDialog::DontUseNativeDialog).toStdString();
 
     
     }

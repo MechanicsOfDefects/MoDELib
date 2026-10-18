@@ -22,6 +22,7 @@
 #endif
 
 #include <vector>
+#include <functional>
 #include <chrono>
 #include <map>
 #include <memory>
@@ -101,10 +102,14 @@ namespace model
         constexpr static int NdofXnode=NetworkNodeType::NdofXnode;
         static int verboseDislocationNetwork;
         size_t glideStepsSinceLastClimb;
+        // During a time step, loop positions are provisional until reconciliation.
+        bool trialNodeMotion=false;
         void moveNodes(const double & dt_in);
         void storeSingleGlideStepDiscreteEvents(const long int& runID);
         void executeSingleGlideStepDiscreteEvents(const long int& runID);
-        void updateBoundaryNodes();
+        // Optional checkpoint is for fault-injection regression tests. It runs
+        // inside the rollback-protected commit after each topology operation.
+        void updateBoundaryNodes(const std::function<void()>& checkpoint={});
         bool contract(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
         
         std::shared_ptr<DislocationGlideSolverBase<DislocationNetwork<dim>>> glideSolver;

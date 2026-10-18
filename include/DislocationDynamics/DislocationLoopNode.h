@@ -80,6 +80,11 @@ namespace model
 
         void updateConfinedGeometry();
 
+        bool isPhysicalBoundaryNode() const;
+        bool isPeriodicSubdivision() const;
+        // A contour vertex may lie exactly on a periodic seam. It must not be
+        // confused with an artificial subdivision of a straight polygon edge.
+        bool periodicContourVertex=false;
         void set_P(const VectorDim&);
         void set_P(const VectorLowerDim&);
         std::shared_ptr<PeriodicPlanePatch<dim>> periodicPlanePatch() const;

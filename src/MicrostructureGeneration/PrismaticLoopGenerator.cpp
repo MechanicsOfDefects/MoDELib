@@ -135,7 +135,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
     if(found.first)
     {
         const int grainID(found.second->region->regionID);
-        assert(mg.ddBase.poly.grains.size()==1 && "Prismatic dislocations only supported for single crystals");
+        // Select the host grain from the center, also for polycrystalline meshes.
         const auto& grain(mg.ddBase.poly.grain(grainID));
         
         if(rSS>=0 && rSS<int(grain->slipSystems().size()))
@@ -219,53 +219,167 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
                 
             }
             
-            double loopLength=0.0;
-            
-            
-            const bool sessileLoopInserted(mg.insertJunctionLoop(sessileLoopNodePos,sessilePlane,
-                                  b.cartesian(),sessilePlane->referencePlane->unitNormal,
-                                  center,grain->grainID,DislocationLoopIO<3>::SESSILELOOP));
-            
-            if(sessileLoopInserted)
+            // Map points along rays inside the convex prism. Crossing a physical
+            // face rejects the prism; same-grain periodic faces translate the ray.
+            const auto mappedShift=[&](const VectorDimD& target)
             {
-                for(size_t k1=0;k1<sessileLoopNodePos.size();++k1)
+                VectorDimD shift=VectorDimD::Zero();
+                const VectorDimD direction=target-center;
+                double parameter=0.0;
+                for(size_t crossing=0;crossing<10000;++crossing)
                 {
-                    size_t k2(k1==sessileLoopNodePos.size()-1? 0 : k1+1);
-                    loopLength+=(sessileLoopNodePos[k2]-sessileLoopNodePos[k1]).norm();
+                    const PlanarMeshFace<3>* exitFace=nullptr;
+                    double exitParameter=1.0;
+                    for(const auto& entry : grain->region.faces())
+                    {
+                        const auto* face=entry.second.get();
+                        const VectorDimD normal=face->outNormal(grainID);
+                        const double speed=normal.dot(direction);
+                        if(speed>FLT_EPSILON)
+                        {
+                            const double candidate=normal.dot(face->center()-center-shift)/speed;
+                            if(candidate>=parameter-1.e-9 && candidate<exitParameter-1.e-9)
+                            {
+                                exitParameter=candidate;
+                                exitFace=face;
+                            }
+                        }
+                    }
+                    if(!exitFace)
+                    {
+                        return shift;
+                    }
+                    const auto* partner=exitFace->periodicFacePair.second;
+                    if(!partner || exitFace->regionIDs!=partner->regionIDs)
+                    {
+                        throw std::runtime_error("Prismatic loop crosses a physical grain boundary; entire prism rejected.");
+                    }
+                    shift+=partner->center()-exitFace->center();
+                    parameter=exitParameter;
                 }
-
-                const VectorDimD step(L*b.cartesian());
-                for(size_t k1=0;k1<planes.size();++k1)
+                throw std::runtime_error("Prismatic loop exceeded periodic crossing limit; entire prism rejected.");
+            };
+            struct PreparedNode
+            {
+                VectorDimD position;
+                VectorDimD shift;
+                std::pair<short int,short int> edges;
+            };
+            struct PreparedLoop
+            {
+                std::shared_ptr<PeriodicGlidePlane<3>> plane;
+                DislocationLoopIO<3>::DislocationLoopType type;
+                std::vector<PreparedNode> nodes;
+            };
+            // Validate every face of the closed prism before modifying the IO.
+            // The patch walk crosses only same-grain periodic faces. Any area
+            // removed by its physical-boundary clipping rejects the whole prism.
+            const auto prepare=[&](const std::vector<VectorDimD>& polygon,
+                                   const std::shared_ptr<PeriodicGlidePlane<3>>& plane,
+                                   const DislocationLoopIO<3>::DislocationLoopType type)
+            {
+                std::vector<PolyPoint> anchors(polygon.size());
+                std::vector<std::pair<VectorDimD,const PolyPoint* const>> points;
+                for(size_t k=0;k<polygon.size();++k)
                 {
-                    size_t k2(k1==planes.size()-1? 0 : k1+1);
-                    
-                    Eigen::Matrix<double,3,1> shift(Eigen::Matrix<double,3,1>::Zero());
-                    for(int c=0;c<mg.ddBase.periodicLatticeBasis.cols();++c)
-                    {
-                        shift+=mg.ddBase.periodicLatticeBasis.col(c)*std::floor(mg.ddBase.periodicLatticeReciprocalBasis.col(c).dot(sessileLoopNodePos[k2]-mg.ddBase.mesh.xMin()));
-                    }
-                                        
-                    if(mg.ddBase.mesh.searchRegion(grainID,sessileLoopNodePos[k2]-shift).first)
-                    {
-                        std::vector<VectorDimD> loopNodePos;
-                        loopNodePos.push_back(sessileLoopNodePos[k2]-shift);
-                        loopNodePos.push_back(sessileLoopNodePos[k1]-shift);
-                        loopNodePos.push_back(sessileLoopNodePos[k1]+step-shift);
-                        loopNodePos.push_back(sessileLoopNodePos[k2]+step-shift);
-                        
-                        const int planeHeight(planes[k2].n.planeIndexOfPoint(loopNodePos.front()));
-                        const LatticePlaneKey planeKey(planeHeight,planes[k2].n);
-                        const auto periodicGlidePlane(mg.ddBase.periodicGlidePlaneFactory.getFromKey(planeKey));
-                        
-                        mg.insertJunctionLoop(loopNodePos,periodicGlidePlane,
-                                              b.cartesian(),periodicGlidePlane->referencePlane->unitNormal,
-                                              periodicGlidePlane->referencePlane->P,grain->grainID,DislocationLoopIO<3>::GLISSILELOOP);
-                    }
-                    else
-                    {
-                        throw std::runtime_error("Mesh does not contain shifted point.");
-                    }
+                    points.emplace_back(polygon[k],&anchors[k]);
                 }
+                const auto intersections=plane->polygonPatchIntersection(points,true);
+                PreparedLoop result{plane,type,{}};
+                for(const auto& point : intersections)
+                {
+                    result.nodes.push_back({plane->referencePlane->globalPosition(std::get<0>(point)),
+                                            std::get<1>(point),std::get<2>(point)});
+                }
+                VectorDimD originalArea=VectorDimD::Zero();
+                VectorDimD retainedArea=VectorDimD::Zero();
+                for(size_t k=0;k<polygon.size();++k)
+                {
+                    originalArea+=0.5*(polygon[k]-polygon.front()).cross(polygon[(k+1)%polygon.size()]-polygon.front());
+                }
+                for(size_t k=0;k<result.nodes.size();++k)
+                {
+                    retainedArea+=0.5*(result.nodes[k].position-polygon.front()).cross(
+                        result.nodes[(k+1)%result.nodes.size()].position-polygon.front());
+                }
+                if(result.nodes.size()<3 || originalArea.norm()<=FLT_EPSILON ||
+                   (retainedArea-originalArea).norm()>1.e-8*originalArea.norm())
+                {
+                    throw std::runtime_error("Prismatic loop crosses a physical grain boundary; entire prism rejected.");
+                }
+                return result;
+            };
+            std::vector<PreparedLoop> prepared;
+            prepared.push_back(prepare(sessileLoopNodePos,sessilePlane,DislocationLoopIO<3>::SESSILELOOP));
+            const VectorDimD step(L*b.cartesian());
+            std::vector<VectorDimD> top;
+            for(const auto& point : sessileLoopNodePos)
+            {
+                mappedShift(point);
+                mappedShift(point+step);
+                top.push_back(point+step);
+            }
+            const VectorDimD topShift=mappedShift(center+step);
+            for(auto& point : top)
+            {
+                point+=topShift;
+            }
+            const auto topPlane=mg.ddBase.periodicGlidePlaneFactory.getFromKey(
+                LatticePlaneKey(axis.planeIndexOfPoint(center+step+topShift),axis));
+            // The cap is validation-only: inserting it would cancel the physical loop.
+            prepare(top,topPlane,DislocationLoopIO<3>::SESSILELOOP);
+            double loopLength=0.0;
+            for(size_t k1=0;k1<planes.size();++k1)
+            {
+                const size_t k2=(k1+1)%planes.size();
+                loopLength+=(sessileLoopNodePos[k2]-sessileLoopNodePos[k1]).norm();
+                std::vector<VectorDimD> side{sessileLoopNodePos[k2],sessileLoopNodePos[k1],
+                                                  sessileLoopNodePos[k1]+step,sessileLoopNodePos[k2]+step};
+                const VectorDimD sideShift=mappedShift(0.5*(sessileLoopNodePos[k1]+sessileLoopNodePos[k2]+step));
+                for(auto& point : side)
+                {
+                    point+=sideShift;
+                }
+                const LatticePlaneKey key(planes[k2].n.planeIndexOfPoint(side.front()),planes[k2].n);
+                prepared.push_back(prepare(side,mg.ddBase.periodicGlidePlaneFactory.getFromKey(key),
+                                           DislocationLoopIO<3>::GLISSILELOOP));
+            }
+            // Commit all prepared loops together; also roll back unexpected
+            // insertion failures, including the position-to-network-node index.
+            const size_t oldLoops=mg.config().loops().size();
+            const size_t oldNodes=mg.config().nodes().size();
+            const size_t oldLoopNodes=mg.config().loopNodes().size();
+            const size_t oldLinks=mg.config().loopLinks().size();
+            auto oldNodeMap=mg.uniqueNetworkNodeMap;
+            try
+            {
+                for(const auto& loop : prepared)
+                {
+                    const size_t id=mg.insertLoop(b.cartesian(),loop.plane->referencePlane->unitNormal,
+                                                  loop.plane->referencePlane->P,grainID,loop.type);
+                    std::vector<size_t> nodeIDs;
+                    for(const auto& node : loop.nodes)
+                    {
+                        const VectorDimD position=node.position+node.shift;
+                        auto foundNode=mg.uniqueNetworkNodeMap.find(position);
+                        if(foundNode==mg.uniqueNetworkNodeMap.end())
+                        {
+                            const size_t networkID=mg.insertNetworkNode(position);
+                            foundNode=mg.uniqueNetworkNodeMap.emplace(position,networkID).first;
+                        }
+                        nodeIDs.push_back(mg.insertLoopNode(id,node.position,foundNode->second,node.shift,node.edges));
+                    }
+                    mg.insertLoopLinks(id,nodeIDs);
+                }
+            }
+            catch(...)
+            {
+                mg.config().loopLinks().resize(oldLinks);
+                mg.config().loopNodes().resize(oldLoopNodes);
+                mg.config().nodes().resize(oldNodes);
+                mg.config().loops().resize(oldLoops);
+                mg.uniqueNetworkNodeMap.swap(oldNodeMap);
+                throw;
             }
             return loopLength;
         }

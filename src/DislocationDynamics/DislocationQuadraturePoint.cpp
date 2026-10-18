@@ -167,12 +167,22 @@ namespace model
             const VectorDim& b(parentSegment.burgers()); // Burgers vector
             const VectorDim& t(rl);            // tangent vector
 
-            VectorDim glideForce = fPK-fPK.dot(n)*n;
+            VectorDim glideDirection=n.cross(t);
+            const double glideDirectionNorm=glideDirection.norm();
+            if(glideDirectionNorm<FLT_EPSILON)
+            {
+                return VectorDim::Zero();
+            }
+            glideDirection/=glideDirectionNorm;
+            // Curvature is normal to the auxiliary spline tangent, not
+            // necessarily to this quadrature segment. Only its glide component
+            // may drive physical motion (no tangential reparametrization).
+            VectorDim glideForce=fPK.dot(glideDirection)*glideDirection;
             double glideForceNorm(glideForce.norm());
             
             if(glideForceNorm<FLT_EPSILON && parentSegment.network().stochasticForceGenerator)
             {
-                glideForce=parentSegment.chord().cross(n);
+                glideForce=-glideDirection;
                 glideForceNorm=glideForce.norm();
                 if(glideForceNorm>FLT_EPSILON)
                 {
@@ -292,25 +302,20 @@ namespace model
     template<int dim>
     typename DislocationQuadraturePoint<dim>::MatrixDim DislocationQuadraturePoint<dim>::forceToStress(const VectorDim& force,const VectorDim& unitTangent,const LinkType& parentSegment) const
     {
-        // std::cout<<" Curvature norm "<<cmSeg.get_rll(paramU).norm()<<std::endl;
-        const double burgersNorm(parentSegment.burgers().norm());
-        if(burgersNorm>FLT_EPSILON)
+        const double burgersNorm=parentSegment.burgers().norm();
+        VectorDim glideDirection=parentSegment.glidePlaneNormal().cross(unitTangent);
+        const double directionNorm=glideDirection.norm();
+        if(burgersNorm>FLT_EPSILON && directionNorm>FLT_EPSILON)
         {
-            const double resolvedtensionStress (force.norm()/burgersNorm);
-            const VectorDim unitBurgers(parentSegment.burgers()/burgersNorm);
-            const MatrixDim tensionStress(resolvedtensionStress*(unitBurgers*parentSegment.glidePlaneNormal().transpose() + parentSegment.glidePlaneNormal()*unitBurgers.transpose()));
-            const VectorDim eqPKForce ((tensionStress*parentSegment.burgers()).cross(unitTangent));
-            const double eqForceNorm(eqPKForce.norm());
-            if (eqForceNorm>FLT_EPSILON)
+            glideDirection/=directionNorm;
+            const double resolvedForce=force.dot(glideDirection);
+            const VectorDim unitBurgers=parentSegment.burgers()/burgersNorm;
+            const VectorDim normal=parentSegment.glidePlaneNormal();
+            const MatrixDim unitStress=unitBurgers*normal.transpose()+normal*unitBurgers.transpose();
+            const double resolvedUnitForce=((unitStress*parentSegment.burgers()).cross(unitTangent)).dot(glideDirection);
+            if(std::abs(resolvedUnitForce)>FLT_EPSILON)
             {
-                if (eqPKForce.dot(force) > 0.0)
-                {
-                    return tensionStress;
-                }
-                else
-                {
-                    return -tensionStress;
-                }
+                return (resolvedForce/resolvedUnitForce)*unitStress;
             }
         }
         return MatrixDim::Zero();
@@ -625,6 +630,7 @@ namespace model
         
         if(    !parentSegment.hasZeroBurgers()
            &&  !parentSegment.isBoundarySegment()
+           &&  !parentSegment.isGrainBoundarySegment()
            &&  ((parentSegment.isGlissile() && !isClimbStep) || (parentSegment.isSessile() && isClimbStep) || parentSegment.network().computeElasticEnergyPerLength)
            )
         {

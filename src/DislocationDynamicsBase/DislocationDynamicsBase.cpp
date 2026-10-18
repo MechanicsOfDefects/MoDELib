@@ -99,7 +99,7 @@ namespace model
                     TextFileParser(simulationParameters.traitsIO.polyFile).readMatrix<double>("X0",1,_dim,true).transpose(),
                     simulationParameters.periodicFaceIDs)
     /* init */,isPeriodicDomain(checkIfFullyPeriodicDomain(mesh))
-    /* init */,periodicImageSize(isPeriodicDomain? TextFileParser(simulationParameters.traitsIO.dcFile).readArray<int>("periodicImageSize",true) : std::vector<int>())
+    /* init */,periodicImageSize(mesh.periodicBasis().cols()>0? TextFileParser(simulationParameters.traitsIO.dcFile).readArray<int>("periodicImageSize",true) : std::vector<int>())
     /* init */,periodicLatticeBasis(mesh.periodicBasis())
     /* init */,periodicLatticeReciprocalBasis(periodicLatticeBasis*(periodicLatticeBasis.transpose()*periodicLatticeBasis).inverse())
     /* init */,periodicShifts(getPeriodicShifts(periodicLatticeBasis,periodicImageSize))
@@ -107,7 +107,7 @@ namespace model
     /* init */,fe((!isPeriodicDomain && simulationParameters.useFEM) ? new FiniteElement<ElementType>(mesh) : nullptr)
     /* init */,glidePlaneFactory(poly)
     /* init */,periodicGlidePlaneFactory(poly,glidePlaneFactory)
-    /* init */,EwaldLength(isPeriodicDomain? getEwaldLength(periodicLatticeBasis,TextFileParser(simulationParameters.traitsIO.dcFile).readScalar<double>("EwaldLengthFactor",true)) : 0.0)
+    /* init */,EwaldLength(periodicLatticeBasis.cols()>0? getEwaldLength(periodicLatticeBasis,TextFileParser(simulationParameters.traitsIO.dcFile).readScalar<double>("EwaldLengthFactor",true)) : 0.0)
     {
         if(!mesh.simplices().size())
         {

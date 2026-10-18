@@ -10,6 +10,7 @@
 #define model_NetworkLinkActor_cpp_
 
 #include <numbers>
+#include <map>
 #include <iostream>
 #include <deque>
 #include <string>
@@ -53,7 +54,9 @@ namespace model
     /* init */,mainLayout(new QGridLayout(this))
     /* init */,showLinks(new QCheckBox(this))
     /* init */,sliderLinksRadius(new QSlider(this))
-    /* init */,showZeroLinks(new QCheckBox(this))
+    /* init */,sliderNormalOpacity(new QSlider(Qt::Horizontal,this))
+    /* init */,sliderZeroOpacity(new QSlider(Qt::Horizontal,this))
+    /* init */,sliderBoundaryOpacity(new QSlider(Qt::Horizontal,this))
     /* init */,linksColorBox(new QComboBox(this))
     /* init */,clr(ColorScheme::colorBurgers)
     /* init */,polyData(vtkSmartPointer<vtkPolyData>::New())
@@ -71,6 +74,7 @@ namespace model
     /* init */,defectiveCrystal(defectiveCrystal_in)
     /* init */,dislocationNetwork(defectiveCrystal.template getUniqueTypedMicrostructure<DislocationNetwork<3>>())
     {
+        showLinks->setObjectName("showSegments");
         showLinks->setChecked(true);
         showLinks->setText("links");
         sliderLinksRadius->setEnabled(true);
@@ -79,9 +83,18 @@ namespace model
         sliderLinksRadius->setValue(5);
         sliderLinksRadius->setOrientation(Qt::Horizontal);
         
-        showZeroLinks->setChecked(false);
-        showZeroLinks->setText("0-Burgers links");
+        sliderNormalOpacity->setObjectName("normalSegmentOpacity");
+        sliderNormalOpacity->setRange(0,100);
+        sliderNormalOpacity->setValue(100);
+        sliderZeroOpacity->setObjectName("zeroBurgersOpacity");
+        sliderBoundaryOpacity->setObjectName("boundarySegmentOpacity");
+        for(auto* slider : {sliderZeroOpacity,sliderBoundaryOpacity})
+        {
+            slider->setRange(0,100);
+            slider->setValue(0);
+        }
         tubeActor0->SetVisibility(false);
+        tubeActorBnd->SetVisibility(false);
         
         linksColorBox->addItem("Burgers vector");
         linksColorBox->addItem("plane normal");
@@ -95,15 +108,20 @@ namespace model
         controls::field(
             controls::grid(segmentsBox), 1, "Coloring", linksColorBox,
             "Choose which dislocation property determines segment color. Slip system uses the SlipSystems palette.");
-        auto *zeroBox = controls::box("Zero-Burgers segments", this, "Show segments whose net Burgers vector is zero.",
-                                      showZeroLinks);
+        controls::field(controls::grid(segmentsBox), 2, "Normal opacity", sliderNormalOpacity,
+                        "Opacity of nonzero-Burgers segments away from external and grain boundaries. 0 is transparent; 100 is opaque.");
+        controls::field(controls::grid(segmentsBox), 3, "Zero-Burgers opacity", sliderZeroOpacity,
+                        "Opacity of segments with zero net Burgers vector, including those on boundaries. 0 is transparent; 100 is opaque.");
+        controls::field(controls::grid(segmentsBox), 4, "Boundary/GB opacity", sliderBoundaryOpacity,
+                        "Opacity of nonzero-Burgers segments on external boundaries or grain boundaries, including periodic grain boundaries. 0 is transparent; 100 is opaque.");
         mainLayout->addWidget(segmentsBox, 0, 0);
-        mainLayout->addWidget(zeroBox, 1, 0);
-        mainLayout->setRowStretch(2, 1);
+        mainLayout->setRowStretch(1, 1);
         this->setLayout(mainLayout);
         
         connect(showLinks,SIGNAL(stateChanged(int)), this, SLOT(modify()));
-        connect(showZeroLinks,SIGNAL(stateChanged(int)), this, SLOT(modify()));
+        connect(sliderNormalOpacity,SIGNAL(valueChanged(int)), this, SLOT(modify()));
+        connect(sliderZeroOpacity,SIGNAL(valueChanged(int)), this, SLOT(modify()));
+        connect(sliderBoundaryOpacity,SIGNAL(valueChanged(int)), this, SLOT(modify()));
         connect(sliderLinksRadius,SIGNAL(valueChanged(int)), this, SLOT(modify()));
         
         tubeFilter->SetInputData(polyData);
@@ -124,7 +142,7 @@ namespace model
         tubeMapperBnd->SetInputConnection(tubeFilterBnd->GetOutputPort());
         tubeMapperBnd->ScalarVisibilityOn();
         tubeActorBnd->SetMapper(tubeMapperBnd);
-        tubeActorBnd->GetProperty()->SetOpacity(0.3); //(R,G,B)
+        tubeActorBnd->GetProperty()->SetOpacity(0.0); //(R,G,B)
         
         // Zero-Burgers Segments
         tubeFilter0->SetInputData(polyData0);
@@ -135,7 +153,7 @@ namespace model
         tubeMapper0->ScalarVisibilityOn();
         tubeActor0->SetMapper(tubeMapper0);
         tubeActor0->GetProperty()->SetColor(0.5, 0.5, 0.5); //(R,G,B)
-        tubeActor0->GetProperty()->SetOpacity(0.3); //(R,G,B)
+        tubeActor0->GetProperty()->SetOpacity(0.0); //(R,G,B)
         
         renderer->AddActor(tubeActor);
         renderer->AddActor(tubeActorBnd);
@@ -159,14 +177,21 @@ namespace model
             vtkSmartPointer<vtkCellArray> cellsBnd(vtkSmartPointer<vtkCellArray>::New());
             vtkSmartPointer<vtkCellArray> cells0(vtkSmartPointer<vtkCellArray>::New());
             
+            // Match the network-node point ordering, rebuilding for every frame.
+            std::map<size_t,vtkIdType> nodeIndices;
+            for(const auto& entry : dislocationNetwork->networkNodes())
+            {
+                nodeIndices.emplace(entry.first,static_cast<vtkIdType>(nodeIndices.size()));
+            }
+
             for (const auto& link : dislocationNetwork->networkLinks())
             {
                 
                 
 
                 vtkSmartPointer<vtkLine> line(vtkSmartPointer<vtkLine>::New());
-                line->GetPointIds()->SetId(0, link.second.lock()->source->networkID()); // the second 0 is the index of the Origin in linesPolyData's points
-                line->GetPointIds()->SetId(1, link.second.lock()->  sink->networkID());
+                line->GetPointIds()->SetId(0, nodeIndices.at(link.second.lock()->source->sID)); // the second 0 is the index of the Origin in linesPolyData's points
+                line->GetPointIds()->SetId(1, nodeIndices.at(link.second.lock()->sink->sID));
                 
                 if(link.second.lock()->hasZeroBurgers())
                 {
@@ -177,14 +202,10 @@ namespace model
                     Eigen::Matrix<int,3,1> colorVector=computeColor(link.second.lock()->burgers(),link.second.lock()->chord(),link.second.lock()->slipSystem(),sscm);
                     unsigned char lineClr[3]={(unsigned char) colorVector(0),(unsigned char) colorVector(1),(unsigned char) colorVector(2)};
 
-                    if(link.second.lock()->isBoundarySegment())
+                    if(link.second.lock()->isGrainBoundarySegment() || link.second.lock()->isBoundarySegment())
                     {
                         cellsBnd->InsertNextCell(line);
                         colorsBnd->InsertNextTypedTuple(lineClr);
-                    }
-                    else if(link.second.lock()->isGrainBoundarySegment())
-                    {
-                        
                     }
                     else
                     {
@@ -300,13 +321,20 @@ namespace model
     void NetworkLinkActor::modify()
     {
         sliderLinksRadius->setEnabled(showLinks->isChecked());
-        tubeActor->SetVisibility(showLinks->isChecked());
+        tubeActor->SetVisibility(showLinks->isChecked() && sliderNormalOpacity->value()>0);
+        tubeActor->GetProperty()->SetOpacity(sliderNormalOpacity->value()/100.0);
+        tubeActorBnd->SetVisibility(showLinks->isChecked() && sliderBoundaryOpacity->value()>0);
+        tubeActorBnd->GetProperty()->SetOpacity(sliderBoundaryOpacity->value()/100.0);
+        tubeActor0->GetProperty()->SetOpacity(sliderZeroOpacity->value()/100.0);
         linksColorBox->setEnabled(showLinks->isChecked());
-        tubeActor0->SetVisibility(showZeroLinks->isChecked());
+        tubeActor0->SetVisibility(showLinks->isChecked() && sliderZeroOpacity->value()>0);
         tubeFilter->SetRadius(sliderLinksRadius->value()); // this must be a function similar to setColor
         tubeFilterBnd->SetRadius(sliderLinksRadius->value()); // this must be a function similar to setColor
         tubeFilter0->SetRadius(sliderLinksRadius->value()); // this must be a function similar to setColor
-        renderWindow->Render();
+        if(renderWindow->GetReadyForRendering())
+        {
+            renderWindow->Render();
+        }
     }
 
 //    Eigen::Matrix<int,3,1> NetworkLinkActor::vector2Clr(VectorDim clrVector) const

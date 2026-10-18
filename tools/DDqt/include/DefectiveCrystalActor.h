@@ -83,6 +83,7 @@ namespace model
         FrameCameraRotation frameRotation;
         Eigen::Vector3d rotationAxis = Eigen::Vector3d::UnitZ();
         double rotationDegreesPerFrame = 0.0;
+        double cameraAdvancePerFrame = 0.0;
         size_t loadedFrameID = 0;
         bool frameLoaded = false;
         bool readRotationSettings();
@@ -111,6 +112,7 @@ namespace model
         QLineEdit* frameIncrementEdit;
         QLineEdit* rotationAxisEdit;
         QLineEdit* rotationAngleEdit;
+        QLineEdit* cameraAdvanceEdit;
         QCheckBox* saveImage;
         QLabel* frameStatus;
         WrappingTabWidget* tabWidget;

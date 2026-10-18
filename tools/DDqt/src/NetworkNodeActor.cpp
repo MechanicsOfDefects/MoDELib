@@ -37,6 +37,7 @@
 #include <DDconfigIO.h>
 #include <MeshPlane.h>
 #include <NetworkNodeActor.h>
+#include <DislocationNetwork.h>
 #include <vtkRenderer.h>
 
 #include <DDqtControls.h>
@@ -178,7 +179,7 @@ namespace model
 
         
         /**********************************************************************/
-        void NetworkNodeActor::updateConfiguration(const DDconfigIO<3>& configIO)
+        void NetworkNodeActor::updateConfiguration(const DDconfigIO<3>& configIO, const DislocationNetwork<3>* network)
         {// https://stackoverflow.com/questions/6878263/remove-individual-points-from-vtkpoints
             std::cout<<"Updating nodes..."<<std::flush;
             const auto t0= std::chrono::system_clock::now();
@@ -238,7 +239,22 @@ namespace model
                 nodePoints->InsertNextPoint(node.P.data());
                 nodeLabels->InsertNextTuple1(node.sID);
                 velocityVectors->InsertNextTuple(node.V.data()); // arrow vector
-                nodeColors->InsertNextTypedTuple(node.meshLocation>2? this->nodeClr[3] : this->nodeClr[node.meshLocation]);
+                // Old outputs contain geometric-only labels. Prefer the current
+                // network classification, reconstructed with the active face pairs.
+                int location=node.meshLocation;
+                if(network)
+                {
+                    const auto found=network->networkNodes().find(node.sID);
+                    if(found!=network->networkNodes().end())
+                    {
+                        if(const auto liveNode=found->second.lock())
+                        {
+                            location=liveNode->meshLocation();
+                        }
+                    }
+                }
+                const int colorIndex=location>=0 && location<=2?location:3;
+                nodeColors->InsertNextTypedTuple(this->nodeClr[colorIndex]);
 
 //                // Single node
 //                if(node.sID==singleNodeID)

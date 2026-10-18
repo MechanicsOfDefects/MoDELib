@@ -46,7 +46,7 @@ namespace model
         Eigen::VectorXd lumpedSolve() const;
         size_t assembleNCtriplets(TripletContainerType& kqqT, Eigen::VectorXd& Fq) const;
 //        void storeNodeSolution(const Eigen::VectorXd& X);
-        size_t assembleConstraintsforPeriodicSimulationsNULL(TripletContainerType& zT) const;
+        size_t assemblePeriodicConstraints(TripletContainerType& zT) const;
 
         
         public:

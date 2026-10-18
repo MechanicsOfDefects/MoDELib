@@ -1,4 +1,4 @@
-"""Generate the defect-free polycrystalCube_10_periodicXY tutorial for DDqt."""
+"""Generate a polycrystal with random prismatic loops and 33-direction strain loading."""
 import argparse
 import os
 from pathlib import Path
@@ -28,13 +28,13 @@ print("\033[1;32mCreating  DDfile\033[0m")
 shutil.copy2(DCfileTemplate,'inputFiles/'+DCfile)
 setInputVariable('inputFiles/'+DCfile,'physics','DislocationDynamics ElasticDeformation')
 setInputVariable('inputFiles/'+DCfile,'useFEM','0')
-setInputVariable('inputFiles/'+DCfile,'Nsteps','0')  # visualization only; no simulation steps
+setInputVariable('inputFiles/'+DCfile,'Nsteps','10000')  # number of simulation steps
 setInputVariable('inputFiles/'+DCfile,'maxResolveSteps','0')  # number of simulation steps
 setInputVariable('inputFiles/'+DCfile,'dtMax','1e25')
 setInputVariable('inputFiles/'+DCfile,'outputFrequency','1')  # output frequency
 
-setInputVariable('inputFiles/'+DCfile,'startAtTimeStep','0')
-setInputVector('inputFiles/'+DCfile,'periodicImageSize',np.array([0,0]),'image counts for the two XY periodic directions')
+setInputVariable('inputFiles/'+DCfile,'startAtTimeStep','-1')
+setInputVector('inputFiles/'+DCfile,'periodicImageSize',np.array([0,0,0]),'image counts for the active periodic directions')
 
 # Make a local copy of DD parameters file and modify that copy if necessary
 DDfile='DD.txt'
@@ -66,9 +66,16 @@ elasticDeformatinoFileTemplate=str(repository)+'/Library/ElasticDeformation/'+el
 print("\033[1;32mCreating  elasticDeformatinoFile\033[0m")
 shutil.copy2(elasticDeformatinoFileTemplate,'inputFiles/'+elasticDeformatinoFile)
 setInputVector('inputFiles/'+elasticDeformatinoFile,'ExternalStress0',np.zeros(6),'applied stress')
+# Voigt order: 11, 22, 33, 12, 23, 13. Strain rate is per simulation time b/cs.
+strainRate33 = 1e-8
+setInputVector('inputFiles/'+elasticDeformatinoFile, 'ExternalStrainRate',
+               np.array([0.0, 0.0, strainRate33, 0.0, 0.0, 0.0]), 'applied strain rate in the global 33 direction')
+setInputVector('inputFiles/'+elasticDeformatinoFile, 'stiffnessRatio',
+               np.array([0.0, 0.0, 1e20, 0.0, 0.0, 0.0]), 'strain control in 33; zero-stress control in the other components')
+
 
 # Create polycrystal.txt using local material file
-meshFile='polycrystalCube_10_periodicXY.msh';
+meshFile='poly30_periodicXYZ.msh';
 meshFileTemplate=str(repository)+'/Library/Meshes/'+meshFile;
 print("\033[1;32mCreating  polycrystalFile\033[0m")
 shutil.copy2(meshFileTemplate,'inputFiles/'+meshFile)
@@ -81,7 +88,7 @@ pf.grain1globalX3 = np.array([0.0, 0.0, 1.0])
 pf.boxScaling=np.array([1e-6,1e-6,1e-6])/b_SI # scale of each mesh coordinate in Burgers vector units
 pf.X0=np.array([0,0,0]) # Mesh nodes X are mapped to x=F*(X-X0)
 pf.periodicFaceIDs=np.array([-1])
-# Explicit example orientations for the ten grains. These rational rotations
+# Explicit example orientations for all 30 grains. These rational rotations
 # are chosen for lattice-compatible periodic translations; they do not use the
 # random orientations stored in the source mesh's ElsetOrientations section.
 rx = np.array([[1., 0., 0.], [0., 0.8, -0.6], [0., 0.6, 0.8]])
@@ -89,11 +96,24 @@ ry = np.array([[0.8, 0., 0.6], [0., 1., 0.], [-0.6, 0., 0.8]])
 rz = np.array([[0.8, -0.6, 0.], [0.6, 0.8, 0.], [0., 0., 1.]])
 grainOrientations = [np.eye(3), rx, rx.T, ry, ry.T, rz, rz.T,
                      rx @ ry, ry @ rz, rz @ rx]
+# Preserve the original first ten orientations, then add distinct products
+# of two elementary rotations. Their denominators still divide 25.
+elementaryRotations = [rx, rx.T, ry, ry.T, rz, rz.T]
+for first in elementaryRotations:
+    for second in elementaryRotations:
+        orientation = first @ second
+        if len(grainOrientations)<30 and not any(
+                np.allclose(orientation, existing, rtol=0, atol=1e-12)
+                for existing in grainOrientations):
+            grainOrientations.append(orientation)
+if len(grainOrientations)!=30:
+    raise ValueError('Expected 30 distinct grain orientations')
 # Products have denominators up to 25. Round the axial BCC repeat counts
 # to multiples of 25 so all grain orientations admit the periodic translations.
 pf.compute()
 repeatCounts = 25 * np.maximum(1, np.round(pf.boxScaling / (25 * pf.boxEdgesLatticeLengths)))
-pf.boxScaling = repeatCounts * pf.boxEdgesLatticeLengths
+meshScale = 2.0  # Double linear dimensions while preserving lattice-compatible repeats.
+pf.boxScaling = meshScale * repeatCounts * pf.boxEdgesLatticeLengths
 pf.write('inputFiles')
 with open('inputFiles/polycrystal.txt', 'a') as polycrystalFile:
     for grainID, orientation in enumerate(grainOrientations[1:], start=2):
@@ -101,15 +121,20 @@ with open('inputFiles/polycrystal.txt', 'a') as polycrystalFile:
         polycrystalFile.write(f'C2G{grainID}=' + '\n     '.join(rows)
                              + '; # crystal-to-global rotation\n')
 
-# No dislocations, inclusions, or other defect microstructures.
-microstructureFiles = []
-print("Creating initialMicrostructureFile (empty)")
+# Random prismatic loops throughout all grains. Density is total dislocation
+# line length per unit volume; radii are in meters.
+microstructureName = 'prismaticLoopsDensity.txt'
+microstructureFile = 'inputFiles/' + microstructureName
+shutil.copy2(repository / 'Library/Microstructures/prismaticLoopsDensity.txt',
+             microstructureFile)
+setInputVariable(microstructureFile, 'targetDensity_SI', '1e13')  # m^-2
+setInputVariable(microstructureFile, 'radiusDistributionMean_SI', '1e-7')  # 100 nm
+setInputVariable(microstructureFile, 'radiusDistributionStd_SI', '0')  # fixed radius
+setInputVector(microstructureFile, 'allowedGrainIDs', np.array([-1]), 'random placement throughout all grains')
+setInputVariable(microstructureFile, 'allowedSlipSystemIDs', '-1')  # all slip systems
 with open('inputFiles/initialMicrostructure.txt', 'w') as initialMicrostructureFile:
-    for micrFile in microstructureFiles:
-        initialMicrostructureFile.write('microstructureFile='+micrFile+';\n')
+    initialMicrostructureFile.write('microstructureFile=' + microstructureName + ';\n')
 
-# Supply empty frame 0 so the mesh can be opened directly in DDqt.
-# DDconfigIO has eleven block counts; DDauxIO has three.
-Path('evl/evl_0.txt').write_text('0\n' * 11)
-Path('evl/ddAux_0.txt').write_text('0\n' * 3)
-print('Ready for DDqt: ' + str(Path.cwd()))
+# Generate the populated frame 0 with microstructureGenerator before running DDomp.
+print('Inputs ready: ' + str(Path.cwd()))
+print('Run microstructureGenerator, then DDomp, using this simulation folder.')

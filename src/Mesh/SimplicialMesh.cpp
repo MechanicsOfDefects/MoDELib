@@ -376,7 +376,8 @@ namespace model
         {// if search was not successful, try to search neighbors of last searched Simplex
             const std::pair<bool,const Simplex<dim,dim>*> temp(lastSearched);
             const Eigen::Matrix<double,dim+1,1> bary=temp.second->pos2bary(P);
-            for(int k=0;k<dim+1;++k)
+            // Do not overwrite a successful result while checking another face.
+            for(int k=0;k<dim+1 && !lastSearched.first;++k)
             {
                 if(bary(k)<=FLT_EPSILON)
                 {
@@ -423,7 +424,25 @@ namespace model
         }
         
         checkSearch(searchAllRegions,P,guess,lastSearched);
-        
+
+        if(searchAllRegions && !lastSearched.first)
+        {
+            // The global grain assembly can be non-convex: a directed walk
+            // may hit an external face before reaching an interior point in
+            // another grain. Search each convex grain before declaring failure.
+            // Keep the original boundary simplex if the point is truly outside.
+            for(const auto& regionEntry : this->regions())
+            {
+                std::set<const Simplex<dim,dim>*> regionSearchSet;
+                const auto regional=searchWithGuess(false,P,
+                    *regionEntry.second->simplices().begin(),regionSearchSet);
+                searchSet.insert(regionSearchSet.begin(),regionSearchSet.end());
+                if(regional.first)
+                {
+                    return regional;
+                }
+            }
+        }
         return lastSearched;
     }
 

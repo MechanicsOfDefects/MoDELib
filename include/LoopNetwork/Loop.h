@@ -121,12 +121,16 @@ namespace model
             if(loopLinks().size())
             {
                 //Start at the link starting at the minimum Node
-                std::map<size_t,const LoopLinkType*> orderedNodeIDandLinks;
-                for (const auto& link : loopLinks())
+                // Select the same minimum-ID start without sorting all links.
+                // Strict comparison preserves the first occurrence on ties.
+                const LoopLinkType* pL=nullptr;
+                for(const auto* link : loopLinks())
                 {
-                    orderedNodeIDandLinks.emplace(link->source->sID,link);
+                    if(!pL || link->source->sID<pL->source->sID)
+                    {
+                        pL=link;
+                    }
                 }
-                const LoopLinkType* pL=orderedNodeIDandLinks.begin()->second;
                 for(size_t k=0;k<loopLinks().size();++k)
                 {
                     if(pL)

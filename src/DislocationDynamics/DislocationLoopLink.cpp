@@ -86,15 +86,55 @@ namespace model
 template <int dim>
 CatmullRomSplineSegment<dim> DislocationLoopLink<dim>::spline() const
 {
-    const VectorDim prevNodePos(this->prev->twin()? this->prev->twin()->source->periodicPrev()->get_P()
-                                -this->source->periodicPlanePatch()->shift
-                                +this->prev->twin()->source->periodicPrev()->periodicPlanePatch()->shift
-                                : this->source->periodicPrev()->get_P());
-    const VectorDim nextNodePos(this->next->twin()? this->next->twin()->  sink->periodicNext()->get_P()
-                                -this->  sink->periodicPlanePatch()->shift
-                                +this->next->twin()->  sink->periodicNext()->periodicPlanePatch()->shift
-                                : this->  sink->periodicNext()->get_P());
-    return CatmullRomSplineSegment<dim>(prevNodePos,this->source->get_P(),this->sink->get_P(),nextNodePos);
+    const auto controlPoint=[&](const bool before)->VectorDim
+    {
+        const LoopNodeType* node=before ? this->source.get() : this->sink.get();
+        bool backwards=before;
+        VectorDim offset=VectorDim::Zero();
+        std::set<std::pair<const LoopNodeType*,bool>> visited;
+        while(visited.emplace(node,backwards).second)
+        {
+            const auto* adjacent=backwards ? node->prev.second : node->next.second;
+            if(const auto* twin=adjacent->twin())
+            {
+                // Preserve the existing same-loop periodic continuation.
+                const auto* neighbor=backwards ? twin->source->periodicPrev() : twin->sink->periodicNext();
+                if(neighbor)
+                {
+                    return offset+neighbor->get_P()-node->periodicPlanePatch()->shift+neighbor->periodicPlanePatch()->shift;
+                }
+                break;
+            }
+            if(const auto* twin=adjacent->twinnedLink())
+            {
+                // A two-link zero-Burgers connection is artificial. Switch at
+                // this endpoint, then follow the other loop away from it.
+                // Match network endpoints rather than assuming equal loop
+                // orientations: opposite Burgers vectors can also cancel.
+                const bool atSource=twin->source->networkNode==node->networkNode;
+                const auto* other=atSource ? twin->source.get() : twin->sink.get();
+                offset+=node->get_P()-other->get_P();
+                node=other;
+                backwards=atSource;
+                continue;
+            }
+            const auto* neighbor=backwards ? node->periodicPrev() : node->periodicNext();
+            if(neighbor)
+            {
+                return offset+neighbor->get_P();
+            }
+            break;
+        }
+        // A closed chain of cancelling links has no unique continuation.
+        // Retain the loop-local control point rather than circulating forever.
+        const auto* neighbor=before ? this->source->periodicPrev() : this->sink->periodicNext();
+        if(!neighbor)
+        {
+            throw std::runtime_error("Cannot determine spline control point.");
+        }
+        return neighbor->get_P();
+    };
+    return CatmullRomSplineSegment<dim>(controlPoint(true),this->source->get_P(),this->sink->get_P(),controlPoint(false));
 }
 
 

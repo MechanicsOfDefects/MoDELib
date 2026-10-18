@@ -35,8 +35,9 @@ namespace model
         typedef typename TraitsType::VectorDim VectorDim;
         typedef std::tuple<std::shared_ptr<NetworkNodeType>,std::shared_ptr<NetworkNodeType>,size_t,size_t> CrossSlipTupleType;
         typedef std::deque<CrossSlipTupleType> CrossSlipContainerType;
-        typedef std::deque<std::pair<std::deque<std::shared_ptr<LoopNodeType>>,int>> CrossSlipBranchContainerType;
+        typedef std::deque<CrossSlipBranch<LoopNodeType>> CrossSlipBranchContainerType;
         
+        friend struct CrossSlipTestAccess;
         DislocationNetworkType& DN; //! A reference to the DislocationNetwork
 //        CrossSlipContainerType crossSlipDeq;
         CrossSlipBranchContainerType csNodes;
@@ -46,7 +47,7 @@ namespace model
         const int verboseCrossSlip;
 
         DislocationCrossSlip(DislocationNetworkType& DN_in) ;
-        void findCrossSlipSegments();
+        void findCrossSlipSegments(const double dt=-1.0);
         void execute();
         static std::shared_ptr<BaseCrossSlipModel<DislocationNetworkType>> getModel(const PolycrystallineMaterialBase& material,const DDtraitsIO& traitsIO);
 

@@ -33,7 +33,7 @@ namespace model
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         typedef Eigen::Matrix<double,dim-1,1> VectorLowerDim;
         typedef typename NetworkLinkType::KeyType KeyType;
-        typedef std::tuple<KeyType,KeyType,SegmentSegmentDistance<dim>> IntersectionType;
+        typedef std::tuple<KeyType,KeyType,SegmentSegmentDistance<dim>,int> IntersectionType;
         typedef std::deque<IntersectionType> IntersectionTypeContainerType;
         
         void insertIntersection(std::deque<IntersectionTypeContainerType> &intersectionContainer,
@@ -41,7 +41,10 @@ namespace model
                                 const NetworkLinkType *const linkB,
                                 const SegmentSegmentDistance<dim> &ssd,
                                 const double &currentcCollisionTOL,
-                                const bool &bndJunction, const bool &gbndJunction);
+                                const bool &bndJunction, const bool &gbndJunction,const int event=0);
+        friend struct JunctionFormationTestAccess;
+        void findPairIntersections(std::deque<IntersectionTypeContainerType>& intersectionContainer,
+                                   const NetworkLinkType* linkA,const NetworkLinkType* linkB);
         void findIntersections(std::deque<IntersectionTypeContainerType>& intersectionContainer,
                                const size_t& nThreads);
         std::pair<std::shared_ptr<NetworkNodeType>, bool> junctionNode(const double &t,

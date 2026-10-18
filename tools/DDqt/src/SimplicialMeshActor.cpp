@@ -382,8 +382,28 @@ namespace model
                 const double faceOffset(1.0e-1);
                 size_t triPtID=0;
 
+                // A same-grain periodic seam is not a physical grain surface.
+                // Keep free surfaces and cross-grain periodic interfaces, together
+                // with the internal interfaces handled below.
+                std::set<const Simplex<3,2>*> sameGrainPeriodicTriangles;
+                for(const auto& region : mesh.regions())
+                {
+                    for(const auto& entry : region.second->faces())
+                    {
+                        const auto& face=*entry.second;
+                        const auto* partner=face.periodicFacePair.second;
+                        if(face.isExternal() && partner && face.regionIDs==partner->regionIDs)
+                        {
+                            sameGrainPeriodicTriangles.insert(face.simplices().begin(),face.simplices().end());
+                        }
+                    }
+                }
                 for(const auto& meshTriangle : mesh.observer<2>())
                 {// Color triangles the grain they belong to. TO DO: triangles can be replaced by mesh faces
+                    if(sameGrainPeriodicTriangles.count(meshTriangle.second))
+                    {
+                        continue;
+                    }
                     if(meshTriangle.second->isBoundarySimplex())
                     {
                         const Eigen::Matrix<double,3,3> vM(meshTriangle.second->vertexPositionMatrix());

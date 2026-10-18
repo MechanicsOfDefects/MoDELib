@@ -9,6 +9,7 @@
 #define model_DislocationLoop_cpp_
 
 
+#include <algorithm>
 #include <DislocationLoop.h>
 #include <DislocationFieldBase.h>
 #include <SutherlandHodgman.h>
@@ -40,16 +41,45 @@ namespace model
     }
 
     template <int dim>
-    void DislocationLoop<dim>::crossSlipBranches(std::deque<std::pair<std::deque<std::shared_ptr<LoopNodeType>>,int>>& csNodes) const
+    void DislocationLoop<dim>::crossSlipBranches(std::deque<CrossSlipBranch<LoopNodeType>>& csNodes,const double dt) const
     {
         std::deque<std::deque<std::pair<const LoopLinkType*,int>>> csBranches;
         if(this->network().crossSlipModel)
         {
+            const auto atJunction=[this](const auto& node)
+            {
+                for(const auto* occurrence : node->networkNode->loopNodes())
+                {
+                    if(occurrence->loop().get()!=this ||
+                       (occurrence!=node.get() && !occurrence->isPeriodicSubdivision()))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            };
             std::deque<std::pair<const LoopLinkType*,int>> currentBranch; // pair<link,cross-slip slipSystem ID>
-            for(const auto& link : this->linkSequence())
+            auto sequence=this->linkSequence();
+            // Start on a physical segment so an initial seam connector cannot
+            // be lost before currentBranch exists. This makes cyclic branch
+            // merging independent of the loop's arbitrary starting link.
+            const auto start=std::find_if(sequence.begin(),sequence.end(),[](const auto* link)
+            {
+                return link->hasNetworkLink();
+            });
+            std::rotate(sequence.begin(),start,sequence.end());
+            for(const auto& link : sequence)
             {
                 if(link->hasNetworkLink())
                 {
+                    if(this->network().crossSlipModel->isThermal() && !currentBranch.empty())
+                    {
+                        if(atJunction(link->source))
+                        {
+                            csBranches.push_back(currentBranch);
+                            currentBranch.clear();
+                        }
+                    }
                     const auto isCSLink(this->network().crossSlipModel->isCrossSlipLink(*link->networkLink()));
                     
                     if(isCSLink.first)
@@ -98,7 +128,9 @@ namespace model
             if(csBranches.size()>1)
             {// Inserted two or more branches. Merge last and first branch if possible
                 if(   csBranches[0].front().first->prev==csBranches.back().back().first
-                   && csBranches[0].front().second==csBranches.back().back().second)
+                   && csBranches[0].front().second==csBranches.back().back().second
+                   && (!this->network().crossSlipModel->isThermal() ||
+                       !atJunction(csBranches[0].front().first->source)))
                 {
                     for(typename std::deque<std::pair<const LoopLinkType*,int>>::reverse_iterator rIter = csBranches.back().rbegin();
                         rIter != csBranches.back().rend(); ++rIter)
@@ -113,11 +145,29 @@ namespace model
             {
                 if(branch.size())
                 {
-                    csNodes.emplace_back(std::deque<std::shared_ptr<LoopNodeType>>(),branch.back().second);
+                    std::optional<ThermalCrossSlipEvent> event;
+                    if(this->network().crossSlipModel->isThermal())
+                    {
+                        std::vector<const NetworkLinkType*> links;
+                        for(const auto& pair : branch)
+                        {
+                            if(pair.first->hasNetworkLink())
+                            {
+                                links.push_back(pair.first->networkLink().get());
+                            }
+                        }
+                        event=this->network().crossSlipModel->sampleBranch(links,dt>=0.0? dt : this->network().ddBase.simulationParameters.dt);
+                        if(!event)
+                        {
+                            continue;
+                        }
+                    }
+                    csNodes.emplace_back(std::deque<std::shared_ptr<LoopNodeType>>(),event? event->target : branch.back().second);
+                    csNodes.back().thermal=event;
                     for(const auto& pair : branch)
                     {
-                        if(!pair.first->source->periodicPlaneEdge.first && !pair.first->source->periodicPlaneEdge.second)
-                        {// not a boundary node
+                        if(!pair.first->source->isPeriodicSubdivision())
+                        {// Keep physical endpoints; only periodic subdivisions are omitted.
                             csNodes.back().first.emplace_back(pair.first->source);
                         }
                     }
@@ -125,7 +175,7 @@ namespace model
                     if(csNodes.back().first.size())
                     {
                         if(    branch.back().first->sink!=csNodes.back().first.back()
-                           && !branch.back().first->sink->periodicPlaneEdge.first && !branch.back().first->sink->periodicPlaneEdge.second)
+                           && !branch.back().first->sink->isPeriodicSubdivision())
                         {
                             csNodes.back().first.emplace_back(branch.back().first->sink);
                         }
@@ -157,6 +207,38 @@ namespace model
     void DislocationLoop<dim>::initFromFile(const std::string& fileName)
     {
         verboseDislocationLoop=TextFileParser(fileName).readScalar<int>("verboseDislocationLoop",false);
+    }
+
+    template <int dim>
+    typename DislocationLoop<dim>::VectorDim DislocationLoop<dim>::currentAreaVector() const
+    {
+        VectorDim area=VectorDim::Zero();
+        if(!this->loopLinks().empty())
+        {
+            const VectorDim origin=(*this->loopLinks().begin())->source->get_P();
+            for(const auto* link : this->loopLinks())
+            {
+                area+=0.5*(link->source->get_P()-origin).cross(link->sink->get_P()-origin);
+            }
+        }
+        return area;
+    }
+
+    template <int dim>
+    double DislocationLoop<dim>::currentAreaRate() const
+    {
+        const VectorDim area=currentAreaVector();
+        if(area.norm()<=FLT_EPSILON)
+        {
+            return 0.0;
+        }
+        VectorDim rate=VectorDim::Zero();
+        for(const auto* link : this->loopLinks())
+        {
+            rate+=0.5*(link->source->networkNode->get_V()+link->sink->networkNode->get_V()).cross(
+                link->sink->get_P()-link->source->get_P());
+        }
+        return area.normalized().dot(rate);
     }
 
     template <int dim>
@@ -510,9 +592,10 @@ namespace model
                 {
                     linkShifts.push_back(link->periodicPlanePatch()->shift);
                 }
-                if(   !link->source->periodicPlaneEdge.first
-                   && !link->source->periodicPlaneEdge.second)
-                {// source is not a bnd node
+                // Physical-boundary nodes define the trimmed contour, including
+                // its corners. Only periodic seam subdivisions may be omitted.
+                if(!link->source->isPeriodicSubdivision())
+                {
                     globalNodePos.push_back(link->source->get_P());
                 }
             }

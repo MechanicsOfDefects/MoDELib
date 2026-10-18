@@ -63,7 +63,9 @@ namespace model
     std::shared_ptr<DislocationLoopNode<dim>> DislocationLoopNode<dim>::clone(const std::shared_ptr<typename DislocationLoopNode<dim>::LoopType>& otherLoop,
                                                                                                                                 const std::shared_ptr<typename DislocationLoopNode<dim>::NetworkNodeType>& otherNetworkNode) const
     {
-        return std::shared_ptr<DislocationLoopNode<dim>>(new DislocationLoopNode(this->p_network(),otherLoop,otherNetworkNode,this->get_P(),_periodicPlanePatch,periodicPlaneEdge));
+        auto result=std::shared_ptr<DislocationLoopNode<dim>>(new DislocationLoopNode(this->p_network(),otherLoop,otherNetworkNode,this->get_P(),_periodicPlanePatch,periodicPlaneEdge));
+        result->periodicContourVertex=periodicContourVertex;
+        return result;
     }
     
     template <int dim>
@@ -78,7 +80,7 @@ namespace model
         if (this->prev.first)
         {
             auto currentPrev(this->prev.first);
-            while (currentPrev->periodicPlaneEdge.first && currentPrev->periodicPlaneEdge.first->twin) //First is sufficient
+            while (currentPrev->isPeriodicSubdivision()) //First is sufficient
             {
                 if (currentPrev == this)
                 {
@@ -97,7 +99,7 @@ namespace model
         if (this->next.first)
         {
             auto currentNext(this->next.first);
-            while (currentNext->periodicPlaneEdge.first && currentNext->periodicPlaneEdge.first->twin)
+            while (currentNext->isPeriodicSubdivision())
             {
                 if (currentNext == this)
                 {
@@ -118,7 +120,7 @@ namespace model
         if (this->prev.first)
         {
             auto currentPrev(this->prev.first);
-            while (currentPrev->periodicPlaneEdge.first)
+            while (currentPrev->isPeriodicSubdivision())
             {
                 temp.push_back(currentPrev);
                 currentPrev = currentPrev->prev.first;
@@ -135,7 +137,7 @@ namespace model
         if (this->next.first)
         {
             auto currentNext(this->next.first);
-            while (currentNext->periodicPlaneEdge.first)
+            while (currentNext->isPeriodicSubdivision())
             {
                 temp.push_back(currentNext);
                 currentNext = currentNext->next.first;
@@ -198,203 +200,48 @@ namespace model
 
     
     template <int dim>
+    bool DislocationLoopNode<dim>::isPhysicalBoundaryNode() const
+    {
+        for(const auto& edge : {periodicPlaneEdge.first,periodicPlaneEdge.second})
+        {
+            if(edge)
+            {
+                for(const auto* face : edge->meshIntersection->faces)
+                {
+                    if(!face->periodicFacePair.second || face->regionIDs!=face->periodicFacePair.second->regionIDs)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    template <int dim>
+    bool DislocationLoopNode<dim>::isPeriodicSubdivision() const
+    {
+        return periodicPlaneEdge.first && !periodicContourVertex && !isPhysicalBoundaryNode();
+    }
+
+    template <int dim>
     void DislocationLoopNode<dim>::set_P(const typename DislocationLoopNode<dim>::VectorDim& newP)
     {
-       VerboseDislocationLoopNode(2,"DislocationLoopNode "<<this->tag()<<" set_P "<<std::endl;);
-
-        if(this->loop()->glidePlane)
+        if(!this->network().trialNodeMotion)
         {
-            if (!this->loop()->glidePlane->contains(newP))
-            {
-                std::cout <<this->tag() << "loopNode is " << this->get_P().transpose() << std::endl;
-                std::cout << "Position different is " << (newP - (this->loop()->glidePlane->snapToPlane(newP))).squaredNorm()  << std::endl;
-            }
-            assert(this->loop()->glidePlane->contains(newP));
+            // Public motion moves every loop representation of the junction.
+            const VectorDim mapped=newP+(_periodicPlanePatch ? _periodicPlanePatch->shift : VectorDim::Zero());
+            this->networkNode->trySet_P(mapped);
+            return;
         }
-        
-        if(this->network().ddBase.isPeriodicDomain)
+        if(!isPeriodicSubdivision())
         {
-            if(!periodicPlaneEdge.first)
-            {// only move loop nodes not on patch boundaries
-                VerboseDislocationLoopNode(3,"DislocationLoopNode "<<this->tag()<<" not on periodicPlaneEdge"<<std::endl;);
-                VerboseDislocationLoopNode(3,"DislocationLoopNode "<<this->tag()<<" @ "<<this->get_P().transpose()<<std::endl;);
-                SplineNodeType::set_P(newP);
-                VerboseDislocationLoopNode(3,"DislocationLoopNode now "<<this->tag()<<" @ "<<this->get_P().transpose()<<std::endl;);
-                //assert(this->loop()->glidePlane->contains(this->get_P()));
-                const auto oldPatch(_periodicPlanePatch);
-                const auto pLocalNew(this->loop()->periodicGlidePlane->referencePlane->localPosition(this->get_P()));
-                _periodicPlanePatch=this->loop()->periodicGlidePlane->getPatch(this->loop()->periodicGlidePlane->findPatch(pLocalNew,oldPatch->shift).first);
-                VerboseDislocationLoopNode(4,"old patch= "<<oldPatch->shift.transpose()<<std::endl;);
-                VerboseDislocationLoopNode(4,"new patch= "<<_periodicPlanePatch->shift.transpose()<<std::endl;);
-                // if(oldPatch!=_periodicPlanePatch)
-                // {
-                //     this->networkNode->confinedObject().clear();
-                //     for(auto& neighbor : this->networkNode->neighbors())
-                //     {
-                //         std::get<1>(neighbor.second)->confinedObject().clear();
-                //     }
-                // }
-                //Added for the nodes which are not classified as boundary by present at the boundary (Confined object classifies those nodes as onExternalBoundary())
-                // if (this->networkNode->isOnExternalBoundary())
-                // {
-                //     //The node is an internal node present at the boundary(Clear the mesh faces so that it can move within the patches)
-                //     this->networkNode->meshFaces().clear();
-                //     for(auto& neighbor : this->networkNode->neighbors())
-                //     {
-                //         std::get<1>(neighbor.second)->meshFaces().clear();
-                //     }
-                // }
-                this->networkNode->set_P(_periodicPlanePatch->glidePlane->snapToPlane(this->get_P()+_periodicPlanePatch->shift));
-                // this->networkNode->set_P(this->get_P()+_periodicPlanePatch->shift);
-                // if(oldPatch!=_periodicPlanePatch)
-                // {
-                //     //Add the glide plane for the networkNode for the new patch
-                //     this->networkNode->addGlidePlane(_periodicPlanePatch->glidePlane.get());
-                // }
-                // if(this->prev.second->hasNetworkLink() && this->prev.second->loop->glidePlane)
-                // {
-                //     if(this->prev.second->source->periodicPlanePatch()==this->prev.second->sink->periodicPlanePatch())
-                //     {
-                //         this->prev.second->networkLink()->addGlidePlane(this->prev.second->source->periodicPlanePatch()->glidePlane.get());
-                //     }
-                // }
-                
-                // if(this->next.second->hasNetworkLink() && this->next.second->loop->glidePlane)
-                // {
-                //     if(this->next.second->source->periodicPlanePatch()==this->next.second->sink->periodicPlanePatch())
-                //     {
-                //         this->next.second->networkLink()->addGlidePlane(this->next.second->source->periodicPlanePatch()->glidePlane.get());
-                //     }
-                // }
-                
-                
-                for(auto& bndNode : boundaryPrev())
-                {
-                    VerboseDislocationLoopNode(3,"Setting P for  PrevBndNode "<<bndNode->tag()<<std::endl;);
-                    const auto pPrev(bndNode->periodicPrev());
-                    const auto pNext(bndNode->periodicNext());
-                    if (pPrev && pNext)
-                    {
-                        assert(pNext == this);
-                        VerboseDislocationLoopNode(4, "pPrev= " << pPrev->tag() << " @ " << pPrev->get_P().transpose() << std::endl;);
-                        VerboseDislocationLoopNode(4, "pNext= " << pNext->tag() << " @ " << pNext->get_P().transpose() << std::endl;);
-
-                        const auto pPrevLocal(this->loop()->periodicGlidePlane->referencePlane->localPosition(pPrev->get_P()));
-                        VerboseDislocationLoopNode(4, "pPrevLocal= " << pPrevLocal.transpose() << std::endl;);
-                        const auto pNextLocal(this->loop()->periodicGlidePlane->referencePlane->localPosition(pNext->get_P()));
-                        VerboseDislocationLoopNode(4, "pNextLocal= " << pNextLocal.transpose() << std::endl;);
-                        VerboseDislocationLoopNode(4, "periodicPlaneEdge.first->source= " << bndNode->periodicPlaneEdge.first->source->transpose() << std::endl;);
-                        VerboseDislocationLoopNode(4, "bndNode->periodicPlaneEdge.first->sink= " << bndNode->periodicPlaneEdge.first->sink->transpose() << std::endl;);
-                        if (periodicPlaneEdge.second)
-                        {
-                            VerboseDislocationLoopNode(4, "periodicPlaneEdge.second->source= " << bndNode->periodicPlaneEdge.second->source->transpose() << std::endl;);
-                            VerboseDislocationLoopNode(4, "bndNode->periodicPlaneEdge.second->sink= " << bndNode->periodicPlaneEdge.second->sink->transpose() << std::endl;);
-
-                        }
-                        if (periodicPlaneEdge.second)
-                        {
-                            SegmentSegmentDistance<dim - 1> ssd1(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.first->source, *bndNode->periodicPlaneEdge.first->sink);
-                            SegmentSegmentDistance<dim - 1> ssd2(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.second->source, *bndNode->periodicPlaneEdge.second->sink);
-                            if (ssd1.dMin < FLT_EPSILON)
-                            {
-                                assert(ssd2.dMin<FLT_EPSILON && "Other intersection must exist");
-                                const VectorLowerDim ssd1Pos(0.5 * (ssd1.x0 + ssd1.x1));
-                                const VectorLowerDim ssd2Pos(0.5 * (ssd2.x0 + ssd2.x1));
-                                assert((ssd1Pos-ssd2Pos).norm()<FLT_EPSILON && "The two intersection point must be same ");
-                                VerboseDislocationLoopNode(3, "dMin= " << ssd1.dMin << std::endl;);
-                                bndNode->set_P(ssd1Pos);
-                            }
-                            else
-                            {
-                                bndNode->set_P(this->loop()->periodicGlidePlane->referencePlane->localPosition(bndNode->get_P()));
-                                this->network().danglingBoundaryLoopNodes.insert(bndNode);
-                            }
-                        }
-                        else
-                        {
-                            SegmentSegmentDistance<dim - 1> ssd(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.first->source, *bndNode->periodicPlaneEdge.first->sink);
-                            if (ssd.dMin < FLT_EPSILON)
-                            {
-                                VerboseDislocationLoopNode(3, "dMin= " << ssd.dMin << std::endl;);
-                                bndNode->set_P(VectorLowerDim(0.5 * (ssd.x0 + ssd.x1)));
-                            }
-                            else
-                            {
-                                bndNode->set_P(this->loop()->periodicGlidePlane->referencePlane->localPosition(bndNode->get_P()));
-                                this->network().danglingBoundaryLoopNodes.insert(bndNode);
-                            }
-                        }
-
-                    }
-                }
-                for(auto& bndNode : boundaryNext())
-                {
-                                        VerboseDislocationLoopNode(3,"Setting P for  NextBndNode "<<bndNode->tag()<<std::endl;);
-                    const auto pPrev(bndNode->periodicPrev());
-                    const auto pNext(bndNode->periodicNext());
-                    if (pPrev && pNext)
-                    {
-                        assert(pPrev == this);
-                        VerboseDislocationLoopNode(4, "pPrev= " << pPrev->tag() << " @ " << pPrev->get_P().transpose() << std::endl;);
-                        VerboseDislocationLoopNode(4, "pNext= " << pNext->tag() << " @ " << pNext->get_P().transpose() << std::endl;);
-
-                        const auto pPrevLocal(this->loop()->periodicGlidePlane->referencePlane->localPosition(pPrev->get_P()));
-                        VerboseDislocationLoopNode(4, "pPrevLocal= " << pPrevLocal.transpose() << std::endl;);
-                        const auto pNextLocal(this->loop()->periodicGlidePlane->referencePlane->localPosition(pNext->get_P()));
-                        VerboseDislocationLoopNode(4, "pNextLocal= " << pNextLocal.transpose() << std::endl;);
-                        VerboseDislocationLoopNode(4, "periodicPlaneEdge->source= " << bndNode->periodicPlaneEdge.first->source->transpose() << std::endl;);
-                        VerboseDislocationLoopNode(4, "bndNode->periodicPlaneEdge->sink= " << bndNode->periodicPlaneEdge.first->sink->transpose() << std::endl;);
-                        if (periodicPlaneEdge.second)
-                        {
-                            VerboseDislocationLoopNode(4, "periodicPlaneEdge.second->source= " << bndNode->periodicPlaneEdge.second->source->transpose() << std::endl;);
-                            VerboseDislocationLoopNode(4, "bndNode->periodicPlaneEdge.second->sink= " << bndNode->periodicPlaneEdge.second->sink->transpose() << std::endl;);
-                        }
-                        if (periodicPlaneEdge.second)
-                        {
-                            SegmentSegmentDistance<dim - 1> ssd1(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.first->source, *bndNode->periodicPlaneEdge.first->sink);
-                            SegmentSegmentDistance<dim - 1> ssd2(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.second->source, *bndNode->periodicPlaneEdge.second->sink);
-                            if (ssd1.dMin < FLT_EPSILON)
-                            {
-                                assert(ssd2.dMin < FLT_EPSILON && "Other intersection must exist");
-                                const VectorLowerDim ssd1Pos(0.5 * (ssd1.x0 + ssd1.x1));
-                                const VectorLowerDim ssd2Pos(0.5 * (ssd2.x0 + ssd2.x1));
-                                assert((ssd1Pos - ssd2Pos).norm() < FLT_EPSILON && "The two intersection point must be same ");
-                                VerboseDislocationLoopNode(3, "dMin= " << ssd1.dMin << std::endl;);
-                                bndNode->set_P(ssd1Pos);
-                            }
-                            else
-                            {
-                                bndNode->set_P(this->loop()->periodicGlidePlane->referencePlane->localPosition(bndNode->get_P()));
-                                this->network().danglingBoundaryLoopNodes.insert(bndNode);
-                            }
-                        }
-                        else
-                        {
-                            SegmentSegmentDistance<dim - 1> ssd(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.first->source, *bndNode->periodicPlaneEdge.first->sink);
-                            if (ssd.dMin < FLT_EPSILON)
-                            {
-                                VerboseDislocationLoopNode(3, "dMin= " << ssd.dMin << std::endl;);
-                                bndNode->set_P(VectorLowerDim(0.5 * (ssd.x0 + ssd.x1)));
-                            }
-                            else
-                            {
-                                bndNode->set_P(this->loop()->periodicGlidePlane->referencePlane->localPosition(bndNode->get_P()));
-                                this->network().danglingBoundaryLoopNodes.insert(bndNode);
-                            }
-                        }
-                    }
-                    
-                }
-            }
-        }
-        else
-        {
-            SplineNodeType::set_P(newP);
-            this->networkNode->set_P(_periodicPlanePatch->glidePlane->snapToPlane(this->get_P()+_periodicPlanePatch->shift));
-//            assert(false && "FINISH HERE");
+            // The trial point may be outside a physical face. Never assign it
+            // to the network node before the retained contour has been found.
+            SplineNodeType::set_P(this->loop()->glidePlane ? this->loop()->glidePlane->snapToPlane(newP) : newP);
         }
     }
-    
+
     template <int dim>
     std::shared_ptr<PeriodicPlanePatch<dim>> DislocationLoopNode<dim>::periodicPlanePatch() const
     {
@@ -427,8 +274,8 @@ namespace model
             // }
 
             // const double loopArea(vectorArea.norm());
-            const double loopArea(this->loop()->slippedArea());
-            const double loopAreaRate(this->loop()->slippedAreaRate());
+            const double loopArea(this->loop()->currentAreaVector().norm());
+            const double loopAreaRate(this->loop()->currentAreaRate());
             // std::cout<<" For loop node "<<this->tag()<<" with "<<this->loop()->loopLinks().size()<<" loopLinks. loop area is "<<std::setprecision(15)<<loopArea<<std::endl;
             if (loopArea > std::pow(Lmin, 2))
             {
@@ -478,7 +325,7 @@ namespace model
             }
             else
             {
-                const double loopArea(this->loop()->slippedArea());
+                const double loopArea(this->loop()->currentAreaVector().norm());
                 if (loopArea < std::pow(Lmin, 2))
                 {
                     VerboseDislocationLoopNode(2, "  DislocationLoopNode " << this->tag() << "  removable (on Edge via Geometric condition)" << std::endl;);
@@ -558,20 +405,8 @@ namespace model
                             }
                             else
                             {
-                                // prevTwin->loop->printLoop();
-                                std::cout << "Prev twin->tag() " << prevTwin->tag() << std::endl;
-                                std::cout << "Next twin->tag() " << nextTwin->tag() << std::endl;
-
-                                std::cout << " Current node id " << this->tag() << std::endl;
-                                std::cout << " PrevTwin tag " << ((prevTwin->source->networkNode == this->networkNode) ? prevTwin->source->tag() : prevTwin->sink->tag()) << std::endl;
-                                std::cout << " NextTwin tag " << ((nextTwin->source->networkNode == this->networkNode) ? nextTwin->source->tag() : nextTwin->sink->tag()) << std::endl;
-
-                                std::cout << " PrevTwin periodicPrev " << ((prevTwin->source->networkNode == this->networkNode) ? prevTwin->source->periodicPrev()->tag() : prevTwin->sink->periodicPrev()->tag()) << std::endl;
-                                std::cout << " NextTwin periodicNext " << ((nextTwin->source->networkNode == this->networkNode) ? nextTwin->source->periodicNext()->tag() : nextTwin->sink->periodicNext()->tag()) << std::endl;
-
-                                throw std::runtime_error("LoopNode mismatch in the removal of the nodes 0B nodes");
-                                
-//                                assert(false && "LoopNode mismatch in the removal of the nodes 0B nodes");
+                                // The other loop may visit this network node at
+                                // distinct occurrences. They are not a removable pair.
                                 return std::make_pair(false,0);
                             }
                             

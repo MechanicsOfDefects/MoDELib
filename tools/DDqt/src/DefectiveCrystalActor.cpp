@@ -62,6 +62,7 @@ namespace model
         /* init */,frameIncrementEdit(new QLineEdit(QString::number(ddBase.simulationParameters.outputFrequency)))
         /* init */,rotationAxisEdit(new QLineEdit("0 0 1"))
         /* init */,rotationAngleEdit(new QLineEdit("0"))
+        /* init */,cameraAdvanceEdit(new QLineEdit("0"))
         /* init */,saveImage(new QCheckBox(this))
         /* init */,frameStatus(new QLabel(this))
         /* init */,tabWidget(new WrappingTabWidget())
@@ -91,7 +92,7 @@ namespace model
             framesLayout->setColumnStretch(1, 1);
             controls::field(
                 frameIDLayout, 0, "Frame ID", frameIDedit,
-                "Simulation output runID to display. Press Enter to load it; output IDs may not be consecutive.");
+                "Simulation output runID to display. Press Enter or leave this field to load it and apply camera rotation and advance; output IDs may not be consecutive.");
             controls::field(
                 incrementLayout, 0, "Increment", frameIncrementEdit,
                 "RunID increment used by previous, next and playback controls. Normally matches outputFrequency.");
@@ -107,6 +108,12 @@ namespace model
                             "View rotation in degrees equals this value times the simulation frameID, including skipped IDs. Positive angles follow the right-hand rule. Zero disables rotation. Applies on Enter or when loading a frame.");
             connect(rotationAxisEdit, &QLineEdit::returnPressed, this, &DefectiveCrystalActor::updateRotationSettings);
             connect(rotationAngleEdit, &QLineEdit::returnPressed, this, &DefectiveCrystalActor::updateRotationSettings);
+            auto *advanceLayout = new QGridLayout();
+            framesLayout->addLayout(advanceLayout, 2, 0, 1, 2);
+            cameraAdvanceEdit->setObjectName("frameCameraAdvance");
+            controls::field(advanceLayout, 0, "Advance/frame (b)", cameraAdvanceEdit,
+                            "Camera travel toward and through the box center, in simulation length units b times frameID, including skipped IDs. Positive advances, negative retreats, zero disables travel. Combines with rotation and uses perspective projection. Applies on Enter or when loading a frame.");
+            connect(cameraAdvanceEdit, &QLineEdit::returnPressed, this, &DefectiveCrystalActor::updateRotationSettings);
             auto *playback = new QWidget(this);
             auto *playbackLayout = new QHBoxLayout(playback);
             playbackLayout->setContentsMargins(0, 0, 0, 0);
@@ -134,11 +141,11 @@ namespace model
             plusFrameButton->setToolTip("Load the next output using the frame increment.");
             playFrameButton->setToolTip("Advance through available frames until stopped.");
             stopFrameButton->setToolTip("Stop automatic playback.");
-            framesLayout->addWidget(playback, 2, 0, 1, 2);
-            framesLayout->addWidget(saveImage, 3, 0, 1, 2);
+            framesLayout->addWidget(playback, 3, 0, 1, 2);
+            framesLayout->addWidget(saveImage, 4, 0, 1, 2);
             frameStatus->setObjectName("frameStatus");
             frameStatus->setWordWrap(true);
-            framesLayout->addWidget(frameStatus, 4, 0, 1, 2);
+            framesLayout->addWidget(frameStatus, 5, 0, 1, 2);
             saveImage->setToolTip("Save a PNG of each loaded frame to the simulation output folder.");
             mainLayout->addWidget(framesBox, 0, 0, 1, 6);
             periodicImages = new PeriodicImagesWidget(renderWindow, renderer, ddBase.mesh.periodicBasis(), this);
@@ -156,7 +163,14 @@ namespace model
                         }
                     });
 
-            connect(frameIDedit,SIGNAL(returnPressed()), this, SLOT(updateConfiguration()));
+            connect(frameIDedit, &QLineEdit::editingFinished, this, [this]()
+            {
+                if(frameIDedit->isModified())
+                {
+                    frameIDedit->setModified(false);
+                    updateConfiguration();
+                }
+            });
             connect(plusFrameButton,SIGNAL(pressed()), this, SLOT(nextConfiguration()));
             connect(minusFrameButton,SIGNAL(pressed()), this, SLOT(prevConfiguration()));
             connect(playFrameButton,SIGNAL(pressed()), this, SLOT(playConfigurations()));
@@ -192,12 +206,17 @@ namespace model
             validAngle = validAngle && std::isfinite(angle);
             rotationAxisEdit->setStyleSheet(validAxis ? "" : "QLineEdit { border: 1px solid #c44; }");
             rotationAngleEdit->setStyleSheet(validAngle ? "" : "QLineEdit { border: 1px solid #c44; }");
-            if(!validAxis || !validAngle)
+            bool validAdvance = false;
+            const double advance = cameraAdvanceEdit->text().toDouble(&validAdvance);
+            validAdvance = validAdvance && std::isfinite(advance);
+            cameraAdvanceEdit->setStyleSheet(validAdvance ? "" : "QLineEdit { border: 1px solid #c44; }");
+            if(!validAxis || !validAngle || !validAdvance)
             {
                 return false;
             }
             rotationAxis = axis.stableNormalized();
             rotationDegreesPerFrame = angle;
+            cameraAdvancePerFrame = advance;
             return true;
         }
 
@@ -207,7 +226,7 @@ namespace model
             {
                 frameRotation.apply(renderer->GetActiveCamera(),
                                     0.5 * (ddBase.mesh.xMin() + ddBase.mesh.xMax()),
-                                    rotationAxis, rotationDegreesPerFrame, loadedFrameID);
+                                    rotationAxis, rotationDegreesPerFrame, loadedFrameID, cameraAdvancePerFrame);
                 renderer->ResetCameraClippingRange();
                 if(renderWindow->GetReadyForRendering())
                 {
@@ -314,7 +333,7 @@ namespace model
             DislocationLoop<3>::force_count(0);
             EshelbyInclusionBase<3>::force_count(0);
             defectiveCrystal.initializeConfiguration(configIO());
-            nodes->updateConfiguration(configIO());
+            nodes->updateConfiguration(configIO(), loops->dislocationNetwork.get());
             segments->updateConfiguration(nodes->nodePolyData, slipSystemTab->slipSystemColorMap);
             loops->updateConfiguration(slipSystemTab->slipSystemColorMap);
             inclusions->updateConfiguration();
@@ -388,7 +407,7 @@ namespace model
             readRotationSettings();
             frameRotation.apply(renderer->GetActiveCamera(),
                                 0.5 * (ddBase.mesh.xMin() + ddBase.mesh.xMax()),
-                                rotationAxis, rotationDegreesPerFrame, frameID);
+                                rotationAxis, rotationDegreesPerFrame, frameID, cameraAdvancePerFrame);
             renderer->ResetCameraClippingRange();
             renderWindow->SetReadyForRendering(ready);
             frameStatus->clear();

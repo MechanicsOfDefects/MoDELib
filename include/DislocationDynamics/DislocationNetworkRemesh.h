@@ -26,6 +26,9 @@ namespace model
 
         
         DislocationNetworkType& DN;
+        friend struct RemeshTestAccess;
+        bool zeroChordCandidate(const std::shared_ptr<typename TraitsType::NetworkLinkType>& link) const;
+        size_t contractZeroChordCandidates(const std::vector<std::pair<size_t,size_t>>& candidates);
         
     public:
         
@@ -38,6 +41,7 @@ namespace model
         DislocationNetworkRemesh(DislocationNetworkType& DN_in);
         void remesh(const long int &runID);
         void remeshByRemoval();
+        size_t simplifyPhysicalBoundaryChains();
         void remeshByExpansion();
         void contractBoundaryNodes(); //This function contracts boundary nodes if they are at the same position and share atleast one same neightbors
         void contract0chordSegments();

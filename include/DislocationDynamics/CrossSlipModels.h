@@ -10,6 +10,7 @@
 #define model_CrossSlipModels_H
 
 #include <deque>
+#include <CrossSlipBranch.h>
 #include <map>
 #include <tuple>
 
@@ -41,7 +42,9 @@ namespace model
 
         virtual void addToCrossSlip(const NetworkLinkType& link,CrossSlipContainerType& crossSlipDeq) = 0;
         virtual std::pair<bool,std::pair<int,int>> isCrossSlipLink(const NetworkLinkType& link) = 0;
-        std::pair<bool,int> isBaseCrossSlipLink(const NetworkLinkType& link) const;
+        std::pair<bool,int> isBaseCrossSlipLink(const NetworkLinkType& link, const bool enforceRemeshLength=true) const;
+        virtual bool isThermal() const { return false; }
+        virtual std::optional<ThermalCrossSlipEvent> sampleBranch(const std::vector<const NetworkLinkType*>&,const double) { return std::nullopt; }
         
         const double crossSlipDeg;
         const double sinCrossSlip;
@@ -125,6 +128,10 @@ namespace model
         const double csp2bVec;
         
         EscaigCrossSlipModelHEX(const PolycrystallineMaterialBase& material,const DDtraitsIO& traitsIO);
+        bool isThermal() const override { return true; }
+        std::optional<ThermalCrossSlipEvent> sampleBranch(const std::vector<const NetworkLinkType*>& links,const double dt) override;
+        std::map<int,double> targetRates(const NetworkLinkType& link) const;
+        double nucleationLength(const NetworkLinkType& link) const;
         double crossSlipRateKernel(const int& k,const NetworkLinkType& link,const SlipSystem& css,
                                    const double& w,
                                    const double& L,

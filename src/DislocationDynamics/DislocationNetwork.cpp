@@ -1,3 +1,4 @@
+#include <PeriodicContourTopology.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -175,6 +176,9 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
             }
             //        std::cout<<" Inserting loop "<<loop.sID<<std::endl;
             this->insertLoop(this->loops().get(loop.sID+initialLoopCount),loopNodes);
+            // Recover contour bends from older files without changing the IO
+            // format. Geometry is still committed at this point.
+            retainPeriodicContourBends(loopNodes,1.e-8*(ddBase.mesh.xMax()-ddBase.mesh.xMin()).norm());
         }
         updateGeometry();
     }
@@ -382,13 +386,13 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
                         {
                             if(!loopLink->networkLink()->hasZeroBurgers())
                             {
-                                if(loopLink->networkLink()->isBoundarySegment())
-                                {
-                                    boundaryLength+=loopLink->networkLink()->chord().norm();
-                                }
-                                else if(loopLink->networkLink()->isGrainBoundarySegment())
+                                if(loopLink->networkLink()->isGrainBoundarySegment())
                                 {
                                     grainBoundaryLength+=loopLink->networkLink()->chord().norm();
+                                }
+                                else if(loopLink->networkLink()->isBoundarySegment())
+                                {
+                                    boundaryLength+=loopLink->networkLink()->chord().norm();
                                 }
                                 else
                                 {
@@ -431,13 +435,13 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
                 {
                     if(!loopLink->networkLink()->hasZeroBurgers())
                     {
-                        if(loopLink->networkLink()->isBoundarySegment())
-                        {
-                            boundaryLength+=loopLink->networkLink()->chord().norm();
-                        }
-                        else if(loopLink->networkLink()->isGrainBoundarySegment())
+                        if(loopLink->networkLink()->isGrainBoundarySegment())
                         {
                             grainBoundaryLength+=loopLink->networkLink()->chord().norm();
+                        }
+                        else if(loopLink->networkLink()->isBoundarySegment())
+                        {
+                            boundaryLength+=loopLink->networkLink()->chord().norm();
                         }
                         else
                         {
@@ -693,7 +697,7 @@ void DislocationNetwork<dim>::reSolve()
 #endif
     
     //! -1 Compute the interaction StressField between dislocation particles
-    std::map<int, int> velocityBinMap;
+    std::map<int, int> velocityBinMap{{1,0}};
     for (const auto &binVal : subcyclingBins)
     {
         velocityBinMap.emplace(binVal, 0);
@@ -702,35 +706,47 @@ void DislocationNetwork<dim>::reSolve()
     
     std::cout <<" ,updating updateForcesAndVelocities (" << nThreads << " threads) " << std::flush;
 #ifdef _OPENMP
-#pragma omp parallel for
-    for (size_t k = 0; k < this->networkLinks().size(); ++k)
     {
-        auto linkIter(this->networkLinks().begin());
-        std::advance(linkIter, k);
-        const int velGroup((subcyclingBins.size() && !isClimbingStep) ? linkIter->second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
-        
-        if ((ddBase.simulationParameters.runID % velGroup) == 0)
+        // Topology is fixed during field evaluation. Preserve container order
+        // and shared ownership, but make OpenMP's indexed access constant-time.
+        // Release the snapshot before any subsequent topology changes.
+        std::vector<std::shared_ptr<NetworkLinkType>> fieldLinks;
+        fieldLinks.reserve(this->networkLinks().size());
+        for(const auto& entry : this->networkLinks())
         {
-            for(auto& qp : linkIter->second.lock()->quadraturePoints())
-            {
-                qp.updateForcesAndVelocities(*linkIter->second.lock(),isClimbingStep);
-            }
+            fieldLinks.push_back(entry.second.lock());
         }
-        //            else
-        //            {
-        //                linkIter->second.lock()->assembleGlide(false);
-        //            }
+#pragma omp parallel for
+        for (size_t k = 0; k < fieldLinks.size(); ++k)
+        {
+            const auto& link=fieldLinks[k];
+            const int velGroup((subcyclingBins.size() && !isClimbingStep) ? link->velocityGroup(maxVelocity, subcyclingBins) : 1);
+
+            if ((ddBase.simulationParameters.runID % velGroup) == 0)
+            {
+                for(auto& qp : link->quadraturePoints())
+                {
+                    qp.updateForcesAndVelocities(*link,isClimbingStep);
+                }
+            }
+            //            else
+            //            {
+            //                link->assembleGlide(false);
+            //            }
+        }
     }
+
 #else
     for (auto &linkIter : this->networkLinks())
     {
+        const auto link=linkIter.second.lock();
         const int velGroup(subcyclingBins.size() ? linkIter.second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
         
         if ((ddBase.simulationParameters.runID % velGroup) == 0)
         {
-            for(auto& qp : linkIter->second.lock()->quadraturePoints())
+            for(auto& qp : link->quadraturePoints())
             {
-                qp.updateForcesAndVelocities(*linkIter->second.lock(),isClimbingStep);
+                qp.updateForcesAndVelocities(*link,isClimbingStep);
             }
         }
         //            else
@@ -823,7 +839,7 @@ void DislocationNetwork<dim>::reSolve()
     #endif
         
         //! -1 Compute the interaction StressField between dislocation particles
-        std::map<int, int> velocityBinMap;
+        std::map<int, int> velocityBinMap{{1,0}};
         for (const auto &binVal : subcyclingBins)
         {
             velocityBinMap.emplace(binVal, 0);
@@ -846,22 +862,33 @@ void DislocationNetwork<dim>::reSolve()
         
         std::cout <<" ,updating qPoints (" << nThreads << " threads) " << std::flush;
     #ifdef _OPENMP
-    #pragma omp parallel for
-        for (size_t k = 0; k < this->networkLinks().size(); ++k)
+    {
+        // Topology is fixed during field evaluation. Preserve container order
+        // and shared ownership, but make OpenMP's indexed access constant-time.
+        // Release the snapshot before any subsequent topology changes.
+        std::vector<std::shared_ptr<NetworkLinkType>> fieldLinks;
+        fieldLinks.reserve(this->networkLinks().size());
+        for(const auto& entry : this->networkLinks())
         {
-            auto linkIter(this->networkLinks().begin());
-            std::advance(linkIter, k);
-            const int velGroup((subcyclingBins.size() && !isClimbingStep) ? linkIter->second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
+            fieldLinks.push_back(entry.second.lock());
+        }
+    #pragma omp parallel for
+        for (size_t k = 0; k < fieldLinks.size(); ++k)
+        {
+            const auto& link=fieldLinks[k];
+            const int velGroup((subcyclingBins.size() && !isClimbingStep) ? link->velocityGroup(maxVelocity, subcyclingBins) : 1);
             
             if ((ddBase.simulationParameters.runID % velGroup) == 0)
             {
-                linkIter->second.lock()->updateQuadraturePoints(isClimbingStep);
+                link->updateQuadraturePoints(isClimbingStep);
             }
             //            else
             //            {
-            //                linkIter->second.lock()->assembleGlide(false);
+            //                link->assembleGlide(false);
             //            }
         }
+    }
+
     #else
         for (auto &linkIter : this->networkLinks())
         {
@@ -937,20 +964,74 @@ void DislocationNetwork<dim>::reSolve()
       */
         const auto t0= std::chrono::system_clock::now();
         std::cout<<"Moving DislocationNodes (dt="<<dt_in<< ")... "<<std::flush;
-        danglingBoundaryLoopNodes.clear();
-        for(auto& node : this->networkNodes())
+        // Thermal hazards use this step's accepted time interval, not the
+        // previous dt still present during the velocity solve.
+        if(crossSlipModel && crossSlipModel->isThermal() && !isClimbStep())
         {
-            node.second.lock()->trySet_P(node.second.lock()->get_P()+node.second.lock()->get_V()*dt_in);
+            crossSlipMaker.findCrossSlipSegments(dt_in);
+            crossSlipMaker.execute();
         }
-        updateBoundaryNodes();
+        std::vector<std::pair<std::shared_ptr<LoopNodeType>,bool>> savedFlags;
+        for(const auto& entry : this->loopNodes())
+        {
+            const auto node=entry.second.lock();
+            savedFlags.emplace_back(node,node->periodicContourVertex);
+        }
+        const auto savedDangling=danglingBoundaryLoopNodes;
+        for(const auto& entry : this->loops())
+        {
+            std::vector<std::shared_ptr<LoopNodeType>> nodes;
+            for(const auto* link : entry.second.lock()->linkSequence())
+            {
+                nodes.push_back(link->source);
+            }
+            retainPeriodicContourBends(nodes,1.e-8*(ddBase.mesh.xMax()-ddBase.mesh.xMin()).norm());
+        }
+        danglingBoundaryLoopNodes.clear();
+        std::vector<std::pair<std::shared_ptr<LoopNodeType>,typename LoopNodeType::SplineNodeType>> saved;
+        for(const auto& entry : this->loopNodes())
+        {
+            const auto node=entry.second.lock();
+            saved.emplace_back(node,static_cast<const typename LoopNodeType::SplineNodeType&>(*node));
+        }
+        trialNodeMotion=true;
+        try
+        {
+            // Network positions remain unchanged throughout this loop, so
+            // shared nodes cannot be advanced twice through different loops.
+            for(const auto& entry : this->networkNodes())
+            {
+                const auto node=entry.second.lock();
+                node->trySet_P(node->get_P()+node->get_V()*dt_in);
+            }
+            updateBoundaryNodes();
+            trialNodeMotion=false;
+        }
+        catch(...)
+        {
+            for(const auto& entry : saved)
+            {
+                static_cast<typename LoopNodeType::SplineNodeType&>(*entry.first)=entry.second;
+            }
+            for(const auto& entry : savedFlags)
+            {
+                entry.first->periodicContourVertex=entry.second;
+            }
+            danglingBoundaryLoopNodes=savedDangling;
+            trialNodeMotion=false;
+            throw;
+        }
         std::cout<<magentaColor<<std::setprecision(3)<<std::scientific<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]."<<defaultColor<<std::endl;
     }
 
     template <int dim>
     void DislocationNetwork<dim>::storeSingleGlideStepDiscreteEvents(const long int&)
     {
-        crossSlipMaker.findCrossSlipSegments();
-        crossSlipMaker.execute(); // this is now performed before moving, since internally it computes forces and velocities on the new segments
+        if(!crossSlipModel || !crossSlipModel->isThermal())
+        {
+            crossSlipMaker.findCrossSlipSegments();
+            crossSlipMaker.execute();
+        }
     }
 
     template <int dim>
@@ -1083,606 +1164,568 @@ void DislocationNetwork<dim>::reSolve()
     }
 
     template <int dim>
-    void DislocationNetwork<dim>::updateBoundaryNodes()
+    void DislocationNetwork<dim>::updateBoundaryNodes(const std::function<void()>& checkpoint)
     {
-        
-        /*!Step 1. Before removing populate the junction information
-         *       This populates the network node where the junctions are needed to be preserved
-         *       To pupulate junction information we create a map with key=pair(sourceNetNode,sinkNetNode) and val = set(loopIDs passing through nodes)
-         */
-        std::map<std::pair<std::shared_ptr<NetworkNodeType>,std::shared_ptr<NetworkNodeType>>,std::set<size_t>> networkNodeLoopMap; //Size_t corresponds to the loopID
-        for (const auto& ln : this->loopNodes())
+        using NodePtr=std::shared_ptr<LoopNodeType>;
+        using NetPtr=std::shared_ptr<NetworkNodeType>;
+        using Patch=PeriodicPlanePatch<dim>;
+        using Edge=PeriodicPlaneEdge<dim>;
+        using Record=PolygonPatchIntersectionRecord<dim,LoopNodeType>;
+        const double tolerance=1.e-8*(ddBase.mesh.xMax()-ddBase.mesh.xMin()).norm();
+        struct Arc
         {
-            const auto sharedLNptr(ln.second.lock());
-            if(sharedLNptr->periodicNext() && sharedLNptr->periodicPrev())
+            NodePtr source,sink;
+            VectorDim chord;
+            bool reversed;
+            std::set<const NetworkLinkType*> links;
+            std::vector<NodePtr> subdivisions;
+            size_t group;
+        };
+        struct Plan
+        {
+            std::shared_ptr<LoopType> loop;
+            std::vector<NodePtr> oldNodes,anchors,newNodes;
+            std::vector<size_t> arcs;
+            std::vector<Record> contour;
+        };
+        std::vector<Plan> plans;
+        std::vector<Arc> arcs;
+        std::set<NodePtr> promoted;
+        // Snapshot complete loops first. These strong references also protect
+        // borrowed provenance pointers until all loops have been reconciled.
+        for(const auto& entry : this->loops())
+        {
+            const auto loop=entry.second.lock();
+            if(!loop->periodicGlidePlane)
             {
-                if (sharedLNptr->periodicPlaneEdge.first)
-                {//Node on a boundary: possible junction is between sharedLNptr->periodicPrev() and sharedLNptr->periodicNext()
-                    if (sharedLNptr->networkNode->loopNodes().size()>1)
-                    {//junction node
-                        const auto loopsThis (sharedLNptr->networkNode->loopIDs());
-                        
-                        const LoopNodeType *pPrev(sharedLNptr->periodicPrev());
-                        const LoopNodeType *pNext(sharedLNptr->periodicNext());
-                        
-                        
-                        const auto pPrevNetwork (pPrev->networkNode);
-                        const auto pNextNetwork (pNext->networkNode);
-                        
-                        assert(pPrevNetwork!=nullptr);
-                        assert(pNextNetwork!=nullptr);
-                        
-                        const auto loopspPrev(pPrevNetwork->loopIDs());
-                        const auto loopspNext(pNextNetwork->loopIDs());
-                        
-                        std::set<size_t> tempPrev;
-                        std::set<size_t> tempNext;
-                        std::set_intersection(loopspPrev.begin(), loopspPrev.end(), loopsThis.begin(), loopsThis.end(), std::inserter(tempPrev, tempPrev.begin()));
-                        std::set_intersection(loopsThis.begin(), loopsThis.end(), loopspNext.begin(), loopspNext.end(), std::inserter(tempNext, tempNext.begin()));
-                        
-                        //                    if (tempPrev!=tempNext)
-                        //                    {
-                        //                        std::cout<<"For bnd network node"<<sharedLNptr->networkNode->sID<<" loops are "<<std::flush;
-                        //                        for (const auto& loop : loopsThis)
-                        //                        {
-                        //                            std::cout<<loop<<", ";
-                        //                        }
-                        //                        std::cout<<std::endl;
-                        //
-                        //                        std::cout<<"For prev network node"<<pPrevNetwork->sID<<" loops are "<<std::flush;
-                        //                        for (const auto& loop : loopspPrev)
-                        //                        {
-                        //                            std::cout<<loop<<", ";
-                        //                        }
-                        //                        std::cout<<std::endl;
-                        //
-                        //                        std::cout<<"For next network node"<<pNextNetwork->sID<<" loops are "<<std::flush;
-                        //                        for (const auto& loop : loopspNext)
-                        //                        {
-                        //                            std::cout<<loop<<", ";
-                        //                        }
-                        //                        std::cout<<std::endl;
-                        //                        throw std::runtime_error("BND node must have the same loops as the common loops between the internal nodes");
-                        //                    }
-                        //                    else
-                        //                    {
-                        //                        if (pPrevNetwork->sID < pNextNetwork->sID)
-                        //                        {
-                        //                            networkNodeLoopMap.emplace(std::make_pair(pPrevNetwork, pNextNetwork), tempPrev);
-                        //                        }
-                        //                        else
-                        //                        {
-                        //                            networkNodeLoopMap.emplace(std::make_pair(pNextNetwork, pPrevNetwork), tempPrev);
-                        //                        }
-                        //                    }
-                        
-                        std::set<size_t> tempLoops;
-                        std::set_intersection(tempPrev.begin(), tempPrev.end(), tempNext.begin(), tempNext.end(), std::inserter(tempLoops, tempLoops.begin()));
-                        if(tempLoops.size())
-                        {
-                            if (pPrevNetwork->sID < pNextNetwork->sID)
-                            {
-                                networkNodeLoopMap.emplace(std::make_pair(pPrevNetwork, pNextNetwork), tempLoops);
-                            }
-                            else
-                            {
-                                networkNodeLoopMap.emplace(std::make_pair(pNextNetwork, pPrevNetwork), tempLoops);
-                            }
-                        }
-                        
-                    }
-                }
-                else
-                {//Node not on a boundary: possible junction is between sharedLNptr and sharedLNptr->periodicNext()
-                    if (sharedLNptr->networkNode->loopNodes().size()>1)
-                    {// a junction node
-                        if (sharedLNptr->boundaryNext().size()==0 && sharedLNptr->periodicNext()->networkNode->loopNodes().size()>1)
-                        {
-                            if (sharedLNptr->periodicPlanePatch()!=sharedLNptr->periodicNext()->periodicPlanePatch())
-                            {// Junction is across boundary
-                                const auto netLink (sharedLNptr->next.second->networkLink());
-                                if(netLink)
-                                {
-                                    std::set<size_t> netLinkLoopIDs (netLink->loopIDs());
-                                    if (netLink->loopLinks().size()>=2)
-                                    {
-                                        //a junction node moving out
-                                        if (sharedLNptr->networkNode->sID < sharedLNptr->periodicNext()->networkNode->sID)
-                                        {
-                                            networkNodeLoopMap.emplace(std::make_pair(sharedLNptr->networkNode, sharedLNptr->periodicNext()->networkNode), netLinkLoopIDs);
-                                        }
-                                        else
-                                        {
-                                            networkNodeLoopMap.emplace(std::make_pair(sharedLNptr->periodicNext()->networkNode,sharedLNptr->networkNode), netLinkLoopIDs);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                continue;
             }
-        }
-        
-        /*!Step 2. Remove nodes in danglingBoundaryLoopNodes
-         */
-        if (danglingBoundaryLoopNodes.size())
-        {
-            //       std::cout << "Removing bnd Nodes" << std::endl;
-            VerboseDislocationNetwork(1, "Removing bnd Nodes"<< std::endl;);
-            
-            for (const auto &node : danglingBoundaryLoopNodes)
+            Plan plan;
+            plan.loop=loop;
+            std::vector<size_t> anchorPositions;
+            for(const auto* link : loop->linkSequence())
             {
-                this->removeLoopNode(node->sID);
-            }
-        }
-        
-        //    std::cout << "Inserting new boundary nodes" << std::endl;
-        VerboseDislocationNetwork(1, "Inserting new boundary nodes"<< std::endl;);
-        
-        /*!Step 3. Create a map of new boundary NetworkNode to be inserted
-         *       key = tuple<souceNetNode,
-         *                sinkNetNode,
-         *                set<all mesh faces that current link is crossing>,
-         *                set<current mesh faces contining new boundary NetworkNode>,
-         *                number of mesh intersection crossed by link beyond  new boundary NetworkNode>
-         *       value= new  boundary NetworkNode
-         */
-        std::map<std::tuple<const std::shared_ptr<NetworkNodeType>, const std::shared_ptr<NetworkNodeType>, std::set<const PlanarMeshFace<dim> *>, std::set<const PlanarMeshFace<dim> *>,size_t>, std::shared_ptr<NetworkNodeType>> newNetworkNodesMap;
-        for (const auto &weakLoop : this->loops())
-        {
-            
-            const auto loop(weakLoop.second.lock());
-            if (loop->periodicGlidePlane)
-            {
-                VerboseDislocationNetwork(1, " DisloationNetwork::DislocationLoop " << loop->sID << " Updating boundary nodes " << std::endl;);
-                
-                std::vector<std::pair<VectorLowerDim, const LoopNodeType *const>> loopNodesPos;
-                std::map<std::tuple<const LoopNodeType *, const LoopNodeType *, const std::pair<const PeriodicPlaneEdge<dim> *, const PeriodicPlaneEdge<dim> *>>, const LoopNodeType *> bndNodesMap;
-                for (const auto &loopLink : loop->linkSequence())
+                plan.oldNodes.push_back(link->source);
+                // Physical boundary vertices define the retained slipped area;
+                // only artificial periodic subdivisions may be omitted.
+                if(!link->source->isPeriodicSubdivision())
                 {
-                    if (!loopLink->source->periodicPlaneEdge.first)
+                    anchorPositions.push_back(plan.oldNodes.size()-1);
+                    plan.anchors.push_back(link->source);
+                }
+            }
+            if(plan.anchors.size()<3)
+            {
+                if(retracesContourSegment(plan.oldNodes,anchorPositions,tolerance))
+                {
+                    // Disconnect only this loop's memberships. Contraction has
+                    // transported derived points along their original segments;
+                    // both resulting paths have now been verified to retrace.
+                    plans.push_back(std::move(plan));
+                    continue;
+                }
+                // No collapse proof: retain the actual contour, including seam
+                // bends. Never infer zero slipped area from the anchor count.
+                plan.anchors.clear();
+                anchorPositions.clear();
+                for(size_t i=0;i<plan.oldNodes.size();++i)
+                {
+                    if(plan.anchors.empty() ||
+                       (plan.oldNodes[i]->get_P()-plan.anchors.back()->get_P()).norm()>tolerance)
                     {
-                        loopNodesPos.emplace_back(loop->periodicGlidePlane->referencePlane->localPosition(loopLink->source->get_P()), loopLink->source.get());
+                        promoted.insert(plan.oldNodes[i]);
+                        plan.anchors.push_back(plan.oldNodes[i]);
+                        anchorPositions.push_back(i);
                     }
-                    else
+                }
+                if(plan.anchors.size()>1 &&
+                   (plan.anchors.front()->get_P()-plan.anchors.back()->get_P()).norm()<=tolerance)
+                {
+                    plan.anchors.pop_back();
+                    anchorPositions.pop_back();
+                }
+                if(plan.anchors.size()<3)
+                {
+                    throw std::runtime_error("Cannot establish a retraced periodic contour.");
+                }
+            }
+            for(size_t i=0; i<plan.anchors.size(); ++i)
+            {
+                Arc arc;
+                arc.source=plan.anchors[i];
+                arc.sink=plan.anchors[(i+1)%plan.anchors.size()];
+                arc.chord=arc.sink->get_P()-arc.source->get_P();
+                arc.reversed=arc.source->networkNode->sID>arc.sink->networkNode->sID;
+                if(arc.source->networkNode==arc.sink->networkNode)
+                {
+                    for(int axis=0; axis<dim; ++axis)
                     {
-                        
-                        if (loopLink->source->periodicPlaneEdge.second)
-                        {// loopLink->source is a corner boundary node. For nodes intersecting the corner, storage should be from smaller edgeId and larger edgeID
-                            if (loopLink->source->periodicPlaneEdge.first->edgeID<loopLink->source->periodicPlaneEdge.second->edgeID)
-                            {
-                                bndNodesMap.emplace(std::make_tuple(loopLink->source->periodicPrev(), loopLink->source->periodicNext(), std::make_pair(loopLink->source->periodicPlaneEdge.first.get(), loopLink->source->periodicPlaneEdge.second.get())), loopLink->source.get());
-                            }
-                            else
-                            {
-                                bndNodesMap.emplace(std::make_tuple(loopLink->source->periodicPrev(), loopLink->source->periodicNext(), std::make_pair(loopLink->source->periodicPlaneEdge.second.get(),loopLink->source->periodicPlaneEdge.first.get())), loopLink->source.get());
-                            }
-                        }
-                        else
+                        if(std::abs(arc.chord[axis])>tolerance)
                         {
-                            bndNodesMap.emplace(std::make_tuple(loopLink->source->periodicPrev(), loopLink->source->periodicNext(), std::make_pair(loopLink->source->periodicPlaneEdge.first.get(), loopLink->source->periodicPlaneEdge.second.get())), loopLink->source.get());
+                            arc.reversed=arc.chord[axis]<0;
+                            break;
                         }
                     }
                 }
-                
-                if (loopNodesPos.size())
+                if(arc.reversed)
                 {
-                    const auto polyInt(loop->periodicGlidePlane->polygonPatchIntersection(loopNodesPos,false)); // Note: last element of polyInt is always an internal node
-                    // 2dPos,shift,edgeIDs ,set of edgeiD(all edges crossed),size_t(number of boundary nodes on same loop link after current node),LoopNodeType* (from loopNodesPos if internal, nullptr otherwise)
-                    //edges still needed to be traversed will be reverse of the value if junction formation includes link in the opposite direction
-                    std::map<const LoopNodeType *, size_t> polyIntMap; // ID of internal loopNodes into polyInt
-                    for (size_t p = 0; p < polyInt.size(); ++p)
+                    arc.chord=-arc.chord;
+                }
+                size_t pos=anchorPositions[i];
+                const size_t end=anchorPositions[(i+1)%anchorPositions.size()];
+                do
+                {
+                    if(const auto link=plan.oldNodes[pos]->next.second->networkLink())
                     {
-                        if (std::get<5>(polyInt[p]))
-                        {// an internal node
-                            polyIntMap.emplace(std::get<5>(polyInt[p]), p);
-                        }
+                        arc.links.insert(link.get());
                     }
-                    
-                    for (size_t k = 0; k < loopNodesPos.size(); ++k)
+                    pos=(pos+1)%plan.oldNodes.size();
+                    if(pos!=end)
                     {
-                        const auto periodicPrev(loopNodesPos[k].second);
-                        const auto periodicPrevNetwork(periodicPrev->networkNode);
-                        const auto polyIter(polyIntMap.find(periodicPrev));
-                        assert(polyIter != polyIntMap.end());
-                        const size_t p(polyIter->second);
-                        
-                        const size_t k1(k < loopNodesPos.size() - 1 ? k + 1 : 0);
-                        const auto periodicNext(loopNodesPos[k1].second);
-                        const auto periodicNextNetwork(periodicNext->networkNode);
-                        const auto polyIter1(polyIntMap.find(periodicNext));
-                        assert(polyIter1 != polyIntMap.end());
-                        const size_t p1(polyIter1->second);
-                        
-                        const auto periodicNetworkSource(periodicPrevNetwork->sID < periodicNextNetwork->sID ? periodicPrevNetwork : periodicNextNetwork);
-                        const auto periodicNetworkSink(periodicPrevNetwork->sID < periodicNextNetwork->sID ? periodicNextNetwork : periodicPrevNetwork);
-                        
-                        VerboseDislocationNetwork(2, " PeriodicNetworkSource " << periodicNetworkSource->sID << std::endl;);
-                        VerboseDislocationNetwork(2, " PeriodicNetworkSink " << periodicNetworkSink->sID << std::endl;);
-                        // std::cout<<"periodicPrev->periodicNext"<<periodicPrev->tag()<<"==>"<<periodicNext->tag()<<std::endl;
-                        
-                        const LoopNodeType *currentSource(periodicPrev);
-                        size_t p2 = (p + 1) % polyInt.size();
-                        while (p2 < p1)
+                        arc.subdivisions.push_back(plan.oldNodes[pos]);
+                    }
+                }
+                while(pos!=end);
+                arc.group=arcs.size();
+                plan.arcs.push_back(arcs.size());
+                arcs.push_back(std::move(arc));
+            }
+            std::vector<std::pair<VectorLowerDim,const LoopNodeType* const>> polygon;
+            for(const auto& node : plan.anchors)
+            {
+                polygon.emplace_back(loop->periodicGlidePlane->referencePlane->localPosition(node->get_P()),node.get());
+            }
+            plan.contour=loop->periodicGlidePlane->polygonPatchIntersection(polygon,false);
+            plans.push_back(std::move(plan));
+        }
+        // Establish junction lineage from the pre-edit network, not from
+        // coincident positions or the endpoints left after trimming.
+        const auto root=[&](size_t i)
+        {
+            while(arcs[i].group!=i)
+            {
+                i=arcs[i].group;
+            }
+            return i;
+        };
+        std::map<std::pair<size_t,size_t>,std::vector<size_t>> endpointArcs;
+        for(size_t i=0; i<arcs.size(); ++i)
+        {
+            const auto key=std::minmax(arcs[i].source->networkNode->sID,arcs[i].sink->networkNode->sID);
+            auto& peers=endpointArcs[key];
+            for(size_t j : peers)
+            {
+                if((arcs[i].chord-arcs[j].chord).norm()<=tolerance)
+                {
+                    for(const auto* link : arcs[i].links)
+                    {
+                        if(arcs[j].links.count(link))
                         {
-                            const auto periodicPatch(loop->periodicGlidePlane->getPatch(std::get<1>(polyInt[p2])));
-                            const auto periodicPatchEdge(std::get<2>(polyInt[p2]).second < 0 ? std::make_pair(periodicPatch->edges()[std::get<2>(polyInt[p2]).first], nullptr) : std::make_pair(periodicPatch->edges()[std::get<2>(polyInt[p2]).first], periodicPatch->edges()[std::get<2>(polyInt[p2]).second]));
-                            
-                            VerboseDislocationNetwork(2, " First EdgeID on periodicPatchEdge " << periodicPatchEdge.first->edgeID << std::endl;);
-                            if (periodicPatchEdge.second)
-                            {
-                                VerboseDislocationNetwork(2, " Second EdgeID on periodicPatchEdge " << periodicPatchEdge.second->edgeID << std::endl;);
-                            }
-                            
-                            //                            typename std::map<std::tuple<const LoopNodeType *, const LoopNodeType *, const std::pair<const PeriodicPlaneEdge<dim> *, const PeriodicPlaneEdge<dim> *>>, const LoopNodeType *>::iterator bndIter(bndNodesMap.end());
-                            auto bndIter(bndNodesMap.end());
-                            
-                            //For the case where the second edge exists, the pair of edge should be from minimum to maximum.
-                            if (periodicPatchEdge.second)
-                            {
-                                if (periodicPatchEdge.first->edgeID < periodicPatchEdge.second->edgeID)
-                                {
-                                    bndIter = bndNodesMap.find(std::make_tuple(periodicPrev, periodicNext, std::make_pair(periodicPatchEdge.first.get(), periodicPatchEdge.second.get())));
-                                }
-                                else
-                                {
-                                    bndIter = bndNodesMap.find(std::make_tuple(periodicPrev, periodicNext, std::make_pair(periodicPatchEdge.second.get(), periodicPatchEdge.first.get())));
-                                }
-                            }
-                            else
-                            {
-                                bndIter = bndNodesMap.find(std::make_tuple(periodicPrev, periodicNext, std::make_pair(periodicPatchEdge.first.get(), periodicPatchEdge.second.get())));
-                            }
-                            
-                            if (bndIter != bndNodesMap.end())
-                            { // exising bnd node found
-                                // std::cout<<" Using boundary node "<<bndIter->second->tag()<<std::endl;
-                                currentSource = bndIter->second;
-                            }
-                            else
-                            {
-                                // Original
-                                
-                                // const VectorDim loopNodePos(loop->periodicGlidePlane->referencePlane->globalPosition(std::get<0>(polyInt[p2])));
-                                // const VectorDim networkNodePos(loopNodePos + std::get<1>(polyInt[p2]));
-                                
-                                const auto periodicPatchEdgesAll(std::get<3>(polyInt[p2])); // Get all the edges which the nodes are intesecting
-                                // std::cout<<"periodicPatchEdgesAll size is "<<periodicPatchEdgesAll.size()<<std::endl;
-                                //get the mesh faces corresponding to the edges from periodicPatchEdgesAll
-                                std::set<const PlanarMeshFace<dim> *> allMeshFaces;
-                                size_t totalNumEdgesCrossed(0);
-                                for (const auto& allPatchMap : periodicPatchEdgesAll)
-                                {
-                                    // std::cout<<"periodicPatchEdgesAll second size is "<<allPatchMap.second.size()<<std::endl;
-                                    totalNumEdgesCrossed+=allPatchMap.second.size();
-                                    const auto periodicPatchTemp(loop->periodicGlidePlane->getPatch(allPatchMap.first)); //From shift grab the patch
-                                    
-                                    for (const auto& allPatchEdges : allPatchMap.second)
-                                    {
-                                        const auto periodicPatchEdgeTemp(allPatchEdges.second < 0 ? std::make_pair(periodicPatchTemp->edges()[allPatchEdges.first], nullptr)
-                                                                         : std::make_pair(periodicPatchTemp->edges()[allPatchEdges.first], periodicPatchTemp->edges()[allPatchEdges.second]));
-                                        
-                                        for (const auto &pmface : periodicPatchEdgeTemp.first->meshIntersection->faces)
-                                        {
-                                            allMeshFaces.emplace(pmface);
-                                        }
-                                        if (periodicPatchEdgeTemp.second)
-                                        {
-                                            for (const auto &pmface : periodicPatchEdgeTemp.second->meshIntersection->faces)
-                                            {
-                                                allMeshFaces.emplace(pmface);
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                
-                                
-                                
-                                const auto networkLoopMapIter(networkNodeLoopMap.find(std::make_pair(periodicNetworkSource, periodicNetworkSink)));
-                                // std::set<LoopType *> commonLoops;
-                                bool loopBelongtoCommonLoop(false);
-                                //                                bool firstLoopInJunction(false); //only for the first loop we need to insert a new network node,otherwise we should be able to find an already existent network node
-                                if (networkLoopMapIter != networkNodeLoopMap.end())
-                                {
-                                    // Insert the loops as determined from the map to preserve the junction information
-                                    const auto networkLoopSetIter (networkLoopMapIter->second.find(loop->sID));
-                                    loopBelongtoCommonLoop = (networkLoopSetIter != networkLoopMapIter->second.end());
-                                    //                                    firstLoopInJunction = (networkLoopSetIter == networkLoopMapIter->second.begin()); //If this is true then we need to create a new network node
-                                }
-                                else
-                                {
-                                    // Insert the common loop
-                                    loopBelongtoCommonLoop = false;
-                                }
-                                
-                                const VectorDim loopNodePostemp(loop->periodicGlidePlane->referencePlane->globalPosition(std::get<0>(polyInt[p2])));
-                                
-                                VectorDim networkNodePos(periodicPatchEdge.first->meshIntersection->snap(loopNodePostemp + std::get<1>(polyInt[p2])));
-                                //                                std::set<std::shared_ptr<PeriodicPlanePatch<dim>>> auxiliaryPatches; //Aux patches with only be populated if the second patch edge exists
-                                // i.e. The interseection is taking place diagonally
-                                if (periodicPatchEdge.second)
-                                {
-                                    SegmentSegmentDistance<dim> ssd(periodicPatchEdge.first->meshIntersection->P0, periodicPatchEdge.first->meshIntersection->P1,
-                                                                    periodicPatchEdge.second->meshIntersection->P0, periodicPatchEdge.second->meshIntersection->P1);
-                                    assert(ssd.dMin < FLT_EPSILON && "Two edges must intersect");
-                                    networkNodePos = 0.5 * (ssd.x0 + ssd.x1);
-                                    
-                                    //                                    auxiliaryPatches.insert(loop->periodicGlidePlane->getPatch(periodicPatch->shift+periodicPatchEdge.first->deltaShift));
-                                    //                                    auxiliaryPatches.insert(loop->periodicGlidePlane->getPatch(periodicPatch->shift+periodicPatchEdge.second->deltaShift));
-                                    
-                                    //                                    if ((networkNodePos - (loopNodePostemp + std::get<1>(polyInt[p2]))).norm() > FLT_EPSILON)
-                                    //                                    {
-                                    //                                        std::cout<<" PeriodicNetworkSource "<<periodicNetworkSource->sID<<std::endl;
-                                    //                                        std::cout<<" PeriodicNetworkSink "<<periodicNetworkSink->sID<<std::endl;
-                                    //                                        std::cout<<" First edge mesh intersection "<<std::endl;
-                                    //                                        for (const auto& mf : periodicPatchEdge.first->meshIntersection->faces)
-                                    //                                        {
-                                    //                                            std::cout<<mf->sID<<" with outnormal"<<mf->outNormal().transpose()<< "\t "<<std::flush;
-                                    //                                        }
-                                    //                                        std::cout<<std::endl;
-                                    //                                        std::cout<<" Second edge mesh intersection "<<std::endl;
-                                    //                                        for (const auto& mf : periodicPatchEdge.second->meshIntersection->faces)
-                                    //                                        {
-                                    //                                            std::cout<<mf->sID<<" with outnormal"<<mf->outNormal().transpose()<< "\t "<<std::flush;
-                                    //                                        }
-                                    //                                        std::cout<<std::endl;
-                                    //                                        std::cout<<" Total edges crossed "<<totalNumEdgesCrossed<<" numEdges yet to be crossed "<<(std::get<4>(polyInt[p2]))<<std::endl;
-                                    //                                        std::cout<<" Trying to set network Node position to "<<networkNodePos.transpose()<<std::endl;
-                                    //                                        std::cout<<" Actual network node position  "<<(loopNodePostemp + std::get<1>(polyInt[p2])).transpose()<<std::endl;
-                                    //                                    }
-                                    assert((networkNodePos - (loopNodePostemp + std::get<1>(polyInt[p2]))).norm() < FLT_EPSILON && "Position mismatch");
-                                }
-                                //                                else
-                                //                                {
-                                //                                    auxiliaryPatches.insert(std::shared_ptr<PeriodicPlanePatch<dim>>{nullptr});
-                                //                                    networkNodePos = periodicPatchEdge.first->meshIntersection->snap(loopNodePostemp + std::get<1>(polyInt[p2]));
-                                //                                }
-                                const VectorDim loopNodePos(networkNodePos - std::get<1>(polyInt[p2]));
-                                
-                                const auto currentLoopLink(currentSource->next.second);
-                                
-                                const auto currentNetworkLink(currentLoopLink->networkLink());
-                                
-                                std::set<const PlanarMeshFace<dim> *> tmpMeshFaces;
-                                for (const auto &pmface : periodicPatchEdge.first->meshIntersection->faces)
-                                {
-                                    tmpMeshFaces.emplace(pmface);
-                                }
-                                if (periodicPatchEdge.second)
-                                {
-                                    for (const auto &pmface : periodicPatchEdge.second->meshIntersection->faces)
-                                    {
-                                        tmpMeshFaces.emplace(pmface);
-                                    }
-                                }
-                                
-                                const size_t edgesStillRemainingtoCross(std::get<4>(polyInt[p2]));
-                                VerboseDislocationNetwork(2, " edgesStillRemainingtoCross " << edgesStillRemainingtoCross << std::endl;);
-                                VerboseDislocationNetwork(2, " total edges crossed " << totalNumEdgesCrossed << std::endl;);
-                                
-                                const int u(std::min(edgesStillRemainingtoCross,totalNumEdgesCrossed - edgesStillRemainingtoCross - 1));
-                                //                                size_t u(0);
-                                //
-                                //                                if (loopBelongtoCommonLoop)
-                                //                                {
-                                //                                    if (periodicNetworkSource == periodicNetworkSink)
-                                //                                    {
-                                //                                        if (firstLoopInJunction)
-                                //                                        {
-                                //                                            //We can go as it is...i.e. from periodicPrev to periodicNext
-                                //                                            u = edgesStillRemainingtoCross;
-                                //                                        }
-                                //                                        else
-                                //                                        {
-                                //                                            //need to check the alignment with the first loop junction nodes
-                                //                                            const VectorDim currentLoopLinkChord(periodicNext->get_P()-periodicPrev->get_P());
-                                //                                            const double currentLoopLinkChordLength(currentLoopLinkChord.norm());
-                                //                                            VectorDim firstLoopLinkChord (VectorDim::Zero());
-                                //                                            for (const auto& ln : periodicNetworkSource->loopNodes())
-                                //                                            {
-                                //                                                if (ln->loop()->sID==*(networkLoopMapIter->second.begin()))
-                                //                                                {
-                                //                                                    //Can grab any oriented direction
-                                //                                                    if (ln->periodicNext()->networkNode==periodicNetworkSource)
-                                //                                                    {
-                                //                                                        //We are at the source of the loop link
-                                //                                                        // std::cout<<" Case A "<<ln->tag()<<ln->get_P().transpose()<<std::endl;
-                                //                                                        // std::cout<<" Case A "<<ln->periodicNext()->tag()<<ln->periodicNext()->get_P().transpose()<<std::endl;
-                                //                                                        firstLoopLinkChord=ln->periodicNext()->get_P()-ln->get_P();
-                                //                                                    }
-                                //                                                    else if (ln->periodicPrev()->networkNode==periodicNetworkSource)
-                                //                                                    {
-                                //                                                        //We are at the sink of the loop link
-                                //                                                        // std::cout<<" Case B "<<ln->tag()<<ln->get_P().transpose()<<std::endl;
-                                //                                                        // std::cout<<" Case B "<<ln->periodicPrev()->tag()<<ln->periodicPrev()->get_P().transpose()<<std::endl;
-                                //                                                        firstLoopLinkChord=ln->get_P()-ln->periodicPrev()->get_P();
-                                //                                                    }
-                                //                                                    // if (ln->periodicNext()->networkNode==periodicNetworkSource)
-                                //                                                    // assert(false && "FINISH HERE");
-                                //                                                }
-                                //                                            }
-                                //                                            const double firstLoopLinkChordLength(firstLoopLinkChord.norm());
-                                //                                            assert(firstLoopLinkChordLength>FLT_EPSILON && "First looplink chord must be finite length");
-                                //                                            assert(fabs(firstLoopLinkChordLength - currentLoopLinkChordLength)<FLT_EPSILON && "Chord length must be same");
-                                //                                            // Determine the alignment
-                                //                                            const VectorDim currentLoopLinkDir(currentLoopLinkChord / currentLoopLinkChordLength);
-                                //                                            const VectorDim firstLoopLinkDir(firstLoopLinkChord / firstLoopLinkChordLength);
-                                //                                            const double dirRef(currentLoopLinkDir.dot(firstLoopLinkDir));
-                                //                                            if (fabs(dirRef + 1.0) < FLT_EPSILON)
-                                //                                            {
-                                //                                                //anti aligned
-                                //                                                u = totalNumEdgesCrossed - edgesStillRemainingtoCross - 1; // 1 is to make it to go to 0 (at the end 0 edges should be crossed)
-                                //                                            }
-                                //                                            else
-                                //                                            {
-                                //                                                //aligned
-                                //                                                u = edgesStillRemainingtoCross;
-                                //                                            }
-                                //                                        }
-                                ////                                        assert(false && "First case occuring... check how the implementation works here");
-                                //                                    }
-                                //                                    else
-                                //                                    {
-                                //                                        if (periodicPrevNetwork == periodicNetworkSource)
-                                //                                        {
-                                //                                            // This condition will give problem if perioicNetworkSource and Sink are same
-                                //                                            u = edgesStillRemainingtoCross;
-                                //                                        }
-                                //                                        else if (periodicNextNetwork == periodicNetworkSource)
-                                //                                        {
-                                //                                            // This condition will give problem if perioicNetworkSource and Sink are same
-                                //                                            u = totalNumEdgesCrossed - edgesStillRemainingtoCross - 1; // 1 is to make it to go to 0 (at the end 0 edges should be crossed)
-                                //                                        }
-                                //                                    }
-                                //                                }
-                                
-                                // std::cout<<"Total number of edges crossed "<<totalNumEdgesCrossed<<std::endl;
-                                const auto key(std::make_tuple(periodicNetworkSource, periodicNetworkSink, allMeshFaces, tmpMeshFaces,u));
-                                // std::cout<<" Key is "<<periodicNetworkSource->tag()<<" "<<periodicNetworkSink->tag()<<" "<<u<<" "<<std::endl;
-                                // std::cout<<"All Meshfaces "<<std::endl;
-                                // for (const auto& mf : allMeshFaces)
-                                // {
-                                //     std::cout<<mf->sID<<" with outnormal"<<mf->outNormal().transpose()<< "\t "<<std::flush;
-                                // }
-                                // std::cout<<std::endl<< " Temp mesh faces "<<std::endl;
-                                // for (const auto& mf : tmpMeshFaces)
-                                // {
-                                //     std::cout<<mf->sID<<" with outnormal"<<mf->outNormal().transpose()<< "\t "<<std::flush;
-                                // }
-                                // std::cout<<std::endl;
-                                if (loopBelongtoCommonLoop)
-                                {
-                                    //Either we need to insert a new node or we grab an already existent node
-                                    const auto networkNodeIter(newNetworkNodesMap.find(key));
-                                    if (networkNodeIter == newNetworkNodesMap.end())
-                                    {
-                                        // Insert a new node
-                                        const auto newNetNode(this->networkNodes().create(networkNodePos)); // TODO compute velocity and velocityReduction by interpolation
-                                        // std::cout << "emplacing " << currentNetworkLink->tag() << "@" << std::setprecision(15) << std::scientific  << ", newNetNode=" << newNetNode->tag() << std::endl;
-                                        VerboseDislocationNetwork(2, " Junction case....Inserting a new node " << newNetNode->tag() << std::endl;);
-                                        
-                                        newNetworkNodesMap.emplace(key, newNetNode);
-                                        const auto newLoopNode(this->loopNodes().create(loop, newNetNode, loopNodePos, periodicPatch, periodicPatchEdge));
-                                        currentSource = this->expandLoopLink(*currentLoopLink, newLoopNode).get();
-                                    }
-                                    else
-                                    {
-                                        // A node has already been inserted... use that node
-                                        const VectorDim commensurateLoopNodePos(networkNodeIter->second->get_P() - std::get<1>(polyInt[p2]));
-                                        const auto newLoopNode(this->loopNodes().create(loop, networkNodeIter->second, commensurateLoopNodePos, periodicPatch, periodicPatchEdge));
-                                        currentSource = this->expandLoopLink(*currentLoopLink, newLoopNode).get();
-                                    }
-                                    
-                                    
-                                    //                                    if (firstLoopInJunction)
-                                    //                                    {
-                                    //                                        //May be a self annihilation case...For the self annihilation case use the already existent key
-                                    //                                        const auto networkNodeIter(newNetworkNodesMap.find(key));
-                                    //                                        if (networkNodeIter == newNetworkNodesMap.end())
-                                    //                                        {
-                                    //                                            // Insert a new node
-                                    //                                            const auto newNetNode(this->networkNodes().create(networkNodePos, VectorDim::Zero(), 1.0)); // TODO compute velocity and velocityReduction by interpolation
-                                    //                                            // std::cout << "emplacing " << currentNetworkLink->tag() << "@" << std::setprecision(15) << std::scientific  << ", newNetNode=" << newNetNode->tag() << std::endl;
-                                    //                                            VerboseDislocationNetwork(2, " Junction case....Inserting a new node " << newNetNode->tag() << std::endl;);
-                                    //
-                                    //                                            newNetworkNodesMap.emplace(key, newNetNode);
-                                    //                                            const auto newLoopNode(this->loopNodes().create(loop, newNetNode, loopNodePos, periodicPatch, periodicPatchEdge));
-                                    //                                            currentSource = this->expandLoopLink(*currentLoopLink, newLoopNode).get();
-                                    //                                        }
-                                    //                                        else
-                                    //                                        {
-                                    //                                            // A node has already been inserted... use that node
-                                    //                                            const VectorDim commensurateLoopNodePos(networkNodeIter->second->get_P() - std::get<1>(polyInt[p2]));
-                                    //                                            const auto newLoopNode(this->loopNodes().create(loop, networkNodeIter->second, commensurateLoopNodePos, periodicPatch, periodicPatchEdge));
-                                    //                                            currentSource = this->expandLoopLink(*currentLoopLink, newLoopNode).get();
-                                    //                                        }
-                                    //                                    }
-                                    //                                    else
-                                    //                                    {
-                                    //                                        //grab an already existent node
-                                    //                                        const auto networkNodeIter(newNetworkNodesMap.find(key));
-                                    //                                        if (networkNodeIter == newNetworkNodesMap.end())
-                                    //                                        {
-                                    //                                            std::cout<<"Printing common loops "<<std::endl;
-                                    //                                            for (const auto& loop : networkLoopMapIter->second)
-                                    //                                            {
-                                    //                                                std::cout<<loop<<std::endl;
-                                    //                                            }
-                                    //                                            std::cout<<"Printing already existent keys "<< newNetworkNodesMap.size()<<" new network node map size"<<std::endl;
-                                    //                                            for (const auto& nnMap : newNetworkNodesMap)
-                                    //                                            {
-                                    //                                                std::cout<<std::get<0>(nnMap.first)->sID<<" "<<std::get<1>(nnMap.first)->sID<<" All Mesh face "<<std::endl;
-                                    //                                                std::cout << "All Meshfaces " << std::endl;
-                                    //                                                for (const auto &mf : std::get<2>(nnMap.first))
-                                    //                                                {
-                                    //                                                    std::cout << mf->sID << " with outnormal" << mf->outNormal().transpose() << "\t " << std::flush;
-                                    //                                                }
-                                    //                                                std::cout<<std::endl<< " Temp mesh faces "<<std::endl;
-                                    //                                                for (const auto &mf : std::get<3>(nnMap.first))
-                                    //                                                {
-                                    //                                                    std::cout << mf->sID << " with outnormal" << mf->outNormal().transpose() << "\t " << std::flush;
-                                    //                                                }
-                                    //                                                std::cout << std::endl;
-                                    //                                                std::cout<<" NetworkNode is "<<nnMap.second->sID<<std::endl;
-                                    //                                            }
-                                    //
-                                    //                                            std::cout<<"Printing bnd Nodes Map "<< bndNodesMap.size()<<" bndNodemap size"<<std::endl;
-                                    //                                            // std::map<std::tuple<const LoopNodeType *, const LoopNodeType *, const std::pair<const PeriodicPlaneEdge<dim> *, const PeriodicPlaneEdge<dim> *>>, const LoopNodeType *> bndNodesMap;
-                                    //                                            for (const auto& bndNode : bndNodesMap )
-                                    //                                            {
-                                    //                                                std::cout<<"Prev Node "<<(std::get<0>(bndNode.first))->tag()<<std::endl;
-                                    //                                                std::cout<<"Next Node "<<(std::get<1>(bndNode.first))->tag()<<std::endl;
-                                    //                                                std::cout<<"First Edge ID "<<(std::get<2>(bndNode.first)).first->edgeID<<std::endl;
-                                    //                                                if ((std::get<2>(bndNode.first)).second)
-                                    //                                                    std::cout<<"Second Edge ID "<<(std::get<2>(bndNode.first)).second->edgeID<<std::endl;
-                                    //                                                std::cout<<" Stored Node "<<bndNode.second->tag()<<std::endl;
-                                    //
-                                    //                                                // std::cout<<(std::get<0>(bndNode.first))->tag()<<" "<<(std::get<1>(bndNode.first))->tag()<<" "<<(std::get<2>(bndNode.first)).first->edgeID<<" "<<(std::get<2>(bndNode.first)).second->edgeID<<" "<<
-                                    //                                                // bndNode.second->tag()<<std::endl;
-                                    //                                            }
-                                    //
-                                    //                                        }
-                                    //                                        assert(networkNodeIter != newNetworkNodesMap.end() && "Inserting bnd node corresponding to a junction... bnd node should be present already");
-                                    //                                        /* The network node position must be commensurate */
-                                    //                                        if ((networkNodeIter->second->get_P() - networkNodePos).norm() > 10000 * FLT_EPSILON) // THis condition is just to check for widely different positions
-                                    //                                        {
-                                    //                                            std::cout << std::scientific << std::setprecision(15) << " PeriodicNetwork Source " << periodicNetworkSource->sID << "P= " << periodicNetworkSource->get_P().transpose() << "\n PeriodicNetwork Sink " << periodicNetworkSink->sID << " P = " << periodicNetworkSink->get_P().transpose() << std::endl;
-                                    //                                            std::cout << " Position of the network node " << std::scientific << std::setprecision(15) << networkNodeIter->second->get_P().transpose() << std::endl;
-                                    //                                            std::cout << " Actual Position of the network node should be " << std::scientific << std::setprecision(15) << networkNodePos.transpose() << std::endl;
-                                    //                                            std::cout << " Position difference " << std::setprecision(15) << (networkNodeIter->second->get_P() - networkNodePos).transpose() << std::endl;
-                                    //                                            std::cout << " Position difference norm " << std::setprecision(15) << (networkNodeIter->second->get_P() - networkNodePos).norm() << std::endl;
-                                    //                                            assert(false && "Loop node position and network node position mismatch");
-                                    //                                        }
-                                    //                                        // Here we want the loop node position to be commensurate with the network node (This is important for minimizing accumulating error)
-                                    //                                        VerboseDislocationNetwork(2, " Junction case....Grabbing an already existent node " << networkNodeIter->second->tag() << std::endl;);
-                                    //                                        const VectorDim commensurateLoopNodePos(networkNodeIter->second->get_P() - std::get<1>(polyInt[p2]));
-                                    //                                        const auto newLoopNode(this->loopNodes().create(loop, networkNodeIter->second, commensurateLoopNodePos, periodicPatch, periodicPatchEdge));
-                                    //                                        currentSource = this->expandLoopLink(*currentLoopLink, newLoopNode).get();
-                                    //                                    }
-                                }
-                                else
-                                {
-                                    //create a new node
-                                    const auto newNetNode(this->networkNodes().create(networkNodePos)); // TODO compute velocity and velocityReduction by interpolation
-                                    VerboseDislocationNetwork(2, " non-Junction case....Inserting a new node " << newNetNode->tag() << std::endl;);
-                                    
-                                    // std::cout << "emplacing " << currentNetworkLink->tag() << "@" << std::setprecision(15) << std::scientific  << ", newNetNode=" << newNetNode->tag() << std::endl;
-                                    newNetworkNodesMap.emplace(key, newNetNode);
-                                    const auto newLoopNode(this->loopNodes().create(loop, newNetNode, loopNodePos, periodicPatch, periodicPatchEdge));
-                                    currentSource = this->expandLoopLink(*currentLoopLink, newLoopNode).get();
-                                }
-                            }
-                            p2 = (p2 + 1) % polyInt.size();
+                            arcs[root(i)].group=root(j);
+                            break;
                         }
                     }
                 }
             }
+            peers.push_back(i);
         }
-        
+        struct Crossing
+        {
+            double parameter;
+            NetPtr node;
+        };
+        std::map<size_t,std::vector<Crossing>> crossings;
+        for(size_t i=0; i<arcs.size(); ++i)
+        {
+            const auto& arc=arcs[i];
+            const VectorDim d=arc.sink->get_P()-arc.source->get_P();
+            for(const auto& node : arc.subdivisions)
+            {
+                if(!danglingBoundaryLoopNodes.count(node.get()) && d.squaredNorm()>0)
+                {
+                    double t=d.dot(node->get_P()-arc.source->get_P())/d.squaredNorm();
+                    crossings[root(i)].push_back({arc.reversed ? 1-t : t,node->networkNode});
+                }
+            }
+        }
+        // Select a representative per original junction before editing any
+        // positions. Prefer its existing RVE copy when several copies survive.
+        std::map<size_t,VectorDim> committedPositions;
+        for(const auto& plan : plans)
+        {
+            for(const auto& record : plan.contour)
+            {
+                if(const auto index=std::get<6>(record).originalVertex)
+                {
+                    const auto node=plan.anchors.at(*index)->networkNode;
+                    const VectorDim mapped=plan.loop->periodicGlidePlane->referencePlane->globalPosition(std::get<0>(record))+std::get<1>(record);
+                    if(!committedPositions.count(node->sID) || (mapped-node->get_P()).norm()<=tolerance)
+                    {
+                        committedPositions[node->sID]=mapped;
+                    }
+                }
+            }
+        }
+        std::map<size_t,std::vector<NetPtr>> remappedOriginals;
+        std::map<std::pair<size_t,size_t>,std::vector<NetPtr>> sharedBoundaryCorners;
+        std::map<std::pair<std::vector<size_t>,size_t>,std::vector<NetPtr>> enclosedCorners;
+        for(auto& plan : plans)
+        {
+            // Only fully shared old contour lineages may share an enclosed
+            // replacement. Equal coordinates alone never establish ownership.
+            std::vector<size_t> enclosureOwners;
+            const bool enclosed=std::any_of(plan.contour.begin(),plan.contour.end(),[](const Record& record)
+            {
+                return std::get<6>(record).enclosureLayer.has_value();
+            });
+            if(enclosed)
+            {
+                for(size_t arc : plan.arcs)
+                {
+                    enclosureOwners.push_back(root(arc));
+                }
+                // Canonicalize only cyclic start and traversal direction, not
+                // the order of visits: different sheet connectivity must stay
+                // distinct even if it uses the same set of old junction arcs.
+                auto best=enclosureOwners;
+                for(bool reverse : {false,true})
+                {
+                    auto candidate=enclosureOwners;
+                    if(reverse)
+                    {
+                        std::reverse(candidate.begin(),candidate.end());
+                    }
+                    for(size_t start=0;start<candidate.size();++start)
+                    {
+                        best=std::min(best,candidate);
+                        std::rotate(candidate.begin(),candidate.begin()+1,candidate.end());
+                    }
+                }
+                enclosureOwners=std::move(best);
+            }
+            std::set<const LoopNodeType*> reused;
+            for(const auto& record : plan.contour)
+            {
+                const auto& info=std::get<6>(record);
+                const auto patch=plan.loop->periodicGlidePlane->getPatch(std::get<1>(record));
+                const VectorDim position=plan.loop->periodicGlidePlane->referencePlane->globalPosition(std::get<0>(record));
+                const VectorDim mapped=position+patch->shift;
+                std::pair<std::shared_ptr<Edge>,std::shared_ptr<Edge>> edges;
+                if(std::get<2>(record).first>=0)
+                {
+                    edges.first=patch->edges().at(std::get<2>(record).first);
+                    if(std::get<2>(record).second>=0)
+                    {
+                        edges.second=patch->edges().at(std::get<2>(record).second);
+                    }
+                }
+                NodePtr chosen;
+                NetPtr networkNode;
+                if(info.originalVertex)
+                {
+                    const auto old=plan.anchors.at(*info.originalVertex);
+                    networkNode=old->networkNode;
+                    if((committedPositions.at(networkNode->sID)-mapped).norm()>tolerance)
+                    {
+                        auto& alternatives=remappedOriginals[networkNode->sID];
+                        networkNode.reset();
+                        for(const auto& other : alternatives)
+                        {
+                            if((other->get_P()-mapped).norm()<=tolerance)
+                            {
+                                networkNode=other;
+                                break;
+                            }
+                        }
+                        if(!networkNode)
+                        {
+                            networkNode=this->networkNodes().create(mapped,old->networkNode->get_V(),old->networkNode->climbVelocityScalar,old->networkNode->velocityReduction());
+                            alternatives.push_back(networkNode);
+                        }
+                    }
+                    // Recompute confinement: sliding can change which edge
+                    // contains an anchor, especially at mixed corners.
+                    edges={nullptr,nullptr};
+                    for(const auto& edge : patch->edges())
+                    {
+                        if((edge->meshIntersection->snap(mapped)-mapped).norm()<=tolerance)
+                        {
+                            if(!edges.first)
+                            {
+                                edges.first=edge;
+                            }
+                            else
+                            {
+                                edges.second=edge;
+                            }
+                        }
+                    }
+                    const auto& previous=old->periodicPlaneEdge;
+                    if(old->networkNode==networkNode && old->periodicPlanePatch()==patch &&
+                       ((previous.first==edges.first && previous.second==edges.second) ||
+                        (previous.first==edges.second && previous.second==edges.first)))
+                    {
+                        chosen=old;
+                    }
+                }
+                else if(info.polygonLocation)
+                {
+                    const auto& location=*info.polygonLocation;
+                    const size_t arcID=plan.arcs.at(location.segment.sourceIndex);
+                    const double t=arcs[arcID].reversed ? 1-location.parameter : location.parameter;
+                    auto& candidates=crossings[root(arcID)];
+                    for(const auto& candidate : candidates)
+                    {
+                        if(std::abs(candidate.parameter-t)<=1.e-8 && (candidate.node->get_P()-mapped).norm()<=tolerance)
+                        {
+                            networkNode=candidate.node;
+                            break;
+                        }
+                    }
+                    if(!networkNode)
+                    {
+                        networkNode=this->networkNodes().create(mapped);
+                        candidates.push_back({t,networkNode});
+                    }
+                    for(const auto& old : arcs[arcID].subdivisions)
+                    {
+                        if(old->networkNode==networkNode && old->periodicPlanePatch()==patch &&
+                           (old->get_P()-position).norm()<=tolerance && !danglingBoundaryLoopNodes.count(old.get()))
+                        {
+                            const auto& oldEdges=old->periodicPlaneEdge;
+                            if((oldEdges.first==edges.first && oldEdges.second==edges.second) ||
+                               (oldEdges.first==edges.second && oldEdges.second==edges.first))
+                            {
+                                chosen=old;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if(!networkNode && info.enclosureLayer)
+                {
+                    auto& candidates=enclosedCorners[{enclosureOwners,*info.enclosureLayer}];
+                    for(const auto& candidate : candidates)
+                    {
+                        if((candidate->get_P()-mapped).norm()<=tolerance)
+                        {
+                            networkNode=candidate;
+                            break;
+                        }
+                    }
+                    if(!networkNode)
+                    {
+                        networkNode=this->networkNodes().create(mapped);
+                        candidates.push_back(networkNode);
+                    }
+                }
+                // A boundary-following corner inherits a shared junction only
+                // when BOTH ends of its boundary walk originate on shared arcs.
+                // Matching coordinates alone must not join unrelated loops.
+                if(!networkNode && info.onPhysicalBoundary && !plan.arcs.empty())
+                {
+                    const size_t index=&record-plan.contour.data();
+                    std::optional<size_t> before,after;
+                    for(size_t step=1;step<plan.contour.size();++step)
+                    {
+                        if(!before)
+                        {
+                            const auto& metadata=std::get<6>(plan.contour[(index+plan.contour.size()-step)%plan.contour.size()]);
+                            if(metadata.polygonLocation)
+                            {
+                                before=root(plan.arcs.at(metadata.polygonLocation->segment.sourceIndex));
+                            }
+                        }
+                        if(!after)
+                        {
+                            const auto& metadata=std::get<6>(plan.contour[(index+step)%plan.contour.size()]);
+                            if(metadata.polygonLocation)
+                            {
+                                after=root(plan.arcs.at(metadata.polygonLocation->segment.sourceIndex));
+                            }
+                        }
+                        if(before && after)
+                        {
+                            break;
+                        }
+                    }
+                    if(before && after)
+                    {
+                        auto& candidates=sharedBoundaryCorners[std::minmax(*before,*after)];
+                        for(const auto& candidate : candidates)
+                        {
+                            if((candidate->get_P()-mapped).norm()<=tolerance)
+                            {
+                                networkNode=candidate;
+                                break;
+                            }
+                        }
+                        if(!networkNode)
+                        {
+                            networkNode=this->networkNodes().create(mapped);
+                            candidates.push_back(networkNode);
+                        }
+                    }
+                }
+                if(!networkNode)
+                {
+                    networkNode=this->networkNodes().create(mapped);
+                }
+                if(!chosen || reused.count(chosen.get()))
+                {
+                    chosen=this->loopNodes().create(plan.loop,networkNode,position,patch,edges);
+                }
+                if(info.originalVertex && (chosen->periodicPlaneEdge.first || plan.anchors.at(*info.originalVertex)->periodicContourVertex || promoted.count(plan.anchors.at(*info.originalVertex))))
+                {
+                    promoted.insert(chosen);
+                }
+                reused.insert(chosen.get());
+                plan.newNodes.push_back(chosen);
+            }
+            if(!plan.newNodes.empty() && plan.newNodes.size()<3)
+            {
+                throw std::runtime_error("Boundary update produced a degenerate retained contour.");
+            }
+        }
+        // Prepare the edit journal before mutating any committed objects.
+        using LinkMap=typename std::remove_reference_t<decltype(this->loopLinks())>;
+        using Key=typename LoopLinkType::KeyType;
+        std::vector<Key> obsolete,created;
+        std::vector<std::tuple<NodePtr,NodePtr,std::shared_ptr<LoopType>>> additions;
+        std::vector<typename LinkMap::node_type> removed;
+        struct PositionState
+        {
+            NetPtr node;
+            typename NetworkNodeType::SplineNodeType spline;
+            const Simplex<dim,dim>* simplex;
+        };
+        std::vector<PositionState> savedPositions;
+        for(const auto& entry : committedPositions)
+        {
+            const auto node=this->networkNodes().get(entry.first);
+            savedPositions.push_back({node,static_cast<const typename NetworkNodeType::SplineNodeType&>(*node),node->p_Simplex});
+        }
+        for(const auto& plan : plans)
+        {
+            std::set<Key> desired,replacements;
+            for(size_t i=0;i<plan.newNodes.size();++i)
+            {
+                const auto a=plan.newNodes[i];
+                const auto b=plan.newNodes[(i+1)%plan.newNodes.size()];
+                const auto key=LoopLinkType::loopLinkKey(plan.loop,a,b);
+                if(!desired.insert(key).second)
+                {
+                    throw std::runtime_error("Boundary contour repeats a loop-link identity.");
+                }
+                const auto found=this->loopLinks().find(key);
+                if(found==this->loopLinks().end() || found->second.source!=a)
+                {
+                    additions.emplace_back(a,b,plan.loop);
+                    replacements.insert(key);
+                }
+            }
+            for(size_t i=0;i<plan.oldNodes.size();++i)
+            {
+                const auto a=plan.oldNodes[i];
+                const auto b=plan.oldNodes[(i+1)%plan.oldNodes.size()];
+                const auto key=LoopLinkType::loopLinkKey(plan.loop,a,b);
+                if(!desired.count(key) || replacements.count(key))
+                {
+                    obsolete.push_back(key);
+                }
+            }
+        }
+        struct SegmentState
+        {
+            std::shared_ptr<NetworkLinkType> link;
+            VectorDim burgers;
+            double norm;
+            std::shared_ptr<SlipSystem> slip;
+        };
+        std::map<const NetworkLinkType*,SegmentState> segmentStates;
+        const auto saveSegment=[&](const std::shared_ptr<NetworkLinkType>& link)
+        {
+            if(link)
+            {
+                segmentStates.try_emplace(link.get(),SegmentState{link,link->Burgers,link->BurgersNorm,link->_slipSystem});
+            }
+        };
+        for(const auto& key : obsolete)
+        {
+            saveSegment(this->loopLinks().at(key).networkLink());
+        }
+        for(const auto& item : additions)
+        {
+            saveSegment(this->networkLinks().get(NetworkLinkType::getKey(std::get<0>(item)->networkNode,std::get<1>(item)->networkNode)));
+        }
+        removed.reserve(obsolete.size());
+        created.reserve(additions.size());
+        try
+        {
+            for(const auto& entry : committedPositions)
+            {
+                this->networkNodes().get(entry.first)->set_P(entry.second);
+                if(checkpoint)
+                {
+                    checkpoint();
+                }
+            }
+            for(const auto& key : obsolete)
+            {
+                auto handle=this->loopLinks().extract(key);
+                handle.mapped().detachTopology();
+                removed.push_back(std::move(handle));
+                if(checkpoint)
+                {
+                    checkpoint();
+                }
+            }
+            for(const auto& item : additions)
+            {
+                const auto& [a,b,loop]=item;
+                this->connect(a,b,loop);
+                created.push_back(LoopLinkType::loopLinkKey(loop,a,b));
+                if(checkpoint)
+                {
+                    checkpoint();
+                }
+            }
+        }
+        catch(...)
+        {
+            for(const auto& key : created)
+            {
+                this->loopLinks().erase(key);
+            }
+            for(auto& handle : removed)
+            {
+                handle.mapped().attachTopology();
+                this->loopLinks().insert(std::move(handle));
+            }
+            for(const auto& entry : savedPositions)
+            {
+                static_cast<typename NetworkNodeType::SplineNodeType&>(*entry.node)=entry.spline;
+                entry.node->p_Simplex=entry.simplex;
+            }
+            for(const auto& entry : savedPositions)
+            {
+                entry.node->updateGeometry();
+            }
+            for(const auto& entry : segmentStates)
+            {
+                const auto& state=entry.second;
+                state.link->Burgers=state.burgers;
+                state.link->BurgersNorm=state.norm;
+                state.link->_slipSystem=state.slip;
+                state.link->straight.updateGeometry();
+            }
+            throw;
+        }
+        for(const auto& node : promoted)
+        {
+            node->periodicContourVertex=true;
+        }
         danglingBoundaryLoopNodes.clear();
-        
     }
 
     template <int dim>

@@ -241,6 +241,10 @@ namespace model
         ellipsoidalActor->GetProperty()->SetColor(0.5,0.5,0.5);
         ellipsoidalActor->GetProperty()->SetOpacity(0.4);
 
+        // The actor also exists when inclusion physics is absent. VTK requires
+        // a dataset even when there is no geometry to display.
+        vtkNew<vtkUnstructuredGrid> emptyPolyhedra;
+        polyhedronMapper->SetInputData(emptyPolyhedra);
         polyhedronActor->SetMapper(polyhedronMapper);
         polyhedronActor->GetProperty()->SetColor(0.5,0.5,0.5); // Give some color to the mesh. (1,1,1) is white
         polyhedronActor->GetProperty()->SetOpacity(0.4); // Give some color to the mesh. (1,1,1) is white

@@ -40,8 +40,9 @@ namespace model
         Eigen::Vector3d appliedClipNormal = Eigen::Vector3d::UnitX();
         double clipTravel = 0.0;
 
-        std::map<size_t, QCheckBox *> faceExclusionChecks;
-        std::set<size_t> excludedFaceIDs() const;
+        std::map<size_t, QCheckBox *> externalFaceChecks;
+        std::map<size_t, QCheckBox *> internalFaceChecks;
+        std::set<size_t> selectedFaceIDs() const;
         void compute();
         void applyDisplacement();
         void render();
@@ -61,7 +62,8 @@ namespace model
         QLabel *const clipStatus;
         QSlider *const clipPositionSlider;
         QLabel *const clipOffsetLabel;
-        QGroupBox *const excludeFaces;
+        QGroupBox *const externalFaces;
+        QGroupBox *const internalFaces;
         std::vector<QCheckBox *> microstructuresCheck;
         const vtkSmartPointer<vtkPolyData> polyData;
         const vtkSmartPointer<vtkPlane> clipPlane;

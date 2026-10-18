@@ -9,6 +9,7 @@
 #define model_SegmentSegmentDistance_H_
 
 #include <cfloat>
+#include <cfloat>
 #include <deque>
 #include <map>
 #include <tuple>

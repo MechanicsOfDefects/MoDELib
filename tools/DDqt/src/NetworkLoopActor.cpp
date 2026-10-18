@@ -10,6 +10,7 @@
 #define model_NetworkLoopActor_cpp_
 
 #include <iostream>
+#include <map>
 #include <deque>
 #include <string>
 
@@ -45,6 +46,7 @@
 #include <MeshPlane.h>
 #include <NetworkLoopActor.h>
 #include <DislocationLoopPatches.h>
+#include <LoopAreaTriangulation.h>
 
 #include <DDqtControls.h>
 
@@ -74,7 +76,6 @@ NetworkLoopActor::NetworkLoopActor(vtkGenericOpenGLRenderWindow* const renWin,vt
 /* init */,loopMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
 /* init */,loopActor(vtkSmartPointer<vtkActor>::New())
 /* init */,areaPolyData(vtkSmartPointer<vtkPolyData>::New())
-/* init */,areaTriangleFilter(vtkSmartPointer<vtkTriangleFilter>::New())
 /* init */,areaMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
 /* init */,areaActor(vtkSmartPointer<vtkActor>::New())
 /* init */,meshPolydata(vtkSmartPointer<vtkPolyData>::New())
@@ -223,12 +224,7 @@ NetworkLoopActor::NetworkLoopActor(vtkGenericOpenGLRenderWindow* const renWin,vt
     loopActor->GetProperty()->SetColor(0.0, 0.0, 1.0); //(R,G,B)
     loopActor->SetVisibility(false);
     
-    areaTriangleFilter->SetInputData(areaPolyData);
-    //            filter->SetInputData(polygonPolyData);
-    //            areaTriangleFilter->Update();
-    
-    //            areaMapper->SetInputData(areaPolyData);
-    areaMapper->SetInputData(areaTriangleFilter->GetOutput());
+    areaMapper->SetInputData(areaPolyData);
     areaActor->SetMapper(areaMapper);
 //    areaActor->GetProperty()->SetColor(0.0, 1.0, 1.0); //(R,G,B)
     areaActor->SetVisibility(false);
@@ -263,18 +259,17 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
         nodeLabels->SetNumberOfComponents(1);
         nodeLabels->SetName("node IDs");
 
-//        std::map<size_t,size_t> loopNodesMap; // nodeID,nodePositionInDDauxIO
-//        size_t k=0;
+        // Loop occurrences remain distinct even when they share a network node.
+        // Record the actual VTK point index; never retain it across frame updates.
+        std::map<size_t,vtkIdType> loopNodeIndices;
         nodeSlipSystems.clear();
         for(const auto& weakNode : dislocationNetwork->loopNodes())
         {
             const auto& loopNode(weakNode.second.lock());
-  //          loopNodesMap.emplace(loopNode->sID,k);
             const auto& P(loopNode->get_P());
-            points->InsertNextPoint(P.data());
+            loopNodeIndices.emplace(loopNode->sID,points->InsertNextPoint(P.data()));
             nodeLabels->InsertNextTuple1(loopNode->sID);
             nodeSlipSystems.push_back(loopNode->loop()->slipSystem().get());
-  //          k++;
         }
         
         nodePolyData->SetPoints(points);
@@ -292,32 +287,12 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
         for(const auto& loopLink : dislocationNetwork->loopLinks())
         {
             vtkSmartPointer<vtkLine> line(vtkSmartPointer<vtkLine>::New());
-            line->GetPointIds()->SetId(0, loopLink.second.source->networkID()); // the second 0 is the index of the Origin in linesPolyData's points
-            line->GetPointIds()->SetId(1, loopLink.second.  sink->networkID());
+            line->GetPointIds()->SetId(0, loopNodeIndices.at(loopLink.second.source->sID)); // the second 0 is the index of the Origin in linesPolyData's points
+            line->GetPointIds()->SetId(1, loopNodeIndices.at(loopLink.second.sink->sID));
             cells->InsertNextCell(line);
             lineSlipSystems.push_back(loopLink.second.loop->slipSystem().get());
 
-            
-//            const auto sourceIter(loopNodesMap.find(loopLink.first.first));
-//            if(sourceIter!=loopNodesMap.end())
-//            {
-//                const auto sinkIter(loopNodesMap.find(loopLink.first.second));
-//                if(sinkIter!=loopNodesMap.end())
-//                {
-//                    vtkSmartPointer<vtkLine> line(vtkSmartPointer<vtkLine>::New());
-//                    line->GetPointIds()->SetId(0, sourceIter->second); // the second 0 is the index of the Origin in linesPolyData's points
-//                    line->GetPointIds()->SetId(1, sinkIter->second);
-//                    cells->InsertNextCell(line);
-//                }
-//                else
-//                {
-//                    throw std::runtime_error("Sink vertex not found in nodeMap");
-//                }
-//            }
-//            else
-//            {
-//                throw std::runtime_error("Source vertex not found in nodeMap");
-//            }
+
         }
         loopPolyData->SetPoints(points);
         loopPolyData->SetLines(cells);
@@ -328,23 +303,23 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
         vtkNew<vtkCellArray> areaPolygons;
 
 
-        size_t areaPointID(0);
+        areaPoints->SetDataTypeToDouble();
         for(const auto& weakloop : dislocationNetwork->loops())
         {
             const auto& loop(weakloop.second.lock());
-            for(const auto& pair : loop->patches().globalPatches())
+            for(const auto& pair : loop->patches().localPatches())
             {
-                vtkNew<vtkPolygon> polygon;
-                for(const auto& globalPos : pair.second)
+                for(const auto& triangle : triangulateLoopArea(pair.second))
                 {
-                    areaPoints->InsertNextPoint(globalPos.data());
-                    polygon->GetPointIds()->InsertNextId(areaPointID);
-                    areaPointID++;
+                    vtkIdType ids[3];
+                    for(size_t i=0;i<3;++i)
+                    {
+                        const Eigen::Vector3d position=pair.first->glidePlane->globalPosition(triangle[i]);
+                        ids[i]=areaPoints->InsertNextPoint(position.data());
+                    }
+                    areaPolygons->InsertNextCell(3,ids);
+                    areaSlipSystems.push_back(loop->slipSystem().get());
                 }
-                areaPolygons->InsertNextCell(polygon);
-                
-                areaSlipSystems.push_back(loop->slipSystem().get());
-
             }
         }
         areaPolyData->SetPoints(areaPoints);
@@ -352,7 +327,7 @@ void NetworkLoopActor::updateConfiguration(const SlipSystemTab::SlipSystemColorM
         areaPolyData->Modified();
         areaMapper->SetScalarModeToUseCellData();
 
-        areaTriangleFilter->Update();
+
         
         
         if(meshAreaBox->isChecked())
@@ -444,7 +419,7 @@ void NetworkLoopActor::applyColors()
     apply(loopPolyData, loopMapper, loopActor, lineSlipSystems, false);
     apply(areaPolyData, areaMapper, areaActor, areaSlipSystems, false);
     apply(meshPolydata, meshMapper, meshActor, meshSlipSystems, false);
-    areaTriangleFilter->Update();
+
     nodeGlyphs->Update();
 }
 

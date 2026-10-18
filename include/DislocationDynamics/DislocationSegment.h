@@ -109,6 +109,9 @@ namespace model
         const VectorDim& burgers() const;
         const VectorDim& glidePlaneNormal() const;
         void addToGlobalAssembly(std::deque<Eigen::Triplet<double> >& kqqT,Eigen::VectorXd& FQ) const;
+        // Indices belong to the caller's current, immutable assembly snapshot.
+        void addToGlobalAssembly(std::deque<Eigen::Triplet<double> >& kqqT,Eigen::VectorXd& FQ,
+                                 const size_t sourceIndex,const size_t sinkIndex) const;
         void createQuadraturePoints(const bool& isClimbStep);
         void updateQuadraturePoints(const bool& isClimbStep);
         int velocityGroup(const double &maxVelocity, const std::set<int> &subcyclingBins) const;

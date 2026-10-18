@@ -8,6 +8,7 @@
 #ifndef model_PlanePlaneIntersection_H_
 #define model_PlanePlaneIntersection_H_
 
+#include <cfloat>
 #include <tuple>
 #include <map>
 #include <Eigen/Dense>

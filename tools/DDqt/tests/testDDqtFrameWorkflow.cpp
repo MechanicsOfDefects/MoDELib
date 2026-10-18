@@ -6,6 +6,10 @@
 #include <vtkRenderer.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkActor2D.h>
+#include <vtkActorCollection.h>
+#include <vtkDataSetMapper.h>
+#include <vtkCallbackCommand.h>
+#include <vtkExecutive.h>
 #include <vtkProperty.h>
 #include <filesystem>
 #include <fstream>
@@ -20,6 +24,35 @@ void check(bool condition, const char *message)
     {
         throw std::runtime_error(message);
     }
+}
+
+void checkDataSetMapperInputs(vtkRenderer* renderer)
+{
+    size_t checked=0;
+    auto* actors=renderer->GetActors();
+    actors->InitTraversal();
+    while(auto* actor=actors->GetNextActor())
+    {
+        auto* mapper=vtkDataSetMapper::SafeDownCast(actor->GetMapper());
+        if(mapper)
+        {
+            ++checked;
+            check(mapper->GetNumberOfInputConnections(0)==1,
+                  "Dataset mapper has no input when inclusion physics is absent");
+            bool error=false;
+            auto callback=vtkSmartPointer<vtkCallbackCommand>::New();
+            callback->SetClientData(&error);
+            callback->SetCallback([](vtkObject*,unsigned long,void* data,void*)
+            {
+                *static_cast<bool*>(data)=true;
+            });
+            const auto observer=mapper->GetExecutive()->AddObserver(vtkCommand::ErrorEvent,callback);
+            mapper->Update();
+            mapper->GetExecutive()->RemoveObserver(observer);
+            check(!error,"Dataset mapper reported a pipeline error");
+        }
+    }
+    check(checked>0,"Expected at least the polyhedral inclusion dataset mapper");
 }
 
 void checkPeriodicImages()
@@ -179,7 +212,9 @@ int main(int argc, char **argv)
             window->AddRenderer(renderer);
             auto *viewer = new model::DefectiveCrystalActor(window, renderer, nullptr, base);
             QPointer<model::DefectiveCrystalActor> guardedViewer(viewer);
+            checkDataSetMapperInputs(renderer);
             check(viewer->updateConfiguration(0), "Initial frame load failed");
+            checkDataSetMapperInputs(renderer);
             // Add a sampling plane so each successful load must refresh Fields.
             viewer->ddField->findChildren<QSpinBox*>().front()->setValue(1);
             auto *plane = viewer->ddField->findChild<model::DDPlaneField*>();
@@ -201,7 +236,8 @@ int main(int argc, char **argv)
             check(notifications == 1 && plane->dataPnts().front().displacement.front().allFinite(), "Next did not update Fields");
             poisonField();
             viewer->frameIDedit->setText("0");
-            QMetaObject::invokeMethod(viewer->frameIDedit, "returnPressed", Qt::DirectConnection);
+            viewer->frameIDedit->setModified(true);
+            QMetaObject::invokeMethod(viewer->frameIDedit, "editingFinished", Qt::DirectConnection);
             check(notifications == 2 && plane->dataPnts().front().displacement.front().allFinite(), "Frame edit did not update Fields");
             poisonField();
             viewer->stopFrameButton->click();
@@ -213,6 +249,7 @@ int main(int argc, char **argv)
             check(timers.size() == 1 && timers.front()->isActive(), "Play created duplicate timers");
             QMetaObject::invokeMethod(timers.front(), "timeout", Qt::DirectConnection);
             check(viewer->frameIDedit->text() == "10" && plane->dataPnts().front().displacement.front().allFinite(), "Playback did not update Fields");
+            checkDataSetMapperInputs(renderer);
             viewer->stopConfigurations();
             check(!timers.front()->isActive(), "Stop did not stop the timer immediately");
             const int committed = notifications;
@@ -238,6 +275,33 @@ int main(int argc, char **argv)
             check(viewer->updateConfiguration(20) && viewer->frameStatus->text().contains("capture failed"),
                   "Capture failure incorrectly undid a valid frame");
             check(plane->dataPnts().front().displacement.front().allFinite(), "Capture preceded field refresh");
+            viewer->saveImage->setChecked(false);
+            const Eigen::Vector3d center=0.5*(base.mesh.xMin()+base.mesh.xMax());
+            auto* camera=renderer->GetActiveCamera();
+            const Eigen::Vector3d initialPosition=center+Eigen::Vector3d(10,0,0);
+            camera->SetPosition(initialPosition.data());
+            camera->SetFocalPoint(center.data());
+            camera->SetViewUp(0,0,1);
+            viewer->cameraAdvanceEdit->setText("1");
+            viewer->rotationAngleEdit->setText("0");
+            auto manualFrame=[&](const char* text)
+            {
+                viewer->frameIDedit->setText(text);
+                viewer->frameIDedit->setModified(true);
+                QMetaObject::invokeMethod(viewer->frameIDedit,"editingFinished",Qt::DirectConnection);
+            };
+            manualFrame("10");
+            check(Eigen::Vector3d(camera->GetPosition()).isApprox(center),
+                  "Manual frame selection did not advance camera to center");
+            manualFrame("20");
+            check(Eigen::Vector3d(camera->GetPosition()).isApprox(center-Eigen::Vector3d(10,0,0)),
+                  "Manual frame selection did not advance camera past center");
+            const int beforeRepeatedFinish=notifications;
+            QMetaObject::invokeMethod(viewer->frameIDedit,"editingFinished",Qt::DirectConnection);
+            check(notifications==beforeRepeatedFinish,"Focus loss reloaded an already committed frame");
+            manualFrame("0");
+            check(Eigen::Vector3d(camera->GetPosition()).isApprox(initialPosition),
+                  "Manual backward selection did not restore camera position");
             // The main window must actually destroy removed pages and their timers.
             model::DDqtMainWindow mainWindow;
             auto *tabs = qobject_cast<QTabWidget*>(mainWindow.centralWidget());

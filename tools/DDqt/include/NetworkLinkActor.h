@@ -17,6 +17,7 @@
 #include <QGridLayout>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QSlider>
 
 #include <vtkGenericOpenGLRenderWindow.h>
 #include <vtkVersion.h>
@@ -66,7 +67,9 @@ namespace model
         QCheckBox* showLinks;
         QSlider* sliderLinksRadius;
 
-        QCheckBox* showZeroLinks;
+        QSlider* sliderNormalOpacity;
+        QSlider* sliderZeroOpacity;
+        QSlider* sliderBoundaryOpacity;
         QComboBox* linksColorBox;
 
 //        double tubeRadius;

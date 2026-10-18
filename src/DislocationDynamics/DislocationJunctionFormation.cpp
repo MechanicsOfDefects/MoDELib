@@ -35,7 +35,7 @@ namespace model
                                                                                   const NetworkLinkType *const linkB,
                                                                                   const SegmentSegmentDistance<dim> &ssd,
                                                                                   const double &currentcCollisionTOL,
-                                                                                  const bool &bndJunction, const bool &gbndJunction)
+                                                                                  const bool &bndJunction, const bool &gbndJunction,const int event)
     {
         VerboseJunctions(2, "insertIntersection " << linkA->tag() << " [ " << linkA->source->get_P().transpose() << ", " << linkA->sink->get_P().transpose()
                          << " ]"
@@ -48,7 +48,7 @@ namespace model
         
         if (ssd.dMin < currentcCollisionTOL)
         {
-            bool isValidJunction((bndJunction || gbndJunction) && !DN.ddBase.isPeriodicDomain);
+            bool isValidJunction(bndJunction || gbndJunction);
             if (!isValidJunction && !linkA->isBoundarySegment() && !linkB->isBoundarySegment() && !linkA->isGrainBoundarySegment() && !linkB->isGrainBoundarySegment())
             { // Check force condition for internal segments
                 
@@ -96,11 +96,11 @@ namespace model
     #ifdef _OPENMP
                 intersectionContainer[omp_get_thread_num()].emplace_back(linkA->key,
                                                                          linkB->key,
-                                                                         ssd);
+                                                                         ssd,event);
     #else
                 intersectionContainer[0].emplace_back(linkA->key,
                                                       linkB->key,
-                                                      ssd);
+                                                      ssd,event);
     #endif
             }
         }
@@ -128,10 +128,13 @@ namespace model
             const auto sharedLink(link.second.lock());
             
             if(   (!sharedLink->hasZeroBurgers() )
-               || sharedLink->isBoundarySegment() )
+               || sharedLink->isBoundarySegment() || sharedLink->isGrainBoundarySegment() )
                 
             {
-                swp.addSegment(sharedLink->source->get_P()(0),sharedLink->sink->get_P()(0),*sharedLink);
+                const double x0=sharedLink->source->get_P()(0);
+                const double x1=sharedLink->sink->get_P()(0);
+                swp.addSegment(std::min(x0,x1)-0.5*collisionTol,
+                               std::max(x0,x1)+0.5*collisionTol,*sharedLink);
             }
         }
         swp.computeIntersectionPairs();
@@ -173,6 +176,24 @@ namespace model
             const auto& linkA(reducedIntersectionPairs[k].first);
             const auto& linkB(reducedIntersectionPairs[k].second);
             
+            findPairIntersections(intersectionContainer,linkA,linkB);
+        }
+
+        int nIntersections=0;
+        for (const auto& intersectionByThreadContainer : intersectionContainer)
+        {
+            nIntersections+=intersectionByThreadContainer.size();
+        }
+        std::cout<<nIntersections<<" physical junctions "<<std::flush;
+        std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t1)).count()<<" sec]"<<defaultColor<<std::endl;
+
+    }
+
+    template <typename DislocationNetworkType>
+    void DislocationJunctionFormation<DislocationNetworkType>::findPairIntersections(
+        std::deque<IntersectionTypeContainerType>& intersectionContainer,
+        const NetworkLinkType* linkA,const NetworkLinkType* linkB)
+    {
             VerboseJunctions(2,"checking intersection "<<linkA->tag()<<","<<linkB->tag()<<std::endl;);
             
             
@@ -182,16 +203,27 @@ namespace model
             const bool linkBisGBnd(linkB->isGrainBoundarySegment());
             
             
-            const bool bndJunction(   (linkAisBnd || linkBisBnd)
-                                   &&  linkA->glidePlaneNormal().cross(linkB->glidePlaneNormal()).norm()<FLT_EPSILON // same plane
-                                   &&  linkA->chord().cross(linkB->chord()).norm()<FLT_EPSILON // colinear on boundary
-                                   );
-            
-            const bool gbndJunction(   (linkAisGBnd || linkBisGBnd)
-                                    &&  linkA->glidePlaneNormal().cross(linkB->glidePlaneNormal()).norm()<FLT_EPSILON
-                                    &&  linkA->chord().cross(linkB->chord()).norm()<FLT_EPSILON // colinear on grain-boundary
-                                    );
-            
+            bool bndJunction=false;
+            bool gbndJunction=false;
+            const auto facesB=linkB->meshFaces();
+            // Boundary merging requires a common physical face, not merely a
+            // boundary label on one segment or parallel faces elsewhere.
+            if(linkA->chord().norm()>FLT_EPSILON && linkB->chord().norm()>FLT_EPSILON &&
+               linkA->chord().normalized().cross(linkB->chord().normalized()).norm()<FLT_EPSILON &&
+               linkA->glidePlaneNormal().cross(linkB->glidePlaneNormal()).norm()<FLT_EPSILON)
+            {
+                for(const auto* face : linkA->meshFaces())
+                {
+                    if(facesB.count(face))
+                    {
+                        const bool grainBoundary=face->regionIDs.first!=face->regionIDs.second ||
+                            (face->periodicFacePair.second && face->regionIDs!=face->periodicFacePair.second->regionIDs);
+                        gbndJunction=gbndJunction || grainBoundary;
+                        bndJunction=bndJunction || (face->isExternal() && !face->periodicFacePair.second);
+                    }
+                }
+            }
+
             VerboseJunctions(2,"links are bnd: "<<linkAisBnd<<" "<<linkBisBnd<<std::endl;);
             VerboseJunctions(2,"links are grainBnd: "<<linkAisGBnd<<" "<<linkBisGBnd<<std::endl;);
             VerboseJunctions(2,"bndJunction: "<<bndJunction<<std::endl;);
@@ -231,7 +263,7 @@ namespace model
                                                  linkB->source->get_P(),
                                                  linkB->sink->get_P(),
                                                  1.0);
-                insertIntersection(intersectionContainer,linkA,linkB,ssdA,currentcCollisionTOL,bndJunction,gbndJunction);
+                insertIntersection(intersectionContainer,linkA,linkB,ssdA,currentcCollisionTOL,bndJunction,gbndJunction,1);
                 
                 // intersect sink of B with link A
                 SegmentSegmentDistance<dim> ssdB(linkA->source->get_P(),
@@ -239,7 +271,7 @@ namespace model
                                                  linkB->sink->get_P(),    // fake degenerete segment at sink of B
                                                  linkB->sink->get_P(),    // fake degenerete segment at sink of B
                                                  1.0);
-                insertIntersection(intersectionContainer,linkA,linkB,ssdB,currentcCollisionTOL,bndJunction,gbndJunction);
+                insertIntersection(intersectionContainer,linkA,linkB,ssdB,currentcCollisionTOL,bndJunction,gbndJunction,2);
                 
             }
             else if(intersectionIsSourceSink)
@@ -250,7 +282,7 @@ namespace model
                                                  linkB->source->get_P(),
                                                  linkB->sink->get_P(),
                                                  1.0);
-                insertIntersection(intersectionContainer,linkA,linkB,ssdA,currentcCollisionTOL,bndJunction,gbndJunction);
+                insertIntersection(intersectionContainer,linkA,linkB,ssdA,currentcCollisionTOL,bndJunction,gbndJunction,1);
                 
                 // intersect source of B with link A
                 SegmentSegmentDistance<dim> ssdB(linkA->source->get_P(),
@@ -258,7 +290,7 @@ namespace model
                                                  linkB->source->get_P(),    // fake degenerete segment at source of B
                                                  linkB->source->get_P(),    // fake degenerete segment at source of B
                                                  0.0);
-                insertIntersection(intersectionContainer,linkA,linkB,ssdB,currentcCollisionTOL,bndJunction,gbndJunction);
+                insertIntersection(intersectionContainer,linkA,linkB,ssdB,currentcCollisionTOL,bndJunction,gbndJunction,2);
             }
             else if(intersectionIsSinkSource)
             {
@@ -269,7 +301,7 @@ namespace model
                                                  linkB->source->get_P(),
                                                  linkB->sink->get_P(),
                                                  0.0);
-                insertIntersection(intersectionContainer,linkA,linkB,ssdA,currentcCollisionTOL,bndJunction,gbndJunction);
+                insertIntersection(intersectionContainer,linkA,linkB,ssdA,currentcCollisionTOL,bndJunction,gbndJunction,1);
                 
                 
                 // intersect sink of B with link A
@@ -278,7 +310,7 @@ namespace model
                                                  linkB->sink->get_P(),    // fake degenerete segment at sink of B
                                                  linkB->sink->get_P(),    // fake degenerete segment at sink of B
                                                  1.0);
-                insertIntersection(intersectionContainer,linkA,linkB,ssdB,currentcCollisionTOL,bndJunction,gbndJunction);
+                insertIntersection(intersectionContainer,linkA,linkB,ssdB,currentcCollisionTOL,bndJunction,gbndJunction,2);
             }
             else if(intersectionIsSinkSink)
             {
@@ -288,7 +320,7 @@ namespace model
                                                  linkB->source->get_P(),
                                                  linkB->sink->get_P(),
                                                  0.0);
-                insertIntersection(intersectionContainer,linkA,linkB,ssdA,currentcCollisionTOL,bndJunction,gbndJunction);
+                insertIntersection(intersectionContainer,linkA,linkB,ssdA,currentcCollisionTOL,bndJunction,gbndJunction,1);
                 
                 
                 // intersect source of B with link A
@@ -297,7 +329,7 @@ namespace model
                                                  linkB->source->get_P(),    // fake degenerete segment at source of B
                                                  linkB->source->get_P(),    // fake degenerete segment at source of B
                                                  0.0);
-                insertIntersection(intersectionContainer,linkA,linkB,ssdB,currentcCollisionTOL,bndJunction,gbndJunction);
+                insertIntersection(intersectionContainer,linkA,linkB,ssdB,currentcCollisionTOL,bndJunction,gbndJunction,2);
                 
             }
             else
@@ -310,16 +342,6 @@ namespace model
                                                 );
                 insertIntersection(intersectionContainer,linkA,linkB,ssd,currentcCollisionTOL,bndJunction,gbndJunction);
             }
-        }
-        
-        int nIntersections=0;
-        for (const auto& intersectionByThreadContainer : intersectionContainer)
-        {
-            nIntersections+=intersectionByThreadContainer.size();
-        }
-        std::cout<<nIntersections<<" physical junctions "<<std::flush;
-        std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t1)).count()<<" sec]"<<defaultColor<<std::endl;
-        
     }
 
     //     Yash's version(Working)
@@ -400,7 +422,13 @@ namespace model
         }
         else
         {// junction node is an existing node
-            if (!Nclose->isBoundaryNode())
+            bool physicalEndpoint=false;
+            for(const auto* ln : Nclose->loopNodes())
+            {
+                physicalEndpoint=physicalEndpoint || ln->isPhysicalBoundaryNode();
+            }
+            if (!Nclose->isBoundaryNode() ||
+                (physicalEndpoint && (Nclose->get_P()-x).norm()<=FLT_EPSILON))
             {
                 VerboseJunctions(4, "JunctionNode case f" << std::endl;);
                 return std::make_pair(Nclose, false);
@@ -422,21 +450,71 @@ namespace model
         
         DN.danglingBoundaryLoopNodes.clear();
         size_t nContracted=0;
+        size_t nDeferred=0;
+        std::set<size_t> changedNodes;
+
         for (const auto& intersectionByThreadContainer : intersectionContainer)
         {
             for (const auto& intersection : intersectionByThreadContainer)
             {
                 const KeyType& key1(std::get<0>(intersection));
                 const KeyType& key2(std::get<1>(intersection));
-                const SegmentSegmentDistance<dim>& ssd(std::get<2>(intersection));
-                const double& t(ssd.t);
-                const double& u(ssd.u);
                 
                 const auto L1(DN.networkLinks().get(key1));
                 const auto L2(DN.networkLinks().get(key2));
                 
                 if(L1 && L2) // Links exist
                 {
+                    // Inspect whole incident contours before querying derived boundary
+                    // topology. A shared node makes two otherwise distinct loops
+                    // dependent. IDs also survive loop splitting during contraction.
+                    std::set<size_t> footprint;
+                    std::set<size_t> visitedLoops;
+                    for(const auto& node : {L1->source,L1->sink,L2->source,L2->sink})
+                    {
+                        for(const auto* occurrence : node->loopNodes())
+                        {
+                            if(visitedLoops.insert(occurrence->loop()->sID).second)
+                            {
+                                for(const auto* link : occurrence->loop()->linkSequence())
+                                {
+                                    footprint.insert(link->source->networkNode->sID);
+                                }
+                            }
+                        }
+                    }
+                    const bool dependent=std::any_of(footprint.begin(),footprint.end(),[&](const size_t id)
+                    {
+                        return changedNodes.count(id)!=0;
+                    });
+                    if(dependent)
+                    {
+                        ++nDeferred;
+                        continue;
+                    }
+                    // Recheck only queued pairs, not the global sweep. Earlier
+                    // contractions can move endpoints or change link membership
+                    // without changing the two endpoint IDs.
+                    std::deque<IntersectionTypeContainerType> refreshed(1);
+                    findPairIntersections(refreshed,L1.get(),L2.get());
+                    if(refreshed.front().empty())
+                    {
+                        continue;
+                    }
+                    // Keep the two endpoint-versus-segment events distinct.
+                    // If connectivity changed, use the newly valid pair event.
+                    auto refreshedEvent=refreshed.front().begin();
+                    for(auto it=refreshed.front().begin();it!=refreshed.front().end();++it)
+                    {
+                        if(std::get<3>(*it)==std::get<3>(intersection))
+                        {
+                            refreshedEvent=it;
+                            break;
+                        }
+                    }
+                    const auto ssd=std::get<2>(*refreshedEvent);
+                    const double t=ssd.t;
+                    const double u=ssd.u;
                     VerboseJunctions(1,"forming junction "<<key1.first<<"->"<<key1.second<<", "
                                      /*                   */ <<key2.first<<"->"<<key2.second<<", "
                                      /*                   */ <<"dMin="<<ssd.dMin<<", "
@@ -453,39 +531,7 @@ namespace model
                         
                         if (Ni.first->sID != Nj.first->sID)
                         {
-                            //Collect the boundary nodes for Nj for (const auto &loopN : loopNode.second.lock()->networkNode->loopNodes())
-                            std::set<size_t> bndLoopNodes;
-                            
-                            for (const auto &loopN : Ni.first->loopNodes())
-                            {
-                                if (!loopN->periodicPlaneEdge.first) //if we are allowing for the boundary node contraction
-                                {
-                                    for (const auto &bndNode : loopN->boundaryPrev())
-                                    {
-                                        bndLoopNodes.insert(bndNode->sID);
-                                    }
-                                    for (const auto &bndNode : loopN->boundaryNext())
-                                    {
-                                        bndLoopNodes.insert(bndNode->sID);
-                                    }
-                                }
-                            }
-                            for (const auto & loopN : Nj.first->loopNodes())
-                            {
-                                if (!loopN->periodicPlaneEdge.first)
-                                {
-                                    for (const auto &bndNode : loopN->boundaryPrev())
-                                    {
-                                        bndLoopNodes.insert(bndNode->sID);
-                                    }
-                                    for (const auto &bndNode : loopN->boundaryNext())
-                                    {
-                                        bndLoopNodes.insert(bndNode->sID);
-                                    }
-                                }
-                            }
-                            
-                            const bool success = DN.contract(Ni.first, Nj.first);
+                            const bool success = DN.nodeContractor.contract(Ni.first,Nj.first,false);
                             VerboseJunctions(1, "success= " << success << std::endl;);
                             
                             nContracted += success;
@@ -501,51 +547,10 @@ namespace model
                                 }
                             }
                             else
-                            { //Update the boundary nodes here
-                                for (const size_t &nodeID : bndLoopNodes)
-                                {
-                                    auto nodeIter(DN.loopNodes().find(nodeID));
-                                    if (nodeIter != DN.loopNodes().end())
-                                    {
-                                        auto bndNode(nodeIter->second.lock());
-                                        
-                                        const auto pPrev(bndNode->periodicPrev());
-                                        const auto pNext(bndNode->periodicNext());
-                                        //                VerboseDislocationLoopNode(4,"pPrev= "<<pPrev->tag()<<" @ "<<pPrev->get_P().transpose()<<std::endl;);
-                                        //                VerboseDislocationLoopNode(4,"pNext= "<<pNext->tag()<<" @ "<<pNext->get_P().transpose()<<std::endl;);
-                                        if (pPrev && pNext)
-                                        {
-                                            const auto pPrevLocal(bndNode->loop()->periodicGlidePlane->referencePlane->localPosition(pPrev->get_P()));
-                                            //                VerboseDislocationLoopNode(4,"pPrevLocal= "<<pPrevLocal.transpose()<<std::endl;);
-                                            const auto pNextLocal(bndNode->loop()->periodicGlidePlane->referencePlane->localPosition(pNext->get_P()));
-                                            //                VerboseDislocationLoopNode(4,"pNextLocal= "<<pNextLocal.transpose()<<std::endl;);
-                                            //                VerboseDislocationLoopNode(4,"periodicPlaneEdge->source= "<<bndNode->periodicPlaneEdge->source->transpose()<<std::endl;);
-                                            //                VerboseDislocationLoopNode(4,"bndNode->periodicPlaneEdge->sink= "<<bndNode->periodicPlaneEdge->sink->transpose()<<std::endl;);
-                                            //
-                                            // SegmentSegmentDistance<dim> ssd3(pPrev->get_P(), pNext->get_P(), bndNode->periodicPlaneEdge->meshIntersection->P0, bndNode->periodicPlaneEdge->meshIntersection->P1);
-                                            //                VerboseDislocationLoopNode(4,"ssd3.dMin= "<<ssd3.dMin<<std::endl;);
-                                            
-                                            SegmentSegmentDistance<dim - 1> ssd1(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.first->source, *bndNode->periodicPlaneEdge.first->sink);
-                                            
-                                            if (ssd1.dMin < FLT_EPSILON)
-                                            {
-                                                if (bndNode->periodicPlaneEdge.second)
-                                                {
-                                                    SegmentSegmentDistance<dim - 1> ssd2(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.second->source, *bndNode->periodicPlaneEdge.second->sink);
-                                                    const VectorLowerDim ssd1Pos(0.5 * (ssd1.x0 + ssd1.x1));
-                                                    const VectorLowerDim ssd2Pos(0.5 * (ssd2.x0 + ssd2.x1));
-                                                    assert((ssd1Pos - ssd2Pos).norm() < FLT_EPSILON && "The two positions must match ");
-                                                }
-                                                bndNode->set_P(VectorLowerDim(0.5 * (ssd1.x0 + ssd1.x1)));
-                                            }
-                                            else
-                                            {
-                                                bndNode->set_P(bndNode->loop()->periodicGlidePlane->referencePlane->localPosition(bndNode->get_P()));
-                                                DN.danglingBoundaryLoopNodes.insert(bndNode.get());
-                                            }
-                                        }
-                                    }
-                                }
+                            {
+                                changedNodes.insert(footprint.begin(),footprint.end());
+                                changedNodes.insert(Ni.first->sID);
+                                changedNodes.insert(Nj.first->sID);
                             }
                         }
                     }
@@ -575,15 +580,14 @@ namespace model
             }
         }
         
-        std::cout<<" ("<<nContracted<<" contracted)"<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
-        
-        
-        std::cout << "Updating Boundary Nodes after junction contraction" << std::endl;
-        if (DN.danglingBoundaryLoopNodes.size())
+        if(nContracted || !DN.danglingBoundaryLoopNodes.empty())
         {
             DN.updateBoundaryNodes();
         }
-        
+        std::cout<<" ("<<nContracted<<" contracted, "<<nDeferred<<" deferred)"<<magentaColor
+                 <<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()
+                 <<" sec]"<<defaultColor<<std::endl;
+
         return nContracted;
     }
 
@@ -631,396 +635,206 @@ namespace model
             }
         }
         
-        size_t formedJunctions = 0;
-        
-        for (const auto &tup : glissDeq)
+        size_t formedJunctions=0;
+        for(const auto& [source,sink,grainID,slipID] : glissDeq)
         {
-            const std::shared_ptr<NetworkNodeType> &source(std::get<0>(tup));
-            const std::shared_ptr<NetworkNodeType> &sink(std::get<1>(tup));
-            const size_t &sourceID(source->sID);
-            const size_t &sinkID(sink->sID);
-            const size_t &grainID(std::get<2>(tup));
-            const size_t &slipID(std::get<3>(tup));
-            
-            const auto isLink(DN.networkLinks().get(std::make_pair(sourceID, sinkID)));
-            if (isLink)
+            const auto link=DN.networkLinks().get(std::make_pair(source->sID,sink->sID));
+            const auto& slip=DN.ddBase.poly.grain(grainID)->slipSystems().at(slipID);
+            // Earlier seeds may already have consumed this periodic continuation.
+            if(!link || link->hasZeroBurgers() || !link->isSessile() ||
+               link->isBoundarySegment() || link->isGrainBoundarySegment() ||
+               (link->burgers()-slip->s.cartesian()).norm()>FLT_EPSILON)
             {
-                if (!isLink->hasZeroBurgers())
+                continue;
+            }
+
+            // Orient each contributing loop's walk from network source to sink.
+            // Only artificial periodic subdivisions are traversed: physical
+            // faces and original loop nodes terminate the continuation.
+            std::deque<const LoopNodeType*> path;
+            VectorDim originShift=VectorDim::Zero();
+            bool valid=true;
+            for(const auto* occurrence : link->loopLinks())
+            {
+                const bool forward=occurrence->source->networkNode==source;
+                const auto* a=(forward? occurrence->source : occurrence->sink).get();
+                const auto* b=(forward? occurrence->sink : occurrence->source).get();
+                std::deque<const LoopNodeType*> candidate{a,b};
+                std::set<const LoopNodeType*> visited{a,b};
+                for(const bool left : {true,false})
                 {
-                    const VectorDim newNodeP(0.5 * (isLink->source->get_P() + isLink->sink->get_P())); //This new node is only on one side
-                    
-                    const long int planeIndex(DN.ddBase.poly.grain(grainID)->slipSystems().at(slipID)->n.closestPlaneIndexOfPoint(newNodeP));
-                    const GlidePlaneKey<dim> glissilePlaneKey(planeIndex, DN.ddBase.poly.grain(grainID)->slipSystems().at(slipID)->n);
-                    const auto glidePlane(DN.ddBase.glidePlaneFactory.getFromKey(glissilePlaneKey));
-                    auto glissileLoop(DN.loops().create(DN.ddBase.poly.grain(grainID)->slipSystems().at(slipID)->s.cartesian(), glidePlane));
-                    
-                    VerboseJunctions(3, "Glissile Junction from Link" << isLink->tag() << std::endl;);
-                    
-                    if (!source->isBoundaryNode() && !sink->isBoundaryNode())
+                    const auto* current=left? candidate.front() : candidate.back();
+                    while(current->isPeriodicSubdivision())
                     {
-                        VerboseJunctions(3, "Case (a) internal node" << std::endl;);
-                        
-                        std::shared_ptr<NetworkNodeType> newNode(DN.networkNodes().create(glidePlane->snapToPlane(newNodeP)));
-                        
-                        std::vector<std::shared_ptr<NetworkNodeType>> networkNodes;
-                        
-                        networkNodes.push_back(sink);   // insert in reverse order, sink first, source second
-                        networkNodes.push_back(source); // insert in reverse order, sink first, source second
-                        networkNodes.push_back(newNode);
-                        
-                        std::vector<std::shared_ptr<LoopNodeType>> loopNodes;
-                        
-                        const auto periodicGlidePlane(DN.ddBase.periodicGlidePlaneFactory.get(glidePlane->key));
-                        const auto periodicPatch(periodicGlidePlane->getPatch(VectorDim::Zero()));
-                        
-                        loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, sink, sink->get_P(), periodicPatch, std::make_pair (nullptr,nullptr)));
-                        loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, source, source->get_P(), periodicPatch, std::make_pair (nullptr,nullptr)));
-                        
-                        //New node cannot be a boundary node
-                        loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, newNode, newNode->get_P(), periodicPatch, std::make_pair (nullptr,nullptr)));
-                        
-                        DN.insertLoop(glissileLoop, loopNodes);
-                        
-                        formedJunctions++;
-                    }
-                    else if (source->isBoundaryNode() && sink->isBoundaryNode())
-                    {
-                        //Skip this case
-                        VerboseJunctions(3, "Case (b) both nodes at boundary" << std::endl;);
-                    }
-                    else
-                    {
-                        //Either of the node is boundary
-                        VerboseJunctions(3, "Case (c) one of the nodes boundary " << std::endl;);
-                        
-                        if (source->isBoundaryNode())
+                        const bool next=left? !forward : forward;
+                        const auto* adjacent=next? current->next.first : current->prev.first;
+                        if(!adjacent || !visited.insert(adjacent).second)
                         {
-                            VerboseJunctions(3, "Case (c.A) Source is Boundary " << std::endl;);
-                            
-                            //Get the loop Links of the networkLink
-                            std::set<std::shared_ptr<NetworkNodeType>> networkNodeOtherEnd;
-                            std::vector<std::pair<std::shared_ptr<NetworkNodeType>, VectorDim>> networkNodeOtherEndBnd;
-                            std::set<std::shared_ptr<NetworkNodeType>> endNodesInserted;
-                            std::set<std::shared_ptr<NetworkLinkType>> equivalentNetworkLinks;
-                            
-                            for (const auto &sourceLN : source->loopNodes())
-                            {
-                                const auto pPrev(sourceLN->periodicPrev());
-                                const auto pNext(sourceLN->periodicNext());
-                                
-                                if (pPrev && pNext)
-                                {
-                                    if (pPrev->networkNode == sink)
-                                    {
-                                        networkNodeOtherEnd.insert(pNext->networkNode);
-                                        const LoopNodeType *LNtemp(sourceLN);
-                                        
-                                        while ((LNtemp->periodicPlanePatch()->shift - pNext->periodicPlanePatch()->shift).squaredNorm() > FLT_EPSILON)
-                                        {
-                                            if (LNtemp->next.second->networkLink())
-                                            {
-                                                equivalentNetworkLinks.insert(LNtemp->next.second->networkLink());
-                                            }
-                                            LNtemp = LNtemp->next.first;
-                                            assert(LNtemp->periodicPlaneEdge.first != nullptr && "Next loop node must be on the edge");
-                                            const VectorDim patchShift(LNtemp->periodicPlanePatch()->shift - sourceLN->periodicPlanePatch()->shift);
-                                            if (endNodesInserted.find(LNtemp->networkNode) == endNodesInserted.end()) //A new networknode is being inserted
-                                            {
-                                                networkNodeOtherEndBnd.emplace_back(LNtemp->networkNode, patchShift);
-                                                endNodesInserted.insert(LNtemp->networkNode);
-                                            }
-                                        }
-                                    }
-                                    else if (pNext->networkNode == sink)
-                                    {
-                                        networkNodeOtherEnd.insert(pPrev->networkNode);
-                                        const LoopNodeType *LNtemp(sourceLN);
-                                        
-                                        while ((LNtemp->periodicPlanePatch()->shift - pPrev->periodicPlanePatch()->shift).squaredNorm() > FLT_EPSILON)
-                                        {
-                                            if (LNtemp->prev.second->networkLink())
-                                            {
-                                                equivalentNetworkLinks.insert(LNtemp->prev.second->networkLink());
-                                            }
-                                            LNtemp = LNtemp->prev.first;
-                                            assert(LNtemp->periodicPlaneEdge.first != nullptr && "Next loop node must be on the edge");
-                                            const VectorDim patchShift(LNtemp->periodicPlanePatch()->shift - sourceLN->periodicPlanePatch()->shift);
-                                            if (endNodesInserted.find(LNtemp->networkNode) == endNodesInserted.end()) //A new networknode is being inserted
-                                            {
-                                                networkNodeOtherEndBnd.emplace_back(LNtemp->networkNode, patchShift);
-                                                endNodesInserted.insert(LNtemp->networkNode);
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        assert(false && "Network connectivity ill-defined for the boundary glissile junction");
-                                    }
-                                }
-                                else
-                                {
-                                    assert(false && "Periodic Previous and Periodic Next must exist");
-                                }
-                            }
-                            
-                            //Check all the network links have the same burgers vector
-                            bool tempLink(true);
-                            for (const auto &tnLink : equivalentNetworkLinks)
-                            {
-                                tempLink = (tempLink && ((tnLink->burgers() - isLink->burgers()).squaredNorm() < FLT_EPSILON ||
-                                                         (tnLink->burgers() + isLink->burgers()).squaredNorm() < FLT_EPSILON));
-                                if (!tempLink)
-                                {
-                                    break;
-                                }
-                            }
-                            
-                            if (networkNodeOtherEnd.size() == 1 && tempLink)
-                            {
-                                //If the boundary nodes are uniquely mapped, then form the glissile junctions
-                                //If the boundary node contraction is enabled this condition can be relaxed
-                                std::vector<std::shared_ptr<LoopNodeType>> loopNodes;
-                                
-                                const auto periodicGlidePlane(DN.ddBase.periodicGlidePlaneFactory.get(glidePlane->key));
-                                const auto periodicPatch1(periodicGlidePlane->getPatch(VectorDim::Zero()));
-                                
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, sink, sink->get_P(), periodicPatch1, std::make_pair(nullptr,nullptr)));
-                                
-                                std::set<short int> edgeIDsFirstPatch;
-                                
-                                for (const auto &edge : periodicPatch1->edges())
-                                {
-                                    if (edge->meshIntersection->contains(source->get_P()))
-                                    {
-                                        edgeIDsFirstPatch.insert(edge->edgeID);
-                                    }
-                                }
-                                assert(edgeIDsFirstPatch.size() == 1 && "Glissile Junction Intersection at corner");
-                                
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, source, source->get_P(), periodicPatch1, std::make_pair(periodicPatch1->edges()[*edgeIDsFirstPatch.begin()],nullptr)));
-                                
-                                for (const auto &bndGNodes : networkNodeOtherEndBnd)
-                                {
-                                    const auto periodicPatchI(periodicGlidePlane->getPatch(bndGNodes.second));
-                                    std::set<short int> edgeIDsSecondPatch;
-                                    
-                                    for (const auto &edge : periodicPatchI->edges())
-                                    {
-                                        if (edge->meshIntersection->contains(bndGNodes.first->get_P()))
-                                        {
-                                            edgeIDsSecondPatch.insert(edge->edgeID);
-                                        }
-                                    }
-                                    
-                                    assert(edgeIDsSecondPatch.size() == 1 && "Glissile Junction Intersection at corner");
-                                    loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, bndGNodes.first, bndGNodes.first->get_P() - periodicPatchI->shift, periodicPatchI,
-                                                                                 std::make_pair(periodicPatchI->edges()[*edgeIDsSecondPatch.begin()],nullptr)));
-                                }
-                                
-                                const auto periodicPatch2(periodicGlidePlane->getPatch(networkNodeOtherEndBnd.rbegin()->second));
-                                
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, *networkNodeOtherEnd.begin(), (*networkNodeOtherEnd.begin())->get_P() - periodicPatch2->shift, periodicPatch2, std::make_pair(nullptr,nullptr)));
-                                
-                                for (auto iter = networkNodeOtherEndBnd.rbegin(); iter != networkNodeOtherEndBnd.rend(); ++iter)
-                                {
-                                    const auto periodicPatchI(periodicGlidePlane->getPatch(iter->second));
-                                    std::set<short int> edgeIDsSecondPatch;
-                                    
-                                    for (const auto &edge : periodicPatchI->edges())
-                                    {
-                                        if (edge->meshIntersection->contains(iter->first->get_P()))
-                                        {
-                                            edgeIDsSecondPatch.insert(edge->edgeID);
-                                        }
-                                    }
-                                    
-                                    assert(edgeIDsSecondPatch.size() == 1 && "Glissile Junction Intersection at corner");
-                                    const auto newNode(DN.networkNodes().create(iter->first->get_P()));
-                                    loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, newNode, newNode->get_P() - periodicPatchI->shift, periodicPatchI, std::make_pair(periodicPatchI->edges()[*edgeIDsSecondPatch.begin()],nullptr)));
-                                }
-                                //Add the node corresponding to the source loop node
-                                
-                                std::shared_ptr<NetworkNodeType> sourceEquivalentNode(DN.networkNodes().create(source->get_P()));
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, sourceEquivalentNode, sourceEquivalentNode->get_P(), periodicPatch1, std::make_pair(periodicPatch1->edges()[*edgeIDsFirstPatch.begin()],nullptr)));
-                                
-                                //Add a middle node
-                                const VectorDim newNodeP(0.5 * (source->get_P() + sink->get_P())); //This new node is only on one side
-                                std::shared_ptr<NetworkNodeType> middleNode(DN.networkNodes().create(glidePlane->snapToPlane(newNodeP)));
-                                
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, middleNode, middleNode->get_P(), periodicPatch1, std::make_pair(nullptr,nullptr)));
-                                
-                                DN.insertLoop(glissileLoop, loopNodes);
-                                
-                                formedJunctions++;
-                            }
+                            valid=false;
+                            break;
                         }
-                        else if (sink->isBoundaryNode())
+                        if(left)
                         {
-                            VerboseJunctions(3, "Case (c.B) Sink is Boundary " << std::endl;);
-                            
-                            //Get the loop Links of the networkLink
-                            std::set<std::shared_ptr<NetworkNodeType>> networkNodeOtherEnd;
-                            std::vector<std::pair<std::shared_ptr<NetworkNodeType>, VectorDim>> networkNodeOtherEndBnd;
-                            std::set<std::shared_ptr<NetworkNodeType>> endNodesInserted;
-                            std::set<std::shared_ptr<NetworkLinkType>> equivalentNetworkLinks;
-                            
-                            for (const auto &sinkLN : sink->loopNodes())
-                            {
-                                const auto pPrev(sinkLN->periodicPrev());
-                                const auto pNext(sinkLN->periodicNext());
-                                
-                                if (pPrev && pNext)
-                                {
-                                    if (pPrev->networkNode == source)
-                                    {
-                                        networkNodeOtherEnd.insert(pNext->networkNode);
-                                        const LoopNodeType *LNtemp(sinkLN);
-                                        
-                                        while ((LNtemp->periodicPlanePatch()->shift - pNext->periodicPlanePatch()->shift).squaredNorm() > FLT_EPSILON)
-                                        {
-                                            if (LNtemp->next.second->networkLink())
-                                            {
-                                                equivalentNetworkLinks.insert(LNtemp->next.second->networkLink());
-                                            }
-                                            LNtemp = LNtemp->next.first;
-                                            assert(LNtemp->periodicPlaneEdge.first != nullptr && "Next loop node must be on the edge");
-                                            const VectorDim patchShift(LNtemp->periodicPlanePatch()->shift - sinkLN->periodicPlanePatch()->shift);
-                                            if (endNodesInserted.find(LNtemp->networkNode) == endNodesInserted.end()) //A new networknode is being inserted
-                                            {
-                                                networkNodeOtherEndBnd.emplace_back(LNtemp->networkNode, patchShift);
-                                                endNodesInserted.insert(LNtemp->networkNode);
-                                            }
-                                        }
-                                    }
-                                    else if (pNext->networkNode == source)
-                                    {
-                                        
-                                        networkNodeOtherEnd.insert(pPrev->networkNode);
-                                        const LoopNodeType *LNtemp(sinkLN);
-                                        
-                                        while ((LNtemp->periodicPlanePatch()->shift - pPrev->periodicPlanePatch()->shift).squaredNorm() > FLT_EPSILON)
-                                        {
-                                            if (LNtemp->prev.second->networkLink())
-                                            {
-                                                equivalentNetworkLinks.insert(LNtemp->prev.second->networkLink());
-                                            }
-                                            LNtemp = LNtemp->prev.first;
-                                            assert(LNtemp->periodicPlaneEdge.first != nullptr && "Next loop node must be on the edge");
-                                            const VectorDim patchShift(LNtemp->periodicPlanePatch()->shift - sinkLN->periodicPlanePatch()->shift);
-                                            if (endNodesInserted.find(LNtemp->networkNode) == endNodesInserted.end()) //A new networknode is being inserted
-                                            {
-                                                networkNodeOtherEndBnd.emplace_back(LNtemp->networkNode, patchShift);
-                                                endNodesInserted.insert(LNtemp->networkNode);
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        std::cout << " Node under consideration " << sink->tag() << std::endl;
-                                        assert(false && "Network connectivity ill-defined for the boundary glissile junction");
-                                    }
-                                }
-                                else
-                                {
-                                    assert(false && "Periodic Previous and Periodic Next must exist");
-                                }
-                            }
-                            //Check all the network links have the same burgers vector
-                            bool tempLink(true);
-                            for (const auto &tnLink : equivalentNetworkLinks)
-                            {
-                                tempLink =(tempLink && ((tnLink->burgers() - isLink->burgers()).squaredNorm() < FLT_EPSILON ||
-                                                        (tnLink->burgers() + isLink->burgers()).squaredNorm() < FLT_EPSILON));
-                                if (!tempLink)
-                                {
-                                    break;
-                                }
-                            }
-                            
-                            if (networkNodeOtherEnd.size() == 1 && tempLink)
-                            {
-                                //If the boundary nodes are uniquely mapped, then form the glissile junctions
-                                //If the boundary node contraction is enabled this condition can be relaxed
-                                std::vector<std::shared_ptr<LoopNodeType>> loopNodes;
-                                
-                                const auto periodicGlidePlane(DN.ddBase.periodicGlidePlaneFactory.get(glidePlane->key));
-                                const auto periodicPatch1(periodicGlidePlane->getPatch(VectorDim::Zero()));
-                                
-                                std::set<short int> edgeIDsFirstPatch;
-                                
-                                for (const auto &edge : periodicPatch1->edges())
-                                {
-                                    if (edge->meshIntersection->contains(sink->get_P()))
-                                    {
-                                        edgeIDsFirstPatch.insert(edge->edgeID);
-                                    }
-                                }
-                                assert(edgeIDsFirstPatch.size() == 1 && "Glissile Junction Intersection at corner");
-                                
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, sink, sink->get_P(), periodicPatch1, std::make_pair(periodicPatch1->edges()[*edgeIDsFirstPatch.begin()],nullptr)));
-                                
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, source, source->get_P(), periodicPatch1, std::make_pair(nullptr,nullptr)));
-                                
-                                //Add a middle node
-                                const VectorDim newNodeP(0.5 * (source->get_P() + sink->get_P())); //This new node is only on one side
-                                std::shared_ptr<NetworkNodeType> middleNode(DN.networkNodes().create(glidePlane->snapToPlane(newNodeP)));
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, middleNode, middleNode->get_P(), periodicPatch1, std::make_pair(nullptr,nullptr)));
-                                
-                                //Add sink equivalent node
-                                std::shared_ptr<NetworkNodeType> sinkEquivalentNode(DN.networkNodes().create(sink->get_P()));
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, sinkEquivalentNode, sinkEquivalentNode->get_P(), periodicPatch1, std::make_pair(periodicPatch1->edges()[*edgeIDsFirstPatch.begin()],nullptr)));
-                                
-                                for (const auto &bndGNodes : networkNodeOtherEndBnd)
-                                {
-                                    const auto periodicPatchI(periodicGlidePlane->getPatch(bndGNodes.second));
-                                    std::set<short int> edgeIDsSecondPatch;
-                                    
-                                    for (const auto &edge : periodicPatchI->edges())
-                                    {
-                                        if (edge->meshIntersection->contains(bndGNodes.first->get_P()))
-                                        {
-                                            edgeIDsSecondPatch.insert(edge->edgeID);
-                                        }
-                                    }
-                                    
-                                    assert(edgeIDsSecondPatch.size() == 1 && "Glissile Junction Intersection at corner");
-                                    const auto newNode(DN.networkNodes().create(bndGNodes.first->get_P()));
-                                    loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, newNode, newNode->get_P() - periodicPatchI->shift, periodicPatchI, std::make_pair(periodicPatchI->edges()[*edgeIDsSecondPatch.begin()],nullptr)));
-                                }
-                                
-                                const auto periodicPatch2(periodicGlidePlane->getPatch(networkNodeOtherEndBnd.rbegin()->second));
-                                
-                                loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, *networkNodeOtherEnd.begin(), (*networkNodeOtherEnd.begin())->get_P() - periodicPatch2->shift, periodicPatch2, std::make_pair(nullptr,nullptr)));
-                                
-                                for (auto iter = networkNodeOtherEndBnd.rbegin(); iter != networkNodeOtherEndBnd.rend(); ++iter)
-                                {
-                                    const auto periodicPatchI(periodicGlidePlane->getPatch(iter->second));
-                                    std::set<short int> edgeIDsSecondPatch;
-                                    
-                                    for (const auto &edge : periodicPatchI->edges())
-                                    {
-                                        if (edge->meshIntersection->contains(iter->first->get_P()))
-                                        {
-                                            edgeIDsSecondPatch.insert(edge->edgeID);
-                                        }
-                                    }
-                                    
-                                    assert(edgeIDsSecondPatch.size() == 1 && "Glissile Junction Intersection at corner");
-                                    loopNodes.emplace_back(DN.loopNodes().create(glissileLoop, iter->first, iter->first->get_P() - periodicPatchI->shift, periodicPatchI, std::make_pair(periodicPatchI->edges()[*edgeIDsSecondPatch.begin()],nullptr)));
-                                }
-                                
-                                DN.insertLoop(glissileLoop, loopNodes);
-                                
-                                formedJunctions++;
-                            }
+                            candidate.push_front(adjacent);
                         }
                         else
                         {
-                            assert(false && "Error (Source and Sink must not be boundary for the glissile junctions)");
+                            candidate.push_back(adjacent);
+                        }
+                        current=adjacent;
+                    }
+                    if(!valid)
+                    {
+                        break;
+                    }
+                }
+                if(!valid)
+                {
+                    break;
+                }
+                const VectorDim shift=a->periodicPlanePatch()->shift;
+                if(path.empty())
+                {
+                    path=candidate;
+                    originShift=shift;
+                }
+                else
+                {
+                    // Sharing must agree through the whole continuation, not
+                    // just at the original pair of network nodes. Do not choose
+                    // an unrelated loop visiting a shared endpoint.
+                    if(path.size()!=candidate.size())
+                    {
+                        valid=false;
+                        break;
+                    }
+                    for(size_t k=0;k<path.size();++k)
+                    {
+                        if(path[k]->networkNode!=candidate[k]->networkNode ||
+                           (path[k]->periodicPlanePatch()->shift-originShift-
+                            candidate[k]->periodicPlanePatch()->shift+shift).norm()>FLT_EPSILON)
+                        {
+                            valid=false;
+                            break;
                         }
                     }
                 }
+                if(!valid)
+                {
+                    break;
+                }
             }
+            if(!valid || path.size()<2)
+            {
+                continue;
+            }
+
+            const VectorDim midpoint=0.5*(source->get_P()+sink->get_P());
+            const auto glidePlane=DN.ddBase.glidePlaneFactory.getFromKey(GlidePlaneKey<dim>(midpoint,slip->n));
+            const auto periodicPlane=DN.ddBase.periodicGlidePlaneFactory.get(glidePlane->key);
+            using EdgePair=std::pair<std::shared_ptr<PeriodicPlaneEdge<dim>>,std::shared_ptr<PeriodicPlaneEdge<dim>>>;
+            struct SeedPoint
+            {
+                std::shared_ptr<NetworkNodeType> node;
+                VectorDim position;
+                std::shared_ptr<PeriodicPlanePatch<dim>> patch;
+                EdgePair edges;
+            };
+            std::vector<SeedPoint> prepared;
+            std::set<const NetworkLinkType*> physicalLinks;
+            size_t midpointAfter=path.size();
+            for(size_t k=0;k<path.size();++k)
+            {
+                const auto* node=path[k];
+                const VectorDim shift=node->periodicPlanePatch()->shift-originShift;
+                const VectorDim position=node->networkNode->get_P()-shift;
+                if(std::abs((position-glidePlane->P).dot(glidePlane->unitNormal))>FLT_EPSILON)
+                {
+                    valid=false;
+                    break;
+                }
+                const auto patch=periodicPlane->getPatch(shift);
+                EdgePair edges;
+                for(const auto& edge : patch->edges())
+                {
+                    // Geometry assigns metadata on the target plane; it never
+                    // chooses the continuation. Corners retain both patch edges.
+                    if(edge->meshIntersection->contains(node->networkNode->get_P()))
+                    {
+                        if(!edges.first)
+                        {
+                            edges.first=edge;
+                        }
+                        else if(!edges.second)
+                        {
+                            edges.second=edge;
+                        }
+                        else
+                        {
+                            valid=false;
+                        }
+                    }
+                }
+                if(node->isPeriodicSubdivision() && !edges.first)
+                {
+                    valid=false;
+                }
+                prepared.push_back({node->networkNode,position,patch,edges});
+                if(k+1<path.size())
+                {
+                    const auto* next=path[k+1];
+                    const auto* loopLink=node->next.first==next? node->next.second : node->prev.second;
+                    const auto segment=loopLink->networkLink();
+                    if(segment)
+                    {
+                        const VectorDim orientedB=(segment->source==node->networkNode? 1.0 : -1.0)*segment->burgers();
+                        if(segment->isBoundarySegment() || segment->isGrainBoundarySegment() ||
+                           (orientedB-link->burgers()).norm()>FLT_EPSILON ||
+                           !physicalLinks.insert(segment.get()).second)
+                        {
+                            valid=false;
+                        }
+                        if(segment==link)
+                        {
+                            midpointAfter=k;
+                        }
+                    }
+                }
+                if(!valid)
+                {
+                    break;
+                }
+            }
+            if(!valid || midpointAfter==path.size())
+            {
+                continue;
+            }
+
+            // Commit only after all contributors, translations and target-plane
+            // metadata have been checked. The return side shares the original
+            // network nodes, cancelling the junction on every periodic piece.
+            const auto seed=DN.loops().create(slip->s.cartesian(),glidePlane);
+            std::vector<std::shared_ptr<LoopNodeType>> nodes;
+            for(auto iter=prepared.rbegin();iter!=prepared.rend();++iter)
+            {
+                nodes.push_back(DN.loopNodes().create(seed,iter->node,iter->position,iter->patch,iter->edges));
+            }
+            for(size_t k=0;k+1<prepared.size();++k)
+            {
+                const auto& point=prepared[k];
+                if(k>0)
+                {
+                    const auto freeNode=DN.networkNodes().clone(point.node->sID);
+                    nodes.push_back(DN.loopNodes().create(seed,freeNode,point.position,point.patch,point.edges));
+                }
+                if(k==midpointAfter)
+                {
+                    const auto freeNode=DN.networkNodes().create(midpoint);
+                    nodes.push_back(DN.loopNodes().create(seed,freeNode,midpoint,periodicPlane->getPatch(VectorDim::Zero()),EdgePair()));
+                }
+            }
+            DN.insertLoop(seed,nodes);
+            ++formedJunctions;
         }
         std::cout << "(" << formedJunctions << " junctions)" << magentaColor << " [" << (std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count() << " sec]" << defaultColor << std::endl;
     }

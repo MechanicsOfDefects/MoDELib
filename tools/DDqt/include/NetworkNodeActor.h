@@ -45,6 +45,8 @@
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
+
     struct NetworkNodeActor : public QWidget
 //: public DDconfigVtkBase
     {
@@ -90,7 +92,7 @@ namespace model
         unsigned char nodeClr[4][3];
         
         NetworkNodeActor(vtkGenericOpenGLRenderWindow* const,vtkRenderer* const);
-        void updateConfiguration(const DDconfigIO<3>& configIO);
+        void updateConfiguration(const DDconfigIO<3>& configIO, const DislocationNetwork<3>* network=nullptr);
         
         
     };

@@ -206,6 +206,8 @@ namespace model
         }
         
         
+    protected:
+        // Derived networks reconcile contours while retaining unchanged links.
         void connect(const SharedLoopNodePtrType& n0,
                      const SharedLoopNodePtrType& n1,
                      const std::shared_ptr<LoopType>& tempLoop)
@@ -424,71 +426,64 @@ namespace model
         }
         
         bool contractNetworkNodes(const SharedNetworkNodePtrType& Ni,const SharedNetworkNodePtrType& Nj)
-        {//Updated Version for sequential removal
-            if(Nj->isContractableTo(Ni))
+        {
+            if(!Ni || !Nj || Ni==Nj || Ni->loopNodes().empty() || Nj->loopNodes().empty() ||
+               !Nj->isContractableTo(Ni))
             {
-                std::deque<std::pair<const LoopNodeType* const,const LoopNodeType* const>> loopNodesToContract;
-
-                // Contraction should get a precendence over reassignment
-                for(const auto& loopNodeI : Ni->loopNodes())
-                {
-                        for(const auto& loopNodeJ : Nj->loopNodes())
-                        {
-                            if(loopNodeJ->isContractableTo(loopNodeI))
-                            {// this implies loopNodeI and loopNodeJ in same loop
-                                // std::cout<<"Contractable loop nodes  "<<loopNodeI->sID<<" -> "<<loopNodeJ->sID<<std::endl;
-                                // std::cout<<"Contractable loop nodes networkID "<<loopNodeI->networkNode->sID<<" -> "<<loopNodeJ->networkNode->sID<<std::endl;
-                                loopNodesToContract.emplace_back(loopNodeI,loopNodeJ);
-                            }
-                           
-                        }
-                }
-                
-                for(const auto pair : loopNodesToContract)
-                {
-                    contractLoopNodes(pair.first,pair.second);
-                    
-                }
-
-                std::deque<std::pair<const LoopNodeType* const,LoopNodeType* const>> loopNodesToReassign;
-                for(const auto& loopNodeI : Ni->loopNodes())
-                {
-                        for(const auto& loopNodeJ : Nj->loopNodes())
-                        {
-                            if(!loopNodeJ->isContractableTo(loopNodeI))
-                            { // this implies loopNodeI and loopNodeJ in same loop
-                                loopNodesToReassign.emplace_back(loopNodeI,loopNodeJ);
-                            }
-                            else
-                            {
-                                assert(false && "All the loop nodes to be contracted should be finished by now.");
-                            }
-                        }
-                }
-                
-                for(auto& pair : loopNodesToReassign)
-                {
-                    pair.second->networkNode->removeLoopNode(pair.second);
-                    // std::cout<<"Coming here 1"<<std::endl;
-                    pair.second->networkNode=pair.first->networkNode;
-                    // std::cout<<"Coming here 2"<<std::endl;
-                    pair.second->networkNode->addLoopNode(pair.second);
-                    // std::cout<<"Coming here 3"<<std::endl;
-                    if(pair.second->prev.second)
-                    {
-                        pair.second->prev.second->resetNetworkLink();
-                    }
-                    if(pair.second->next.second)
-                    {
-                        pair.second->next.second->resetNetworkLink();
-                    }
-                }
-                return true;
+                return false;
             }
-            
-            return false;
+            // Cutting one loop changes membership and may destroy other nodes.
+            // Keep only the current pair alive and rediscover candidates each time.
+            while(true)
+            {
+                SharedLoopNodePtrType first;
+                SharedLoopNodePtrType second;
+                for(const auto* i : Ni->loopNodes())
+                {
+                    for(const auto* j : Nj->loopNodes())
+                    {
+                        if(j->isContractableTo(i))
+                        {
+                            first=loopNodes().get(i->key);
+                            second=loopNodes().get(j->key);
+                            break;
+                        }
+                    }
+                    if(first)
+                    {
+                        break;
+                    }
+                }
+                if(!first)
+                {
+                    break;
+                }
+                contractLoopNodes(first,second);
+            }
+            // Each remaining representation belongs to a different loop/patch.
+            // Reassign it once, even if the survivor no longer has loop nodes.
+            std::vector<SharedLoopNodePtrType> remaining;
+            for(const auto* node : Nj->loopNodes())
+            {
+                remaining.push_back(loopNodes().get(node->key));
+            }
+            for(const auto& node : remaining)
+            {
+                Nj->removeLoopNode(node.get());
+                node->networkNode=Ni;
+                Ni->addLoopNode(node.get());
+                if(node->prev.second)
+                {
+                    node->prev.second->resetNetworkLink();
+                }
+                if(node->next.second)
+                {
+                    node->next.second->resetNetworkLink();
+                }
+            }
+            return true;
         }
-        
+
         void printLoops() const
         {
             for(const auto& loop : loops())
