@@ -1,0 +1,987 @@
+\documentclass[10pt]{article}
+%\usepackage{epstopdf}
+%\usepackage{fancyhdr}
+\usepackage{graphicx}
+\graphicspath{{./Figures/}}
+\usepackage{fullpage}
+\usepackage{bm}			% for bold greek letters
+\hyphenation{}
+
+
+\usepackage{tikz}
+\usetikzlibrary{arrows,decorations.pathmorphing,backgrounds,positioning,fit}
+
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{array}
+\usepackage{longtable}
+
+
+
+
+\usepackage{subfigure}
+
+%\linespread{1.3}
+\author{Yang Li, Matthew Maron, Giacomo Po}
+\title{Drift Diffusion}
+
+
+
+
+
+\usepackage{hyperref}
+\begin{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TITLE
+\maketitle
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Drift-Diffusion}
+
+With $c$ expressed as a site fraction, define the normalized flux
+$J_i=\Omega_0 j_i$, where $j_i$ is the defect-number flux and $\Omega_0$
+is the atomic volume. The continuum normalized flux is
+\begin{align}
+J_i=-D_{ij}\left(c_{,j}+\frac{c}{kT}E^e_{,j}\right)
+\end{align}
+where $E^e$ is the interaction energy between the defect and the strain field at the equilibrium position.
+Following, if we let $D_{ij}=\tilde{D}_{ij}\exp\left(\frac{E^e}{k_BT}\right)$ then we obtain:
+\begin{align}
+J_i=-\tilde{D}_{ij}\left(c_{,j}\exp\left(\frac{E^e}{k_BT}\right)+\frac{c}{kT}\exp\left(\frac{E^e}{k_BT}\right)E^e_{,j}\right)=-\tilde{D}_{ij}\left(c\exp\left(\frac{E^e}{k_BT}\right)\right)_{,j}=-\tilde{D}_{ij}\tilde{c}_{,j}
+\end{align}
+where we have defined the renormalized concentration
+\begin{align}
+\tilde{c}(\bm x)=c(\bm x)\exp\left(\frac{E^e(\bm x)}{k_BT}\right)
+\end{align}
+The renormalized diffusion tensor can be derived from  lattice theory \cite{Dederichs1978,DaFonseca2023}. It is
+\begin{align}
+\tilde{D}_{ij}(\bm x)=\frac{1}{4}D_0\sum_{\bm h} \hat{h}_i\hat{h}_j\exp\left(-\frac{E^{s,\bm h}(\bm x)}{k_BT}\right)
+\label{Dt}
+\end{align}
+where $E^{s,\bm h}(\bm x)$ is the saddle-point interaction energy for a point defect initially located at $\bm x$ and performing a jump $\bm h$. 
+Now consider the function $E$:
+\begin{align}
+E^{s,\bm h}(\bm x)=-P^{s,\bm h}_{ij}\varepsilon_{ij}(\bm x) = -P^{s,\bm h}_{ij}\left(\varepsilon^a_{ij}(\bm x) + \varepsilon^d_{ij}(\bm x)\right)
+\end{align}
+where $\bm P^{s,\bm h}$ is the elastic dipole tensor of the defect at the saddle point of the jump trajectory $\bm h$, and the elastic strain is decomposed in applied plus dislocation. The dipoe tensor is considered constant, that is its polarizability due to the srain field is neglected. 
+
+First-order expansion of \eqref{Dt} yields
+\begin{align}
+\tilde{D}_{ij}(\bm x)=D_0\delta_{ij}+\underbrace{\frac{1}{4}\frac{D_0}{kT}\sum_{\bm h} \hat{h}_i\hat{h}_jP_{kl}^{s,\bm h}\varepsilon^a_{kl}(\bm x)}_{\text{SIPA-AD-Woo}}+\underbrace{\frac{1}{4}\frac{D_0}{kT}\sum_{\bm h} \hat{h}_i\hat{h}_jP_{kl}^{s,\bm h}\varepsilon^d_{kl}(\bm x)}_{\text{EID}}
+\label{Dt0}
+\end{align}
+
+\paragraph{Diffusion far from dislocations}
+Away from dislocations, and under a quasi uniform strain field, the renormalized diffusion tensor becomes a constant and generally anisotropic offset of the original diffusion coefficient
+\begin{align}
+\tilde{D}_{ij}=D_0\delta_{ij}+\frac{1}{4}\frac{D_0}{kT}\sum_{\bm h} \hat{h}_i\hat{h}_jP_{kl}^{s,\bm h}\varepsilon^a_{kl}
+\end{align}
+In this case, also the drift term in the original diffusion equation drops out, and the drift-diffusion problem reduces to a standard diffusoin problem with constant but stress-dependent diffusion coefficient. Anisotropic diffusion affects both diffusinal and dislocation creep. The effect on dislocation creep is due to the the fact that line elements receive a net flux that is different depending on their orientation in the anisotropic diffusion field. This is the Stress Induced Preferential Absorpition due to Anosotpropic Diffusion (SIPA-AD) proposed by Woo. Because the change in diffusion coefficient is proportional to the applied elastic strain, the stress exponent of SIPA-AD-Woo is expected to be 1.
+
+SIPA-AD-Woo is a first order-effect in the defect dipole tensor. If the polarizability due to the strain field is considered, other second-order SIPA effects emerge (SIPA-I and SIPA-AD-Dederichs). 
+
+ 
+\paragraph{Diffusion near dislocations}
+
+\section{Modification of the diffusion--dislocation coupling}
+
+For each mobile defect species $s$, let $\bm j_s$ denote the defect-number flux,
+while $p_s$, $G_s$, and $R_s$ are rates of change of site fraction.  The steady
+balance law is therefore written as
+\begin{equation}
+    -\Omega_0\bm\nabla\cdot\bm j_s
+    +p_s+G_s+R_s(\bm c)=0,
+    \label{eq:total_species_balance}
+\end{equation}
+where $p_s$ is the line-supported production term associated with dislocation
+climb, $G_s$ is the irradiation production rate, and $R_s$ contains the bulk
+first- and second-order reactions.  Introducing
+\begin{equation}
+    H_s(\bm x)
+    =
+    \exp\left(\frac{E_s^e(\bm x)}{k_BT}\right),
+    \qquad
+    W_s(\bm x)=H_s(\bm x)c_s(\bm x),
+    \label{eq:activity_definition_theory}
+\end{equation}
+transforms the exact drift--diffusion flux into
+\begin{equation}
+    \bm j_s
+    =
+    -\frac{1}{\Omega_0}
+    \widetilde{\bm D}_s(\bm x)\bm\nabla W_s,
+    \qquad
+    \widetilde{\bm D}_s(\bm x)
+    =
+    \widetilde{\bm D}_s
+    \left(\bm\sigma_{\mathrm{ext}}
+    +\bm\sigma_{\mathrm{DD}}(\bm x)\right).
+    \label{eq:exact_activity_flux}
+\end{equation}
+The equilibrium-position interaction with the total stress is contained in
+$H_s$, whereas $\widetilde{\bm D}_s$ describes the stress dependence of the
+saddle-point migration process.  Equation~\eqref{eq:exact_activity_flux} still
+contains the full diffusion tensor and no approximation has yet been made.
+
+The activity is decomposed as
+\begin{equation}
+    W_s=W_s^\infty+\widetilde W_s,
+    \label{eq:theory_activity_split}
+\end{equation}
+where $W_s^\infty$ is the dislocation-associated field and
+$\widetilde W_s$ is a smooth finite-domain correction.  The physical total
+concentration reconstructed from this decomposition remains
+\begin{equation}
+    c_s
+    =
+    H_s^{-1}
+    \left(W_s^\infty+\widetilde W_s\right).
+    \label{eq:theory_total_concentration}
+\end{equation}
+Because Eq.~\eqref{eq:exact_activity_flux} is linear in the activity gradient,
+this decomposition induces the exact flux decomposition
+\begin{align}
+    \bm j_s
+    &=
+    \bm j_s^\infty+\widetilde{\bm j}_s,
+    \label{eq:exact_flux_split}
+    \\
+    \bm j_s^\infty
+    &=
+    -\frac{1}{\Omega_0}
+    \widetilde{\bm D}_s(\bm x)\bm\nabla W_s^\infty,
+    \qquad
+    \widetilde{\bm j}_s
+    =
+    -\frac{1}{\Omega_0}
+    \widetilde{\bm D}_s(\bm x)\bm\nabla\widetilde W_s.
+    \label{eq:exact_component_fluxes}
+\end{align}
+Both components therefore contain the same full tensor
+$\widetilde{\bm D}_s(\bm\sigma_{\mathrm{ext}}+
+\bm\sigma_{\mathrm{DD}})$ at this stage.  We define an exact source partition
+by assigning the dislocation line source to the analytical component and the
+smooth bulk terms to the finite-domain component:
+\begin{align}
+    -\Omega_0\bm\nabla\cdot\bm j_s^\infty+p_s&=0,
+    \label{eq:exact_analytical_balance}
+    \\
+    -\Omega_0\bm\nabla\cdot\widetilde{\bm j}_s
+    +G_s+R_s(\bm c)&=0.
+    \label{eq:exact_smooth_balance}
+\end{align}
+
+The full tensor in Eq.~\eqref{eq:exact_component_fluxes} is strongly
+heterogeneous near a dislocation and does not admit the constant-coefficient
+anisotropic Green function used by the DDD formulation.  For a uniform applied
+stress, let
+$\bm D_s^{\mathrm{ext}}=\widetilde{\bm D}_s(\bm\sigma_{\mathrm{ext}})$
+and approximate the analytical component flux as
+\begin{equation}
+    \bm j_s^{\infty,\mathrm{app}}
+    =
+    -\frac{Z_s^{\mathrm{EID}}}{\Omega_0}
+    \bm D_s^{\mathrm{ext}}\bm\nabla W_s^\infty.
+    \label{eq:biased_analytical_flux}
+\end{equation}
+Here $Z_s^{\mathrm{EID}}\bm D_s^{\mathrm{ext}}$ represents the residual effect
+of the dislocation stress on saddle-point transport in the analytical channel;
+the equilibrium-position interaction is already contained in $H_s$.
+Substitution into the line-source balance gives
+\begin{equation}
+    \bm\nabla\cdot
+    \left(
+    \bm D_s^{\mathrm{ext}}\bm\nabla W_s^\infty
+    \right)
+    +
+    \frac{p_s}{Z_s^{\mathrm{EID}}}
+    =0.
+    \label{eq:biased_analytical_problem}
+\end{equation}
+Thus the physical climb production $p_s$ remains conservative.  Let
+$G_s^{\mathrm{ext}}$ denote the Green function with the convention
+$\bm\nabla\cdot(\bm D_s^{\mathrm{ext}}\bm\nabla
+G_s^{\mathrm{ext}})=-\delta$.  The analytical
+solution can then be written as
+\begin{equation}
+    G_{Z,s}^{\mathrm{app}}
+    =
+    \frac{G_s^{\mathrm{ext}}}{Z_s^{\mathrm{EID}}},
+    \qquad
+    W_s^\infty
+    =
+    G_{Z,s}^{\mathrm{app}}*p_s.
+    \label{eq:biased_green_approximation}
+\end{equation}
+
+For the smooth finite-domain component, the dislocation-scale variation of the
+migration tensor is neglected and its exact flux is approximated as
+\begin{equation}
+    \widetilde{\bm j}_s^{\mathrm{app}}
+    =
+    -\frac{1}{\Omega_0}
+    \bm D_s^{\mathrm{ext}}\bm\nabla\widetilde W_s.
+    \label{eq:smooth_correction_flux}
+\end{equation}
+The exact reaction term in Eq.~\eqref{eq:exact_smooth_balance} depends on the
+total concentration in Eq.~\eqref{eq:theory_total_concentration}.  To avoid
+volume quadrature of the sharply peaked analytical field, it is separately
+approximated by
+\begin{equation}
+    R_s(\bm c)
+    \simeq
+    R_s(\bm c^{\mathrm{bulk}}),
+    \qquad
+    c_s^{\mathrm{bulk}}
+    =
+    H_s^{-1}\widetilde W_s.
+    \label{eq:bulk_reaction_concentration}
+\end{equation}
+The finite-domain problem is therefore
+\begin{equation}
+    \bm\nabla\cdot
+    \left(
+    \bm D_s^{\mathrm{ext}}\bm\nabla\widetilde W_s
+    \right)
+    +G_s
+    +R_s(\bm c^{\mathrm{bulk}})
+    =0
+    \qquad\text{in }\Omega.
+    \label{eq:smooth_fem_problem}
+\end{equation}
+The two component approximations define the reduced total flux
+\begin{equation}
+    \bm j_s^{\mathrm{red}}
+    =
+    \bm j_s^{\infty,\mathrm{app}}
+    +\widetilde{\bm j}_s^{\mathrm{app}}
+    =
+    -\frac{\bm D_s^{\mathrm{ext}}}{\Omega_0}
+    \left(
+    Z_s^{\mathrm{EID}}\bm\nabla W_s^\infty
+    +\bm\nabla\widetilde W_s
+    \right),
+    \label{eq:reduced_total_flux}
+\end{equation}
+and the closed reduced balance
+\begin{equation}
+    -\Omega_0\bm\nabla\cdot
+    \left(
+    \bm j_s^{\infty,\mathrm{app}}
+    +\widetilde{\bm j}_s^{\mathrm{app}}
+    \right)
+    +p_s+G_s+R_s(\bm c^{\mathrm{bulk}})=0.
+    \label{eq:reduced_species_balance}
+\end{equation}
+For $Z_s^{\mathrm{EID}}\ne1$, Eq.~\eqref{eq:reduced_total_flux} is not the
+single local constitutive law
+$-\bm D_s^{\mathrm{ext}}\bm\nabla(W_s^\infty+\widetilde W_s)/\Omega_0$.
+Instead, it follows from applying different, explicitly stated approximations
+to the two exact component fluxes in Eq.~\eqref{eq:exact_component_fluxes}.
+Neglecting reactions involving $W_s^\infty$ assumes that diffusion and
+absorption in the unresolved dislocation-core region are faster than the local
+bulk reactions.  It also ensures that no strongly peaked infinite-domain
+quantity enters the FEM volume quadrature.
+
+If $W_s^{\mathrm b}$ denotes the prescribed boundary activity, the Dirichlet
+condition for the correction is
+\begin{equation}
+    \left.\widetilde W_s\right|_{\partial\Omega}
+    =
+    W_s^{\mathrm b}
+    -
+    \left.W_s^\infty\right|_{\partial\Omega}.
+    \label{eq:theory_dirichlet_split}
+\end{equation}
+The thermodynamic equilibrium condition on the dislocation line is retained
+without modification:
+\begin{equation}
+    \left.
+    \left(
+    W_s^\infty+\widetilde W_s
+    \right)
+    \right|_{\mathcal N}
+    =
+    W_s^{\mathrm{eq}}.
+    \label{eq:theory_dislocation_equilibrium}
+\end{equation}
+Thus the bias changes the climb flux associated with a prescribed activity
+driving force, but it does not alter the equilibrium activity itself.
+
+For a test function $\delta\widetilde W_s$ that vanishes on the Dirichlet
+boundary, the weak form of Eq.~\eqref{eq:smooth_fem_problem} is
+\begin{equation}
+    \int_\Omega
+    \bm\nabla(\delta\widetilde W_s)
+    \cdot
+    \left(
+    \bm D_s^{\mathrm{ext}}\bm\nabla\widetilde W_s
+    \right)
+    \,\mathrm dV
+    =
+    \int_\Omega
+    \delta\widetilde W_s
+    \left[
+    G_s+R_s(\bm c^{\mathrm{bulk}})
+    \right]
+    \,\mathrm dV.
+    \label{eq:smooth_fem_weak_form}
+\end{equation}
+No analytical infinite-domain field appears in this volume integral.
+
+\section{Dipole Tensor in Zr}
+
+Point defects interact with the surrounding lattice through their elastic strain fields. At length scales larger than the defect core, this interaction can be represented by an elastic dipole tensor, $P_{ij}$, which describes the leading-order coupling between a point defect and an externally applied strain field: \begin{equation} 
+\Delta E_{\mathrm{def}} = -P_{ij}\epsilon_{ij} 
+\end{equation} 
+$P_{ij}$ acts as a generalized force dipole.  Warwick, Ma, and Dudarev computed the elastic dipole tensors of hcp point defects using density functional theory. A point defect was introduced into a periodic supercell, and the atomic positions were relaxed while the cell shape and volume were held fixed. Because the defective crystal was not allowed to relax macroscopically, a residual average stress remained in the supercell. The elastic dipole tensor was then obtained from this residual stress as 
+\begin{equation} 
+P_{ij}(N_{\mathrm{def}}) = -V\overline{\sigma}_{ij}, 
+\end{equation} 
+where $V$ is the supercell volume and $\overline{\sigma}_{ij}$ is the average residual stress. The negative sign appears because the residual stress is the stress required to constrain the defective crystal at fixed cell shape and volume; the elastic dipole of the defect has the opposite sign. Since the calculation is performed in a finite periodic cell, the defect also interacts with its periodic images. To remove this finite-size effect, the dipole tensor components were computed for several supercell sizes and extrapolated to the isolated-defect limit using 
+\begin{equation} 
+P_{ij}(N) = \frac{\alpha_{ij}}{N} + P_{ij}^{\infty}, 
+\end{equation} 
+where $N$ is the number of atoms in the reference supercell, $\alpha_{ij}$ is a fitting constant, and $P_{ij}^{\infty}$ is the elastic dipole tensor of an isolated defect. The corresponding relaxation-volume tensor is related to the dipole tensor through 
+\begin{equation} 
+\Omega_{ij}=S_{ijkl}P_{kl}^{\infty}, 
+\label{eq:relaxation_volume_tensor} 
+\end{equation} 
+where $S_{ijkl}$ is the elastic compliance tensor. Thus, $P_{ij}$ measures how the defect couples to strain or stress, while $\Omega_{ij}$ describes the macroscopic shape and volume change associated with the defect.
+
+\subsection{Vacancy}
+For a vacancy in Zr, the reported elastic dipole tensor is 
+\begin{equation} 
+\mathbf{P}^{\mathrm{Vac}} = 
+\begin{pmatrix}
+-5.156 & 0 & 0 \\ 
+0 & -5.156 & 0 \\ 
+0 & 0 & -8.022 
+\end{pmatrix} \mathrm{eV}. 
+\end{equation} 
+
+All diagonal components are negative, indicating that the vacancy is a contractive defect. The contraction is anisotropic, and the vacancy produces a larger contractive distortion along the $c$-axis than in the basal plane. The corresponding relaxation-volume tensor is 
+\begin{equation} 
+\boldsymbol{\Omega}^{\mathrm{Vac}} = 
+\begin{pmatrix} 
+-0.085 & 0 & 0 \\
+0 & -0.085 & 0 \\ 
+0 & 0 & -0.267 
+\end{pmatrix} \Omega_0
+\end{equation} 
+where $\Omega_0$ is the atomic volume of hcp Zr and $\Omega_{\mathrm{rel}}^{\mathrm{Vac}} = \mathrm{Tr}\left(\boldsymbol{\Omega}^{\mathrm{Vac}}\right) = -0.437\Omega_0$. Therefore, the vacancy reduces the crystal volume by approximately $0.44$ atomic volumes.
+
+\subsection{Interstitial}
+
+The lowest-energy self-interstitial configuration listed in the table is the basal-octahedral interstitial, denoted BO. Its elastic dipole tensor is 
+\begin{equation} 
+\mathbf{P}^{\mathrm{BO}} = 
+\begin{pmatrix} 
+16.655 & 0 & 0 \\ 
+0 & 16.655 & 0 \\ 
+0 & 0 & 10.344 
+\end{pmatrix} \mathrm{eV}. 
+\end{equation} 
+All diagonal components are positive, showing that the basal-octahedral self-interstitial is an expansive defect. The expansion is anisotropic meaning that the defect couples more strongly to basal plane strain than to strain along the hcp $c$-axis. The corresponding relaxation-volume tensor is 
+\begin{equation} 
+\boldsymbol{\Omega}^{\mathrm{BO}} = 
+\begin{pmatrix} 
+0.549 & 0 & 0 \\ 
+0 & 0.549 & 0 \\ 
+0 & 0 & -0.008 
+\end{pmatrix} \Omega_0,
+\end{equation} 
+where $\Omega_0$ is the atomic volume of hcp Zr. The scalar relaxation volume $\Omega_{\mathrm{rel}}^{\mathrm{BO}} = \mathrm{Tr}\left(\boldsymbol{\Omega}^{\mathrm{BO}}\right) = 1.09\Omega_0 $. Thus, the basal-octahedral self-interstitial increases the crystal volume by approximately one atomic volume. 
+
+\section{Current Numerical Formulation and Consistency Audit}
+
+This section records the formulation that is currently implemented in the
+coupled cluster-dynamics and dislocation-dynamics code and identifies the
+remaining limitations.  In particular, storing the finite-element unknown as
+$W$ does not by itself transform a physical reaction operator; the required
+mobile-reaction transformation is therefore included explicitly below.
+
+\subsection{Nodal activity and the stress used in the transformation}
+
+For each mobile species $s$, the code uses
+\begin{equation}
+    W_s = H_s c_s,
+    \qquad
+    H_s = \exp\left(\frac{E_s^e}{k_BT}\right).
+    \label{eq:implemented_W_definition}
+\end{equation}
+At a finite-element node $A$, the stress entering $E_s^e$ is the patch-average
+total stress
+\begin{equation}
+    \boldsymbol{\sigma}^{\mathrm{patch}}_A
+    =
+    \frac{1}{N_A}
+    \sum_{e\in\mathcal{P}_A}
+    \boldsymbol{\sigma}\left(\boldsymbol{x}_e^{c}\right),
+    \label{eq:patch_average_stress}
+\end{equation}
+where $\mathcal{P}_A$ is the element patch of node $A$ and
+$\boldsymbol{x}_e^{c}$ is the centroid of element $e$.  The stress returned by
+the microstructure container is a sum of all pointwise stress contributions.
+For the present simulations this is, to leading order,
+\begin{equation}
+    \boldsymbol{\sigma}^{\mathrm{patch}}_A
+    =
+    \boldsymbol{\sigma}^{\mathrm{DD,patch}}_A
+    +
+    \boldsymbol{\sigma}^{\mathrm{ext}}.
+\end{equation}
+
+The currently implemented equilibrium interaction energy is the hydrostatic,
+scalar-relaxation-volume approximation
+\begin{equation}
+    E_{s,A}^e
+    =
+    -\frac{1}{3}
+    \operatorname{tr}
+    \left(\boldsymbol{\sigma}^{\mathrm{patch}}_A\right)
+    n_s \overline{\Omega}^{\mathrm{rel}}_s,
+    \qquad
+    \overline{\Omega}^{\mathrm{rel}}_s
+    =
+    V^{\mathrm{rel}}_s\Omega_0,
+    \label{eq:implemented_equilibrium_energy}
+\end{equation}
+where $n_s$ is the signed number of point defects in species $s$ and
+$V^{\mathrm{rel}}_s$ is the input
+\texttt{mobileSpeciesRelRelaxVol}.  Equation
+\eqref{eq:implemented_equilibrium_energy} is internally consistent with the
+current code, but it is not yet the full tensorial coupling
+$E_s^e=-\boldsymbol{\sigma}:\boldsymbol{\Omega}_s$.  The anisotropic
+relaxation-volume tensors discussed in the preceding section therefore remain
+a future extension of the equilibrium interaction model.
+
+Physical concentrations are converted to nodal activities when a
+\texttt{cdMatrix} is read,
+\begin{equation}
+    W_{s,A}
+    =
+    c_{s,A}
+    \exp\left(\frac{E_{s,A}^e}{k_BT}\right),
+\end{equation}
+and are converted back on output using the same patch-average stress,
+\begin{equation}
+    c_{s,A}
+    =
+    W_{s,A}
+    \exp\left(-\frac{E_{s,A}^e}{k_BT}\right).
+    \label{eq:nodal_output_conversion}
+\end{equation}
+Thus, input and output form an exact nodal round trip when the configuration
+and stress state are unchanged.  Immobile-cluster variables are not affected
+by this transformation.  During configuration loading, stress-producing
+microstructures, including the current dislocation geometry, are initialized
+before this nodal conversion is performed.  The conversion therefore uses the
+stress of the frame being loaded rather than an empty or previous dislocation
+configuration.
+
+\subsection{External-stress-dependent diffusion tensor}
+
+The diffusion tensor used by the finite-element transport operator depends
+only on the macroscopic external stress.  Let
+$\boldsymbol{Q}_g$ denote the crystal-to-global rotation of grain $g$.  The
+stress is first rotated into the crystal frame,
+\begin{equation}
+    \boldsymbol{\sigma}^{g}_{\mathrm{ext}}
+    =
+    \boldsymbol{Q}_g^T
+    \boldsymbol{\sigma}_{\mathrm{ext}}
+    \boldsymbol{Q}_g.
+    \label{eq:external_stress_local}
+\end{equation}
+For the component ordering
+\begin{equation}
+    \alpha\in\{11,12,13,22,23,33\},
+\end{equation}
+the implemented effective migration barrier and local diffusivity are
+\begin{align}
+    E^{m,\mathrm{eff}}_{s,\alpha}
+    &=
+    E^m_{s,\alpha}
+    -
+    \sigma^{g}_{\mathrm{ext},\alpha}
+    V^{m}_{s,\alpha}\Omega_0,
+    \label{eq:implemented_migration_barrier}
+    \\
+    \widetilde{D}^{g}_{s,\alpha}
+    &=
+    D^0_{s,\alpha}
+    \exp\left(
+    -\frac{E^{m,\mathrm{eff}}_{s,\alpha}}{k_BT}
+    \right).
+    \label{eq:implemented_local_diffusivity}
+\end{align}
+Here $V^m_{s,\alpha}$ is read from
+\texttt{mobileSpeciesMigrationRelVolume}.  The global tensor is
+\begin{equation}
+    \widetilde{\boldsymbol{D}}^g_s
+    =
+    \boldsymbol{Q}_g
+    \widetilde{\boldsymbol{D}}^{g,\mathrm{local}}_s
+    \boldsymbol{Q}_g^T.
+    \label{eq:implemented_global_diffusivity}
+\end{equation}
+No engineering-shear factor is applied to the stress components.  Therefore,
+the migration-volume input must use the same component convention.  The
+present implementation is a component-wise phenomenological
+parameterization; a jump-resolved saddle-point model would instead evaluate a
+scalar contraction for every jump direction and then perform the lattice sum
+in Eq.~\eqref{Dt}.
+
+The finite-element flux is
+\begin{equation}
+    \boldsymbol{j}_s^{\mathrm{FEM}}
+    =
+    -\frac{1}{\Omega_0}
+    \widetilde{\boldsymbol{D}}^g_s
+    \boldsymbol{\nabla}W_s^{\mathrm{CD}}.
+    \label{eq:implemented_flux}
+\end{equation}
+Both the flux operator and its species scaling use
+$\widetilde{\boldsymbol{D}}^g_s(\boldsymbol{\sigma}_{\mathrm{ext}})$.
+When the external stress changes, the stored stress is updated and the FEM
+matrix is marked for reassembly.  With the current uniform external-load
+controller, the dislocation network, cluster dynamics, and inclusions have
+zero average stress, so the stress supplied to the diffusion tensor is the
+uniform external stress alone.  A spatially varying external elastic field is
+not yet represented by this average-stress path.
+
+\subsection{CD--DD superposition and boundary conditions}
+
+The implemented decomposition is most accurately written as
+\begin{equation}
+    W_s
+    =
+    W_s^{\mathrm{CD}}
+    +
+    W_s^{\mathrm{DD}},
+    \label{eq:implemented_superposition}
+\end{equation}
+where $W_s^{\mathrm{DD}}$ is the analytical dislocation contribution and
+$W_s^{\mathrm{CD}}$ is the finite-element field.  The analytical contribution
+uses an anisotropic Green-function kernel and includes the effective
+dislocation bias through a multiplicative $1/Z_s^{\mathrm{EID}}$ factor.
+
+The boundary condition is imposed directly as a Dirichlet condition in
+activity space.  At a boundary node,
+\begin{equation}
+    W_{s}^{\mathrm{CD}}
+    =
+    W_{s}^{\mathrm{bnd}}
+    -
+    W_{s}^{\mathrm{DD}}.
+    \label{eq:implemented_dirichlet_split}
+\end{equation}
+Consequently, the sum in Eq.~\eqref{eq:implemented_superposition} satisfies
+the prescribed boundary activity.  The FEM correction is homogeneous only
+when irradiation production and reactions are disabled.  In the general
+case, the intended physical equation for the present split is
+\begin{equation}
+    \boldsymbol{\nabla}\cdot
+    \left(
+    \widetilde{\boldsymbol{D}}_s
+    \boldsymbol{\nabla}W_s^{\mathrm{CD}}
+    \right)
+    +
+    G_s
+    +
+    R_s(\boldsymbol{c}^{\mathrm{bulk}})
+    =
+    0
+    \qquad
+    \text{away from the analytical line sources}.
+    \label{eq:implemented_cd_equation}
+\end{equation}
+The current code realizes Eq.~\eqref{eq:implemented_cd_equation} for both the
+transport-only and reaction-enabled problems.  In the latter case, the smooth
+physical concentration is reconstructed from the nodal activity before the
+reaction operators are evaluated, as detailed below.
+
+The analytical $W^{\mathrm{DD}}$ kernel uses the inverse and determinant of
+the same external-stress-dependent tensor
+$\widetilde{\boldsymbol{D}}(\boldsymbol{\sigma}_{\mathrm{ext}})$
+as the FEM operator, together with the multiplicative
+$1/Z_s^{\mathrm{EID}}$ Green-response factor.  These tensors are cached per
+grain and mobile species.
+The cache is rebuilt whenever the external stress changes, together with the
+invalidation of the FEM solver matrix.  Thus, the analytical and
+finite-element parts share the same external-stress-dependent diffusion
+tensor, while the analytical branch additionally carries the effective bias
+closure defined in Eq.~\eqref{eq:biased_green_approximation}.
+The boundary degrees of freedom are registered once; later stress-triggered
+matrix reassemblies reuse those constraints and only update their prescribed
+activity values.
+
+\subsection{Reaction terms in the activity formulation}
+
+The finite-element unknown and its Newton increment are both stored as $W$.
+The first- and second-order reaction operators remain physical concentration
+operators; consequently, the code reconstructs the smooth bulk concentration
+before evaluating either the reaction residual or its Newton linearization.
+
+Define the diagonal nodal transformation
+\begin{equation}
+    \boldsymbol{H}_A
+    =
+    \operatorname{diag}
+    \left[
+    \exp\left(\frac{E_{1,A}^e}{k_BT}\right),
+    \ldots,
+    \exp\left(\frac{E_{m,A}^e}{k_BT}\right)
+    \right].
+\end{equation}
+To remain consistent with the reduced model in
+Eq.~\eqref{eq:smooth_fem_problem}, the smooth bulk concentration at a
+quadrature point should be reconstructed from the nodal finite-element
+activities,
+\begin{equation}
+    \boldsymbol{c}^{\mathrm{bulk}}_h(\boldsymbol{x})
+    =
+    \sum_A
+    N_A(\boldsymbol{x})
+    \boldsymbol{H}_A^{-1}
+    \boldsymbol{W}^{\mathrm{CD}}_A.
+    \label{eq:reaction_concentration_interpolation}
+\end{equation}
+For a physical reaction law
+\begin{equation}
+    R_a(\boldsymbol{c})
+    =
+    R^{(1)}_{ab}c_b
+    +
+    \frac{1}{2}
+    R^{(2)}_{abg}c_bc_g,
+    \label{eq:physical_reaction_law}
+\end{equation}
+the residual must evaluate Eq.~\eqref{eq:physical_reaction_law} using
+Eq.~\eqref{eq:reaction_concentration_interpolation}.  Its derivative with
+respect to nodal finite-element activity is
+\begin{equation}
+    \frac{\partial R_a}{\partial W^{\mathrm{CD}}_{s,B}}
+    =
+    \frac{\partial R_a}{\partial c_s}
+    N_B
+    \left(\boldsymbol{H}_B^{-1}\right)_{ss}.
+    \label{eq:reaction_W_jacobian}
+\end{equation}
+The implementation applies the factors $\boldsymbol{H}_B^{-1}$ to the nodal
+trial shape functions used by both the reaction residual and the reaction
+Jacobian.  The quantity denoted by \texttt{R1cd} remains a separate
+cluster-size scaling and is not used as the $c$-to-$W$ transformation.  The
+strongly peaked analytical
+$W^{\mathrm{DD}}$ field is deliberately excluded from this volume reaction
+quadrature, consistently with the inner-reaction approximation in
+Eq.~\eqref{eq:bulk_reaction_concentration}.
+
+Reaction-rate coefficients also contain diffusivities.  The first- and
+second-order coefficient matrices are cached per grain using
+$\widetilde{\boldsymbol{D}}(\boldsymbol{\sigma}_{\mathrm{ext}})$, and the
+special one-dimensional sink correction uses the corresponding crystal-frame
+local diffusivity.  These caches are rebuilt together with the analytical
+diffusion cache whenever the external stress changes.  The irradiation source
+vector is also reassembled because its test-function scaling contains the same
+stress-dependent diffusivity.
+
+\subsection{Output and visualization}
+
+The \texttt{cdMatrix} stores physical mobile concentrations.  DDqt follows
+the same convention.  Before plotting, the nodal CD activity is converted
+with Eq.~\eqref{eq:nodal_output_conversion}, and the resulting nodal physical
+concentration is interpolated with the same quadratic finite-element shape
+functions used by the solver.  The analytical Green response is returned
+directly as $W_s^{\mathrm{DD}}$ and is converted at the visualization point
+using the total point stress.  Therefore, the plotted quantities are
+\begin{equation}
+    c_s^{\mathrm{plot}}
+    =
+    c_s^{\mathrm{CD}}
+    +
+    c_s^{\mathrm{DD}},
+\end{equation}
+and the CD contribution agrees with the output \texttt{cdMatrix} at every
+finite-element node.
+Before a DDqt frame is initialized, its run ID, physical time, and time step are
+restored from the corresponding row of the history file.  A generated frame
+zero with no history records uses the initial time zero and initial step;
+missing later frames remain errors.  Time-dependent
+external loads and the resulting diffusion tensor are therefore evaluated at
+the displayed frame time.
+
+\subsection{Implementation status and verification sequence}
+
+The present status can be summarized as follows:
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{0.47\textwidth}|p{0.43\textwidth}|}
+\hline
+Component & Status \\
+\hline
+Nodal $c\leftrightarrow W$ conversion using patch-average total stress
+& Implemented for input, equilibrium initialization, output, and CD visualization. \\
+\hline
+FEM transport with
+$\widetilde{\boldsymbol{D}}(\boldsymbol{\sigma}_{\mathrm{ext}})$
+& Implemented, including grain-frame rotation and matrix reassembly after an external-stress change. \\
+\hline
+Analytical DD kernel with the same external-stress-dependent tensor
+& Implemented; its inverse and determinant tensors are refreshed together with the FEM operator after an external-stress change. \\
+\hline
+Diffusion-tensor admissibility
+& Implemented with a finite-entry and positive-definiteness check before FEM or Green-kernel use. \\
+\hline
+First- and second-order reactions in the $W$ formulation
+& Implemented using nodal physical-concentration reconstruction and the Jacobian factors in Eq.~\eqref{eq:reaction_W_jacobian}; the analytical DD field is excluded from bulk reaction quadrature. \\
+\hline
+External-stress-dependent mobile reaction coefficients
+& Implemented per grain and refreshed after an external-stress change. \\
+\hline
+DDqt physical-concentration visualization
+& Implemented consistently with nodal output, including displayed-frame time synchronization for time-dependent loads. \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Code changes for collaborator review}
+
+Table~\ref{tab:code_changes} lists the functional code changes in the present
+revision.  Generated build files and the removed historical
+\texttt{GalerkinClimbSolverOld} sources are not included.
+
+{\small
+\begin{longtable}{|>{\raggedright\arraybackslash}p{0.28\textwidth}|>{\raggedright\arraybackslash}p{0.39\textwidth}|>{\raggedright\arraybackslash}p{0.23\textwidth}|}
+\caption{Code changes implementing the activity formulation and
+external-stress-dependent diffusion.}
+\label{tab:code_changes}\\
+\hline
+Code location & Implemented change & Primary review point \\
+\hline
+\endfirsthead
+\multicolumn{3}{c}{\tablename\ \thetable{} -- continued from previous page}\\
+\hline
+Code location & Implemented change & Primary review point \\
+\hline
+\endhead
+\hline
+\multicolumn{3}{r}{Continued on next page}\\
+\endfoot
+\hline
+\endlastfoot
+
+\texttt{ClusterDynamicsParameters.h}\newline
+\texttt{ClusterDynamicsParameters.}\newline
+\texttt{cpp}: parameter initialization and
+\texttt{diffusionTensor()}
+&
+Added \texttt{mobileSpeciesMigrationRelVolume}; evaluated the
+stress-dependent migration barriers in the crystal frame using component
+order $[11,12,13,22,23,33]$; rotated the resulting diffusion tensor back to
+the global frame; rejected non-finite or non-positive-definite tensors before
+they reach the FEM and Green operators.
+&
+Check migration-volume units, barrier sign, component order, and
+crystal-to-global rotation.
+\\
+\hline
+
+\texttt{ClusterDynamicsParameters.h}\newline
+\texttt{ClusterDynamicsParameters.}\newline
+\texttt{cpp}: activity conversion helpers
+&
+Centralized $E^e$, $c\leftrightarrow W$, and equilibrium conversions.
+\texttt{physicalMobileConcentration()} now evaluates the direct inverse
+$W/\exp(E^e/k_BT)$ without an exponent clamp.
+&
+Check the sign of $E^e$ and the scalar relaxation-volume approximation.
+\\
+\hline
+
+\texttt{ClusterDynamicsFEM.h}\newline
+\texttt{ClusterDynamicsFEM.cpp}: transport operator and external stress
+&
+Made both \texttt{FluxMatrix} and \texttt{InvDscaling} use
+$\widetilde{\bm D}(\bm\sigma_{\mathrm{ext}})$.  Added
+\texttt{setExternalStress()}, FEM-matrix invalidation, and per-grain
+\texttt{analyticalInvD}/\texttt{analyticalDetD} caches for the analytical
+Green function.  The irradiation source vector is reassembled after an
+external-stress change because it contains the same inverse-diffusivity test
+scaling.
+&
+Check that only the macroscopic external stress enters diffusion and that a
+stress change triggers cache refresh and matrix reassembly.
+\\
+\hline
+
+\texttt{ClusterDynamicsFEM.h/.cpp}: Dirichlet registration
+&
+Separated one-time boundary-degree-of-freedom registration from repeat FEM
+matrix assembly.  External-stress changes now rebuild the matrix without
+reinserting zero conditions over the current nonzero activity values.
+&
+Check repeated external-stress updates with assertions enabled.
+\\
+\hline
+
+\texttt{ClusterDynamicsParameters.h/.cpp}: reaction coefficients
+&
+Constructed first- and second-order mobile reaction coefficients from the
+per-grain tensor $\widetilde{\bm D}(\bm\sigma_{\mathrm{ext}})$ rather than a
+zero-stress diffusion cache.  The crystal-frame tensor used by the optional
+one-dimensional sink correction is evaluated at the same external stress.
+&
+Check the scalar averaging of the anisotropic diffusivity and cache refresh
+after a stress change.
+\\
+\hline
+
+\texttt{ClusterDynamicsFEM.h/.cpp}\newline
+\texttt{SecondOrderReaction.h}: mobile reactions
+&
+Reconstructed $\bm c_h^{\mathrm{bulk}}=\sum_A N_A\bm H_A^{-1}\bm W_A^{\mathrm{CD}}$
+from patch-average total stress and used it in first- and second-order reaction
+residuals.  Applied the same nodal factors to the Newton increment, thereby
+including the chain-rule factor in the reaction Jacobian.
+&
+Check the nodal stress convention, exclusion of $W^{\mathrm{DD}}$, and finite-
+difference agreement of the reaction Jacobian.
+\\
+\hline
+
+\texttt{ClusterDynamicsFEM.cpp}: \texttt{initializeConfiguration()}
+&
+Interpreted input \texttt{cdMatrix} values as physical concentrations and
+converted them to nodal activities.  Applied the same conversion to default
+equilibrium initialization using the node patch-average total stress.
+&
+Check input dimensions and the element-centroid patch average at boundary and
+interior nodes.
+\\
+\hline
+
+\texttt{DefectiveCrystal.cpp}: configuration initialization
+&
+Initialized all stress-producing microstructures before Cluster Dynamics so
+that input $c\rightarrow W$ conversion uses the current DD geometry rather
+than an empty or previous-frame network.
+&
+Check first-load and DDqt frame-to-frame input/output round trips.
+\\
+\hline
+
+\texttt{ClusterDynamics.h}\newline
+\texttt{ClusterDynamics.cpp}: boundary conditions
+&
+Applied the Dirichlet split
+$W^{\mathrm{CD}}=W^{\mathrm b}-W^{\mathrm{DD}}$ at boundary nodes.  The
+prescribed physical boundary concentration is converted to $W^{\mathrm b}$
+using the node patch-average total stress; the analytical
+$W^{\mathrm{DD}}$ returned by the dislocation network is then subtracted.
+&
+Check the sign of the superposition, the prescribed boundary concentration,
+and the point-stress versus patch-average-stress convention for
+$W^{\mathrm{DD}}$ at boundary nodes.
+\\
+\hline
+
+\texttt{ClusterDynamics.h}\newline
+\texttt{ClusterDynamics.cpp}: solve and output paths
+&
+Updated the external stress before FEM assembly.  Added
+\texttt{nodalPhysicalMobileConcentration()} and wrote physical mobile
+concentrations, rather than activities, to \texttt{cdMatrix}.
+&
+Check CD-before-DD solve ordering and the nodal
+$c\rightarrow W\rightarrow c$ round trip.
+\\
+\hline
+
+\texttt{DislocationSegment.h}\newline
+\texttt{DislocationSegment.cpp} and
+\texttt{GalerkinClimbSolver.cpp}
+&
+Passed the runtime inverse and determinant of
+$\widetilde{\bm D}(\bm\sigma_{\mathrm{ext}})$ into the anisotropic analytical
+kernel and the Galerkin climb stiffness assembly.  Returned the Green response
+directly as $W^{\mathrm{DD}}$, removing the former extra multiplication by
+$H$.
+&
+Check that the analytical $W^{\mathrm{DD}}$ and FEM correction use the same
+diffusion operator.
+\\
+\hline
+
+\texttt{DislocationNetwork.cpp}
+&
+Used the runtime diffusion cache in the analytical mobile-activity field,
+treated the Green response directly as $W^{\mathrm{DD}}$, and converted
+quadrature-point CD/DD activities to physical concentrations using total
+point stress on output.
+&
+Check the distinction between external stress in $\bm D$ and total stress in
+$c\leftrightarrow W$.
+\\
+\hline
+
+\texttt{DDFieldWidget.h/.cpp}\newline
+\texttt{DefectiveCrystalActor.cpp}
+&
+Changed DDqt concentration fields from activity to physical concentration.
+The CD contribution is reconstructed by interpolating nodal physical
+concentrations with the quadratic FEM shape functions; other activity
+contributions are converted at the visualization point using total stress.
+The displayed frame time is restored from the history file before evaluating
+external loads.
+&
+Check agreement with \texttt{cdMatrix} at FEM nodes and visualization-mesh
+convergence away from nodes.
+\\
+
+\end{longtable}
+}
+
+The mobile reaction residual, reaction Jacobian, and diffusion-dependent
+reaction coefficients are now consistent with the reduced activity
+formulation.  Immobile-species evolution remains outside the present change.
+The zero-stress \texttt{vClimbRef} is retained because it is used only as a
+numerical time-step reference and does not enter the climb operator.
+
+The recommended verification and development order is:
+\begin{enumerate}
+    \item Verify nodal $c\rightarrow W\rightarrow c$ round trips at fixed
+    stress to machine precision.
+    \item Verify that zero external stress reproduces the original diffusion
+    tensors and that prescribed uniaxial and hydrostatic stresses reproduce
+    Eqs.~\eqref{eq:implemented_migration_barrier}--\eqref{eq:implemented_global_diffusivity}.
+    \item Check symmetry, positive definiteness, finiteness, and crystal-frame
+    covariance of every diffusion tensor over the intended stress range.
+    \item Confirm that changing the external stress invalidates and
+    reassembles the FEM matrix.
+    \item Verify the reaction residual and its analytical Jacobian against
+    finite differences of Eqs.~\eqref{eq:reaction_concentration_interpolation}
+    and \eqref{eq:reaction_W_jacobian}.
+    \item Verify that all diffusion-dependent reaction coefficients are
+    refreshed from the prescribed external stress.
+    \item Compare DDqt nodal values against \texttt{cdMatrix} output and
+    perform CD-mesh and visualization-mesh convergence studies.
+    \item Finally, verify tensile/compressive symmetry, far-field behavior,
+    positivity of physical concentration, and convergence of coupled
+    dislocation-climb benchmark problems.
+\end{enumerate}
+
+\begin{thebibliography}{9}
+
+\bibitem{Dederichs1978}
+Dederichs, P. H., and K. Schroeder. "Anisotropic diffusion in stress fields." Physical Review B 17, no. 6 (1978): 2524.
+
+  \bibitem{DaFonseca2023}
+  Da Fonseca, Daphné, Fabien Onimus, Frédéric Mompiou, M-C. Marinica, Edouard de Sonis, Emmanuel Clouet, and Thomas Jourdan. "Numerical investigation of dislocation climb under stress and irradiation." Acta Materialia 242 (2023): 118431.
+  
+\end{thebibliography}
+
+\end{document}

@@ -92,7 +92,7 @@ typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<di
     // /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("useClusterDynamicsFEM",true)) : false )
     /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ClusterDynamics.txt").readScalar<int>("useClusterDynamicsFEM",true)) : false )
 //    /* init */,useClusterDynamicsFEM(bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("useClusterDynamicsFEM",true)))
-    /* init */,clusterDynamicsFEM(useClusterDynamicsFEM?  new ClusterDynamicsFEM<dim>(this->microstructures.ddBase,cdp) : nullptr)
+    /* init */,clusterDynamicsFEM(useClusterDynamicsFEM?  new ClusterDynamicsFEM<dim>(this->microstructures.ddBase,this->microstructures,cdp) : nullptr)
     /* init */,uniformControllers(useClusterDynamicsFEM? UniformControllerContainerType() : getUniformControllers(this->microstructures.ddBase,this->cdp))
 //    /* init */,nodeListInternalExternal(this->microstructures.ddBase.isPeriodicDomain ? -1 : this->microstructures.ddBase.fe->template createNodeList<ExternalAndInternalBoundary>())
 //    /* init */,mobileClustersIncrement(this->microstructures.ddBase.fe->template trial<'d',mSize>())
@@ -138,21 +138,22 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     {
         const auto& node(nodesInternalExternal[k]);
         const auto outNormal(node->outNormal()); // used to compute traction
-        const MatrixDim sigma(this->microstructures.stress(node->P0,node,nullptr,nullptr));
+        const MatrixDim sigma(clusterDynamicsFEM->nodalStress(*node)); // patch-average stress, the same used for the nodal c<->W conversion
         const double normalTraction(outNormal.dot(sigma*outNormal));
         const auto bndConcentration(cdp.boundaryMobileConcentration(sigma.trace(),normalTraction));
         
-        VectorMSize otherConcentration(VectorMSize::Zero());
+        VectorMSize otherMobileVariable(VectorMSize::Zero());
         for(const auto& microstructure : this->microstructures)
         {
             if(microstructure.get()!=static_cast<const MicrostructureBase<dim>* const>(this))
             {// not the ClusterDynamics physics
-                otherConcentration += microstructure->mobileConcentration(node->P0,node,nullptr,nullptr);
+                otherMobileVariable += microstructure->mobileConcentration(node->P0,node,nullptr,nullptr);
             }
         }
+        const Eigen::Array<double,1,mSize> bndMobileVariable(cdp.renormalizedMobileConcentration(bndConcentration,sigma)); // boundary activity W
         for(int k=0;k<mSize;++k)
         {
-            clusterDynamicsFEM->mobileClusters.dirichletConditions().at(mSize*node->gID+k) = bndConcentration(k) - otherConcentration(k);
+            clusterDynamicsFEM->mobileClusters.dirichletConditions().at(mSize*node->gID+k) = bndMobileVariable(k) - otherMobileVariable(k);
         }
     }
 }
@@ -162,6 +163,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     {
         if(clusterDynamicsFEM)
         {
+            clusterDynamicsFEM->setExternalStress(this->microstructures.averageStress());
             if(!clusterDynamicsFEM->solverInitialized)
             {
                 clusterDynamicsFEM->initializeSolver();
@@ -218,13 +220,26 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     }
 
     template<int dim>
+    typename ClusterDynamics<dim>::VectorMSize ClusterDynamics<dim>::nodalPhysicalMobileConcentration(const NodeType& node) const
+    {// physical concentration c=W/exp(E^e/kB/T) at a node, with the patch-average stress
+        if(!clusterDynamicsFEM)
+        {
+            return VectorMSize::Zero();
+        }
+        return cdp.physicalMobileConcentration(clusterDynamicsFEM->mobileClusters.dofs(node).transpose().array(),clusterDynamicsFEM->nodalStress(node)).matrix().transpose();
+    }
+
+    template<int dim>
     void ClusterDynamics<dim>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
     {
         if(clusterDynamicsFEM)
         {
             const size_t nNodes(clusterDynamicsFEM->mobileClusters.fe().nodes().size());
             configIO.cdMatrix().resize(nNodes,mSize+iSize);
-            configIO.cdMatrix().block(0,0,nNodes,mSize)=clusterDynamicsFEM->mobileClusters.dofVector().reshaped(mSize,nNodes).transpose();
+            for(const auto& node : clusterDynamicsFEM->mobileClusters.fe().nodes())
+            {// output the physical concentration c, not the activity W
+                configIO.cdMatrix().block(node.gID,0,1,mSize)=nodalPhysicalMobileConcentration(node).transpose();
+            }
             configIO.cdMatrix().block(0,mSize,nNodes,iSize)=clusterDynamicsFEM->immobileClusters.dofVector().reshaped(iSize,nNodes).transpose();
         }
         else

@@ -128,9 +128,13 @@ namespace model
           * entry in the vector corresponds to a node.
           */
             std::vector<Eigen::Matrix<double,dim+1,degree+1>> temp;
+            // Template static members may initialize in a different order in
+            // each executable. Compute this dependency locally, not from a
+            // possibly still zero-initialized baryStarsAndBars member.
+            const auto baryCoordinates=StarsAndBars<dim+1,degree>::sAb();
             for (int n=0;n<nodesPerElement;++n)
             {
-                temp.push_back(getSFcoeffs(baryStarsAndBars.row(n)));
+                temp.push_back(getSFcoeffs(baryCoordinates.row(n)));
             }
             return temp;
         }
@@ -456,13 +460,12 @@ namespace model
     const Eigen::Matrix<int,CombinationWithRepetition<dim+1,degree>::value,dim+1> LagrangeElement<dim,degree,MappingType>::baryStarsAndBars=StarsAndBars<dim+1,degree>::sAb();
     
     template<int dim,int degree, template<typename T> class MappingType>
-    const Eigen::Matrix<double,CombinationWithRepetition<dim+1,degree>::value,dim+1> LagrangeElement<dim,degree,MappingType>::baryNodalCoordinates=LagrangeElement<dim,degree>::baryStarsAndBars.template cast<double>()/degree;
+    const Eigen::Matrix<double,CombinationWithRepetition<dim+1,degree>::value,dim+1> LagrangeElement<dim,degree,MappingType>::baryNodalCoordinates=StarsAndBars<dim+1,degree>::sAb().template cast<double>()/degree;
     
     template<int dim,int degree, template<typename T> class MappingType>
     const std::vector<Eigen::Matrix<double,dim+1,degree+1>>  LagrangeElement<dim,degree,MappingType>::sfCoeffsVector=LagrangeElement<dim,degree,MappingType>::get_sfCoeffsVector();
     
 }	// close namespace
 #endif
-
 
 

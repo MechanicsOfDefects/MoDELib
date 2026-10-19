@@ -103,6 +103,7 @@ namespace model
         MatrixDim averageStress() const override;
         VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
         VectorMSize mobileConcentration(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
+        VectorMSize nodalPhysicalMobileConcentration(const NodeType&) const;
         VectorISize immobileClusters(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
 
         void applyBoundaryConditions();

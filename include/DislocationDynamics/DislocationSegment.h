@@ -65,6 +65,8 @@ namespace model
         static constexpr int mSize=ClusterDynamicsParameters<dim>::mSize;
         typedef Eigen::Matrix<double,mSize,2>   ConcentrationMatrixType;
         typedef Eigen::Matrix<double,mSize,1>   ConcentrationVectorType;
+        typedef std::map<size_t,std::vector<MatrixDim>> InverseDiffusionContainerType;
+        typedef std::map<size_t,Eigen::Array<double,mSize,1>> DiffusionDeterminantContainerType;
 
 //        std::map<size_t,
 //        /*    */ std::pair<VectorNcoeff,VectorDim>,
@@ -124,7 +126,9 @@ namespace model
         VectorDim climbDirection() const;
         
         ConcentrationMatrixType concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const;
+        ConcentrationMatrixType concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp,const InverseDiffusionContainerType& invD,const DiffusionDeterminantContainerType& detD) const;
         ConcentrationVectorType clusterConcentration(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const;
+        ConcentrationVectorType clusterConcentration(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp,const InverseDiffusionContainerType& invD,const DiffusionDeterminantContainerType& detD) const;
 
         
     };

@@ -61,6 +61,7 @@ namespace model
 
         static constexpr int mSize=ClusterDynamicsParameters<3>::mSize;
         static constexpr int iSize=ClusterDynamicsParameters<3>::iSize;
+        typedef Eigen::Matrix<double,mSize,Eigen::Dynamic> NodalMobileConcentrationMatrix;
         const SymmetricVoigtTraits<3>& voigtTraits;
         const Eigen::Matrix<double,3,1> P;
         const ElementType* const ele;
@@ -71,7 +72,9 @@ namespace model
         
         FieldDataPnt(const DefectiveCrystal<3>& defectiveCrystal,const Eigen::Matrix<double,3,1>& Pin,const ElementType* const ele_in);
         double value(const int& valID,const std::vector<QCheckBox*>& microstructuresCheck) const;
-        void compute(const DefectiveCrystal<3>& defectiveCrystal);
+        void compute(const DefectiveCrystal<3>& defectiveCrystal,
+                     const NodalMobileConcentrationMatrix& cdNodalConcentration,
+                     const size_t& clusterDynamicsID);
     };
 
     struct DDLineField : public QWidget
@@ -128,7 +131,9 @@ namespace model
         const std::deque<double>& abscissa() const;
         std::deque<double>& abscissa();
 
-        void compute(const DefectiveCrystal<3>&);
+        void compute(const DefectiveCrystal<3>&,
+                     const FieldDataPnt::NodalMobileConcentrationMatrix&,
+                     const size_t&);
         void plotField(const int& valID,const std::vector<QCheckBox*>& microstructuresCheck,const QComboBox* const fieldComboBox);
         
     };
@@ -169,7 +174,9 @@ namespace model
         ~DDPlaneField();
         const std::deque<FieldDataPnt>& dataPnts() const;
         std::deque<FieldDataPnt>& dataPnts();
-        void compute(const DefectiveCrystal<3>&);
+        void compute(const DefectiveCrystal<3>&,
+                     const FieldDataPnt::NodalMobileConcentrationMatrix&,
+                     const size_t&);
         void plotField(const int& valID,const std::vector<QCheckBox*>& microstructuresCheck,const vtkSmartPointer<vtkLookupTable>& lut);
     };
 
@@ -227,7 +234,6 @@ namespace model
 
 } // namespace model
 #endif
-
 
 
 

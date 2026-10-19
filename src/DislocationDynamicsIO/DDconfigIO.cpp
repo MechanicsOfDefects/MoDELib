@@ -32,6 +32,7 @@
 
 #include <TerminalColors.h>
 #include <DDconfigIO.h>
+#include <limits>
 
 
 namespace model
@@ -484,6 +485,9 @@ typename DDconfigIO<dim>::DispMatrixType& DDconfigIO<dim>::displacementMatrix()
             file<<pie<<"\n";
         }
         
+        // Matrix-only configurations must not inherit the default six-digit
+        // precision (or depend on a preceding dislocation record setting it).
+        file<<std::scientific<<std::setprecision(std::numeric_limits<double>::max_digits10);
         if(displacementMatrix().size())
         {
             file<<displacementMatrix()<<"\n";

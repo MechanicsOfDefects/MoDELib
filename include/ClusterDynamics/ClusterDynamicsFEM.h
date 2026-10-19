@@ -42,9 +42,13 @@ namespace model
         constexpr static int cols=rows;
         typedef Eigen::Matrix<double,rows,cols> MatrixType;
 
+        typedef Eigen::Matrix<double,dim,dim> MatrixDim;
+        typedef std::map<size_t,std::vector<MatrixDim>> DiffusionContainerType;
+
         const ClusterDynamicsParameters<dim>& cdp;
+        const DiffusionContainerType& D; // diffusion tensors of each species in each grain, at the current external stress
         
-        FluxMatrix(const ClusterDynamicsParameters<dim>& cdp_in);
+        FluxMatrix(const ClusterDynamicsParameters<dim>& cdp_in,const DiffusionContainerType& D_in);
         const MatrixType operator() (const ElementType& elem, const BaryType& bary) const;
     };
 
@@ -58,9 +62,13 @@ namespace model
         constexpr static int cols=rows;
         typedef Eigen::Matrix<double,rows,cols> MatrixType;
 
+        typedef Eigen::Matrix<double,dim,dim> MatrixDim;
+        typedef std::map<size_t,std::vector<MatrixDim>> DiffusionContainerType;
+
         const ClusterDynamicsParameters<dim>& cdp;
+        const DiffusionContainerType& D; // diffusion tensors of each species in each grain, at the current external stress
         
-        InvDscaling(const ClusterDynamicsParameters<dim>& cdp_in);
+        InvDscaling(const ClusterDynamicsParameters<dim>& cdp_in,const DiffusionContainerType& D_in);
         const MatrixType operator() (const ElementType& elem, const BaryType& bary) const;
     };
 
@@ -92,6 +100,10 @@ namespace model
         typedef BilinearWeakForm<MobileBilinearFormType,VolumeIntegrationDomainType> MobileBilinearWeakFormType;
 
         typedef TrialFunction<'d',mSize,FiniteElementType> MobileIncrementTrialType;
+        // Drift-diffusion (activity) formulation: mobileClusters stores the activity W=c*exp(E^e/kB/T).
+        // The physical concentration c is reconstructed node-by-node with mobileConcentrationFactors=exp(-E^e/kB/T).
+        typedef NodalTrialScaling<MobileTrialType> MobileConcentrationType;
+        typedef NodalTrialScaling<MobileIncrementTrialType> MobileConcentrationIncrementType;
         typedef TrialProd<InvDscaling<dim>,MobileIncrementTrialType> MobileIncrementTestType;
         typedef TrialGrad<MobileIncrementTestType> MobileIncrementTestGradType;
 
@@ -130,14 +142,27 @@ namespace model
                 
         typedef FixedDirichletSolver<LltSolverType,Eigen::ConjugateGradient<SparseMatrixType>> MobileSolverType;
         typedef FixedDirichletSolver<LuSolverType,Eigen::BiCGSTAB<SparseMatrixType>> MobileReactionSolverType;
+        typedef std::map<size_t,std::vector<MatrixDim>> DiffusionContainerType;
+        typedef std::map<size_t,std::vector<MatrixDim>> InverseDiffusionContainerType;
+        typedef std::map<size_t,Eigen::Array<double,mSize,1>> DiffusionDeterminantContainerType;
+        typedef std::map<size_t,Eigen::Matrix<double,mSize,mSize>> FirstOrderReactionContainerType;
+        typedef std::map<size_t,std::vector<Eigen::Matrix<double,mSize,mSize>>> SecondOrderReactionContainerType;
 
         const DislocationDynamicsBase<dim>& ddBase;
+        const MicrostructureContainer<dim>& microstructures;
         const ClusterDynamicsParameters<dim>& cdp;
+        MatrixDim externalStress;                          // macroscopic external stress entering the diffusion tensors
+        DiffusionContainerType currentD;                   // diffusion tensors at externalStress, used by the FEM operators
+        InverseDiffusionContainerType analyticalInvD;      // same, inverse, used by the analytical DD concentration kernel
+        DiffusionDeterminantContainerType analyticalDetD;  // same, determinant, used by the analytical DD concentration kernel
+        FirstOrderReactionContainerType reactionR1cd;      // first-order reaction coefficients of each grain at externalStress
+        SecondOrderReactionContainerType reactionR2;       // second-order reaction coefficients of each grain at externalStress
         const InvDscaling<dim> iDs;
         
         const Eigen::Matrix<double,mSize,mSize> invTrD;
         
         MobileTrialType mobileClusters;
+        Eigen::VectorXd mobileConcentrationFactors;
         MobileGradType mobileGrad;
         MobileFluxType mobileFlux;
         ImmobileTrialType immobileClusters;
@@ -149,9 +174,10 @@ namespace model
         MobileIncrementBilinearWeakFormType dmBWF;
 
         MobileSolverType mSolver;
+        bool dirichletConditionsInitialized;
         bool solverInitialized;
 
-        const Eigen::VectorXd cascadeGlobalProduction;
+        Eigen::VectorXd cascadeGlobalProduction;
         Eigen::VectorXd immobileClusterRate;
 
 //         ClusterDynamicsFEM(const DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
@@ -163,7 +189,12 @@ namespace model
 //         void initializeSolver();
 //         VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const;
 
-        ClusterDynamicsFEM(DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
+        ClusterDynamicsFEM(DislocationDynamicsBase<dim>& ddBase_in,const MicrostructureContainer<dim>& microstructures_in,const ClusterDynamicsParameters<dim>& cdp_in);
+        MatrixDim nodalStress(const NodeType& node) const;
+        void updateDiffusionTensors();
+        void updateReactionCoefficients();
+        void updateMobileConcentrationFactors();
+        void setExternalStress(const MatrixDim& externalStress_in);
         void solveMobileClusters(const bool hasDiscreteLoops);
         void solveImmobileClusters();
         void updateImmobileClusters(const double dt);

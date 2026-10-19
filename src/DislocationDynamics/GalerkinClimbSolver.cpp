@@ -55,7 +55,9 @@ namespace model
             const double u(fieldSegment.quadraturePoint(k).abscissa);
             const Eigen::Matrix<double,2,1> m(( Eigen::Matrix<double,2,1>()<<(1.0-u)*bxt.dot(fieldSegment.source->climbDirection()),
                                                /*                               */ u*bxt.dot(fieldSegment.sink->climbDirection())).finished());
-            const auto sourceConcentratoinMatrices(sourceSegment.concentrationMatrices(fieldSegment.quadraturePoint(k).r,this->CD->cdp));
+            const auto& invD(this->CD->clusterDynamicsFEM ? this->CD->clusterDynamicsFEM->analyticalInvD : this->CD->cdp.invD);
+            const auto& detD(this->CD->clusterDynamicsFEM ? this->CD->clusterDynamicsFEM->analyticalDetD : this->CD->cdp.detD);
+            const auto sourceConcentratoinMatrices(sourceSegment.concentrationMatrices(fieldSegment.quadraturePoint(k).r,this->CD->cdp,invD,detD));
             for(int kc=0; kc < mSize; kc++)
             {
                 temp.template block<2,2>(kc*2,0)+=m*sourceConcentratoinMatrices.row(kc);
@@ -282,6 +284,11 @@ namespace model
     void GalerkinClimbSolver<DislocationNetworkType>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
     {
         const size_t nodeCount(this->DN.networkNodes().size());
+        const double lf(this->CD->cdp.lumpingFactor); // scaling of the lumped stiffness (diffusion-bias branch, default 1)
+        // Diffusion tensors at the current external stress when the cluster-dynamics FEM is active.
+        // Note: the stiffness is only reassembled when updateStiffness is true.
+        const auto& invD(this->CD->clusterDynamicsFEM ? this->CD->clusterDynamicsFEM->analyticalInvD : this->CD->cdp.invD);
+        const auto& detD(this->CD->clusterDynamicsFEM ? this->CD->clusterDynamicsFEM->analyticalDetD : this->CD->cdp.detD);
         Fc.assign(mSize,Eigen::VectorXd::Zero(nodeCount));
         if(updateStiffness)
         {
@@ -391,7 +398,7 @@ namespace model
                     // the solver; do not materialize the 2*mSize-by-2 pair matrix.
                     for(const auto& qp : field.quadrature)
                     {
-                        const auto concentration(source.link->concentrationMatrices(qp.r,this->CD->cdp));
+                        const auto concentration(source.link->concentrationMatrices(qp.r,this->CD->cdp,invD,detD));
                         const auto c0(concentration.col(0).array());
                         const auto c1(concentration.col(1).array());
                         i0Term+=0.5*qp.weightedM0*(c0+c1);
@@ -402,10 +409,10 @@ namespace model
 
                     for(int kc=0;kc<mSize;++kc)
                     {
-                        KKc_ref[kc](field.i0)+=i0Term(kc);
-                        KKc_ref[kc](source.j0)+=j0Term(kc);
-                        KKc_ref[kc](field.i1)+=i1Term(kc);
-                        KKc_ref[kc](source.j1)+=j1Term(kc);
+                        KKc_ref[kc](field.i0)+=lf*i0Term(kc);
+                        KKc_ref[kc](source.j0)+=lf*j0Term(kc);
+                        KKc_ref[kc](field.i1)+=lf*i1Term(kc);
+                        KKc_ref[kc](source.j1)+=lf*j1Term(kc);
                     }
                 }
             }

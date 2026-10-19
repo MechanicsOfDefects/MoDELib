@@ -557,12 +557,14 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
                         std::set_intersection(pointGrains.begin(), pointGrains.end(), segGrains.begin(), segGrains.end(),
                                               std::inserter(intersect, intersect.begin()));
                         if(intersect.size()==1)
-                        {
+                        {// use the diffusion tensors at the current external stress when the cluster-dynamics FEM is active
+                            const auto& invD(climbSolver->CD->clusterDynamicsFEM ? climbSolver->CD->clusterDynamicsFEM->analyticalInvD : climbSolver->CD->cdp.invD);
+                            const auto& detD(climbSolver->CD->clusterDynamicsFEM ? climbSolver->CD->clusterDynamicsFEM->analyticalDetD : climbSolver->CD->cdp.detD);
                             //                            const int grainID((*intersect.begin())->region.regionID);
                             //                            StressStraight<3> ss(ddBase.poly,segment->source->get_P(),segment->sink->get_P(),segment->burgers(),ddBase.EwaldLength);
                             //                            for(const auto& shift : ddBase.periodicShifts)
                             //                            {
-                            temp+=segment->clusterConcentration(x,climbSolver->CD->cdp);
+                            temp+=segment->clusterConcentration(x,climbSolver->CD->cdp,invD,detD);
                             
                             //                                temp+=ss.clusterConcentration(x+shift,grainID, segment->source->climbDirection(), segment->source->climbVelocityScalar , segment->sink->climbDirection(), segment->sink->climbVelocityScalar, climbSolver->CD->cdp);
                             //                            }
@@ -1009,7 +1011,13 @@ void DislocationNetwork<dim>::reSolve()
             {
                 for(const auto& qPoint : link.second.lock()->quadraturePoints())
                 {
-                    auxIO.quadraturePoints().push_back(qPoint);
+                    auxIO.quadraturePoints().emplace_back(qPoint);
+                    if(climbSolver)
+                    {// output the physical concentrations, not the activities
+                        auto& qPointIO(auxIO.quadraturePoints().back());
+                        qPointIO.cCD=climbSolver->CD->cdp.physicalMobileConcentration(qPoint.cCD.array(),qPoint.stress).matrix();
+                        qPointIO.cDD=climbSolver->CD->cdp.physicalMobileConcentration(qPoint.cDD.array(),qPoint.stress).matrix();
+                    }
                 }
             }
         }

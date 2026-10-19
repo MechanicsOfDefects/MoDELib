@@ -107,7 +107,38 @@ namespace model
     template <int _dim>
     void DefectiveCrystal<_dim>::initializeConfiguration(const DDconfigIO<dim>& configIO)
     {
-        this->initializeConfiguration(configIO,f_file,F_labels);
+        const auto initializeMicrostructure=[this,&configIO](const std::shared_ptr<MicrostructureBase<dim>>& microstructure)
+        {
+            const auto t0=std::chrono::system_clock::now();
+            std::cout<<"Initializing "<<microstructure->tag<<":"<<std::flush;
+            microstructure->initializeConfiguration(configIO,f_file,F_labels);
+            std::cout<<greenColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+        };
+
+        // Load geometry first: the external-load controller depends on its
+        // plastic strain, and the nodal c-to-W conversion of ClusterDynamics depends on both.
+        for(const auto& microstructure : this->microstructures())
+        {
+            if(!std::dynamic_pointer_cast<ClusterDynamicsType>(microstructure)
+               && !std::dynamic_pointer_cast<ElasticDeformationType>(microstructure))
+            {
+                initializeMicrostructure(microstructure);
+            }
+        }
+        for(const auto& microstructure : this->microstructures())
+        {
+            if(std::dynamic_pointer_cast<ElasticDeformationType>(microstructure))
+            {
+                initializeMicrostructure(microstructure);
+            }
+        }
+        for(const auto& microstructure : this->microstructures())
+        {
+            if(std::dynamic_pointer_cast<ClusterDynamicsType>(microstructure))
+            {
+                initializeMicrostructure(microstructure);
+            }
+        }
     }
 
     template <int _dim>

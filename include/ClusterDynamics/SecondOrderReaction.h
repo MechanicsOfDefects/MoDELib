@@ -16,10 +16,74 @@
 //#include <UniformController.h>
 #include <Eigen/Dense>
 #include <EvalFunction.h>
+#include <TrialExpressionBase.h>
 #include <ClusterDynamicsParameters.h>
 
 namespace model
 {
+
+/*! A trial function whose nodal values are multiplied by per-dof factors.
+ *  Used by the drift-diffusion (activity) formulation to reconstruct the
+ *  physical concentration c=W/exp(E^e/kB/T) from the nodal activity W.
+ */
+template <typename _TrialFunctionType>
+struct NodalTrialScaling : public TrialExpressionBase<NodalTrialScaling<_TrialFunctionType>>
+{
+    typedef _TrialFunctionType TrialFunctionType;
+    typedef typename TrialFunctionType::ElementType ElementType;
+    typedef typename TrialFunctionType::BaryType BaryType;
+    typedef typename TrialFunctionType::ShapeFunctionMatrixType ShapeFunctionMatrixType;
+    constexpr static int rows=TrialFunctionType::rows;
+    constexpr static int cols=TrialFunctionType::cols;
+    constexpr static int dim=TrialFunctionType::dim;
+    constexpr static int nodesPerElement=TrialFunctionType::nodesPerElement;
+
+    const TrialFunctionType& trialFunction;
+    const Eigen::VectorXd& nodalFactors;
+
+    NodalTrialScaling(const TrialFunctionType& trialFunction_in,const Eigen::VectorXd& nodalFactors_in) :
+    /* init */ trialFunction(trialFunction_in),
+    /* init */ nodalFactors(nodalFactors_in)
+    {
+    }
+
+    ShapeFunctionMatrixType sfm(const ElementType& ele,const BaryType& bary) const
+    {
+        ShapeFunctionMatrixType temp(trialFunction.sfm(ele,bary));
+        for(int n=0;n<nodesPerElement;++n)
+        {
+            for(int k=0;k<rows;++k)
+            {
+                temp(k,n*rows+k)*=nodalFactors(ele.node(n).gID*rows+k);
+            }
+        }
+        return temp;
+    }
+};
+
+/*! First-order mobile reactions with a (stress-dependent) coefficient matrix for each grain.
+ */
+template <typename TrialFunctionType>
+struct GrainFirstOrderReaction : public EvalFunction<GrainFirstOrderReaction<TrialFunctionType>>
+{
+    constexpr static int rows=TrialFunctionType::rows;
+    constexpr static int cols=rows;
+    typedef typename TrialFunctionType::ElementType ElementType;
+    typedef typename TrialFunctionType::BaryType BaryType;
+    typedef Eigen::Matrix<double,rows,cols> MatrixType;
+
+    const std::map<size_t,MatrixType>& reactionMatrices;
+
+    GrainFirstOrderReaction(const std::map<size_t,MatrixType>& reactionMatrices_in) :
+    /* init */ reactionMatrices(reactionMatrices_in)
+    {
+    }
+
+    const MatrixType& operator()(const ElementType& ele,const BaryType&) const
+    {
+        return reactionMatrices.at(ele.simplex.region->regionID);
+    }
+};
 
 template <typename TrialFunctionType>
 struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFunctionType>>
@@ -29,8 +93,11 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
     constexpr static int cols=rows;
     constexpr static int dim=TrialFunctionType::dim;
     constexpr static int mSize=rows;
+    typedef Eigen::Matrix<double,rows,cols> MatrixType;
+    typedef std::map<size_t,std::vector<MatrixType>> ReactionContainerType;
 
     const ClusterDynamicsParameters<dim>& cdp;
+    const ReactionContainerType* const reactionMatrices; // (stress-dependent) R2 for each grain. If nullptr, cdp.R2 is used
 //    const ODESystem& odeS;
     
 //    typedef TrialFunction<'c',4,FiniteElementType> TrialFunctionType;
@@ -43,6 +110,19 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
     /**********************************************************************/
     SecondOrderReaction(const TrialFunctionType& c_in, const ClusterDynamicsParameters<dim>& cdp_in) :
     /* init */ cdp(cdp_in),
+    /* init */ reactionMatrices(nullptr),
+    /* init */ c(c_in),
+    /* init */ ce(c_in),
+    /* init */ inFactors((1.0/cdp.msVector.abs()).matrix()),
+    /* init */ outFactors(cdp.msVector.abs().matrix())
+    {
+        
+    }
+
+    /**********************************************************************/
+    SecondOrderReaction(const TrialFunctionType& c_in, const ClusterDynamicsParameters<dim>& cdp_in, const ReactionContainerType& reactionMatrices_in) :
+    /* init */ cdp(cdp_in),
+    /* init */ reactionMatrices(&reactionMatrices_in),
     /* init */ c(c_in),
     /* init */ ce(c_in),
     /* init */ inFactors((1.0/cdp.msVector.abs()).matrix()),
@@ -116,11 +196,12 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
         const Eigen::Matrix<double,rows,1> cvalue(inFactors.asDiagonal()*ce(ele,bary));
 //        std::vector<Eigen::Matrix<double,rows,cols>> R2V(buildR2(cvalue));
         
+        const std::vector<MatrixType>& R2(reactionMatrices? reactionMatrices->at(ele.simplex.region->regionID) : cdp.R2);
         Eigen::Matrix<double,rows,cols> temp(Eigen::Matrix<double,rows,cols>::Zero());
         for(size_t r=0;r<rows;++r)
         {
 //            temp.row(r)=R2V[r]*cvalue;
-            temp.row(r)=cdp.R2[r]*cvalue;
+            temp.row(r)=R2[r]*cvalue;
         }
 
         return  outFactors.asDiagonal()*(temp)*inFactors.asDiagonal();

@@ -17,8 +17,9 @@ namespace model
 {
 
     template<int dim>
-    FluxMatrix<dim>::FluxMatrix(const ClusterDynamicsParameters<dim>& cdp_in) :
+    FluxMatrix<dim>::FluxMatrix(const ClusterDynamicsParameters<dim>& cdp_in,const DiffusionContainerType& D_in) :
     /* init */cdp(cdp_in)
+    /* init */,D(D_in)
     {
         
     }
@@ -31,7 +32,7 @@ namespace model
         MatrixType D(MatrixType::Zero());
         for(size_t k=0;k<mSize;++k)
         {
-            D.template block<dim,dim>(k*dim,k*dim)=-cdp.D.at(grainID)[k]/cdp.omega;
+            D.template block<dim,dim>(k*dim,k*dim)=-this->D.at(grainID)[k]/cdp.omega;
         }
         
         // for(size_t k=0;k<mSize;++k)
@@ -49,8 +50,9 @@ namespace model
     template struct FluxMatrix<3>;
 
 template<int dim>
-InvDscaling<dim>::InvDscaling(const ClusterDynamicsParameters<dim>& cdp_in) :
+InvDscaling<dim>::InvDscaling(const ClusterDynamicsParameters<dim>& cdp_in,const DiffusionContainerType& D_in) :
 /* init */cdp(cdp_in)
+/* init */,D(D_in)
 {
     
 }
@@ -62,7 +64,7 @@ const typename InvDscaling<dim>::MatrixType InvDscaling<dim>::operator() (const 
     MatrixType InvDscaling(MatrixType::Zero());
     for(size_t k=0;k<mSize;++k)
     {
-        InvDscaling(k,k)=3.0/(cdp.D.at(grainID)[k].trace()/cdp.omega);
+        InvDscaling(k,k)=3.0/(D.at(grainID)[k].trace()/cdp.omega);
 //        InvDscaling(k,k)=(cdp.D.at(grainID)[k].trace()/cdp.omega)/3.0;
 //        InvDscaling(k,k)=1.0;
 
@@ -74,31 +76,119 @@ template struct InvDscaling<3>;
 
 
     template<int dim>
-    ClusterDynamicsFEM<dim>::ClusterDynamicsFEM(DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in) :
+    ClusterDynamicsFEM<dim>::ClusterDynamicsFEM(DislocationDynamicsBase<dim>& ddBase_in,const MicrostructureContainer<dim>& microstructures_in,const ClusterDynamicsParameters<dim>& cdp_in) :
     /* init */ ddBase(ddBase_in)
+    /* init */,microstructures(microstructures_in)
     /* init */,cdp(cdp_in)
-    /* init */,iDs(cdp)
+    /* init */,externalStress(MatrixDim::Zero())
+    /* init */,currentD(cdp.D)
+    /* init */,iDs(cdp,currentD)
     /* init */,mobileClusters(ddBase.fe->template trial<'m',mSize>())
+    /* init */,mobileConcentrationFactors(Eigen::VectorXd::Ones(mobileClusters.gSize()))
     /* init */,mobileGrad(grad(mobileClusters))
-    /* init */,mobileFlux(FluxMatrix<dim>(cdp)*mobileGrad)
+    /* init */,mobileFlux(FluxMatrix<dim>(cdp,currentD)*mobileGrad)
     /* init */,immobileClusters(ddBase.fe->template trial<'i',iSize>())
     /* init */,nodeListInternalExternal(ddBase.isPeriodicDomain ? -1 : ddBase.fe->template createNodeList<ExternalAndInternalBoundary>())
     /* init */,mobileClustersIncrement(ddBase.fe->template trial<'d',mSize>())
     /* init */,dV(ddBase.fe->template domain<EntireDomain,dVorder,GaussLegendre>())
 //    /* init */,mBWF((test(this->mobileGrad),-ddBase.poly.Omega*this->mobileFlux)*dV)
     /* init */,mBWF((test(grad(iDs*mobileClusters)),-ddBase.poly.Omega*this->mobileFlux)*dV)
-    /* init */,dmBWF((test(grad(iDs*mobileClustersIncrement)),-ddBase.poly.Omega*(FluxMatrix<dim>(this->cdp)*grad(mobileClustersIncrement)))*dV)   
+    /* init */,dmBWF((test(grad(iDs*mobileClustersIncrement)),-ddBase.poly.Omega*(FluxMatrix<dim>(this->cdp,currentD)*grad(mobileClustersIncrement)))*dV)   
     /* init */,mSolver(true,FLT_EPSILON)
+    /* init */,dirichletConditionsInitialized(false)
     /* init */,solverInitialized(false)
     /* init */,cascadeGlobalProduction(((test(iDs*this->mobileClusters),make_constant(this->cdp.G))*dV).globalVector())
     // /* init */,cascadeGlobalProduction(((test(this->mobileClusters),make_constant(this->cdp.G))*dV).globalVector())
 
     {
+        updateDiffusionTensors();
+        updateReactionCoefficients();
         mobileClustersIncrement.setConstant(Eigen::Matrix<double,mSize,1>::Zero());
-        mobileClusters.setConstant(cdp.equilibriumMobileConcentration(0.0).matrix().transpose());
+        mobileClusters.setConstant(cdp.renormalizedMobileConcentration(cdp.equilibriumMobileConcentration(0.0),MatrixDim::Zero()).matrix().transpose());
         // immobileClusters.setConstant(Eigen::Matrix<double,iSize,1>::Zero());
         immobileClusters.setConstant(cdp.initLoopSinks);    
         immobileClusterRate = Eigen::VectorXd::Zero(immobileClusters.gSize());    
+    }
+
+    template<int dim>
+    typename ClusterDynamicsFEM<dim>::MatrixDim ClusterDynamicsFEM<dim>::nodalStress(const NodeType& node) const
+    {// patch-average of the total stress at the barycenters of the elements sharing the node
+        MatrixDim sigma(MatrixDim::Zero());
+        for(const auto& ele : node)
+        {
+            const typename ElementType::BaryType bary(ElementType::BaryType::Constant(1.0/(dim+1)));
+            sigma += microstructures.stress(ele->position(bary),nullptr,ele,nullptr);
+        }
+        return node.size()? (sigma/node.size()).eval() : sigma;
+    }
+
+    template<int dim>
+    void ClusterDynamicsFEM<dim>::updateDiffusionTensors()
+    {
+        currentD.clear();
+        analyticalInvD.clear();
+        analyticalDetD.clear();
+        for(const auto& grainPair : ddBase.poly.grains)
+        {
+            auto DIter(currentD.emplace(grainPair.first,std::vector<MatrixDim>()));
+            auto invDIter(analyticalInvD.emplace(grainPair.first,std::vector<MatrixDim>()));
+            auto detDIter(analyticalDetD.emplace(grainPair.first,Eigen::Array<double,mSize,1>::Zero()));
+            for(size_t k=0;k<mSize;++k)
+            {
+                const MatrixDim D(cdp.diffusionTensor(*grainPair.second,k,externalStress));
+                DIter.first->second.emplace_back(D);
+                invDIter.first->second.emplace_back(D.inverse());
+                detDIter.first->second(k)=D.determinant();
+            }
+        }
+    }
+
+    template<int dim>
+    void ClusterDynamicsFEM<dim>::updateReactionCoefficients()
+    {
+        reactionR1cd.clear();
+        reactionR2.clear();
+        if(cdp.computeReactions && mSize>1)
+        {
+            const auto clusterSizes(cdp.msVector.abs().matrix());
+            const auto clusterSizeInv((1.0/cdp.msVector.abs()).matrix());
+            for(const auto& grainPair : ddBase.poly.grains)
+            {
+                const auto R1(cdp.getR1(*grainPair.second,externalStress));
+                reactionR1cd.emplace(grainPair.first,iSize>0 ? (clusterSizes.asDiagonal()*R1*clusterSizeInv.asDiagonal()).eval() : Eigen::Matrix<double,mSize,mSize>::Zero().eval());
+                reactionR2.emplace(grainPair.first,cdp.getR2(*grainPair.second,externalStress));
+            }
+        }
+        else
+        {
+            for(const auto& grainPair : ddBase.poly.grains)
+            {
+                reactionR1cd.emplace(grainPair.first,cdp.R1cd);
+                reactionR2.emplace(grainPair.first,cdp.R2);
+            }
+        }
+    }
+
+    template<int dim>
+    void ClusterDynamicsFEM<dim>::updateMobileConcentrationFactors()
+    {// c=W*mobileConcentrationFactors, evaluated with the nodal (patch-average) total stress
+        for(const auto& node : mobileClusters.fe().nodes())
+        {
+            mobileConcentrationFactors.template segment<mSize>(node.gID*mSize)=(1.0/cdp.renormalizationFactor(nodalStress(node))).matrix().transpose();
+        }
+    }
+
+    template<int dim>
+    void ClusterDynamicsFEM<dim>::setExternalStress(const MatrixDim& externalStress_in)
+    {// the diffusion tensors depend only on the macroscopic external stress. Rebuild the operators when it changes
+        if((externalStress-externalStress_in).norm()>FLT_EPSILON*(1.0+externalStress.norm()))
+        {
+            externalStress=externalStress_in;
+            updateDiffusionTensors();
+            updateReactionCoefficients();
+            cascadeGlobalProduction=((test(iDs*mobileClusters),make_constant(cdp.G))*dV).globalVector();
+            solverInitialized=false;
+        }
     }
 
     template<int dim>
@@ -110,23 +200,25 @@ template struct InvDscaling<3>;
 
         if(this->cdp.computeReactions)
         {
+            // Reactions act on the physical concentration c=W*mobileConcentrationFactors
+            updateMobileConcentrationFactors();
+            const MobileConcentrationType bulkConcentration(mobileClusters,mobileConcentrationFactors);
+            const MobileConcentrationIncrementType bulkConcentrationIncrement(mobileClustersIncrement,mobileConcentrationFactors);
             const double cTol(1e-5);
             double cError(1.0);
             while(cError>cTol)
             {
-                const auto R1((this->cdp.R1cd).eval());
-                auto bWF_R1((test(iDs*mobileClustersIncrement),R1*(-1.0*mobileClustersIncrement))*dV); // THIS SHOULD BE STORED SINCE IT IS ALWAYS THE SAME
-                auto lWF_R1((test(iDs*mobileClustersIncrement),eval(R1*mobileClusters))*dV);
+                const GrainFirstOrderReaction<MobileTrialType> R1(reactionR1cd);
+                auto bWF_R1((test(iDs*mobileClustersIncrement),R1*(-1.0*bulkConcentrationIncrement))*dV); // THIS SHOULD BE STORED SINCE IT IS ALWAYS THE SAME
+                auto lWF_R1((test(iDs*mobileClustersIncrement),eval(R1*bulkConcentration))*dV);
 
                 FirstOrderReaction<MobileTrialType,ImmobileTrialType> R1sink(immobileClusters,this->cdp,ddBase.poly);
-                auto bWF_R1sink((test(iDs*mobileClustersIncrement),R1sink*(-1.0*mobileClustersIncrement))*dV); 
-                auto lWF_R1sink((test(iDs*mobileClustersIncrement),eval(R1sink*mobileClusters))*dV);
-                
-                auto lWF_R1sink2((test(mobileClustersIncrement),eval(R1sink*mobileClusters))*dV);
+                auto bWF_R1sink((test(iDs*mobileClustersIncrement),R1sink*(-1.0*bulkConcentrationIncrement))*dV); 
+                auto lWF_R1sink((test(iDs*mobileClustersIncrement),eval(R1sink*bulkConcentration))*dV);
 
-                SecondOrderReaction<MobileTrialType> R2(mobileClusters,this->cdp);
-                auto bWF_R2((test(iDs*mobileClustersIncrement),R2*(-1.0*mobileClustersIncrement))*dV);
-                auto lWF_R2((test(iDs*mobileClustersIncrement),eval(R2*(0.5*mobileClusters)))*dV);
+                SecondOrderReaction<MobileConcentrationType> R2(bulkConcentration,this->cdp,reactionR2);
+                auto bWF_R2((test(iDs*mobileClustersIncrement),R2*(-1.0*bulkConcentrationIncrement))*dV);
+                auto lWF_R2((test(iDs*mobileClustersIncrement),eval(R2*(0.5*bulkConcentration)))*dV);
 
                 Eigen::SparseMatrix<double,Eigen::RowMajor> AcIR;
                 AcIR.resize(mobileClustersIncrement.gSize(),mobileClustersIncrement.gSize());
@@ -179,7 +271,9 @@ template struct InvDscaling<3>;
         if (iSize > 0)
         {
             std::cout<<", immobile solver, "<<std::flush;
-            ImmobileSinkRate<MobileTrialType,ImmobileTrialType> immobileRate(mobileClusters,immobileClusters,this->cdp,ddBase.poly);
+            updateMobileConcentrationFactors();
+            const MobileConcentrationType bulkConcentration(mobileClusters,mobileConcentrationFactors);
+            ImmobileSinkRate<MobileConcentrationType,ImmobileTrialType> immobileRate(bulkConcentration,immobileClusters,this->cdp,ddBase.poly);
             auto lWFsink((test(immobileClusters),immobileRate)*dV);
             SpatialODESolver iSolver(immobileClusters,dV,false,1e-4);
             immobileClusterRate = iSolver.solve(lWFsink.globalVector());
@@ -228,19 +322,31 @@ template struct InvDscaling<3>;
             allComps[k]=true;
         }
         
-        mobileClusters.addDirichletCondition(nodeListInternalExternal,Fix(),allComps); // apply to the four components of c
-        mobileClustersIncrement.addDirichletCondition(nodeListInternalExternal,Fix(),allComps); // apply to the four components of c
+        if(!dirichletConditionsInitialized)
+        {// register the boundary dofs once. initializeSolver is called again after a change of external stress
+            mobileClusters.addDirichletCondition(nodeListInternalExternal,Fix(),allComps); // apply to the four components of c
+            mobileClustersIncrement.addDirichletCondition(nodeListInternalExternal,Fix(),allComps); // apply to the four components of c
+            dirichletConditionsInitialized=true;
+        }
         mSolver.compute(mBWF); // call this after assigning the BCs
         solverInitialized=true;
     }
 
     template<int dim>
     void ClusterDynamicsFEM<dim>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
-    {    
+    {// The configuration files store the physical concentration c. The FEM unknown is the activity W.
+     // The other microstructures (dislocations, elastic deformation) must be initialized before this call, since the nodal stress is needed.
+        setExternalStress(microstructures.averageStress());
+        Eigen::VectorXd W(Eigen::VectorXd::Zero(mobileClusters.gSize()));
         if(size_t(configIO.cdMatrix().size())==mobileClusters.gSize()+immobileClusters.gSize())
         {
             const size_t nNodes(mobileClusters.fe().nodes().size());
-            mobileClusters=configIO.cdMatrix().block(0,0,nNodes,mSize).transpose().reshaped(mobileClusters.gSize(),1);
+            for(const auto& node : mobileClusters.fe().nodes())
+            {
+                const Eigen::Array<double,1,mSize> c(configIO.cdMatrix().block(node.gID,0,1,mSize).array());
+                W.template segment<mSize>(node.gID*mSize)=cdp.renormalizedMobileConcentration(c,nodalStress(node)).matrix().transpose();
+            }
+            mobileClusters=W;
             immobileClusters=configIO.cdMatrix().block(0,mSize,nNodes,iSize).transpose().reshaped(immobileClusters.gSize(),1);
 
         }
@@ -250,7 +356,14 @@ template struct InvDscaling<3>;
             {
                 throw std::runtime_error("ClusterDynamics: TrialFunctions initializatoin size mismatch");
             }
-        }        
+            for(const auto& node : mobileClusters.fe().nodes())
+            {// start from the local equilibrium concentration
+                const MatrixDim sigma(nodalStress(node));
+                W.template segment<mSize>(node.gID*mSize)=cdp.renormalizedMobileConcentration(cdp.equilibriumMobileConcentration(sigma.trace()),sigma).matrix().transpose();
+            }
+            mobileClusters=W;
+        }
+        updateMobileConcentrationFactors();
     }
 
 
@@ -350,7 +463,8 @@ template struct InvDscaling<3>;
        // Add up the contribution from the mobile species
         Eigen::Matrix<double,dim,dim> tempStrain(Eigen::Matrix<double,dim,dim>::Zero());
         const Eigen::Matrix<double,mSize,1> inFactors((1.0/cdp.msVector.abs()).matrix());
-        const Eigen::Matrix<double,mSize,1> localConcentration(inFactors.asDiagonal()*eval(mobileClusters)(ele,bary)); // Local concentration
+        const MobileConcentrationType bulkConcentration(mobileClusters,mobileConcentrationFactors); // physical concentration c=W*mobileConcentrationFactors
+        const Eigen::Matrix<double,mSize,1> localConcentration(inFactors.asDiagonal()*eval(bulkConcentration)(ele,bary)); // Local concentration
         for(int k=0; k<mSize; k++)
         {
             tempStrain += 1.0/3.0*cdp.msVector(k)*localConcentration(k)*cdp.msRelRelaxVol(k)*Eigen::Matrix<double,dim,dim>::Identity();

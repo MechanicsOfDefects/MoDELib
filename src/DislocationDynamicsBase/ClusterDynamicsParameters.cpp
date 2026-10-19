@@ -14,13 +14,44 @@
 #ifndef model_ClusterDynamicsParameters_cpp_
 #define model_ClusterDynamicsParameters_cpp_
 
+#include <limits>
+#include <Eigen/Eigenvalues>
 #include <ClusterDynamicsParameters.h>
 
 namespace model
 {
+    namespace
+    {// Inputs added on the diffusion-bias branch are optional, so that existing material files keep working.
+        double readOptionalScalar(const std::string& fileName,const std::string& key,const double& defaultValue)
+        {
+            try
+            {
+                return TextFileParser(fileName).readScalar<double>(key,true);
+            }
+            catch(const std::runtime_error&)
+            {
+                std::cout<<key<<" not found in "<<fileName<<", using default value "<<defaultValue<<std::endl;
+                return defaultValue;
+            }
+        }
+
+        Eigen::MatrixXd readOptionalMatrix(const std::string& fileName,const std::string& key,const size_t& rows,const size_t& cols)
+        {
+            try
+            {
+                return TextFileParser(fileName).readMatrix<double>(key,rows,cols,true);
+            }
+            catch(const std::runtime_error&)
+            {
+                std::cout<<key<<" not found in "<<fileName<<", using zeros"<<std::endl;
+                return Eigen::MatrixXd::Zero(rows,cols);
+            }
+        }
+    }
 
     template<int dim>
     ClusterDynamicsParameters<dim>::ClusterDynamicsParameters(const DislocationDynamicsBase<dim>& ddBase) :
+    /* init */ lumpingFactor(readOptionalScalar(ddBase.poly.materialFile,"lumpingFactor",1.0)),
     /* init */ kB(ddBase.poly.kB),
     /* init */ T(ddBase.poly.T),
     /* init */ omega(ddBase.poly.Omega),
@@ -32,6 +63,7 @@ namespace model
     /* init */ msEf(true? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesEnergyFormation_eV",1,mSize,true).array()*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3)).eval() : Eigen::Array<double,1,mSize>::Zero()),
     /* init */ msEm(true? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesEnergyMigration_eV",mSize,dim*(dim+1)/2,true)*ddBase.poly.eV2J/ddBase.poly.mu_SI/pow(ddBase.poly.b_SI,3)).eval() : Eigen::Matrix<double,mSize,dim*(dim+1)/2>::Zero()),
     /* init */ msD0(true? (TextFileParser(ddBase.poly.materialFile).readMatrix<double>("mobileSpeciesD0_SI",mSize,dim*(dim+1)/2,true)/ddBase.poly.b_SI/ddBase.poly.cs_SI).eval() : Eigen::Matrix<double,mSize,dim*(dim+1)/2>::Zero()),
+    /* init */ msMigrationRelVol(readOptionalMatrix(ddBase.poly.materialFile,"mobileSpeciesMigrationRelVolume",mSize,dim*(dim+1)/2)),
     /* init */ D(getD(ddBase.poly.grains)),
     /* init */ invD(getInvD()),
     /* init */ detD(getDetD()),
@@ -134,7 +166,35 @@ namespace model
     }
 
     template<int dim>
+    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::averageDiffusivity(const Grain<dim>& grain,const MatrixDim& externalStress) const
+    {
+        Eigen::Array<double,1,mSize> aveD(Eigen::Array<double,1,mSize>::Zero());
+        for(int k=0;k<mSize;k++)
+        {
+            aveD(k)=pow(diffusionTensor(grain,k,externalStress).determinant(),1.0/3.0);
+        }
+        return aveD;
+    }
+
+    template<int dim>
     Eigen::Matrix<double,ClusterDynamicsParameters<dim>::mSize,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::getR1() const
+    {// zero-stress coefficients of the first grain
+        Eigen::Array<double,1,mSize> aveD(Eigen::Array<double,1,mSize>::Zero());
+        for(int k=0;k<mSize;k++)
+        {
+            aveD(k)=pow(detD.begin()->second(k),1.0/3.0);
+        }
+        return getR1(aveD);
+    }
+
+    template<int dim>
+    Eigen::Matrix<double,ClusterDynamicsParameters<dim>::mSize,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::getR1(const Grain<dim>& grain,const MatrixDim& externalStress) const
+    {// coefficients of a grain at a given external stress
+        return getR1(averageDiffusivity(grain,externalStress));
+    }
+
+    template<int dim>
+    Eigen::Matrix<double,ClusterDynamicsParameters<dim>::mSize,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::getR1(const Eigen::Array<double,1,mSize>& aveD) const
     {
         int vIndex, iIndex;
         for(int k=0;k<mSize;k++)
@@ -151,12 +211,6 @@ namespace model
         if(iIndex-vIndex!=1 && msVector.matrix().squaredNorm()>0)
         { // Expected sequence should look like ... -2,-1,+1,+2,+3 ...
             throw std::runtime_error("intersitital Index must be after vacancy Index.");
-        }
-        
-        Eigen::Array<double,1,mSize> aveD(Eigen::Array<double,1,mSize>::Zero());
-        for(int k=0;k<mSize;k++)
-        {
-            aveD(k)=pow(detD.begin()->second(k),1.0/3.0);
         }
         
         Eigen::Array<double,1,mSize> rn(Eigen::Array<double,1,mSize>::Zero());
@@ -223,13 +277,25 @@ namespace model
 
     template<int dim>
     std::vector<Eigen::Matrix<double,ClusterDynamicsParameters<dim>::mSize,ClusterDynamicsParameters<dim>::mSize>> ClusterDynamicsParameters<dim>::getR2() const
-    {
-
+    {// zero-stress coefficients of the first grain
         Eigen::Array<double,1,mSize> aveD(Eigen::Array<double,1,mSize>::Zero());
         for(int k=0;k<mSize;k++)
         {
             aveD(k)=pow(detD.begin()->second(k),1.0/3.0);
         }
+        return getR2(aveD);
+    }
+
+    template<int dim>
+    std::vector<Eigen::Matrix<double,ClusterDynamicsParameters<dim>::mSize,ClusterDynamicsParameters<dim>::mSize>> ClusterDynamicsParameters<dim>::getR2(const Grain<dim>& grain,const MatrixDim& externalStress) const
+    {// coefficients of a grain at a given external stress
+        return getR2(averageDiffusivity(grain,externalStress));
+    }
+
+    template<int dim>
+    std::vector<Eigen::Matrix<double,ClusterDynamicsParameters<dim>::mSize,ClusterDynamicsParameters<dim>::mSize>> ClusterDynamicsParameters<dim>::getR2(const Eigen::Array<double,1,mSize>& aveD) const
+    {
+
         
         Eigen::Array<double,1,mSize> rn(Eigen::Array<double,1,mSize>::Zero());
         for(int k=0;k<mSize;k++)
@@ -326,8 +392,46 @@ namespace model
 
 
     template<int dim>
+    Eigen::Matrix<double,dim,dim> ClusterDynamicsParameters<dim>::diffusionTensor(const Grain<dim>& grain,const size_t& speciesID,const MatrixDim& externalStress) const
+    {// Diffusion tensor of a species in a grain (global frame). The migration energies are shifted by the work of the
+     // external stress (crystal frame, components [11 12 13 22 23 33]) on the migration activation volume msMigrationRelVol*omega.
+        const MatrixDim& C2G(grain.C2G);
+        const MatrixDim stressLocal(C2G.transpose()*externalStress*C2G);
+        const Eigen::Matrix<double,1,dim*(dim+1)/2> stressVoigt((Eigen::Matrix<double,1,dim*(dim+1)/2>() << stressLocal(0,0),stressLocal(0,1),stressLocal(0,2),stressLocal(1,1),stressLocal(1,2),stressLocal(2,2)).finished());
+        const Eigen::Matrix<double,1,dim*(dim+1)/2> emEff(msEm.row(speciesID)-(stressVoigt.array()*msMigrationRelVol.row(speciesID).array()*omega).matrix());
+
+        Eigen::Matrix<double,dim,dim> Dlocal;
+        Dlocal<<   msD0(speciesID,0)*exp(-emEff(0)/kB/T), msD0(speciesID,1)*exp(-emEff(1)/kB/T), msD0(speciesID,2)*exp(-emEff(2)/kB/T),
+        msD0(speciesID,1)*exp(-emEff(1)/kB/T), msD0(speciesID,3)*exp(-emEff(3)/kB/T), msD0(speciesID,4)*exp(-emEff(4)/kB/T),
+        msD0(speciesID,2)*exp(-emEff(2)/kB/T), msD0(speciesID,4)*exp(-emEff(4)/kB/T), msD0(speciesID,5)*exp(-emEff(5)/kB/T);
+
+        if(!Dlocal.allFinite())
+        {
+            throw std::runtime_error("Diffusion tensor has non-finite entries for species "+std::to_string(speciesID)+".");
+        }
+
+        const Eigen::SelfAdjointEigenSolver<MatrixDim> eigenSolver(Dlocal);
+        if(eigenSolver.info()!=Eigen::Success)
+        {
+            throw std::runtime_error("Cannot compute diffusion-tensor eigenvalues for species "+std::to_string(speciesID)+" in grain "+std::to_string(grain.grainID)+".");
+        }
+        const double minEigenvalue(eigenSolver.eigenvalues().minCoeff());
+        const double maxEigenvalue(eigenSolver.eigenvalues().maxCoeff());
+        if(minEigenvalue<=std::numeric_limits<double>::epsilon()*maxEigenvalue)
+        {
+            throw std::runtime_error("Diffusion tensor is not positive definite for species "+std::to_string(speciesID)+" in grain "+std::to_string(grain.grainID)+". Eigenvalue range: ["+std::to_string(minEigenvalue)+", "+std::to_string(maxEigenvalue)+"].");
+        }
+
+        // g^T inv(Dg)*g = (C2G*c)^T*inv(Dg)*C2G*c = c^T*C2G^T*inv(Dg)*C2G*c= c^T*inv(inv(C2G)*Dg*inv(C2G^T))*c
+        // c^T*inv(C2G^T*Dg*C2G)*c
+        // Dc=C2G^T*Dg*C2G
+        // Dg = C2G*Dc*C2G^T
+        return C2G*Dlocal*C2G.transpose();
+    }
+
+    template<int dim>
     std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> ClusterDynamicsParameters<dim>::getD(const GrainContainerType& grains) const
-    {
+    {// zero-stress diffusion tensors
         std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> temp;
         
         for(const auto& grainPair : grains)
@@ -336,22 +440,8 @@ namespace model
             
             for(size_t k=0; k<mSize; k++)
             {
-                Eigen::Matrix<double,dim,dim> Dlocal;
-                Dlocal<<   msD0(k,0)*exp(-msEm(k,0)/kB/T), msD0(k,1)*exp(-msEm(k,1)/kB/T), msD0(k,2)*exp(-msEm(k,2)/kB/T),
-                msD0(k,1)*exp(-msEm(k,1)/kB/T), msD0(k,3)*exp(-msEm(k,3)/kB/T), msD0(k,4)*exp(-msEm(k,4)/kB/T),
-                msD0(k,2)*exp(-msEm(k,2)/kB/T), msD0(k,4)*exp(-msEm(k,4)/kB/T), msD0(k,5)*exp(-msEm(k,5)/kB/T);
-                
-                // g^T inv(Dg)*g = (C2G*c)^T*inv(Dg)*C2G*c = c^T*C2G^T*inv(Dg)*C2G*c= c^T*inv(inv(C2G)*Dg*inv(C2G^T))*c
-                // c^T*inv(C2G^T*Dg*C2G)*c
-                // Dc=C2G^T*Dg*C2G
-                // Dg = C2G*Dc*C2G^T
-                const Eigen::Matrix<double,dim,dim> Dglobal(grainPair.second->C2G*Dlocal*grainPair.second->C2G.transpose());
+                const Eigen::Matrix<double,dim,dim> Dglobal(diffusionTensor(*grainPair.second,k,MatrixDim::Zero()));
                 grainIter.first->second.emplace_back(Dglobal);
-                
-                if( fabs(Dglobal.eigenvalues().imag()(0)*Dglobal.eigenvalues().imag()(1)*Dglobal.eigenvalues().imag()(2)) > FLT_EPSILON)
-                {
-                    throw std::runtime_error("Diffusion tensor does not have proper eigen values.");
-                }
                 std::cout<<greenColor<<"  Diffusion coefficient for "<<k<<":\n"<<Dglobal<<std::endl;
             }
         }
@@ -375,6 +465,18 @@ namespace model
             temp.emplace_back(Dlocal);
         }
         
+        return temp;
+    }
+
+    template<int dim>
+    std::vector<Eigen::Matrix<double,dim,dim>> ClusterDynamicsParameters<dim>::getDlocal(const Grain<dim>& grain,const MatrixDim& externalStress) const
+    {// crystal-frame diffusion tensors of a grain at a given external stress
+        std::vector<Eigen::Matrix<double,dim,dim>> temp;
+        const MatrixDim& C2G(grain.C2G);
+        for(size_t k=0; k<mSize; k++)
+        {
+            temp.emplace_back(C2G.transpose()*diffusionTensor(grain,k,externalStress)*C2G);
+        }
         return temp;
     }
 
@@ -434,6 +536,30 @@ namespace model
     {
         return equilibriumMobileConcentration(stressTrace)*exp(-normalTraction*msVector*omega/kB/T);
         // return msVector.abs()*exp(-msEf/kB/T);
+    }
+
+    template<int dim>
+    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::interactionEnergy(const MatrixDim& stress) const
+    {// hydrostatic elastic interaction energy E^e of each mobile species with the local stress
+        return -stress.trace()*msVector*msRelRelaxVol*omega/3.0;
+    }
+
+    template<int dim>
+    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::renormalizationFactor(const MatrixDim& stress) const
+    {// W/c = exp(E^e/kB/T)
+        return (interactionEnergy(stress)/(kB*T)).exp();
+    }
+
+    template<int dim>
+    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::renormalizedMobileConcentration(const Eigen::Array<double,1,mSize>& c,const MatrixDim& stress) const
+    {// physical concentration c -> activity W
+        return c*renormalizationFactor(stress);
+    }
+
+    template<int dim>
+    Eigen::Array<double,1,ClusterDynamicsParameters<dim>::mSize> ClusterDynamicsParameters<dim>::physicalMobileConcentration(const Eigen::Array<double,1,mSize>& W,const MatrixDim& stress) const
+    {// activity W -> physical concentration c
+        return W/renormalizationFactor(stress);
     }
 
     template<int dim>

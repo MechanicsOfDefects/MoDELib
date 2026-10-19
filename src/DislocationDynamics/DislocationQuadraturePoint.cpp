@@ -279,7 +279,8 @@ namespace model
                 }
             }
 //            cDD=parentSegment.network().climbSolver->CD->cdp.dislocationMobileConcentration(parentSegment.burgers(),rl,pkForce,stress);
-            cDD=parentSegment.network().climbSolver->CD->cdp.dislocationMobileConcentration(parentSegment.burgers(),rl,pkForce+lineTensionForce+stackingFaultForce,stress);
+            const auto cDDphysical(parentSegment.network().climbSolver->CD->cdp.dislocationMobileConcentration(parentSegment.burgers(),rl,pkForce+lineTensionForce+stackingFaultForce,stress));
+            cDD=parentSegment.network().climbSolver->CD->cdp.renormalizedMobileConcentration(cDDphysical,stress); // activity W at the dislocation core
 
             //            std::cout<<"concentrations:"<<std::endl;
 //            std::cout<<"cCD="<<cCD<<std::endl;

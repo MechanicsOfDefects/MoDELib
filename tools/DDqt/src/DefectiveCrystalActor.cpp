@@ -21,6 +21,7 @@
 #include <limits>
 
 #include <DefectiveCrystalActor.h>
+#include <DDframeTime.h>
 #include <SimplicialMesh.h>
 
 #include <DDqtControls.h>
@@ -306,6 +307,19 @@ namespace model
 
         void DefectiveCrystalActor::refreshFrame(size_t frameID)
         {
+            // Restore the time of the displayed frame before initializing the microstructures,
+            // so that time-dependent loads (and the stress used for the nodal c<->W conversion) match the frame.
+            try
+            {
+                const auto frameTime=DDframeTime::read(ddBase.simulationParameters.traitsIO.fFile,frameID);
+                ddBase.simulationParameters.runID=frameTime.runID;
+                ddBase.simulationParameters.totalTime=frameTime.totalTime;
+                ddBase.simulationParameters.dt=frameTime.dt;
+            }
+            catch(const std::exception& error)
+            {// e.g. no F file: keep the current time
+                std::cout<<"DDqt: "<<error.what()<<" Using the current simulation time."<<std::endl;
+            }
             DislocationNode<3>::force_count(0);
             DislocationLoopNode<3>::force_count(0);
             DislocationLoop<3>::force_count(0);

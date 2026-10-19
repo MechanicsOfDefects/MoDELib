@@ -655,11 +655,17 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
     template <int dim>
     typename DislocationSegment<dim>::ConcentrationMatrixType DislocationSegment<dim>::concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const
     {
+        return concentrationMatrices(x,icp,icp.invD,icp.detD);
+    }
+
+    template <int dim>
+    typename DislocationSegment<dim>::ConcentrationMatrixType DislocationSegment<dim>::concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp,const InverseDiffusionContainerType& invD,const DiffusionDeterminantContainerType& detD) const
+    {// invD and detD are the (possibly stress-dependent) inverse diffusion tensors and their determinants for each grain
         ConcentrationMatrixType M(ConcentrationMatrixType::Zero());
         if(this->grains().size() == 1 && this->chordLength()>FLT_EPSILON)
         {
-            const auto& Dinv(icp.invD.at((*this->grains().begin())->grainID));
-            const auto& Ddet(icp.detD.at((*this->grains().begin())->grainID));
+            const auto& Dinv(invD.at((*this->grains().begin())->grainID));
+            const auto& Ddet(detD.at((*this->grains().begin())->grainID));
             const VectorDim bCt(burgers().cross(this->unitDirection()));
             Eigen::Array<double,mSize,1> a(Eigen::Array<double,mSize,1>::Zero());
             Eigen::Array<double,mSize,1> b(Eigen::Array<double,mSize,1>::Zero());
@@ -706,8 +712,14 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
     template <int dim>
     typename DislocationSegment<dim>::ConcentrationVectorType DislocationSegment<dim>::clusterConcentration(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const
     {
+        return clusterConcentration(x,icp,icp.invD,icp.detD);
+    }
+
+    template <int dim>
+    typename DislocationSegment<dim>::ConcentrationVectorType DislocationSegment<dim>::clusterConcentration(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp,const InverseDiffusionContainerType& invD,const DiffusionDeterminantContainerType& detD) const
+    {
         ConcentrationVectorType temp(ConcentrationVectorType::Zero());
-        const ConcentrationMatrixType cM(concentrationMatrices(x,icp));
+        const ConcentrationMatrixType cM(concentrationMatrices(x,icp,invD,detD));
         for(int k=0; k<mSize; k++)
         {
             temp(k)=cM.row(k)*(Eigen::Matrix<double,2,1>()<<this->source->climbVelocityScalar(k),this->sink->climbVelocityScalar(k)).finished();

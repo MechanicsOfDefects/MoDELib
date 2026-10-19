@@ -45,6 +45,9 @@ struct ClusterDynamicsParameters
     typedef Eigen::Matrix<double,dim,dim> MatrixDim;
     typedef typename Polycrystal<dim>::GrainContainerType GrainContainerType;
 
+    // Lumping factor for the discrete-dislocation climb stiffness (diffusion-bias branch, optional input, default 1)
+    const double lumpingFactor;
+
     // Materials parameters
     const double kB;
     const double T; // Studied temperature in K
@@ -58,6 +61,7 @@ struct ClusterDynamicsParameters
     const Eigen::Array<double,1,mSize> msEf;
     const Eigen::Matrix<double,mSize,dim*(dim+1)/2> msEm; // for each species (row) em11 em12 em13 em22 em23 em33
     const Eigen::Matrix<double,mSize,dim*(dim+1)/2> msD0; // diffusion pre-exponential coeff. for each species (row) D011 D012 D013 D022 D023 D033
+    const Eigen::Matrix<double,mSize,dim*(dim+1)/2> msMigrationRelVol; // migration activation volume tensor for each species (row), components [11 12 13 22 23 33], in units of omega (optional input, default 0)
     const std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> D;   // map<grain_ID, vector of diffusion coeff for each species>
     const std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> invD;
     const std::map<size_t,Eigen::Array<double,mSize,1>> detD;
@@ -125,15 +129,27 @@ struct ClusterDynamicsParameters
     std::map<std::pair<int,int>,double> getMap(const Eigen::Array<double,mSize*(mSize+1)/2,3> matrix_in) const;
     Eigen::Matrix<double,mSize,mSize> getR1() const;
     std::vector<Eigen::Matrix<double,mSize,mSize>> getR2() const;
+    Eigen::Matrix<double,mSize,mSize> getR1(const Grain<dim>& grain,const MatrixDim& externalStress) const;
+    std::vector<Eigen::Matrix<double,mSize,mSize>> getR2(const Grain<dim>& grain,const MatrixDim& externalStress) const;
+    Eigen::Matrix<double,mSize,mSize> getR1(const Eigen::Array<double,1,mSize>& aveD) const;
+    std::vector<Eigen::Matrix<double,mSize,mSize>> getR2(const Eigen::Array<double,1,mSize>& aveD) const;
+    Eigen::Array<double,1,mSize> averageDiffusivity(const Grain<dim>& grain,const MatrixDim& externalStress) const;
     Eigen::Array<double,1,iSize/2> getImmobileSpeciesBurgersMagnitude(const GrainContainerType& grains) const;
+    Eigen::Matrix<double,dim,dim> diffusionTensor(const Grain<dim>& grain,const size_t& speciesID,const MatrixDim& externalStress) const;
     std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> getD(const GrainContainerType& grains) const;
     std::vector<Eigen::Matrix<double,dim,dim>> getDlocal() const;
+    std::vector<Eigen::Matrix<double,dim,dim>> getDlocal(const Grain<dim>& grain,const MatrixDim& externalStress) const;
     std::map<size_t,std::vector<Eigen::Matrix<double,dim,dim>>> getInvD() const;
     std::map<size_t,Eigen::Array<double,mSize,1>> getDetD() const;
     Eigen::Array<double,1,iSize> getInitLoopSinks(const Eigen::Array<double,1,iSize> initloopSinks_SI, const double b_SI) const;
     Eigen::Array<double,1,mSize> equilibriumMobileConcentration(const double& stressTrace) const;
     Eigen::Array<double,1,mSize> dislocationMobileConcentration(const VectorDim& b,const VectorDim& t,const VectorDim& fPK,const MatrixDim& stress) const;
     Eigen::Array<double,1,mSize> boundaryMobileConcentration(const double& stressTrace,const double& normalTraction) const;
+    // Activity (W) formulation of drift-diffusion: W=c*exp(E^e/kB/T), with E^e the elastic interaction energy
+    Eigen::Array<double,1,mSize> interactionEnergy(const MatrixDim& stress) const;
+    Eigen::Array<double,1,mSize> renormalizationFactor(const MatrixDim& stress) const;
+    Eigen::Array<double,1,mSize> renormalizedMobileConcentration(const Eigen::Array<double,1,mSize>& c,const MatrixDim& stress) const;
+    Eigen::Array<double,1,mSize> physicalMobileConcentration(const Eigen::Array<double,1,mSize>& W,const MatrixDim& stress) const;
     Eigen::Array<double,1,iSize/2> sigmoid(const Eigen::Array<double,1,iSize/2>& n) const;
     Eigen::Array<double,1,iSize/2> rpyr(const Eigen::Array<double,1,iSize/2>& n) const;
     Eigen::Array<double,1,iSize/2> rloop(const Eigen::Array<double,1,iSize/2>& n) const;

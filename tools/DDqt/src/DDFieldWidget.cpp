@@ -12,8 +12,10 @@
 #include <sstream>      // std::ostringstream
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <exception>
+#include <limits>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -52,15 +54,47 @@ FieldDataPnt::FieldDataPnt(const DefectiveCrystal<3>& defectiveCrystal,const Eig
     
 }
 
-void FieldDataPnt::compute(const DefectiveCrystal<3>& defectiveCrystal)
+void FieldDataPnt::compute(const DefectiveCrystal<3>& defectiveCrystal,
+                           const NodalMobileConcentrationMatrix& cdNodalConcentration,
+                           const size_t& clusterDynamicsID)
 {
+    const ClusterDynamicsParameters<3>* cdp(nullptr);
     int mID(0);
     for(const auto& mStruct : defectiveCrystal.microstructures())
     {
         displacement[mID]=mStruct->displacement(P,nullptr,ele,nullptr);
         stress[mID]=mStruct->stress(P,nullptr,ele,nullptr);
         mobileConcentration[mID]=mStruct->mobileConcentration(P,nullptr,ele,nullptr);
+        if(const auto* const clusterDynamics=dynamic_cast<const ClusterDynamics<3>*>(mStruct.get()))
+        {
+            cdp=&clusterDynamics->cdp;
+        }
         mID++;
+    }
+
+    if(cdp)
+    {// mobileConcentration() returns the activity W. Display the physical concentration c instead.
+        Eigen::Matrix<double,3,3> totalStress(Eigen::Matrix<double,3,3>::Zero());
+        for(const auto& stressContribution : stress)
+        {
+            totalStress+=stressContribution;
+        }
+        for(size_t k=0;k<mobileConcentration.size();++k)
+        {
+            if(k==clusterDynamicsID && ele && cdNodalConcentration.cols())
+            {// interpolate the nodal physical concentration of the FEM, consistent with the nodal output
+                Eigen::Matrix<double,mSize*ElementType::nodesPerElement,1> elementConcentration;
+                for(int n=0;n<ElementType::nodesPerElement;++n)
+                {
+                    elementConcentration.template segment<mSize>(n*mSize)=cdNodalConcentration.col(ele->node(n).gID);
+                }
+                mobileConcentration[k]=ClusterDynamicsFEM<3>::MobileTrialType::sfm(*ele,ele->simplex.pos2bary(P))*elementConcentration;
+            }
+            else
+            {
+                mobileConcentration[k]=cdp->physicalMobileConcentration(mobileConcentration[k].transpose().array(),totalStress).matrix().transpose();
+            }
+        }
     }
 }
 
@@ -291,6 +325,28 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
 
 void DDFieldWidget::compute()
 {
+    FieldDataPnt::NodalMobileConcentrationMatrix cdNodalConcentration;
+    size_t clusterDynamicsID(std::numeric_limits<size_t>::max());
+    size_t mID(0);
+    for(const auto& mStruct : defectiveCrystal.microstructures())
+    {
+        if(const auto* const clusterDynamics=dynamic_cast<const ClusterDynamics<3>*>(mStruct.get()))
+        {
+            if(clusterDynamics->clusterDynamicsFEM)
+            {
+                const auto& nodes(clusterDynamics->clusterDynamicsFEM->mobileClusters.fe().nodes());
+                cdNodalConcentration.resize(FieldDataPnt::mSize,nodes.size());
+                for(const auto& node : nodes)
+                {
+                    cdNodalConcentration.col(node.gID)=clusterDynamics->nodalPhysicalMobileConcentration(node);
+                }
+                clusterDynamicsID=mID;
+            }
+            break;
+        }
+        ++mID;
+    }
+
     if(groupBox)
     {
         if(groupBox->layout())
@@ -304,7 +360,7 @@ void DDFieldWidget::compute()
                     auto* ddPlaneField = dynamic_cast<DDPlaneField*>(widget);
                     if (ddPlaneField)
                     {
-                        ddPlaneField->compute(defectiveCrystal);
+                        ddPlaneField->compute(defectiveCrystal,cdNodalConcentration,clusterDynamicsID);
                     }
                 }
             }
@@ -324,7 +380,7 @@ void DDFieldWidget::compute()
                     auto* ddLineField = dynamic_cast<DDLineField*>(widget);
                     if (ddLineField)
                     {
-                        ddLineField->compute(defectiveCrystal);
+                        ddLineField->compute(defectiveCrystal,cdNodalConcentration,clusterDynamicsID);
                     }
                 }
             }
@@ -473,7 +529,9 @@ void DDFieldWidget::plotField()
     
 }
 
-void DDPlaneField::compute(const DefectiveCrystal<3>& defectiveCrystal)
+void DDPlaneField::compute(const DefectiveCrystal<3>& defectiveCrystal,
+                           const FieldDataPnt::NodalMobileConcentrationMatrix& cdNodalConcentration,
+                           const size_t& clusterDynamicsID)
 {
     std::cout<<"DDPlaneField computing "<<dataPnts().size()<<" points..."<<std::flush;
     const auto t0= std::chrono::system_clock::now();
@@ -486,7 +544,7 @@ void DDPlaneField::compute(const DefectiveCrystal<3>& defectiveCrystal)
     {
         try
         {
-            dataPnts()[vtkID].compute(defectiveCrystal);
+            dataPnts()[vtkID].compute(defectiveCrystal,cdNodalConcentration,clusterDynamicsID);
         }
         catch(...)
         {
@@ -969,7 +1027,9 @@ void DDLineField::resetLine()
 
 
 
-void DDLineField::compute(const DefectiveCrystal<3>&)
+void DDLineField::compute(const DefectiveCrystal<3>&,
+                          const FieldDataPnt::NodalMobileConcentrationMatrix& cdNodalConcentration,
+                          const size_t& clusterDynamicsID)
 {
     std::cout<<"DDLineField computing "<<dataPnts().size()<<" points..."<<std::flush;
     const auto t0= std::chrono::system_clock::now();
@@ -981,7 +1041,7 @@ void DDLineField::compute(const DefectiveCrystal<3>&)
     {
         try
         {
-            dataPnts()[vtkID].compute(defectiveCrystal);
+            dataPnts()[vtkID].compute(defectiveCrystal,cdNodalConcentration,clusterDynamicsID);
         }
         catch(...)
         {
@@ -1014,7 +1074,7 @@ void DDLineField::plotField(const int& valID,const std::vector<QCheckBox*>& micr
     yArray->SetName(fieldComboBox->itemText(valID).toStdString().c_str());
     table->AddColumn(yArray);
 
-//    std::ofstream tempFile("linePlot.txt");
+    std::ofstream tempFile("linePlot.txt"); // line-plot data, as in the DiffusionBias version
     
     for(size_t k=0;k<abscissa().size();++k)
     {                    
@@ -1022,7 +1082,7 @@ void DDLineField::plotField(const int& valID,const std::vector<QCheckBox*>& micr
         table->SetValue(row, 0, abscissa()[k]);
         table->SetValue(row, 1, dataPnts()[k].value(valID,microstructuresCheck));
         
-//        tempFile<<abscissa()[k]<<"\t"<<dataPnts()[k].value(valID,microstructuresCheck)<<"\n";
+        tempFile<<abscissa()[k]<<"\t"<<dataPnts()[k].value(valID,microstructuresCheck)<<"\n";
     }
     
     

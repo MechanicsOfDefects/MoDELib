@@ -46,7 +46,7 @@ namespace model
     double DislocationClimbSolverBase<DislocationNetworkType>::getVclimbRef() const
     {
         double vRef(0.0);
-        const auto eqC(CD->cdp.equilibriumMobileConcentration(0.0));
+        const auto eqC(CD->cdp.renormalizedMobileConcentration(CD->cdp.equilibriumMobileConcentration(0.0),Eigen::Matrix<double,dim,dim>::Zero())); // equilibrium activity at zero stress
         for(const auto& pair : CD->cdp.D)
         {
             const auto& dVec(pair.second);
