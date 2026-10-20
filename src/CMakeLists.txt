@@ -11,3 +11,8 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ClusterDynamics ClusterDynamics)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/ElasticDeformation ElasticDeformation)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/DislocationDynamics DislocationDynamics)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/InclusionMicrostructure Inclusions)
+
+add_subdirectory(IO)
+add_subdirectory(Utilities)
+add_subdirectory(Quadrature)
+add_subdirectory(MPI)

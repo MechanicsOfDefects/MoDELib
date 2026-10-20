@@ -7,3 +7,10 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/SphericalInclusion.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/EllipsoidalInclusionIO.cpp
 )
+
+target_sources(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/SphericalInclusionIO.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/PolyhedronInclusionIO.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/PolyhedronInclusionNodeIO.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/PolyhedronInclusionEdgeIO.cpp
+)

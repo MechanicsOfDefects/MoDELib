@@ -21,6 +21,7 @@
 #include <SimplexTraits.h>
 #include <Simplex.h>
 #include <SimplexReader.h>
+#include <IDreader.h>
 //#include <MeshStats.h>
 #include <MeshRegionObserver.h>
  // defines mode::cout

@@ -8,5 +8,5 @@ if(MODELIB_CD_MSIZE STREQUAL "4" AND MODELIB_CD_ISIZE STREQUAL "8")
         --executable "$<TARGET_FILE:testSpatialCD>"
         --reports "${CMAKE_CURRENT_SOURCE_DIR}/reports")
     set_tests_properties(spatialCDtest PROPERTIES
-        LABELS "integration;slow;ClusterDynamics" TIMEOUT 1800 PROCESSORS 12 RUN_SERIAL TRUE)
+        LABELS "simulation;long;ClusterDynamics" TIMEOUT 1800 PROCESSORS 12 RUN_SERIAL TRUE)
 endif()

@@ -13,3 +13,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/TriangularMesh.cpp
 			)
 
+
+target_sources(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/SimplexReader.cpp
+)

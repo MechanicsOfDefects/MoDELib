@@ -646,7 +646,14 @@ An old slip-system name gives no error: the crystal is simply created without sl
 
 ## 10. Tests and validation
 
-The repository has no automated test suite. What it has:
+The CTest suite separates numerical checks, integration checks, complete simulation
+regressions, and performance benchmarks. From the repository root, run
+`ctest --preset quick` for routine checks, `ctest --preset simulation` for full
+simulation regressions, or `ctest --preset benchmark` for timing measurements.
+`ctest --preset all` runs everything. Configure and build first; see
+[tests/README.txt](tests/README.txt) for setup, labels, and report locations.
+
+Additional verification resources:
 
 - **`testsPy/`**, scripts that are run by hand from their folder and produce plots:
 

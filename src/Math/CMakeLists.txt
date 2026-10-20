@@ -9,3 +9,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/VoigtTraits.cpp
 )
+
+target_sources(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/BestRationalApproximation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/DiophantineSolver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Rational.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SchurComplementSolver.cpp
+)

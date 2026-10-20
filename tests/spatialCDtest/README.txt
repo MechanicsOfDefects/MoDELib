@@ -1,5 +1,8 @@
 spatialCDtest: original surface-bounded ClusterDynamics FEM regression
 
+Labels: simulation;long;ClusterDynamics. Excluded from the quick preset.
+Run all simulation regressions with: ctest --preset simulation
+
 From the repository root:
   cmake --build build --target testSpatialCD
   ctest --test-dir build -R '^spatialCDtest$' --output-on-failure

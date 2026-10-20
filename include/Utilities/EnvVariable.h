@@ -1,52 +1,47 @@
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
- * MoDELib is distributed without any warranty under the 
+ * MoDELib is distributed without any warranty under the
  * GNU General Public License (GPL) v2 <http://www.gnu.org/licenses/>.
  */
 
 #ifndef model_ENVVARIABLE_H_
 #define model_ENVVARIABLE_H_
 
-#include <cstdlib>
-#include <string.h>
-#include <assert.h>
 
-namespace model {
+#include <string>
 
-	/************************************************************/	
-	/************************************************************/
-	/*! \brief A simple class used to extract environment variables
-	 *
-	 * Sample usage:
-	 * \code
-	 * #include <iostream>
-	 * #include <EnvVariable.h>
-	 * 
-	 * int main(){
-	 *  model::EnvVariable ev("PATH");
-	 *  std::cout<<"PATH is "<<ev<<std::endl;
-	 *  return 0;
-	 * }
-	 * \endcode
-	 */
+namespace model
+{
 
-	struct EnvVariable : public std::string {
-	
-	/******************************/
-	static std::string getVariable(const std::string& varname){
-  		const char *tmpvar = std::getenv (varname.c_str());
-  		assert(tmpvar!=0 && *tmpvar!='\0' && "FAILED TO GET ENVIRONMENT VARIABLE.");
-		return tmpvar;
-	}
+    /************************************************************/
+    /************************************************************/
+    /*! \brief A simple class used to extract environment variables
+     *
+     * Sample usage:
+     * \code
+     * #include <iostream>
+     * #include <EnvVariable.h>
+     *
+     * int main(){
+     *  model::EnvVariable ev("PATH");
+     *  std::cout<<"PATH is "<<ev<<std::endl;
+     *  return 0;
+     * }
+     * \endcode
+     */
 
-	
-	/******************************/
-	EnvVariable(const std::string& varname) : std::string(getVariable(varname)) {}
+    struct EnvVariable : public std::string
+    {
 
-	};
+        /******************************/
+        static std::string getVariable(const std::string &varname);
 
-	/************************************************************/	
-	/************************************************************/
+        /******************************/
+        EnvVariable(const std::string &varname);
+    };
+
+    /************************************************************/
+    /************************************************************/
 } // namespace model
 #endif
