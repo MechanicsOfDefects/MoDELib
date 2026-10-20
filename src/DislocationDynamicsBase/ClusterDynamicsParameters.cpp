@@ -241,10 +241,8 @@ namespace model
     template<int dim>
     std::vector<Eigen::Matrix<double,ClusterDynamicsParameters<dim>::mSize,ClusterDynamicsParameters<dim>::mSize>> ClusterDynamicsParameters<dim>::getMobileReactionRate() const
     {
-
-        const Eigen::Array<double,1,mSize>& aveD(mobileMeanDiffusivity);
-        
-        const Eigen::Array<double,1,mSize>& rn(mobileCaptureRadius);
+        const Eigen::Array<double,1,mSize>& aveD(mobileMeanDiffusivity); // Dont need to create these 
+        const Eigen::Array<double,1,mSize>& rn(mobileCaptureRadius); // Dont need to create these
         
         std::vector<Eigen::Matrix<double,mSize,mSize>> tempR2;
         Eigen::Matrix<double,mSize,mSize> R2sum(Eigen::Matrix<double,mSize,mSize>::Zero());
@@ -462,7 +460,7 @@ namespace model
             const int c(pair.first.second);
             const double product(msVector(a)+msVector(c));
             if(pair.second>0.0 && (product>mMax+FLT_EPSILON || product<mMin-FLT_EPSILON))
-            {
+            { 
                 temp.emplace_back(a,c,pair.second*4.0*M_PI*(mobileCaptureRadius(a)+mobileCaptureRadius(c))*(mobileMeanDiffusivity(a)+mobileMeanDiffusivity(c))/omega/std::fabs(msVector(a))/std::fabs(msVector(c)),product>0.0? 1 : 0);
             }
         }

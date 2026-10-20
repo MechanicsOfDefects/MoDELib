@@ -172,7 +172,7 @@ namespace model
                 const double Cb(std::max(cM(b),0.0));
                 const double loss(std::get<2>(channel)*Ca*Cb); // clusters of each reactant lost per atom and unit time
                 temp(std::get<3>(channel))+= a==b ? std::fabs(cdp.msVector(a))*loss
-                /*                               */ : (std::fabs(cdp.msVector(a))+std::fabs(cdp.msVector(b)))*loss;
+                /*                             */ : (std::fabs(cdp.msVector(a))+std::fabs(cdp.msVector(b)))*loss;
             }
             return temp;
         }
@@ -273,7 +273,6 @@ namespace model
             // A family that shrinks (net<0) does not coalesce by this channel. The report and the 0D model use the
             // gain of like defects only, which keeps coalescence active at saturation but is not a growth speed:
             // a loop absorbing 101 v and 100 i would move 50 times faster than one absorbing 2 v and 1 i.
-//          const ArrayF net(((cdp.polarityFM*Gamma).rowwise().sum().transpose()-Aemit(n,c,cdp.effectiveClusterRadius(n,c))).max(0.0)); // net content gained by growth, per atom and unit time
             const ArrayF net(((cdp.polarityFM*Gamma).rowwise().sum().transpose()-Aemit(n,c,cdp.captureLength(n,c))).max(0.0)); // net content gained by growth, per atom and unit time
             const ArrayFB active(cdp.populated(n,c) && ((cdp.cLL>0.0) || (cdp.cLN>0.0)));
             const ArrayF m(active.select(c/n,1.0)); // defects per cluster (1 where not used)
@@ -326,13 +325,10 @@ namespace model
           */
             const ArrayF n(nIn.max(0.0));
             const ArrayF c(cIn.max(0.0));
-//          const ArrayF R(cdp.effectiveClusterRadius(n,c));
-//          const ArrayFM A(absorptionCoefficients(n,c,R)); // computed once, shared by Gc, DeltaN and DeltaC
             const ArrayF L(cdp.captureLength(n,c)); // capture lengths, shared by the absorption and the emission
             const ArrayFM A(absorptionCoefficients(n,c,L)); // computed once, shared by Gc, DeltaN and DeltaC
 
             nDot=Nnuc(cM,chi)-an(n,c)-DeltaN(cM,n,c,A); // Eq. (36)
-//          cDot=PI(chi)+Gc(cM,n,c,A)+snuc(cM,chi)-Ac(n,c)-Aemit(n,c,R)-DeltaC(cM,n,c,A); // Eq. (41)
             cDot=PI(chi)+Gc(cM,n,c,A)+snuc(cM,chi)-Ac(n,c)-Aemit(n,c,L)-DeltaC(cM,n,c,A); // Eq. (41)
         }
 
