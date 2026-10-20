@@ -40,6 +40,7 @@ namespace model
                 }
             }
             
+            temp.bind(fe);
             return temp;
         }
         

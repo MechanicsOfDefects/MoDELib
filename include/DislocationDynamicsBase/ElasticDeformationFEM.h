@@ -35,31 +35,22 @@ namespace model
         typedef BilinearWeakForm<BilinearFormType,IntegrationDomainType> BilinearWeakFormType;
         typedef Eigen::SparseMatrix<double> SparseMatrixType;
         
-        typedef Quadrature<dim,4,GaussLegendre> MomentumQuadratureType;
-//        typedef Eigen::Matrix<double,1,ElementType::nodesPerElement> MomentumKernelMatrixType;
-        constexpr static int dofPerNode=TypeTraits<TrialFunctionType>::dofPerNode;
-        typedef Eigen::Matrix<double,2*dim,dim*ElementType::nodesPerElement> MomentumMatrixType;
-        
         typedef TrialFunction<'z',dim,FiniteElementType> DiffusiveTrialType;
 
 
         
-        MomentumMatrixType elementMomentumKernelMatrix(const VectorDim& abscissa,const ElementType& ele) const;
-        MomentumMatrixType elementMomentumMatrix(const ElementType& ele) const;
-
         DislocationDynamicsBase<dim>& ddBase;
 //        const SymmetricVoigtTraits<dim>& voigtTraits;
 
         CmatrixType C; // matrix of elastic moduli
-        TrialFunctionType u; // displacement u=[u1 u2 u3]'
-        TrialGradType  b;  // displacement gradient b=[u1,1 u1,2 u1,3 u2,1 u2,2 u2,3 u3,1 u3,2 u3,3]'
-        TrialDefType e; // strain s=[e11 e22 e33 e12 e23 e13]'
-        TrialStressType s;     // stress s=[s11 s22 s33 s12 s23 s13]'
+        std::shared_ptr<TrialFunctionType> u; // displacement u=[u1 u2 u3]'
+        std::shared_ptr<TrialGradType>  b;  // displacement gradient b=[u1,1 u1,2 u1,3 u2,1 u2,2 u2,3 u3,1 u3,2 u3,3]'
+        std::shared_ptr<TrialDefType> e; // strain s=[e11 e22 e33 e12 e23 e13]'
+        std::shared_ptr<TrialStressType> s;     // stress s=[s11 s22 s33 s12 s23 s13]'
         IntegrationDomainType dV; // volume element
-        BilinearWeakFormType bWF; // bilinear weak form (test(e),s)*dV
-        SparseMatrixType A; // stiffness matrix of bWF
+        std::shared_ptr<BilinearWeakFormType> bWF; // bilinear weak form (test(e),s)*dV
                 
-        DiffusiveTrialType z; // diffusive displacement
+        std::shared_ptr<DiffusiveTrialType> z; // diffusive displacement
 
         ElasticDeformationFEM(DislocationDynamicsBase<dim>& ddBase_in);
         

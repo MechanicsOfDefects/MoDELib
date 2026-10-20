@@ -9,6 +9,8 @@
 #define model_IntegrationDomain_H_
 
 #include <deque>
+#include <memory>
+#include <stdexcept>
 #include <utility>      // std::pair, std::make_pair
 #include <chrono>
 #include <Quadrature.h>
@@ -20,6 +22,46 @@
 
 namespace model
 {
+    // Domains may be retained independently of the field that uses them.
+    template<class FE>
+    class FEMDomainOwner
+    {
+        std::shared_ptr<const FE> owner;
+        const FE* space=nullptr;
+        std::weak_ptr<const int> lifetime;
+    public:
+        void bind(const FE& fe)
+        {
+            if(space && space!=&fe)
+            {
+                throw std::runtime_error("Integration domain belongs to a different FEM space.");
+            }
+            fe.validateMeshLifetime();
+            space=&fe;
+            owner=fe.weak_from_this().lock();
+            lifetime=fe.lifetimeToken();
+        }
+        void validate() const
+        {
+            if(space)
+            {
+                if(lifetime.expired())
+                {
+                    throw std::runtime_error("Integration domain outlived its borrowed FEM space.");
+                }
+                space->validateMeshLifetime();
+            }
+        }
+        void validateSpace(const FE& fe) const
+        {
+            validate();
+            if(space && space!=&fe)
+            {
+                throw std::runtime_error("Integration domain belongs to a different FEM space.");
+            }
+        }
+    };
+
     
     
     /**************************************************************************/
@@ -38,7 +80,7 @@ namespace model
     /**************************************************************************/
     /**************************************************************************/
     template <typename FiniteElementType, int qOrder, template <short unsigned int, size_t> class QuadratureRule>
-	struct IntegrationDomain<FiniteElementType,0,qOrder,QuadratureRule> : public std::deque<const typename FiniteElementType::ElementType*>
+	struct IntegrationDomain<FiniteElementType,0,qOrder,QuadratureRule> : public FEMDomainOwner<FiniteElementType>, public std::deque<const typename FiniteElementType::ElementType*>
     {// Volume integration
         constexpr static int dim=FiniteElementType::dim;
         constexpr static int domainDim=dim;
@@ -47,6 +89,7 @@ namespace model
         /**********************************************************************/
         const typename FiniteElementType::ElementType& element(const size_t& k) const
         {
+            this->validate();
             return *(this->operator[](k));
         }
     };
@@ -54,7 +97,7 @@ namespace model
     /**************************************************************************/
     /**************************************************************************/
     template <typename FiniteElementType, int qOrder, template <short unsigned int, size_t> class QuadratureRule>
-	struct IntegrationDomain<FiniteElementType,1,qOrder,QuadratureRule> : public std::deque<std::pair<const typename FiniteElementType::ElementType* const,int> >
+	struct IntegrationDomain<FiniteElementType,1,qOrder,QuadratureRule> : public FEMDomainOwner<FiniteElementType>, public std::deque<std::pair<const typename FiniteElementType::ElementType* const,int> >
     {// Boundary integration
         constexpr static int dim=FiniteElementType::dim;
         constexpr static int dimMinusDomainDim=1;
@@ -67,6 +110,7 @@ namespace model
         /**********************************************************************/
         const typename FiniteElementType::ElementType& element(const size_t& k) const
         {
+            this->validate();
             return *(this->operator[](k).first);
         }
         

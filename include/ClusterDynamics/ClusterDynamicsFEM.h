@@ -133,20 +133,20 @@ namespace model
 
         const DislocationDynamicsBase<dim>& ddBase;
         const ClusterDynamicsParameters<dim>& cdp;
-        const InvDscaling<dim> iDs;
+        const std::shared_ptr<InvDscaling<dim>> iDs;
         
         const Eigen::Matrix<double,mSize,mSize> invTrD;
         
-        MobileTrialType mobileClusters;
-        MobileGradType mobileGrad;
-        MobileFluxType mobileFlux;
-        ImmobileTrialType immobileClusters;
+        std::shared_ptr<MobileTrialType> mobileClusters;
+        std::shared_ptr<MobileGradType> mobileGrad;
+        std::shared_ptr<MobileFluxType> mobileFlux;
+        std::shared_ptr<ImmobileTrialType> immobileClusters;
 
         const int nodeListInternalExternal;
-        MobileIncrementTrialType mobileClustersIncrement;
+        std::shared_ptr<MobileIncrementTrialType> mobileClustersIncrement;
         VolumeIntegrationDomainType dV;
-        MobileBilinearWeakFormType mBWF;
-        MobileIncrementBilinearWeakFormType dmBWF;
+        std::shared_ptr<MobileBilinearWeakFormType> mBWF;
+        std::shared_ptr<MobileIncrementBilinearWeakFormType> dmBWF;
 
         MobileSolverType mSolver;
         bool solverInitialized;

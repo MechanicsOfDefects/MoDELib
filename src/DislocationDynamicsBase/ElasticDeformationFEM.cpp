@@ -25,11 +25,11 @@ namespace model
     /* init */,e(def(u))
     /* init */,s(C*e)
     /* init */,dV(ddBase.fe->template domain<EntireDomain,4,GaussLegendre>())
-    /* init */,bWF((test(e),s),dV)
+    /* init */,bWF((test(e),s)*dV)
     /* init */,z(ddBase.fe->template trial<'z',dim>())
     {
-        u.setConstant(Eigen::Matrix<double,dim,1>::Zero());        
-        z.setConstant(Eigen::Matrix<double,dim,1>::Zero());
+        u->setConstant(Eigen::Matrix<double,dim,1>::Zero());
+        z->setConstant(Eigen::Matrix<double,dim,1>::Zero());
     }
 
 template<int dim>
@@ -50,31 +50,6 @@ typename ElasticDeformationFEM<dim>::CmatrixType ElasticDeformationFEM<dim>::get
     return temp;
 }
 
-template<int dim>
-typename ElasticDeformationFEM<dim>::MomentumMatrixType ElasticDeformationFEM<dim>::elementMomentumKernelMatrix(const VectorDim& abscissa,const ElementType& ele) const
-{
-    const Eigen::Matrix<double,dim+1,1> bary(BarycentricTraits<dim>::x2l(abscissa));
-    const auto NJ(ele.sf(bary)*ele.absJ(bary)/this->ddBase.mesh.volume());
-    MomentumMatrixType km(MomentumMatrixType::Zero());
-    const VectorDim x(ele.position(bary));
-    const MatrixDim X((MatrixDim()<<0.0,-x(2),x(1),x(2),0.0,-x(0),-x(1),x(0),0.0).finished());
-    for(int j=0;j<ElementType::nodesPerElement;++j)
-    {
-        km.template block<dim,dim>(0,dim*j)=MatrixDim::Identity()*NJ(j);
-        km.template block<dim,dim>(dim,dim*j)=X*NJ(j);
-    }
-    return km;
-}
-
-
-template<int dim>
-typename ElasticDeformationFEM<dim>::MomentumMatrixType ElasticDeformationFEM<dim>::elementMomentumMatrix(const ElementType& ele) const
-{
-    MomentumMatrixType km(MomentumMatrixType::Zero());
-    MomentumQuadratureType::integrate(this,km,&ElasticDeformationFEM<dim>::elementMomentumKernelMatrix,ele);
-    return km;
-}
-    
     template struct ElasticDeformationFEM<3>;
 
 }

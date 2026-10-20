@@ -101,10 +101,10 @@ typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<di
 //    /* init */,dmBWF((test(grad(mobileClustersIncrement)),-this->microstructures.ddBase.poly.Omega*(FluxMatrix<dim>(this->cdp)*grad(mobileClustersIncrement)))*dV)
 //    /* init */,mSolver(true,FLT_EPSILON)
 ////    /* init */,mSolver(mBWF,true,FLT_EPSILON)
-//    /* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G))*dV).globalVector())
-    ///* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G.transpose().eval()))*dV).globalVector())
+//    /* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G))*dV)->globalVector())
+    ///* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G.transpose().eval()))*dV)->globalVector())
     {
-//        mobileClustersIncrement.setConstant(Eigen::Matrix<double,mSize,1>::Zero());    
+//        mobileClustersIncrement->setConstant(Eigen::Matrix<double,mSize,1>::Zero());
 //        std::cout<<cascadeGlobalProduction<<std::endl;
     }
 
@@ -129,7 +129,7 @@ template<int dim>
 void ClusterDynamics<dim>::applyBoundaryConditions()
 {
  
-    const auto& nodesInternalExternal(clusterDynamicsFEM->mobileClusters.fe().nodeList(clusterDynamicsFEM->nodeListInternalExternal));
+    const auto& nodesInternalExternal(clusterDynamicsFEM->mobileClusters->fe().nodeList(clusterDynamicsFEM->nodeListInternalExternal));
     
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -152,7 +152,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
         }
         for(int k=0;k<mSize;++k)
         {
-            clusterDynamicsFEM->mobileClusters.dirichletConditions().at(mSize*node->gID+k) = bndConcentration(k) - otherConcentration(k);
+            clusterDynamicsFEM->mobileClusters->dirichletConditions().at(mSize*node->gID+k) = bndConcentration(k) - otherConcentration(k);
         }
     }
 }
@@ -222,10 +222,10 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     {
         if(clusterDynamicsFEM)
         {
-            const size_t nNodes(clusterDynamicsFEM->mobileClusters.fe().nodes().size());
+            const size_t nNodes(clusterDynamicsFEM->mobileClusters->fe().nodes().size());
             configIO.cdMatrix().resize(nNodes,mSize+iSize);
-            configIO.cdMatrix().block(0,0,nNodes,mSize)=clusterDynamicsFEM->mobileClusters.dofVector().reshaped(mSize,nNodes).transpose();
-            configIO.cdMatrix().block(0,mSize,nNodes,iSize)=clusterDynamicsFEM->immobileClusters.dofVector().reshaped(iSize,nNodes).transpose();
+            configIO.cdMatrix().block(0,0,nNodes,mSize)=clusterDynamicsFEM->mobileClusters->dofVector().reshaped(mSize,nNodes).transpose();
+            configIO.cdMatrix().block(0,mSize,nNodes,iSize)=clusterDynamicsFEM->immobileClusters->dofVector().reshaped(iSize,nNodes).transpose();
         }
         else
         {
@@ -296,17 +296,17 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
         {
             if(node)
             {
-                return eval(clusterDynamicsFEM->mobileClusters)(*node);
+                return (*eval(clusterDynamicsFEM->mobileClusters))(*node);
             }
             else
             {
                 if(ele)
                 {
-                    return eval(clusterDynamicsFEM->mobileClusters)(*ele,ele->simplex.pos2bary(x));
+                    return (*eval(clusterDynamicsFEM->mobileClusters))(*ele,ele->simplex.pos2bary(x));
                 }
                 else
                 {
-                    return eval(clusterDynamicsFEM->mobileClusters)(x,guess);
+                    return (*eval(clusterDynamicsFEM->mobileClusters))(x,guess);
                 }
             }
         }
@@ -317,17 +317,17 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     {
         if(node)
         {
-            return eval(clusterDynamicsFEM->immobileClusters)(*node);
+            return (*eval(clusterDynamicsFEM->immobileClusters))(*node);
         }
         else
         {
             if(ele)
             {
-                return eval(clusterDynamicsFEM->immobileClusters)(*ele,ele->simplex.pos2bary(x));
+                return (*eval(clusterDynamicsFEM->immobileClusters))(*ele,ele->simplex.pos2bary(x));
             }
             else
             {
-                return eval(clusterDynamicsFEM->immobileClusters)(x,guess);
+                return (*eval(clusterDynamicsFEM->immobileClusters))(x,guess);
             }
         }
     }
@@ -367,7 +367,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //     {
     //         const auto& ele(this->microstructures.ddBase.fe->elements().at(tet->xID));
     //         Eigen::Matrix<double,dim+1,1> bary(Eigen::Matrix<double,dim+1,1>::Constant(0.25));
-    //         const Eigen::Matrix<double,iSize,1> sinkValue(eval(clusterDynamicsFEM->immobileClusters)(ele,bary));
+    //         const Eigen::Matrix<double,iSize,1> sinkValue((*eval(clusterDynamicsFEM->immobileClusters))(ele,bary));
     //         // ADDED A CORRECTED SINK VALUE HERE -> SOME BARYCENTERS HAVE NEGATIVE VALUES, BUT NODES WERE NOT NEGATIVE
     //         Eigen::Matrix<double,iSize,1> correctedSinkValue(sinkValue);
     //         for(int dof=0;dof<iSize/2;dof++)
@@ -405,7 +405,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //             // for(const auto& ele : this->microstructures.ddBase.fe->elements())
     //             // {
     //             //     Eigen::Matrix<double,dim+1,1> bary(Eigen::Matrix<double,dim+1,1>::Constant(0.25));
-    //             //     const Eigen::Matrix<double,iSize,1> sinkValue(eval(clusterDynamicsFEM->immobileClusters)(ele.second,bary));
+    //             //     const Eigen::Matrix<double,iSize,1> sinkValue((*eval(clusterDynamicsFEM->immobileClusters))(ele.second,bary));
     //             //     const auto cI(sinkValue.template block<iSize/2,1>(iSize/2,0));
     //             //     if(cI(0)>0)
     //             //     {
@@ -417,7 +417,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //             for(const auto& ele : this->microstructures.ddBase.fe->elements())
     //             {
     //                 Eigen::Matrix<double,dim+1,1> bary(Eigen::Matrix<double,dim+1,1>::Constant(0.25));
-    //                 const Eigen::Matrix<double,iSize,1> sinkValue(eval(clusterDynamicsFEM->immobileClusters)(ele.second,bary));
+    //                 const Eigen::Matrix<double,iSize,1> sinkValue((*eval(clusterDynamicsFEM->immobileClusters))(ele.second,bary));
     //                 const auto cI(sinkValue.template block<iSize/2,1>(iSize/2,0));
     //                 const auto cT(cI*ele.second.simplex.vol0/cdp.omega);
     //                 CiMap.emplace(cT(k),&ele.second);
@@ -523,11 +523,11 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //             }
     //         }
     //         // std::cout<<"Removing values for continuous immobile clusters"<<std::endl;
-    //         for(size_t nodeID=0; nodeID<clusterDynamicsFEM->immobileClusters.nodeSize(); nodeID++)
+    //         for(size_t nodeID=0; nodeID<clusterDynamicsFEM->immobileClusters->nodeSize(); nodeID++)
     //         {
     //             for(int dof=0; dof<iSize; dof++)
     //             {
-    //             //    clusterDynamicsFEM->immobileClusters.dofVector()(iSize*nodeID+dof)=1e-33;
+    //             //    clusterDynamicsFEM->immobileClusters->dofVector()(iSize*nodeID+dof)=1e-33;
     //             TrialBase<typename ClusterDynamicsFEM<dim>::ImmobileTrialType>::dofVector()(iSize*nodeID+dof)=1e-33;
     //             }
     //         }
@@ -551,7 +551,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
 //    diffusiveDisplacementRate=Eigen::VectorXd::Zero(this->diffusiveDisplacement.gSize());
 //    for(const auto& node: this->microstructures.ddBase.fe->nodes())
 //    {
-//        const Eigen::Matrix<double,dim*mSize,1> speciesFlux(eval(this->mobileFlux)(node));
+//        const Eigen::Matrix<double,dim*mSize,1> speciesFlux((*eval(this->mobileFlux))(node));
 //        Eigen::Matrix<double,dim,1> netFlux(Eigen::Matrix<double,dim,1>::Zero());
 //        for(int i=0; i<mSize; i++)
 //        {

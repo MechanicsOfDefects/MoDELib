@@ -8,16 +8,14 @@
 #ifndef model_EvalExpression_H_
 #define model_EvalExpression_H_
 
-#include <utility> // for std::move
+#include <utility>
 #include <EvalFunction.h>
-#include <ExpressionRef.h>
-
+#include <memory>
+#include <stdexcept>
 
 namespace model
 {
-    
-    /**************************************************************************/
-    /**************************************************************************/
+
     template<typename TrialExpressionType>
     struct EvalExpression : public EvalFunction<EvalExpression<TrialExpressionType>>
     {
@@ -26,47 +24,34 @@ namespace model
         constexpr static int cols=TrialExpressionType::cols;
 
         typedef Eigen::Matrix<double,rows,1> EvalMatrixType;
-        
+
         typedef typename TypeTraits<TrialFunctionType>::ElementType ElementType;
         typedef typename TypeTraits<TrialFunctionType>::BaryType BaryType;
         typedef typename TypeTraits<TrialFunctionType>::NodeType NodeType;
         constexpr static int dim=TypeTraits<TrialFunctionType>::dim;
-        
+
         typedef TrialBase<TrialFunctionType> TrialBaseType;
-                
-        ExpressionRef<TrialExpressionType> trialExp;
-        
-        /**********************************************************************/
-        EvalExpression(const TrialExpressionType& te) :
-        /* init */ trialExp(te)
+
+        const std::shared_ptr<TrialExpressionType> trialExp;
+
+        explicit EvalExpression(std::shared_ptr<TrialExpressionType> te) : trialExp(std::move(te))
         {
+            if(!trialExp)
+            {
+                throw std::invalid_argument("Null FEM expression operand.");
+            }
         }
-        
-        /**********************************************************************/
-        EvalExpression(TrialExpressionType&& te) :
-        /* init */ trialExp(std::move(te))
-        {
-        }
-        
-        /**********************************************************************/
+
         EvalMatrixType operator()(const ElementType& ele,
                                   const BaryType& bary) const
-        {/*!@param[in] ele the element
-          * @param[in] bary the vector of barycentric coordinates
-          * \returns the value of trialExp in the element ele at baricentric coordinate bary.
-          */
-            return trialExp().sfm(ele,bary)*TrialBaseType::dofs(ele);
+        {
+            return trialExp->sfm(ele,bary)*field().dofs(ele);
         }
-        
-        /**********************************************************************/
+
         EvalMatrixType operator()(const Eigen::Matrix<double,dim,1>& P,
                                   const Simplex<dim,dim>* const guess) const
-        {/*!@param[in] P the position vector
-          * @param[in] guess the Simplex where the search starts
-          * \returns the value of trialExp expression at position P. If P is
-          * ouside the mesh, a zero matrix is returned.
-          */
-            const std::pair<bool,const ElementType*> temp(TrialBaseType::fe().searchWithGuess(P,guess));
+        {
+            const std::pair<bool,const ElementType*> temp(field().fe().searchWithGuess(P,guess));
             if(temp.first)
             {
                 auto bary(temp.second->simplex.pos2bary(P));
@@ -81,8 +66,8 @@ namespace model
                         bary(d)=1.0;
                     }
                 }
-                // return trialExp().sfm(*(temp.second),temp.second->simplex.pos2bary(P))*TrialBaseType::dofs(*(temp.second));
-                return trialExp().sfm(*(temp.second),bary)*TrialBaseType::dofs(*(temp.second));
+
+                return trialExp->sfm(*(temp.second),bary)*field().dofs(*(temp.second));
             }
             else
             {
@@ -90,31 +75,29 @@ namespace model
                 return EvalMatrixType::Zero();
             }
         }
-        
-        /**********************************************************************/
+
         EvalMatrixType operator()(const Eigen::Matrix<double,dim,1>& P) const
-        {/*!@param[in] P the position vector
-          * \returns the value of trialExp expression at position P. The search 
-          * P starts by default in the first simplex of the mesh. If P is
-          * ouside the mesh, a zero matrix is returned.
-          */
-            return this->operator()(P,&(TrialBaseType::mesh().simplices().begin()->second));
+        {
+            return this->operator()(P,&(field().mesh().simplices().begin()->second));
         }
-        
+
         EvalMatrixType operator()(const NodeType& node) const
-        {/*!@param[in] node the node
-          * \returns the average value of trialExp at the node
-          */
+        {
             EvalMatrixType temp(EvalMatrixType::Zero());
             for(const auto& ele : node)
             {
                 const Eigen::Matrix<double,dim+1,1> bary(ele->simplex.pos2bary(node.P0));
-                temp+=trialExp().sfm(*ele,bary)*TrialBaseType::dofs(*ele);
+                temp+=trialExp->sfm(*ele,bary)*field().dofs(*ele);
             }
             return temp/node.size();
         }
-        
+
+        const auto& field() const
+        {
+            return trialExp->field();
+        }
+
     };
-    
+
 }
 #endif

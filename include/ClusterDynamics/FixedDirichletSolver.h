@@ -29,6 +29,7 @@ namespace model
         DirectSolverType directSolver;
         IterativeSolverType iterativeSolver;
 
+        std::shared_ptr<const void> fieldOwner;
         const std::map<size_t,double>* dirichletConditions;
         const Eigen::Matrix<double,Eigen::Dynamic,1>* dofVector;
         size_t gSize;
@@ -113,16 +114,17 @@ namespace model
         }
 
         template<typename BilinearWeakFormType>
-        void compute(const BilinearWeakFormType& bWF)
+        void compute(const std::shared_ptr<BilinearWeakFormType>& bWF)
         {
-            dirichletConditions=&TrialBase<typename BilinearWeakFormType::TrialFunctionType>::dirichletConditions();
-            dofVector=&TrialBase<typename BilinearWeakFormType::TrialFunctionType>::dofVector();
-            gSize=TrialBase<typename BilinearWeakFormType::TrialFunctionType>::gSize();
+            fieldOwner=bWF->field().ownership();
+            dirichletConditions=&bWF->field().dirichletConditions();
+            dofVector=&bWF->field().dofVector();
+            gSize=bWF->field().gSize();
             cSize=dirichletConditions->size();
             tSize = gSize-cSize;
 
             A.resize(gSize,gSize);
-            const auto aTriplets(bWF.globalTriplets());
+            const auto aTriplets(bWF->globalTriplets());
             A.setFromTriplets(aTriplets.begin(),aTriplets.end());
             
             std::vector<Eigen::Triplet<double> > tTriplets;

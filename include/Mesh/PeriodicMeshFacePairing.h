@@ -2,6 +2,7 @@
 #define model_PeriodicMeshFacePairing_h_
 
 #include <PlanarMeshFace.h>
+#include <PeriodicSimplexPair.h>
 #include <Eigen/LU>
 #include <algorithm>
 #include <cmath>
@@ -17,7 +18,8 @@ namespace model
     // Compare the complete boundary discretization, not just its convex hull.
     template<int dim>
     bool isPeriodicFacePair(const PlanarMeshFace<dim>& a, const PlanarMeshFace<dim>& b,
-                            Eigen::Matrix<double,dim,1>& shift, double tolerance)
+                            Eigen::Matrix<double,dim,1>& shift, double tolerance,
+                            PeriodicSimplexPairMap<dim>* correspondence=nullptr)
     {
         using Vertex = Simplex<dim,0>;
         if(&a == &b || !a.isExternal() || !b.isExternal() || a.simplices().size() != b.simplices().size()
@@ -59,6 +61,7 @@ namespace model
         {
             return false;
         }
+        PeriodicSimplexPairMap<dim> matched;
         auto remaining = b.simplices();
         for(const auto* ta : a.simplices())
         {
@@ -101,9 +104,41 @@ namespace model
             {
                 return false;
             }
+            if(correspondence)
+            {
+                PeriodicSimplexPair<dim> record{*match,shift,{}};
+                const auto va=ta->vertices();
+                const auto vb=(*match)->vertices();
+                std::set<size_t> used;
+                for(size_t i=0;i<dim;++i)
+                {
+                    size_t count=0;
+                    for(size_t j=0;j<dim;++j)
+                    {
+                        if((va[i]->P0+shift-vb[j]->P0).norm()<=tolerance)
+                        {
+                            record.vertexPermutation[i]=j;
+                            ++count;
+                        }
+                    }
+                    if(count!=1 || !used.insert(record.vertexPermutation[i]).second)
+                    {
+                        return false;
+                    }
+                }
+                matched.emplace(ta,record);
+            }
             remaining.erase(match);
         }
-        return remaining.empty();
+        if(!remaining.empty())
+        {
+            return false;
+        }
+        if(correspondence)
+        {
+            *correspondence=std::move(matched);
+        }
+        return true;
     }
 
     template<int dim>

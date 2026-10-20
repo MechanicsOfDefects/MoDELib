@@ -236,3 +236,28 @@ set_tests_properties(bicrystalCollapse4244 PROPERTIES TIMEOUT 120)
 add_executable(testEnclosedJunctionOwnership testEnclosedJunctionOwnership.cpp)
 target_link_libraries(testEnclosedJunctionOwnership PRIVATE MoDELib)
 add_test(NAME enclosedJunctionOwnership COMMAND testEnclosedJunctionOwnership "${PROJECT_SOURCE_DIR}")
+
+add_executable(testPeriodicFEMNodes testPeriodicFEMNodes.cpp)
+target_link_libraries(testPeriodicFEMNodes PRIVATE MoDELib)
+add_test(NAME periodicFEMNodes COMMAND testPeriodicFEMNodes "${PROJECT_SOURCE_DIR}")
+set_tests_properties(periodicFEMNodes PROPERTIES TIMEOUT 300)
+
+add_executable(testFEMOwnership testFEMOwnership.cpp)
+target_link_libraries(testFEMOwnership PRIVATE MoDELib)
+add_test(NAME FEMOwnership COMMAND testFEMOwnership "${PROJECT_SOURCE_DIR}")
+set_tests_properties(FEMOwnership PROPERTIES TIMEOUT 120)
+
+add_executable(testWeakProblem testWeakProblem.cpp)
+target_link_libraries(testWeakProblem PRIVATE MoDELib)
+add_test(NAME weakProblem COMMAND testWeakProblem "${PROJECT_SOURCE_DIR}")
+set_tests_properties(weakProblem PROPERTIES TIMEOUT 120)
+
+add_executable(testElasticGlobalPenalty testElasticGlobalPenalty.cpp)
+target_link_libraries(testElasticGlobalPenalty PRIVATE MoDELib)
+add_test(NAME elasticGlobalPenalty COMMAND testElasticGlobalPenalty "${PROJECT_SOURCE_DIR}")
+set_tests_properties(elasticGlobalPenalty PROPERTIES TIMEOUT 120)
+
+add_executable(testAffineDirichlet testAffineDirichlet.cpp)
+target_link_libraries(testAffineDirichlet PRIVATE MoDELib)
+add_test(NAME affineDirichlet COMMAND testAffineDirichlet "${PROJECT_SOURCE_DIR}")
+set_tests_properties(affineDirichlet PROPERTIES TIMEOUT 120)

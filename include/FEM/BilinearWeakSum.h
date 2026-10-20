@@ -8,72 +8,44 @@
 #ifndef model_BilinearWeakSum_H_
 #define model_BilinearWeakSum_H_
 
+#include <LowRankBilinear.h>
 #include <iterator>
-#include <type_traits> // std::is_same
+#include <type_traits>
 
-//#include <AreSameType.h>
 #include <BilinearWeakExpression.h>
-#include <ExpressionRef.h>
+#include <memory>
+#include <stdexcept>
 
 namespace model
 {
- 	/**************************************************************************/
-	/**************************************************************************/
-	/*! \brief A class template that performs the sum of two BilinearWeakExpression.
-	 */
+
     template <typename T1,typename T2>
 	struct  BilinearWeakSum : public BilinearWeakExpression<BilinearWeakSum<T1,T2> >
     {
-        
+
         static_assert(std::is_same<typename T1::TrialFunctionType,typename T2::TrialFunctionType>::value,"YOU ARE SUMMING BilinearWeakForms OF DIFFERENT TRIALFUNCTIONS.");
         typedef typename T1::TrialFunctionType TrialFunctionType;
-        
-        //! first operand
-        ExpressionRef<T1> op1; // expression could be a temporary, so copy by value
-        //! second operand
-        ExpressionRef<T2> op2; // expression could be a temporary, so copy by value
-        
-        /**********************************************************************/
-        BilinearWeakSum(const T1& x, const T2& y) :
-        /* init list           */ op1(x),
-        /* init list           */ op2(y)
-        {/*!
-          */
-            
+
+        const std::shared_ptr<T1> op1;
+
+        const std::shared_ptr<T2> op2;
+        BilinearWeakSum(std::shared_ptr<T1> x, std::shared_ptr<T2> y) :
+            op1(std::move(x)), op2(std::move(y))
+        {
+            if(!op1 || !op2)
+            {
+                throw std::invalid_argument("Null FEM expression operand.");
+            }
         }
-        
-        /**********************************************************************/
-        BilinearWeakSum(T1&& x, const T2& y) :
-        /* init list           */ op1(std::move(x)),
-        /* init list           */ op2(y)
-        {/*!
-          */
-            
-        }
-        
-        /**********************************************************************/
-        BilinearWeakSum(const T1& x, T2&& y) :
-        /* init list           */ op1(x),
-        /* init list           */ op2(std::move(y))
-        {/*!
-          */
-            
-        }
-        
-        /**********************************************************************/
-        BilinearWeakSum(T1&& x, T2&& y) :
-        /* init list           */ op1(std::move(x)),
-        /* init list           */ op2(std::move(y))
-        {/*!
-          */
-            
-        }
-        
-        /**********************************************************************/
+
         std::vector<Eigen::Triplet<double> >  globalTriplets() const
         {
-            std::vector<Eigen::Triplet<double> > gt1=op1().globalTriplets();
-            std::vector<Eigen::Triplet<double> > gt2=op2().globalTriplets();
+            if(!(op2->field().sameField(field())))
+            {
+                throw std::runtime_error("Cannot assemble expressions from different FEM field instances.");
+            }
+            std::vector<Eigen::Triplet<double> > gt1=op1->globalTriplets();
+            std::vector<Eigen::Triplet<double> > gt2=op2->globalTriplets();
             gt1.insert(
                         gt1.end(),
                         std::make_move_iterator(gt2.begin()),
@@ -81,42 +53,33 @@ namespace model
                         );
             return gt1;
         }
-        
+
+        Eigen::MatrixXd lowRankPenaltyRows() const
+        {
+            if(!op2->field().sameField(field()))
+            {
+                throw std::runtime_error("Cannot combine different FEM fields.");
+            }
+            const auto a=lowRankBilinearRows(*op1);
+            const auto b=lowRankBilinearRows(*op2);
+            Eigen::MatrixXd result(a.rows()+b.rows(),field().gSize());
+            result.topRows(a.rows())=a;
+            result.bottomRows(b.rows())=b;
+            return result;
+        }
+
+        const auto& field() const
+        {
+            return op1->field();
+        }
+
     };
-    
-    
-    /**************************************************************************/
-    template <typename T1, typename T2>
-    BilinearWeakSum<T1,T2> operator+(const BilinearWeakExpression<T1>& op1,
-                                     const BilinearWeakExpression<T2>& op2)
+
+    template<class T1,class T2, std::enable_if_t<std::is_base_of_v<BilinearWeakExpression<T1>,T1> && std::is_base_of_v<BilinearWeakExpression<T2>,T2>,int> = 0>
+    auto operator+(const std::shared_ptr<T1>& x,const std::shared_ptr<T2>& y)
     {
-        return  BilinearWeakSum<T1,T2>(op1.derived(),op2.derived());
+        return std::make_shared<BilinearWeakSum<T1,T2>>(x,y);
     }
-    
-    /**************************************************************************/
-    template <typename T1, typename T2>
-    BilinearWeakSum<T1,T2> operator+(/* */ BilinearWeakExpression<T1>&& op1,
-                                     const BilinearWeakExpression<T2>&  op2)
-    {
-        return  BilinearWeakSum<T1,T2>(std::move(op1.derived()),op2.derived());
-    }
-    
-    /**************************************************************************/
-    template <typename T1, typename T2>
-    BilinearWeakSum<T1,T2> operator+(const BilinearWeakExpression<T1>&  op1,
-                                    /*  */ BilinearWeakExpression<T2>&& op2)
-    {
-        return  BilinearWeakSum<T1,T2>(op1.derived(),std::move(op2.derived()));
-    }
-    
-    /**************************************************************************/
-    template <typename T1, typename T2>
-    BilinearWeakSum<T1,T2> operator+(BilinearWeakExpression<T1>&& op1,
-                                     BilinearWeakExpression<T2>&& op2)
-    {
-        return  BilinearWeakSum<T1,T2>(std::move(op1.derived()),std::move(op2.derived()));
-    }
-    
-    
-}	// close namespace
+
+}
 #endif

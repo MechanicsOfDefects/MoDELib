@@ -42,7 +42,8 @@ namespace model
         DislocationDynamicsBase( const std::string& folderName);
         DefectiveCrystalParameters simulationParameters;
         const SymmetricVoigtTraits<dim> voigtTraits;
-        const SimplicialMesh<dim> mesh;
+        const std::shared_ptr<const SimplicialMesh<dim>> meshOwner;
+        const SimplicialMesh<dim>& mesh;
 
         const bool isPeriodicDomain;
         const std::vector<int> periodicImageSize;

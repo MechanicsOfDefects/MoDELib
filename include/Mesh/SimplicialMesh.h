@@ -28,6 +28,7 @@
 #include <SimplexObserver.h>
 //#include <SimplicialMeshFace.h>
 #include <GmshReader.h>
+#include <PeriodicSimplexPair.h>
 
 
 namespace model
@@ -53,6 +54,8 @@ namespace model
         VectorDim _xC;
 
         double vol0;
+        std::shared_ptr<const int> lifetime=std::make_shared<const int>(0);
+        PeriodicSimplexPairMap<_dim> _periodicSimplexPairs;
         Eigen::Matrix<double,_dim,Eigen::Dynamic> _periodicBasis = Eigen::Matrix<double,_dim,Eigen::Dynamic>(_dim,0);
         
         void createMesh(const std::set<int>&);
@@ -94,6 +97,14 @@ namespace model
         void identifyParallelFaces(const std::set<int>&);
         
         Eigen::Matrix<double,dim,Eigen::Dynamic> periodicBasis() const;
+        std::weak_ptr<const int> lifetimeToken() const
+        {
+            return lifetime;
+        }
+        const PeriodicSimplexPairMap<dim>& periodicSimplexPairs() const
+        {
+            return _periodicSimplexPairs;
+        }
         
 
         void insertSimplex(const typename SimplexTraits<dim,dim>::SimplexIDType& xIN,const int& regionID);

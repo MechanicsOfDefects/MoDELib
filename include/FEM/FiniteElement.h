@@ -26,20 +26,20 @@
 #include <LagrangeElement.h>
 #include <DiscontinuousLagrangeElement.h>
 #include <TrialFunction.h>
+#include <TrialSum.h>
 #include <LinearWeakForm.h>
 #include <BilinearWeakForm.h>
 #include <IntegrationDomain.h>
 #include <EntireDomain.h>
+#include <PeriodicFEMNodePairing.h>
 #include <ExternalBoundary.h>
 //#include <NodeList.h>
-
-
 
 namespace model
 {
 
     template<typename _ElementType>
-    class FiniteElement :
+    class FiniteElement : public std::enable_shared_from_this<FiniteElement<_ElementType>>,
 //    /* inherits        */ public std::map<Eigen::Matrix<size_t,_ElementType::dim+1,1>, // key
 //    /*                                  */ _ElementType, // value
 //    /*                                  */ CompareVectorsByComponent<size_t,_ElementType::dim+1> // key compare
@@ -58,11 +58,15 @@ namespace model
     {
         
     private:
+        std::shared_ptr<const SimplicialMesh<_ElementType::dim>> meshOwner;
+        std::shared_ptr<const int> lifetime=std::make_shared<const int>(0);
+        std::weak_ptr<const int> meshLifetime;
         Eigen::Matrix<double,_ElementType::dim,1> _xMin;
         Eigen::Matrix<double,_ElementType::dim,1> _xMax;
         Eigen::Matrix<double,_ElementType::dim,1> _xMean;
 
         size_t nodeListID;
+        PeriodicFEMNodePairing<_ElementType> _periodicNodes;
 
         
     public:
@@ -98,7 +102,9 @@ namespace model
         /* init list */ _xMax(Eigen::Matrix<double,dim,1>::Zero()),
         /* init list */ nodeListID(0),
         /* init list */ mesh(m)
-        {/*!@param[in] s A const reference to a SimplicialMesh on which *this
+        {
+            meshLifetime=m.lifetimeToken();
+/*!@param[in] s A const reference to a SimplicialMesh on which *this
           * FiniteElement is constructed.
           */
             
@@ -176,6 +182,7 @@ namespace model
 
             }
             
+             updatePeriodicNodePairs();
              std::cout<<"   # elements: "<<elementSize()    <<"\n";
              std::cout<<"   # nodes: "   <<nodeSize()       <<"\n";
              std::cout<<"   xMin= "    <<_xMin.transpose()<<"\n";
@@ -183,10 +190,74 @@ namespace model
         }
         
         /**********************************************************************/
-        template <char name,int nComponents>
-        TrialFunction<name,nComponents,FiniteElementType> trial()  // made non-const only to allow fe.createNodeList
+        explicit FiniteElement(std::shared_ptr<const MeshType> m): FiniteElement(requireMesh(m))
         {
-            return TrialFunction<name,nComponents,FiniteElementType>(*this);
+            meshOwner=std::move(m);
+        }
+        static const MeshType& requireMesh(const std::shared_ptr<const MeshType>& m)
+        {
+            if(!m)
+            {
+                throw std::invalid_argument("Null FEM mesh.");
+            }
+            return *m;
+        }
+        FiniteElement(const FiniteElement&)=delete;
+        FiniteElement(FiniteElement&&)=delete;
+        std::weak_ptr<const int> lifetimeToken() const
+        {
+            return lifetime;
+        }
+        void validateMeshLifetime() const
+        {
+            if(meshLifetime.expired())
+            {
+                throw std::runtime_error("FEM space outlived its borrowed mesh. Use an owning mesh constructor.");
+            }
+        }
+
+        // Rebuild explicitly if mesh active periodicity changes after FE creation.
+        void updatePeriodicNodePairs()
+        {
+            if constexpr(std::is_same_v<ElementType,LagrangeElement<dim,ElementType::order>>)
+            {
+                PeriodicFEMNodePairing<ElementType> staged(*this);
+                _periodicNodes=std::move(staged);
+            }
+            else
+            {
+                // Discontinuous spaces do not acquire strong periodic ties.
+                _periodicNodes.representatives.resize(nodeSize());
+                _periodicNodes.shifts.assign(nodeSize(),Eigen::Matrix<double,dim,1>::Zero());
+                for(size_t i=0;i<nodeSize();++i)
+                {
+                    _periodicNodes.representatives[i]=i;
+                }
+            }
+        }
+        const auto& periodicNodePairs() const
+        {
+            return _periodicNodes.pairs;
+        }
+        size_t periodicRepresentative(size_t nodeID) const
+        {
+            return _periodicNodes.representatives.at(nodeID);
+        }
+        const Eigen::Matrix<double,dim,1>& periodicShift(size_t nodeID) const
+        {
+            return _periodicNodes.shifts.at(nodeID);
+        }
+
+        template<int nComponents>
+        auto trial()
+        {
+            return std::make_shared<TrialFunction<'u',nComponents,FiniteElementType>>(*this);
+        }
+
+        template <char name,int nComponents>
+        auto trial()  // made non-const only to allow fe.createNodeList
+        {
+            return std::make_shared<TrialFunction<name,nComponents,FiniteElementType>>(*this);
         }
         
         /**********************************************************************/

@@ -183,6 +183,7 @@ namespace model
     template<int dim>
     void SimplicialMesh<dim>::readMesh(const std::string& meshFileName,const Eigen::Matrix<double,dim,dim>& A,const Eigen::Matrix<double,dim,1>& x0,const std::set<int>& periodicFaceIDs)
     {
+        _periodicSimplexPairs.clear();
         simplices().clear();
         this->read(meshFileName,A,x0);
         createMesh(periodicFaceIDs);
@@ -259,8 +260,37 @@ namespace model
             lattice = selectPeriodicMeshLattice(full,periodicFaceIDs,tolerance);
         }
         const auto& selected = lattice.pairs;
-        // Commit only after discovery and selection have both succeeded.
+        PeriodicSimplexPairMap<dim> simplexPairs;
+        for(const auto& entry : selected)
+        {
+            PeriodicSimplexPairMap<dim> matches;
+            VectorDim shift;
+            if(!isPeriodicFacePair<dim>(*entry.first,*entry.second.second,shift,tolerance,&matches) ||
+               (shift-entry.second.first).norm()>tolerance)
+            {
+                throw std::runtime_error("Active periodic face has inconsistent simplex correspondence.");
+            }
+            simplexPairs.insert(matches.begin(),matches.end());
+        }
+        for(const auto& entry : simplexPairs)
+        {
+            const auto reverse=simplexPairs.find(entry.second.partner);
+            if(reverse==simplexPairs.end() || reverse->second.partner!=entry.first ||
+               (entry.second.shift+reverse->second.shift).norm()>tolerance)
+            {
+                throw std::runtime_error("Nonreciprocal periodic simplex correspondence.");
+            }
+            for(size_t i=0;i<dim;++i)
+            {
+                if(reverse->second.vertexPermutation[entry.second.vertexPermutation[i]]!=i)
+                {
+                    throw std::runtime_error("Nonreciprocal periodic vertex permutation.");
+                }
+            }
+        }
+        // Commit only after face and simplex validation have both succeeded.
         _periodicBasis = lattice.basis;
+        _periodicSimplexPairs.swap(simplexPairs);
         for(auto* face : faces)
         {
             const auto found = selected.find(face);

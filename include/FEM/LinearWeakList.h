@@ -14,16 +14,16 @@
 #include <LinearWeakExpression.h>
 #include <JGNselector.h>
 #include <IntegrationList.h>
-#include <ExpressionRef.h>
-
+#include <memory>
+#include <stdexcept>
 
 namespace model
 {
-    
+
     template <typename TestType, typename _IntegrationListType>
     class LinearWeakList : public LinearWeakExpression<LinearWeakList<TestType,_IntegrationListType> >
     {
-        
+
     public:
 
         typedef typename TestType::TrialFunctionType TrialFunctionType;
@@ -38,41 +38,32 @@ namespace model
 
     public:
 
-        ExpressionRef<TestExpression<TestType>> testExp;
-        const _IntegrationListType& list;
-
-        /**********************************************************************/
-        LinearWeakList(const TestExpression<TestType>& _testExp,
-                       const _IntegrationListType& _list) :
-        /*init list */ testExp(_testExp),
-        /*init list */ list(_list)
+        const std::shared_ptr<TestExpression<TestType>> testExp;
+        const _IntegrationListType list;
+        LinearWeakList(std::shared_ptr<TestExpression<TestType>> f,const _IntegrationListType& dom) : testExp(std::move(f)), list(dom)
         {
-        }
-
-        /**********************************************************************/
-        LinearWeakList(TestExpression<TestType>&& _testExp,
-                       const _IntegrationListType& _list) :
-        /*init list */ testExp(std::move(_testExp)),
-        /*init list */ list(_list)
-        {
+            if(!testExp)
+            {
+                throw std::invalid_argument("Null FEM form.");
+            }
         }
 
         Eigen::Matrix<double,Eigen::Dynamic,1> globalVector() const
         {
-            Eigen::Matrix<double,Eigen::Dynamic,1> _globalVector(Eigen::Matrix<double,Eigen::Dynamic,1>::Zero(TrialBase<TrialFunctionType>::gSize()));
-            
+            Eigen::Matrix<double,Eigen::Dynamic,1> _globalVector(Eigen::Matrix<double,Eigen::Dynamic,1>::Zero(field().gSize()));
+
             for (size_t k=0;k<list.size();++k)
             {
-                const ElementType& ele(list[k].ele);  // element
-                const int f(list[k].boundaryFace); //    face ID
+                const ElementType& ele(list[k].ele);
+                const int f(list[k].boundaryFace);
                 const Eigen::Matrix<double,dim+1,1>& bary(list[k].domainBary);
-                                
-                const ElementVectorType ve(testExp().sfm(ele,bary).transpose()
+
+                const ElementVectorType ve(testExp->sfm(ele,bary).transpose()
                                            *list[k]
                                            *JGNselector<3>::jGN(ele.jGN(bary,f))
                                            *list[k].weight
                                            );
-                
+
                 for (int i=0;i<dofPerElement;++i)
                 {
                     const size_t  nodeID_I(i/dofPerNode);
@@ -84,22 +75,19 @@ namespace model
 
             return _globalVector;
         }
-        
+
+        const auto& field() const
+        {
+            return testExp->field();
+        }
+
     };
-    
-    
-    //Operator ,
-    template<typename T,int dimMinusDomainDim, typename PointType>
-    LinearWeakList<T,IntegrationList<dimMinusDomainDim,PointType> > operator,(const TestExpression<T>& testExpr,const IntegrationList<dimMinusDomainDim,PointType>& list)
+
+    template<class T,int D,class P>
+    auto operator,(const std::shared_ptr<TestExpression<T>>& t,const IntegrationList<D,P>& list)
     {
-        return LinearWeakList<T,IntegrationList<dimMinusDomainDim,PointType> >(testExpr,list);
+        return std::make_shared<LinearWeakList<T,IntegrationList<D,P>>>(t,list);
     }
-    
-    template<typename T,int dimMinusDomainDim, typename PointType>
-    LinearWeakList<T,IntegrationList<dimMinusDomainDim,PointType> > operator,(TestExpression<T>&& testExpr,const IntegrationList<dimMinusDomainDim,PointType>& list)
-    {
-        return LinearWeakList<T,IntegrationList<dimMinusDomainDim,PointType> >(std::move(testExpr),list);
-    }
-    
-}	// close namespace
+
+}
 #endif

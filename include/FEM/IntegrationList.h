@@ -35,11 +35,14 @@ namespace model
     template <typename PointType>
 	struct IntegrationList<1,PointType> : public std::deque<PointType>
     {
+        std::shared_ptr<const void> domainOwner;
         
         /**********************************************************************/
         template<typename IntegrationDomainType>
-        IntegrationList(const IntegrationDomainType& domain)
+        IntegrationList(const IntegrationDomainType& domain):
+            domainOwner(std::make_shared<IntegrationDomainType>(domain))
         {
+            domain.validate();
             
             typedef typename IntegrationDomainType::ElementType ElementType;
             typedef typename IntegrationDomainType::QuadratureType QuadratureType;

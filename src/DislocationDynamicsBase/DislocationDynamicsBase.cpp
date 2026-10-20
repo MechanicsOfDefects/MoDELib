@@ -94,17 +94,18 @@ namespace model
     DislocationDynamicsBase<_dim>::DislocationDynamicsBase( const std::string& folderName) :
     /* init */ simulationParameters( folderName)
     /* init */,voigtTraits((typename SymmetricVoigtTraits<3>::VoigtSizeMatrixType()<<0,0,1,1,2,2,0,1,1,2,0,2).finished())
-    /* init */,mesh(simulationParameters.traitsIO.meshFile,
+    /* init */,meshOwner(std::make_shared<const SimplicialMesh<dim>>(simulationParameters.traitsIO.meshFile,
                     TextFileParser(simulationParameters.traitsIO.polyFile).readMatrix<double>("F",_dim,_dim,true),
                     TextFileParser(simulationParameters.traitsIO.polyFile).readMatrix<double>("X0",1,_dim,true).transpose(),
-                    simulationParameters.periodicFaceIDs)
+                    simulationParameters.periodicFaceIDs))
+    /* init */,mesh(*meshOwner)
     /* init */,isPeriodicDomain(checkIfFullyPeriodicDomain(mesh))
     /* init */,periodicImageSize(mesh.periodicBasis().cols()>0? TextFileParser(simulationParameters.traitsIO.dcFile).readArray<int>("periodicImageSize",true) : std::vector<int>())
     /* init */,periodicLatticeBasis(mesh.periodicBasis())
     /* init */,periodicLatticeReciprocalBasis(periodicLatticeBasis*(periodicLatticeBasis.transpose()*periodicLatticeBasis).inverse())
     /* init */,periodicShifts(getPeriodicShifts(periodicLatticeBasis,periodicImageSize))
     /* init */,poly(simulationParameters.traitsIO.polyFile,mesh)
-    /* init */,fe((!isPeriodicDomain && simulationParameters.useFEM) ? new FiniteElement<ElementType>(mesh) : nullptr)
+    /* init */,fe(simulationParameters.useFEM ? new FiniteElement<ElementType>(meshOwner) : nullptr)
     /* init */,glidePlaneFactory(poly)
     /* init */,periodicGlidePlaneFactory(poly,glidePlaneFactory)
     /* init */,EwaldLength(periodicLatticeBasis.cols()>0? getEwaldLength(periodicLatticeBasis,TextFileParser(simulationParameters.traitsIO.dcFile).readScalar<double>("EwaldLengthFactor",true)) : 0.0)

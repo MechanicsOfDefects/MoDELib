@@ -24,24 +24,24 @@ struct ImmobileSinkRate : public EvalFunction<ImmobileSinkRate<MobileTrialFuncti
     const PolycrystallineMaterialBase& mat;
     
     typedef EvalExpression<MobileTrialFunctionType> MobileEvalFunctionType;
-    const MobileTrialFunctionType& cM;       // Mobile defect concentration
-    const MobileEvalFunctionType cMe;
+    const std::shared_ptr<MobileTrialFunctionType> cM;       // Mobile defect concentration
+    const std::shared_ptr<MobileEvalFunctionType> cMe;
     
     typedef EvalExpression<ImmobileTrialFunctionType> ImmobileEvalFunctionType;
-    const ImmobileTrialFunctionType& cI;       // Immobile loop concentration
-    const ImmobileEvalFunctionType cIe;
+    const std::shared_ptr<ImmobileTrialFunctionType> cI;       // Immobile loop concentration
+    const std::shared_ptr<ImmobileEvalFunctionType> cIe;
 
     const Eigen::Matrix<double,mSize,1> inFactors;
     const Eigen::Matrix<double,mSize,1> outFactors;
     
     /**********************************************************************/
-    ImmobileSinkRate(const MobileTrialFunctionType& cM_in, const ImmobileTrialFunctionType& cI_in, const ClusterDynamicsParameters<3>& cdp_in, const PolycrystallineMaterialBase& mat_in) :
+    ImmobileSinkRate(const std::shared_ptr<MobileTrialFunctionType>& cM_in, const std::shared_ptr<ImmobileTrialFunctionType>& cI_in, const ClusterDynamicsParameters<3>& cdp_in, const PolycrystallineMaterialBase& mat_in) :
     /* init */ cdp(cdp_in),
     /* init */ mat(mat_in),
     /* init */ cM(cM_in),
-    /* init */ cMe(cM_in),
+    /* init */ cMe(eval(cM_in)),
     /* init */ cI(cI_in),
-    /* init */ cIe(cI_in),
+    /* init */ cIe(eval(cI_in)),
     // /* init */ stress(stress_in),
     // /* init */ stresse(stress_in),
     /* init */ inFactors((1.0/cdp.msVector.abs()).matrix()),
@@ -168,8 +168,8 @@ struct ImmobileSinkRate : public EvalFunction<ImmobileSinkRate<MobileTrialFuncti
       *\returns the current stiffness C, which in general is a funciton of C0 and grad(u)
       */
         
-        const Eigen::Matrix<double,mSize,1> Cvalue(inFactors.asDiagonal()*cMe(ele,bary)); // Local concentration
-        const Eigen::Array<double,rows,1> sinkvalue(cIe(ele,bary).array());
+        const Eigen::Matrix<double,mSize,1> Cvalue(inFactors.asDiagonal()*(*cMe)(ele,bary)); // Local concentration
+        const Eigen::Array<double,rows,1> sinkvalue((*cIe)(ele,bary).array());
 //        const Eigen::Array<double,rows/2,1> loopsDensity(2.0*M_PI*sinkvalue.template block<rows/2,1>(0,0)*sinkvalue.template block<rows/2,1>(rows/2,0));
 
         // const Eigen::Matrix<double,6,1> tempS(stresse(ele,bary));

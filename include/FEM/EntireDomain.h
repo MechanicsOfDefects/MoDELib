@@ -33,6 +33,7 @@ namespace model
                 temp.emplace_back(&ele.second);
             }
             
+            temp.bind(fe);
             return temp;
         }
         
