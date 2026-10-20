@@ -261,3 +261,8 @@ add_executable(testAffineDirichlet testAffineDirichlet.cpp)
 target_link_libraries(testAffineDirichlet PRIVATE MoDELib)
 add_test(NAME affineDirichlet COMMAND testAffineDirichlet "${PROJECT_SOURCE_DIR}")
 set_tests_properties(affineDirichlet PROPERTIES TIMEOUT 120)
+
+add_executable(testPlaneSectionMesh testPlaneSectionMesh.cpp)
+target_link_libraries(testPlaneSectionMesh PRIVATE MoDELib)
+add_test(NAME planeSectionMesh COMMAND testPlaneSectionMesh "${PROJECT_SOURCE_DIR}")
+set_tests_properties(planeSectionMesh PROPERTIES TIMEOUT 120)

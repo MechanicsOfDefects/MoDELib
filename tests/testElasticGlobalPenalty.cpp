@@ -148,15 +148,16 @@ struct UniformSource : ElasticDeformation<3>
         return plastic;
     }
 };
-void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,int mode,bool withSource=false,bool withPin=false)
+void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,int mode,bool withSource=false,bool withPin=false,bool irregular=false)
 {
     using V=Eigen::Matrix<double,6,1>;
     using M=Eigen::Matrix<double,6,6>;
+    const std::string meshName=irregular ? "polycrystalCube_10_periodicXY.msh" : "bicrystal_48.msh";
     const Eigen::Matrix3d Q=rotated ? Eigen::AngleAxisd(0.63,Eigen::Vector3d(1,2,3).normalized()).toRotationMatrix() : Eigen::Matrix3d::Identity();
     StaticID<PlanarMeshFace<3>>::force_count(0);
     std::set<int> seeds;
     {
-        SimplicialMesh<3> mesh((root/"Library/Meshes/bicrystal_48.msh").string(),Q,Eigen::Vector3d::Zero(),{-1});
+        SimplicialMesh<3> mesh((root/"Library/Meshes"/meshName).string(),Q,Eigen::Vector3d::Zero(),{-1});
         for(const auto& region : mesh.regions())
         {
             for(const auto& face : region.second->faces())
@@ -180,7 +181,7 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
     std::filesystem::create_directories(folder/"evl");
     std::filesystem::create_directories(folder/"F");
     std::filesystem::copy_file(root/"Library/Materials/W.txt",input/"W.txt");
-    std::filesystem::copy_file(root/"Library/Meshes/bicrystal_48.msh",input/"mesh.msh");
+    std::filesystem::copy_file(root/"Library/Meshes"/meshName,input/"mesh.msh");
     V strain0,strainRate,stress0,stressRate,alpha;
     strain0<<0.002,0.001,-0.0005,0.0007,0.0003,-0.0004;
     strainRate=0.1*strain0;
@@ -197,6 +198,16 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
     else
     {
         alpha<<0,1.e20,2,0.5,1.e20,0;
+    }
+    if(irregular)
+    {
+        strain0.setZero();
+        strainRate.setZero();
+        strainRate(2)=0.001;
+        stress0.setZero();
+        stressRate.setZero();
+        alpha.setZero();
+        alpha(2)=1.e20;
     }
     const auto writeLoading=[&](bool fem,const V& ratios,const V& stresses,const V& rates)
     {
@@ -231,6 +242,13 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
             poly<<seed<<" ";
         }
         poly<<";\n";
+        if(irregular)
+        {
+            for(int grain=3;grain<=10;++grain)
+            {
+                poly<<"C2G"<<grain<<"="<<matrixText(Q)<<";\n";
+            }
+        }
         writeLoading(true,alpha,stress0,stressRate);
     }
     {
@@ -307,6 +325,27 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
             const Eigen::MatrixXd fit=coordinates.colPivHouseholderQr().solve(values);
             const Eigen::Matrix3d expectedGradient=fit.topRows(3).transpose()/length;
             require((0.5*(expectedGradient+expectedGradient.transpose())-expectedStrain).norm()<1.e-9,"Mixed loading produced incorrect homogeneous strain");
+            if(!withPin)
+            {
+                require((expectedGradient-expectedGradient.transpose()).norm()<1.e-9,"Global stabilization introduced mean rotation");
+                Eigen::Vector3d centroid=Eigen::Vector3d::Zero();
+                double volume=0.0;
+                for(const auto& entry : base.fe->elements())
+                {
+                    centroid+=entry.second.simplex.vol0*entry.second.simplex.center();
+                    volume+=entry.second.simplex.vol0;
+                }
+                centroid/=volume;
+                const double meanDisplacement=(expectedGradient*centroid+fit.row(3).transpose()).norm();
+                const double displacementScale=std::max(1.0,values.norm()/std::sqrt(double(values.rows())));
+                // The volume-normalized penalty has weight 1e-3 against dimensional
+                // stiffness; test drift relative to the physical displacement scale.
+                require(meanDisplacement<1.e-6*displacementScale,"Mean affine displacement is not zero");
+                if(irregular)
+                {
+                    require(std::abs(expectedGradient(2,0))+std::abs(expectedGradient(2,1))<1.e-9,"Horizontal plane has a spurious u3 gradient");
+                }
+            }
             require((coordinates*fit-values).norm()<2.e-7*std::max(1.0,values.norm()),"Mixed loading introduced nonuniform deformation");
             Eigen::Matrix3d projection=Eigen::Matrix3d::Zero();
             if(rank>0)
@@ -363,6 +402,10 @@ int main(int argc,char** argv)
         physicsIntegration(argv[1],1,true,2);
         physicsIntegration(argv[1],2,true,2,true);
         physicsIntegration(argv[1],1,true,2,false,true);
+        for(int rank=0;rank<=2;++rank)
+        {
+            physicsIntegration(argv[1],rank,false,1,false,false,true);
+        }
         std::cout<<"Global elastic penalty tests passed\n";
     }
     catch(const std::exception& e)

@@ -365,7 +365,10 @@ PYBIND11_MODULE(pyMoDELib,m)
     
     py::class_<DislocationDynamicsBase<3>>(m,"DislocationDynamicsBase")
         .def(py::init<const std::string&>())
-        .def_readonly("mesh", &DislocationDynamicsBase<3>::mesh)
+        .def_property_readonly("mesh", [](const DislocationDynamicsBase<3>& base) -> const SimplicialMesh<3>&
+        {
+            return base.mesh;
+        }, py::return_value_policy::reference_internal)
         .def_readonly("poly", &DislocationDynamicsBase<3>::poly)
         .def_readonly("simulationParameters", &DislocationDynamicsBase<3>::simulationParameters)
     ;

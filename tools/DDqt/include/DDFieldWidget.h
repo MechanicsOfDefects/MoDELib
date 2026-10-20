@@ -158,7 +158,7 @@ namespace model
         vtkGenericOpenGLRenderWindow* const renWin;
         vtkRenderer* const renderer;
         const DefectiveCrystal<3>& defectiveCrystal;
-        std::shared_ptr<MeshPlane<3>> plane;
+        std::shared_ptr<Plane<3>> plane;
         
     public slots:
         void resetPlane();

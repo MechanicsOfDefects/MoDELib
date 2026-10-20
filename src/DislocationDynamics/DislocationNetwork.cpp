@@ -1168,7 +1168,6 @@ void DislocationNetwork<dim>::reSolve()
     {
         using NodePtr=std::shared_ptr<LoopNodeType>;
         using NetPtr=std::shared_ptr<NetworkNodeType>;
-        using Patch=PeriodicPlanePatch<dim>;
         using Edge=PeriodicPlaneEdge<dim>;
         using Record=PolygonPatchIntersectionRecord<dim,LoopNodeType>;
         const double tolerance=1.e-8*(ddBase.mesh.xMax()-ddBase.mesh.xMin()).norm();

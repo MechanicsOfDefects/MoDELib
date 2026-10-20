@@ -1,7 +1,7 @@
 useElasticDeformationFEM=0;
-# Positive weight for the global, volume-normalized projection onto rigid
-# motions admissible under the active periodic and Dirichlet constraints.
-# This fixes rigid drift without penalizing deformation.
+# Positive weight for global mean displacement and mean infinitesimal rotation
+# (half the curl of displacement), restricted to rigid motions admissible under
+# the active periodic and Dirichlet constraints. This fixes rigid drift globally.
 inertiaReliefPenaltyFactor=1e-3;
 
 ExternalStress0 = 0.0 0.0 0.0 0.0 0.0 0.0;

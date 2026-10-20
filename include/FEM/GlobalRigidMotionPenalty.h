@@ -15,7 +15,8 @@
 
 namespace model
 {
-    // Integral projection onto homogeneous rigid modes admitted by the constraints.
+    // Penalize mean displacement and mean infinitesimal rotation, restricted
+    // to homogeneous rigid modes admitted by the constraints.
     // Only six global moments are stored; WeakProblem handles F^T F as a low-rank term.
     template<class Trial>
     class GlobalRigidMotionPenalty : public BilinearWeakExpression<GlobalRigidMotionPenalty<Trial>>
@@ -35,7 +36,6 @@ namespace model
         double length=0.0;
         double volume=0.0;
         Eigen::MatrixXd moments;
-        GramMatrix gram=GramMatrix::Zero();
 
         static Eigen::Matrix3d crossMatrix(const Eigen::Vector3d& x)
         {
@@ -53,13 +53,15 @@ namespace model
         Eigen::Matrix<double,6,Trial::dofPerElement> momentKernel(const Eigen::Vector3d& a,const Element& e) const
         {
             const auto bary=BarycentricTraits<3>::x2l(a);
-            return rigid(e.position(bary)).transpose()*trial->sfm(e,bary)*e.absJ(bary)/volume;
-        }
-        GramMatrix gramKernel(const Eigen::Vector3d& a,const Element& e) const
-        {
-            const auto bary=BarycentricTraits<3>::x2l(a);
-            const auto R=rigid(e.position(bary));
-            return R.transpose()*R*e.absJ(bary)/volume;
+            Eigen::Matrix<double,6,Trial::dofPerElement> result;
+            result.template topRows<3>()=trial->sfm(e,bary);
+            // sfmGrad stores grad(u) rowwise: u1,x u1,y u1,z u2,x ...
+            // Scale rotation by length to give all six moments displacement units.
+            const auto gradient=trial->sfmGrad(e,bary);
+            result.row(3)=0.5*length*(gradient.row(7)-gradient.row(5));
+            result.row(4)=0.5*length*(gradient.row(2)-gradient.row(6));
+            result.row(5)=0.5*length*(gradient.row(3)-gradient.row(1));
+            return result*e.absJ(bary)/volume;
         }
         Eigen::MatrixXd admissibleParameters() const
         {
@@ -119,7 +121,6 @@ namespace model
                 const auto& e=pair.second;
                 Eigen::Matrix<double,6,Trial::dofPerElement> local=Eigen::Matrix<double,6,Trial::dofPerElement>::Zero();
                 QuadratureType::integrate(this,local,&GlobalRigidMotionPenalty::momentKernel,e);
-                QuadratureType::integrate(this,gram,&GlobalRigidMotionPenalty::gramKernel,e);
                 for(int node=0;node<Trial::nodesPerElement;++node)
                 {
                     moments.middleCols(3*e.node(node).gID,3)+=local.middleCols(3*node,3);
@@ -142,14 +143,10 @@ namespace model
             {
                 return Eigen::MatrixXd(0,moments.cols());
             }
-            const Eigen::MatrixXd G=S.transpose()*gram*S;
-            Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig(G);
-            if(eig.info()!=Eigen::Success || eig.eigenvalues().minCoeff()<=0.0)
-            {
-                throw std::runtime_error("Degenerate rigid-motion Gram matrix.");
-            }
-            const Eigen::MatrixXd normalization=eig.eigenvectors()*eig.eigenvalues().array().sqrt().inverse().matrix().asDiagonal()*eig.eigenvectors().transpose();
-            return std::sqrt(factor)*normalization*S.transpose()*moments;
+            // For u=t+omega cross (x-centroid)/length these moments equal
+            // (t,omega). S has orthonormal columns, so no geometric inertia
+            // normalization is needed. Symmetric affine strain has zero curl.
+            return std::sqrt(factor)*S.transpose()*moments;
         }
         Eigen::MatrixXd rigidModes() const
         {
