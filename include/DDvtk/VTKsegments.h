@@ -24,8 +24,8 @@
 
 #include <TextFileParser.h>
 #include <GlidePlaneModule.h>
-#include <DDtraitsIO.h>
-#include <StressStraight.h>
+#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
+#include <DislocationDynamics/StressStraight.h>
 #include <DislocationQuadraturePoint.h>
 #include <QuadratureDynamic.h>
 #include <SplineSegmentBase.h>
@@ -77,7 +77,7 @@ namespace model
         
         VTKsegments(const std::string& folderName);
         
-//        const DDtraitsIO traitsIO;
+//        const DefectiveCrystalTraitsIO traitsIO;
         TextFileParser perser;
         const PolycrystallineMaterialBase material;
         const double quadPerLength;

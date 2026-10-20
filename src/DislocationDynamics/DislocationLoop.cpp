@@ -9,11 +9,12 @@
 #define model_DislocationLoop_cpp_
 
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <algorithm>
 #include <DislocationLoop.h>
-#include <DislocationFieldBase.h>
+#include <DislocationDynamics/DislocationFieldBase.h>
 #include <SutherlandHodgman.h>
-#include <DislocationLoopPatches.h>
+#include <DislocationDynamics/DislocationLoopPatches.h>
 
 namespace model
 {
@@ -23,7 +24,7 @@ namespace model
                                                  const std::shared_ptr<GlidePlaneType>& glidePlane_in) :
     /* init */ Loop<DislocationLoop>(net,glidePlane_in->grain.rationalLatticeDirection(B))
     /* init */,glidePlane(glidePlane_in)
-    /* init */,periodicGlidePlane(this->network().ddBase.periodicGlidePlaneFactory.getFromKey(glidePlane->key))
+    /* init */,periodicGlidePlane(this->network().ddBase.dislocationDynamics().periodicGlidePlaneFactory.getFromKey(glidePlane->key))
     /* init */,_patches(periodicGlidePlane)
     /* init */,grain(glidePlane->grain)
     /* init */,loopType(this->flow().dot(glidePlane->n)==0? DislocationLoopIO<dim>::GLISSILELOOP : DislocationLoopIO<dim>::SESSILELOOP)
@@ -41,7 +42,7 @@ namespace model
     }
 
     template <int dim>
-    void DislocationLoop<dim>::crossSlipBranches(std::deque<CrossSlipBranch<LoopNodeType>>& csNodes,const double dt) const
+    void DislocationLoop<dim>::crossSlipBranches(std::deque<CrossSlipBranch<dim>>& csNodes,const double dt) const
     {
         std::deque<std::deque<std::pair<const LoopLinkType*,int>>> csBranches;
         if(this->network().crossSlipModel)

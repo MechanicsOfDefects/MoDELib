@@ -1,6 +1,6 @@
 #include <MicrostructureGenerator.h>
 #include <InclusionMicrostructure.h>
-#include <EllipsoidalInclusion.h>
+#include <InclusionMicrostructure/EllipsoidalInclusion.h>
 #include <filesystem>
 #include <fstream>
 #include <chrono>
@@ -24,7 +24,7 @@ int main(int argc, char **argv)
         const auto dir = std::filesystem::temp_directory_path() /
                          ("model-ellipsoid-generator-" +
                           std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        for(const auto sub : {"inputFiles", "evl", "aux", "F"})
+        for(const auto sub : {"inputFiles", "config", "aux", "F"})
         {
             std::filesystem::create_directories(dir / sub);
         }
@@ -33,7 +33,7 @@ int main(int argc, char **argv)
         std::filesystem::copy_file(root / "Library/Meshes/unitCube24.msh", input / "mesh.msh");
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
-            f << "physics=none;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary="
+            f << "physics=InclusionMicrostructure;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary="
                  "0;\nstartAtTimeStep=0;\n";
         }
         {
@@ -41,7 +41,7 @@ int main(int argc, char **argv)
             f << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\n"
               << "C2G1=0.6 -0.8 0 0.8 0.6 0 0 0 1;\nF=1000 0 0 0 1000 0 0 0 1000;\nX0=0 0 0;\nperiodicFaceIDs=;\n";
         }
-        model::DislocationDynamicsBase<3> base(dir.string());
+        model::DefectiveCrystalBase<3> base(dir.string());
         model::MicrostructureGenerator mg(base);
         model::EllipsoidalInclusionIndividualSpecification spec;
         spec.center = base.mesh.xCenter();
@@ -252,7 +252,7 @@ int main(int argc, char **argv)
         check(mg.config().ellipsoidalInclusions()[0].axes.isApprox(globalAxes), "File input lost grain rotation");
         check(mg.config().ellipsoidalInclusions()[0].mobilityReduction == .75, "Metadata lost");
         mg.config().writeTxt(0);
-        model::DDconfigIO<3> restored((dir / "evl").string());
+        model::DefectiveCrystalConfigIO<3> restored((dir / "config").string());
         restored.readTxt(0);
         check(restored.ellipsoidalInclusions().size() == 1, "Generated inclusion not serialized");
         check(restored.ellipsoidalInclusions()[0].eT.isApprox(globalStrain), "Serialized tensor rotation failed");
@@ -287,8 +287,8 @@ int main(int argc, char **argv)
             check(expected.norm() > 0 && simulation.stress(point, nullptr, nullptr, nullptr).isApprox(expected, 1.e-12),
                   "Ellipsoid stress missing from simulation sum");
         }
-        model::DDconfigIO<3> saved((dir / "evl").string());
-        model::DDauxIO<3> aux((dir / "aux").string());
+        model::DefectiveCrystalConfigIO<3> saved((dir / "config").string());
+        model::DefectiveCrystalAuxIO<3> aux((dir / "aux").string());
         simulation.output(saved, aux, unused, unused);
         check(saved.ellipsoidalInclusions().size() == 1 && saved.sphericalInclusions().size() == 1,
               "Simulation output lost an inclusion");
@@ -297,7 +297,7 @@ int main(int argc, char **argv)
                   saved.ellipsoidalInclusions()[0].inclusionID == record.inclusionID,
               "Simulation output changed ellipsoid data");
         saved.writeBin(1);
-        model::DDconfigIO<3> restart((dir / "evl").string());
+        model::DefectiveCrystalConfigIO<3> restart((dir / "config").string());
         restart.readBin(1);
         const V probe = record.C + V(70, 45, 20);
         const M before = simulation.stress(probe, nullptr, nullptr, nullptr);

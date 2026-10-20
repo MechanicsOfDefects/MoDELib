@@ -15,7 +15,7 @@ periodicImageCases=np.array([[4,4,4,2]])
 if compute:
     ###########################################################
     ## Preparing input files
-    folders=['evl','F','inputFiles']
+    folders=['config','F','inputFiles']
     for x in folders:
         if not os.path.exists(x):
             os.makedirs(x)
@@ -84,7 +84,7 @@ if compute:
         setInputVariable('inputFiles/'+DDfile,'EwaldLengthFactor',str(EwaldLengthFactor))
         setInputVector('inputFiles/'+DDfile,'periodicImageSize',periodicImageSize,'number of periodic images along each period vector')
         print("BEFORE DDBASE")
-        ddBase=pyMoDELib.DislocationDynamicsBase(simulationDir)
+        ddBase=pyMoDELib.DefectiveCrystalBase(simulationDir)
         mesh=ddBase.mesh
         xMax=mesh.xMax()
         xMin=mesh.xMin()
@@ -121,7 +121,7 @@ if compute:
 #                microstructureGenerator.writeConfigFiles(0) # write evel_0.txt (optional)
             defectiveCrystal.initializeConfiguration(microstructureGenerator.configIO)
             defectiveCrystal.runSingleStep()
-            aux =readAUXtxt('evl/ddAux_'+str(j))
+            aux =readAUXtxt('config/ddAux_'+str(j))
             S11[j]=np.mean(aux.gaussPoints[:,10])
             S12[j]=np.mean(aux.gaussPoints[:,11])
             S13[j]=np.mean(aux.gaussPoints[:,12])

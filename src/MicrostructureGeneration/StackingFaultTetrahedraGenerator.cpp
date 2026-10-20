@@ -8,6 +8,7 @@
 #ifndef model_StackingFaultTetrahedraGenerator_cpp_
 #define model_StackingFaultTetrahedraGenerator_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <numbers>
 #include <chrono>
 #include <random>
@@ -24,16 +25,16 @@
 #include <PolycrystallineMaterialBase.h>
 #include <LatticeModule.h>
 //#include <PlaneMeshIntersection.h>
-#include <DislocationNodeIO.h>
-#include <DislocationLoopIO.h>
-#include <DislocationLoopLinkIO.h>
-#include <DislocationLoopNodeIO.h>
-#include <DDconfigIO.h>
-#include <DDauxIO.h>
+#include <DislocationDynamics/DislocationNodeIO.h>
+#include <DislocationDynamics/DislocationLoopIO.h>
+#include <DislocationDynamics/DislocationLoopLinkIO.h>
+#include <DislocationDynamics/DislocationLoopNodeIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 
-#include <DislocationLinkingNumber.h>
+#include <DislocationDynamics/DislocationLinkingNumber.h>
 #include <TextFileParser.h>
-#include <DislocationInjector.h>
+#include <DislocationDynamics/DislocationInjector.h>
 #include <MeshBoundarySegment.h>
 #include <GlidePlaneModule.h>
 #include <MeshModule.h>
@@ -157,7 +158,7 @@ bool StackingFaultTetrahedraGenerator::generateSingleSFT(MicrostructureGenerator
                             throw std::runtime_error("Cannot determine plane of SFT face 012.");
                         }
                         GlidePlaneKey<3> basePlaneKey012(heightPair012.second, n012);
-                        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane012(mg.ddBase.periodicGlidePlaneFactory.get(basePlaneKey012));
+                        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane012(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(basePlaneKey012));
                         mg.insertJunctionLoop(facePos012, glidePlane012,
                                               b012,n012.cartesian().normalized(),
                                               nodePos[0],grainID,DislocationLoopIO<3>::SESSILELOOP);
@@ -177,7 +178,7 @@ bool StackingFaultTetrahedraGenerator::generateSingleSFT(MicrostructureGenerator
                             throw std::runtime_error("Cannot determine plane of SFT face 230.");
                         }
                         GlidePlaneKey<3> basePlaneKey230(heightPair230.second, n230);
-                        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane230(mg.ddBase.periodicGlidePlaneFactory.get(basePlaneKey230));
+                        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane230(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(basePlaneKey230));
                         mg.insertJunctionLoop(facePos230, glidePlane230,
                                               b230,n230.cartesian().normalized(),
                                               nodePos[2],grainID,DislocationLoopIO<3>::GLISSILELOOP);
@@ -197,7 +198,7 @@ bool StackingFaultTetrahedraGenerator::generateSingleSFT(MicrostructureGenerator
                             throw std::runtime_error("Cannot determine plane of SFT face 031.");
                         }
                         GlidePlaneKey<3> basePlaneKey031(heightPair031.second, n031);
-                        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane031(mg.ddBase.periodicGlidePlaneFactory.get(basePlaneKey031));
+                        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane031(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(basePlaneKey031));
                         mg.insertJunctionLoop(facePos031, glidePlane031,
                                               b031,n031.cartesian().normalized(),
                                               nodePos[0],grainID,DislocationLoopIO<3>::GLISSILELOOP);
@@ -217,7 +218,7 @@ bool StackingFaultTetrahedraGenerator::generateSingleSFT(MicrostructureGenerator
                             throw std::runtime_error("Cannot determine plane of SFT face132.");
                         }
                         GlidePlaneKey<3> basePlaneKey132(heightPair132.second, n132);
-                        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane132(mg.ddBase.periodicGlidePlaneFactory.get(basePlaneKey132));
+                        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane132(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(basePlaneKey132));
                         mg.insertJunctionLoop(facePos132, glidePlane132,
                                               b132,n132.cartesian().normalized(),
                                               nodePos[1],grainID,DislocationLoopIO<3>::GLISSILELOOP);

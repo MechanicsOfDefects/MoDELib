@@ -19,7 +19,7 @@
 #include <vtkLight.h>
 #include <vtkRenderer.h>
 #include <vtkGenericOpenGLRenderWindow.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <SurfaceMeshGeometry.h>
 
 namespace model

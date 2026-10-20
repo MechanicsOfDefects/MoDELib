@@ -12,10 +12,10 @@ from modlibUtils import *
 simulationDir=os.path.abspath(".")
 materialFile=getStringInFile('inputFiles/polycrystal.txt','materialFile')
 F,Flabels=readFfile(simulationDir+'/F')
-ddBase=pyMoDELib.DislocationDynamicsBase(simulationDir)
+ddBase=pyMoDELib.DefectiveCrystalBase(simulationDir)
 b_SI=ddBase.poly.b_SI
 cs_SI=ddBase.poly.cs_SI
-configIO=pyMoDELib.DDconfigIO(simulationDir+'/evl')
+configIO=pyMoDELib.DefectiveCrystalConfigIO(simulationDir+'/config')
 defectiveCrystal=pyMoDELib.DefectiveCrystal(ddBase)
 dislocationNetwork=defectiveCrystal.dislocationNetwork()
 runIDs=getFarray(F,Flabels,'runID')

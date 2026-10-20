@@ -8,6 +8,7 @@
 #ifndef model_ShearLoopGenerator_cpp_
 #define model_ShearLoopGenerator_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <iostream>
 #include <ShearLoopGenerator.h>
 
@@ -133,7 +134,7 @@ bool ShearLoopGenerator::generateSingle(MicrostructureGenerator& mg,const int& r
         
         const long int planeIndex(slipSystem.n.closestPlaneIndexOfPoint(center));
         GlidePlaneKey<3> glidePlaneKey(planeIndex, slipSystem.n);
-        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane(mg.ddBase.periodicGlidePlaneFactory.get(glidePlaneKey));
+        std::shared_ptr<PeriodicGlidePlane<3>> glidePlane(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(glidePlaneKey));
         const VectorDimD P0(glidePlane->referencePlane->snapToPlane(center));
         //            std::cout<<"P0="<<P0.transpose()<<std::endl;
         

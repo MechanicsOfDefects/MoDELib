@@ -14,7 +14,7 @@
 #include <pybind11/embed.h>
 #endif
 #include <Eigen/src/Core/util/DisableStupidWarnings.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 
 using namespace model;
 
@@ -29,8 +29,8 @@ int main (int argc, char* argv[])
     
     try 
     {
-        DislocationDynamicsBase<3> ddBase(folderName);
-        DDconfigIO<3> configIO(ddBase.simulationParameters.traitsIO.evlFolder);
+        DefectiveCrystalBase<3> ddBase(folderName);
+        DefectiveCrystalConfigIO<3> configIO(ddBase.simulationParameters.traitsIO.configFolder);
         configIO.read(ddBase.simulationParameters.runID);
         DefectiveCrystal<3> DC(ddBase);
         DC.initializeConfiguration(configIO);

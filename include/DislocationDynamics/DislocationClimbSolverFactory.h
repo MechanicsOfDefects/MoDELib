@@ -13,25 +13,25 @@
 #include <Eigen/Dense>
 #include <ClusterDynamics.h>
 #include <TypeTraits.h>
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
     
-    template <typename DislocationNetworkType>
-    struct DislocationClimbSolverBase : public DislocationVelocitySolverBase<DislocationNetworkType>
-    /*                               */,private std::vector<Eigen::Array<double,1,ClusterDynamicsParameters<TypeTraits<DislocationNetworkType>::dim>::mSize>>
+    template <int dim>
+    struct DislocationClimbSolverBase : public DislocationVelocitySolverBase<dim>
+    /*                               */,private std::vector<Eigen::Array<double,1,ClusterDynamicsParameters<TypeTraits<DislocationNetwork<dim>>::dim>::mSize>>
 
     {
-//        const DislocationNetworkType& DN;
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
+//        const DislocationNetwork<dim>& DN;
         typedef std::vector<Eigen::Array<double,1,ClusterDynamicsParameters<dim>::mSize>> ScalarVelocitiesContainerType;
         const double glideEquilibriumRate;
         const ClusterDynamics<dim>* const CD;
         const double vClimbRef;
         
-        DislocationClimbSolverBase(const DislocationNetworkType&,const ClusterDynamics<dim>* const);
+        DislocationClimbSolverBase(const DislocationNetwork<dim>&,const ClusterDynamics<dim>* const);
 //        const ClusterDynamics<dim>*  getCD() const;
         double getVclimbRef() const;
         virtual void computeClimbScalarVelocities(const bool& updateStiffness) =0;
@@ -43,14 +43,13 @@ namespace model
   //      virtual Eigen::VectorXd getNodeVelocities() const = 0;
     };
 
-    template <typename DislocationNetworkType>
+    template <int dim>
     struct DislocationClimbSolverFactory
     {
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
 
-//        static const ClusterDynamics<dim>*  getCD(const DislocationNetworkType& DN);
+//        static const ClusterDynamics<dim>*  getCD(const DislocationNetwork<dim>& DN);
 
-        static std::shared_ptr<DislocationClimbSolverBase<DislocationNetworkType>> getClimbSolver(const DislocationNetworkType& DN, const std::string& solverType);
+        static std::shared_ptr<DislocationClimbSolverBase<dim>> getClimbSolver(const DislocationNetwork<dim>& DN, const std::string& solverType);
     };
     
 }

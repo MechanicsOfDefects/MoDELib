@@ -15,21 +15,21 @@
 #include <SegmentSegmentDistance.h>
 #include <SweepPlane.h>
 #include <TypeTraits.h>
-#include <StressStraight.h>
+#include <DislocationDynamics/StressStraight.h>
 
 #include <DislocationNetworkRemesh.h>
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
     
-    template <typename DislocationNetworkType>
+    template <int dim>
     class DislocationJunctionFormation
     {
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
-        typedef typename TypeTraits<DislocationNetworkType>::NetworkLinkType NetworkLinkType;
-        typedef typename TypeTraits<DislocationNetworkType>::NetworkNodeType NetworkNodeType;
-        typedef typename TypeTraits<DislocationNetworkType>::LoopNodeType LoopNodeType;
-        typedef typename TypeTraits<DislocationNetworkType>::LoopType LoopType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::NetworkLinkType NetworkLinkType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::NetworkNodeType NetworkNodeType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::LoopNodeType LoopNodeType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::LoopType LoopType;
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         typedef Eigen::Matrix<double,dim-1,1> VectorLowerDim;
         typedef typename NetworkLinkType::KeyType KeyType;
@@ -55,7 +55,7 @@ namespace model
         
         void breakJunctions();
         
-        DislocationNetworkType& DN;
+        DislocationNetwork<dim>& DN;
         
     public:
                 
@@ -64,7 +64,7 @@ namespace model
         const int verboseJunctions;
         const double infiniteLineLength;
         
-        DislocationJunctionFormation(DislocationNetworkType& DN_in);
+        DislocationJunctionFormation(DislocationNetwork<dim>& DN_in);
         static void initFromFile(const std::string& fileName);
         void formJunctions(const double& dx);
     };

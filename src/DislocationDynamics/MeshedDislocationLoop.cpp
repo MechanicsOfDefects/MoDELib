@@ -18,7 +18,7 @@ namespace model
 
 
 
-//MeshedDislocationLoop::MeshedDislocationLoop(const VectorDim& burgers_in,const DislocationDynamicsBase<3>& ddBase,const Plane<3>& plane,const std::vector<Eigen::Matrix<double,3,1>>& globalBndPts,const double& meshSize):
+//MeshedDislocationLoop::MeshedDislocationLoop(const VectorDim& burgers_in,const DefectiveCrystalBase<3>& ddBase,const Plane<3>& plane,const std::vector<Eigen::Matrix<double,3,1>>& globalBndPts,const double& meshSize):
 ///* init */ burgers(burgers_in)
 ///* init */,periodicShifts(DN.ddBase.periodicShifts)
 /////* init */,plane(plane_in)
@@ -41,7 +41,7 @@ namespace model
 //}
 
     MeshedDislocationLoop::MeshedDislocationLoop(const VectorDim& burgers_in,const GlidePlane<3>& plane,const std::vector<Eigen::Matrix<double,3,1>>& globalBndPts,const DislocationNetwork<3>& DN,const double& meshSize,const double& localMeshSize):
-    //MeshedDislocationLoop::MeshedDislocationLoop(const VectorDim& burgers_in,const DislocationDynamicsBase<3>& ddBase,const GlidePlane<3>& plane,const std::vector<Eigen::Matrix<double,3,1>>& globalBndPts,const double& meshSize,const double& localMeshSize):
+    //MeshedDislocationLoop::MeshedDislocationLoop(const VectorDim& burgers_in,const DefectiveCrystalBase<3>& ddBase,const GlidePlane<3>& plane,const std::vector<Eigen::Matrix<double,3,1>>& globalBndPts,const double& meshSize,const double& localMeshSize):
     /* init */ burgers(burgers_in)
     /* init */,periodicShifts(DN.ddBase.periodicShifts)
     {

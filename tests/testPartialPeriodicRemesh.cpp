@@ -1,7 +1,8 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <MicrostructureGenerator.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -33,7 +34,7 @@ int main(int argc, char** argv)
 
         std::filesystem::copy_file(root / "Library/Meshes/bicrystal_48.msh", input / "mesh.msh");
         std::filesystem::copy_file(root / "Library/DislocationDynamics/DD.txt", input / "DD.txt");
-        std::filesystem::create_directories(folder / "evl");
+        std::filesystem::create_directories(folder / "config");
         model::SimplicialMesh<3> mesh((input/"mesh.msh").string(),Eigen::Matrix3d::Identity(),Eigen::Vector3d::Zero(),{-1});
         std::array<int,3> seeds{-1,-1,-1};
         for(const auto& region : mesh.regions())
@@ -71,13 +72,13 @@ int main(int argc, char** argv)
                 }
                 p<<";\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::MicrostructureContainer<3> container(base);
             using Network=model::DislocationNetwork<3>;
             using V=Eigen::Vector3d;
             Network network(container);
             const auto grain=base.poly.grain(1);
-            const auto plane=base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitZ())));
+            const auto plane=base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitZ())));
             const V burgers=2.0/std::sqrt(3.0)*V::UnitX();
             const auto insert=[&](const auto& nodes)
             {

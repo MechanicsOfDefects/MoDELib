@@ -4,7 +4,7 @@
 
 #include <Eigen/Dense>
 #include <EvalFunction.h>
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <PolycrystallineMaterialBase.h>
 
 namespace model

@@ -8,6 +8,7 @@
 #ifndef model_MicrostructureGenerator_cpp_
 #define model_MicrostructureGenerator_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <fstream>
 #include <filesystem>
 
@@ -28,7 +29,7 @@
 #include <CrackMeshGenerator.h>
 #include <FrankLoopsGenerator.h>
 #include <PlanarLoopGenerator.h>
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <StrUtilities.h>
 #include <SutherlandHodgman.h>
 
@@ -40,9 +41,9 @@ std::shared_ptr<PeriodicPlanePatch<3>> PolyPoint::periodicPlanePatch() const
     return nullptr;
 }
 
-MicrostructureGenerator::MicrostructureGenerator(DislocationDynamicsBase<3>& ddBase_in) :
+MicrostructureGenerator::MicrostructureGenerator(DefectiveCrystalBase<3>& ddBase_in) :
 /* init*/ ddBase(ddBase_in)
-/* init*/,configIO(ddBase_in.simulationParameters.traitsIO.evlFolder)
+/* init*/,configIO(ddBase_in.simulationParameters.traitsIO.configFolder)
 /* init*/,auxIO(ddBase_in.simulationParameters.traitsIO.auxFolder)
 /* init*/,outputBinary(ddBase.simulationParameters.outputBinary)
 /* init*/,minSize(0.1*std::min(ddBase.mesh.xMax(0)-ddBase.mesh.xMin(0),std::min(ddBase.mesh.xMax(1)-ddBase.mesh.xMin(1),ddBase.mesh.xMax(2)-ddBase.mesh.xMin(2))))
@@ -76,51 +77,61 @@ MicrostructureGenerator::MicrostructureGenerator(DislocationDynamicsBase<3>& ddB
 
 void MicrostructureGenerator::addShearLoopDensity(const ShearLoopDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     ShearLoopGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addShearLoopIndividual(const ShearLoopIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     ShearLoopGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPeriodicDipoleDensity(const PeriodicDipoleDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PeriodicDipoleGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPeriodicDipoleIndividual(const PeriodicDipoleIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PeriodicDipoleGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPrismaticLoopDensity(const PrismaticLoopDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PrismaticLoopGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPrismaticLoopIndividual(const PrismaticLoopIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PrismaticLoopGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addFrankLoopsDensity(const FrankLoopsDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     FrankLoopsGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addFrankLoopsIndividual(const FrankLoopsIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     FrankLoopsGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addStackingFaultTetrahedraDensity(const StackingFaultTetrahedraDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     StackingFaultTetrahedraGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addStackingFaultTetrahedraIndividual(const StackingFaultTetrahedraIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     StackingFaultTetrahedraGenerator gen(spec,*this);
 }
 
@@ -151,6 +162,7 @@ void MicrostructureGenerator::addPolyhedronInclusionIndividual(const PolyhedronI
 
 void MicrostructureGenerator::addPlanarLoopIndividual(const PlanarLoopIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PlanarLoopGenerator gen(spec,*this);
 }
 
@@ -357,27 +369,27 @@ void MicrostructureGenerator::readMicrostructureFile()
     }
 }
 
-const DDtraitsIO& MicrostructureGenerator::traits() const
+const DefectiveCrystalTraitsIO& MicrostructureGenerator::traits() const
 {
     return ddBase.simulationParameters.traitsIO;
 }
 
-const DDconfigIO<3>& MicrostructureGenerator::config() const
+const DefectiveCrystalConfigIO<3>& MicrostructureGenerator::config() const
 {
     return configIO;
 }
 
-const DDauxIO<3>& MicrostructureGenerator::aux() const
+const DefectiveCrystalAuxIO<3>& MicrostructureGenerator::aux() const
 {
     return auxIO;
 }
 
-DDconfigIO<3>& MicrostructureGenerator::config()
+DefectiveCrystalConfigIO<3>& MicrostructureGenerator::config()
 {
     return configIO;
 }
 
-DDauxIO<3>& MicrostructureGenerator::aux()
+DefectiveCrystalAuxIO<3>& MicrostructureGenerator::aux()
 {
     return auxIO;
 }
@@ -390,6 +402,7 @@ bool MicrostructureGenerator::insertJunctionLoop(const std::vector<VectorDimD>& 
                                                  const size_t& grainID,
                                                  const DislocationLoopIO<dim>::DislocationLoopType& loopType)
 {
+    ddBase.dislocationDynamics();
     if(loopNodePos.size()<3)
     {
         return false;
@@ -445,6 +458,7 @@ bool MicrostructureGenerator::insertJunctionLoop(const std::vector<VectorDimD>& 
 
 size_t MicrostructureGenerator::insertLoop(const VectorDimD& b,const VectorDimD& unitNormal,const VectorDimD& P0,const size_t& grainID,const DislocationLoopType& loopType)
 {
+    ddBase.dislocationDynamics();
     const size_t loopID(configIO.loops().size());
     configIO.loops().emplace_back(loopID, b,unitNormal,P0,grainID,loopType);
     return loopID;
@@ -452,6 +466,7 @@ size_t MicrostructureGenerator::insertLoop(const VectorDimD& b,const VectorDimD&
 
 size_t MicrostructureGenerator::insertLoopNode(const size_t& loopID,const VectorDimD& loopNodePos,const size_t& networkNodeID,const VectorDimD& loopNodeShift,const std::pair<short int,short int>& periodicEdgeIDs)
 {
+    ddBase.dislocationDynamics();
     const size_t loopNodeID(configIO.loopNodes().size());
     configIO.loopNodes().emplace_back(loopNodeID,loopID,loopNodePos,networkNodeID,loopNodeShift,periodicEdgeIDs);
     return loopNodeID;
@@ -459,6 +474,7 @@ size_t MicrostructureGenerator::insertLoopNode(const size_t& loopID,const Vector
 
 std::vector<size_t> MicrostructureGenerator::insertLoopLinks(const size_t& loopID,const std::vector<size_t>& loopNodeIDs)
 {
+    ddBase.dislocationDynamics();
     std::vector<size_t> temp;
     for(size_t k=0;k<loopNodeIDs.size();++k)
     {
@@ -475,6 +491,7 @@ std::vector<size_t> MicrostructureGenerator::insertLoopLinks(const size_t& loopI
 
 size_t MicrostructureGenerator::insertNetworkNode(const VectorDimD& networkNodePos)
 {
+    ddBase.dislocationDynamics();
     const size_t networkNodeID(configIO.nodes().size());
     configIO.nodes().emplace_back(networkNodeID,networkNodePos,Eigen::Matrix<double,1,3>::Zero(),Eigen::Array<double,1,ClusterDynamicsParameters<3>::mSize>::Zero(),1.0,0);
     return networkNodeID;
@@ -482,7 +499,7 @@ size_t MicrostructureGenerator::insertNetworkNode(const VectorDimD& networkNodeP
 
 namespace
 {
-    size_t nextInclusionID(const DDconfigIO<3>& config)
+    size_t nextInclusionID(const DefectiveCrystalConfigIO<3>& config)
     {
         size_t next=0;
         const auto scan=[&](const auto& inclusions)
@@ -563,6 +580,7 @@ size_t MicrostructureGenerator::insertInclusion(const std::map<size_t,Eigen::Vec
 
 bool MicrostructureGenerator::insertCrackMesh(const std::vector<VectorDimD>& nodes,const std::vector<VectorDimD>& burgers,const std::vector<VectorDimI>& triangles)
 {
+    ddBase.dislocationDynamics();
     bool success(false);
     if(allPointsInMesh(nodes))
     {

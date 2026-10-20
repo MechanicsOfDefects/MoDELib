@@ -71,7 +71,7 @@
 #include <FiniteLineSegment.h>
 #include <LineLineIntersection.h>
 #include <PlanePlaneIntersection.h>
-#include <DislocationLoopPatches.h>
+#include <DislocationDynamics/DislocationLoopPatches.h>
 
 
 namespace model
@@ -80,23 +80,23 @@ namespace model
     template <int dim>
     class DislocationNetwork;
 
-    template <typename DislocationNetworkType>
+    template <int dim>
     struct DislocationVelocitySolverBase;
 
-    template <typename DislocationNetworkType>
+    template <int dim>
     struct DislocationGlideSolverBase;
 
-    template <typename DislocationNetworkType>
+    template <int dim>
     struct DislocationClimbSolverBase;
 
-    template <typename DislocationNetworkType>
+    template <int dim>
     class DislocationJunctionFormation;
 
-    template <typename DislocationNetworkType>
+    template <int dim>
     struct DDtimeStepper;
 
     template <int dim>
-    class DDconfigIO;
+    class DefectiveCrystalConfigIO;
 
     struct MeshedDislocationLoop;
 
@@ -112,8 +112,8 @@ namespace model
 #include <DislocationCrossSlip.h>
 #include <DislocationJunctionFormation.h>
 #include <DislocationNetwork.h>
-#include <DDconfigIO.h>
-#include <DDauxIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 #include <DislocationLoop.h>
 #include <DislocationLoopNode.h>
 #include <DislocationLoopLink.h>

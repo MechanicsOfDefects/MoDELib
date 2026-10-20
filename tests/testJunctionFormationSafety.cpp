@@ -1,6 +1,7 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -21,7 +22,7 @@ namespace model
     struct JunctionFormationTestAccess
     {
         using Network=DislocationNetwork<3>;
-        using Formation=DislocationJunctionFormation<Network>;
+        using Formation=DislocationJunctionFormation<model::TypeTraits<Network>::dim>;
         using Queue=std::deque<Formation::IntersectionTypeContainerType>;
         static Queue find(Network& network)
         {
@@ -100,7 +101,7 @@ int main(int argc, char** argv)
                 std::ofstream p(input/"polycrystal.txt");
                 p<<std::setprecision(17)<<"materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\nF="<<length<<" 0 0 0 "<<length<<" 0 0 0 "<<length<<";\nX0=0 0 0;\nperiodicFaceIDs="<<seeds[scenario==2 ? 0 : 1]<<";\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::MicrostructureContainer<3> container(base);
             using Network=model::DislocationNetwork<3>;
             using V=Eigen::Vector3d;
@@ -109,7 +110,7 @@ int main(int argc, char** argv)
             const auto grain=base.poly.grain(1);
             const auto planeAt=[&](const V& point,const V& normal)
             {
-                return base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(point,grain->reciprocalLatticeDirection(normal)));
+                return base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(point,grain->reciprocalLatticeDirection(normal)));
             };
             const auto plane=planeAt(V::Zero(),V::UnitZ());
             const auto insert=[&](const V& burgers,const auto& gp,const auto& nodes)
@@ -304,10 +305,10 @@ int main(int argc, char** argv)
                 const double scale=3671.9477120460206;
                 p<<std::setprecision(17)<<"materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\nC2G2=0.8 0 0.6 0 1 0 -0.6 0 0.8;\nF="<<scale<<" 0 0 0 "<<scale<<" 0 0 0 "<<scale<<";\nX0=0 0 0;\nperiodicFaceIDs=-1;\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::MicrostructureContainer<3> container(base);
             model::DislocationNetwork<3> network(container);
-            model::DDconfigIO<3> saved(folder.string());
+            model::DefectiveCrystalConfigIO<3> saved(folder.string());
             std::ifstream stream(root/"tests/data/bicrystalBoundary433.txt");
             require(bool(stream),"Missing collision benchmark fixture");
             saved.readTxtStream(stream);

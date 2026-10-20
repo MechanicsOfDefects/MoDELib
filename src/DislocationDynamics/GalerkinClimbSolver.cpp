@@ -11,42 +11,44 @@
 #include <deque>
 
 
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <GalerkinClimbSolver.h>
 #include <TerminalColors.h>
 #include <EqualIteratorRange.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
 
-    template <typename DislocationNetworkType>
-    GalerkinClimbSolver<DislocationNetworkType>::GalerkinClimbSolver(const DislocationNetworkType& DN_in,const ClusterDynamics<dim>* const CD_in) :
-    /* init */ DislocationClimbSolverBase<DislocationNetworkType>(DN_in,CD_in)
+    template <int dim>
+    GalerkinClimbSolver<dim>::GalerkinClimbSolver(const DislocationNetwork<dim>& DN_in,const ClusterDynamics<dim>* const CD_in) :
+    /* init */ DislocationClimbSolverBase<dim>(DN_in,CD_in)
     {
         std::cout<<greenBoldColor<<"Creating GalerkinClimbSolver"<<defaultColor<<std::endl;
     }
 
-    template <typename DislocationNetworkType>
-    typename GalerkinClimbSolver<DislocationNetworkType>::ForceVectorMatrixType GalerkinClimbSolver<DislocationNetworkType>::clusterForceKernel(const int& k,const NetworkLinkType& fieldSegment) const
+    template <int dim>
+    typename GalerkinClimbSolver<dim>::ForceVectorMatrixType GalerkinClimbSolver<dim>::clusterForceKernel(const int& k,const NetworkLinkType& fieldSegment) const
     {
         const Eigen::Matrix<double,1,mSize> deltaC(fieldSegment.quadraturePoint(k).cDD-fieldSegment.quadraturePoint(k).cCD);
         const double u(fieldSegment.quadraturePoint(k).abscissa);
         return  (ForceVectorMatrixType()<<(1.0-u)*deltaC,u*deltaC).finished();
     }
 
-    template <typename DislocationNetworkType>
-    typename GalerkinClimbSolver<DislocationNetworkType>::ForceVectorMatrixType GalerkinClimbSolver<DislocationNetworkType>::clusterForceVector(const NetworkLinkType& fieldSegment) const
+    template <int dim>
+    typename GalerkinClimbSolver<dim>::ForceVectorMatrixType GalerkinClimbSolver<dim>::clusterForceVector(const NetworkLinkType& fieldSegment) const
     {
         ForceVectorMatrixType F(ForceVectorMatrixType::Zero());
         const auto bxt(fieldSegment.burgers().cross(fieldSegment.chord()));
-        NetworkLinkType::QuadratureDynamicType::integrate(fieldSegment.quadraturePoints().size(),this,F,&GalerkinClimbSolver<DislocationNetworkType>::clusterForceKernel,fieldSegment);
+        NetworkLinkType::QuadratureDynamicType::integrate(fieldSegment.quadraturePoints().size(),this,F,&GalerkinClimbSolver<dim>::clusterForceKernel,fieldSegment);
         F.row(0)*=bxt.dot(fieldSegment.source->climbDirection());
         F.row(1)*=bxt.dot(fieldSegment.sink->climbDirection());
         return F;
     }
 
-    template <typename DislocationNetworkType>
-    typename GalerkinClimbSolver<DislocationNetworkType>::StiffnessMatrixType GalerkinClimbSolver<DislocationNetworkType>::clusterStiffnessKernel(const int& k,const NetworkLinkType& fieldSegment,const NetworkLinkType& sourceSegment) const
+    template <int dim>
+    typename GalerkinClimbSolver<dim>::StiffnessMatrixType GalerkinClimbSolver<dim>::clusterStiffnessKernel(const int& k,const NetworkLinkType& fieldSegment,const NetworkLinkType& sourceSegment) const
     {
         StiffnessMatrixType temp(StiffnessMatrixType::Zero());
         if(sourceSegment.grains().size() == 1)
@@ -64,23 +66,23 @@ namespace model
         return temp;
     }
 
-    template <typename DislocationNetworkType>
-    typename GalerkinClimbSolver<DislocationNetworkType>::StiffnessMatrixType GalerkinClimbSolver<DislocationNetworkType>::clusterStiffnessMatrix(const NetworkLinkType& fieldSegment,const NetworkLinkType& sourceSegment) const
+    template <int dim>
+    typename GalerkinClimbSolver<dim>::StiffnessMatrixType GalerkinClimbSolver<dim>::clusterStiffnessMatrix(const NetworkLinkType& fieldSegment,const NetworkLinkType& sourceSegment) const
     {
         StiffnessMatrixType K(StiffnessMatrixType::Zero());
-        NetworkLinkType::QuadratureDynamicType::integrate(fieldSegment.quadraturePoints().size(),this,K,&GalerkinClimbSolver<DislocationNetworkType>::clusterStiffnessKernel,fieldSegment,sourceSegment);
+        NetworkLinkType::QuadratureDynamicType::integrate(fieldSegment.quadraturePoints().size(),this,K,&GalerkinClimbSolver<dim>::clusterStiffnessKernel,fieldSegment,sourceSegment);
         return K;
     }
 
-    template <typename DislocationNetworkType>
-    Eigen::VectorXd GalerkinClimbSolver<DislocationNetworkType>::getNodeVelocitiesPipe() const
+    template <int dim>
+    Eigen::VectorXd GalerkinClimbSolver<dim>::getNodeVelocitiesPipe() const
     {
         Eigen::VectorXd nodeVelocities(Eigen::VectorXd::Zero(this->DN.networkNodes().size()*dim));
         return nodeVelocities;
     }
 
-    template <typename DislocationNetworkType>
-    void GalerkinClimbSolver<DislocationNetworkType>::computeClimbScalarVelocities(const bool& updateStiffness)
+    template <int dim>
+    void GalerkinClimbSolver<dim>::computeClimbScalarVelocities(const bool& updateStiffness)
     {
         std::cout<<", climbSolver "<<std::flush;
         computeClimbScalarVelocitiesBulk(updateStiffness);
@@ -90,8 +92,8 @@ namespace model
     // optimized assembly below. The complete original file is also backed up
     // as GalerkingClimbSolver_BK.cpp.
 #if 0
-    template <typename DislocationNetworkType>
-    void GalerkinClimbSolver<DislocationNetworkType>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
+    template <int dim>
+    void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
     {
 //        std::vector<std::vector<Eigen::Triplet<double>>> lhsT(mSize);
         std::vector<Eigen::VectorXd> Fc(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
@@ -103,7 +105,7 @@ namespace model
 //        std::vector<std::vector<std::vector<Eigen::Triplet<double>>>> lhsTV(nThreads,lhsT);
         std::vector<std::vector<Eigen::VectorXd>> KKcT(nThreads,KKc);
         std::vector<std::vector<Eigen::VectorXd>> FcT(nThreads,Fc);
-        const EqualIteratorRange<typename DislocationNetworkType::NetworkLinkContainerType::const_iterator> eir(this->DN.networkLinks().begin(),this->DN.networkLinks().end(),nThreads);
+        const EqualIteratorRange<typename DislocationNetwork<dim>::NetworkLinkContainerType::const_iterator> eir(this->DN.networkLinks().begin(),this->DN.networkLinks().end(),nThreads);
 #pragma omp parallel for
         for(size_t thread=0;thread<eir.size();++thread)
         {
@@ -278,8 +280,8 @@ namespace model
 
 #endif
 
-    template <typename DislocationNetworkType>
-    void GalerkinClimbSolver<DislocationNetworkType>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
+    template <int dim>
+    void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
     {
         const size_t nodeCount(this->DN.networkNodes().size());
         Fc.assign(mSize,Eigen::VectorXd::Zero(nodeCount));
@@ -444,8 +446,8 @@ namespace model
         }
     }
 
-    template <typename DislocationNetworkType>
-    Eigen::VectorXd GalerkinClimbSolver<DislocationNetworkType>::getNodeVelocitiesBulk() const
+    template <int dim>
+    Eigen::VectorXd GalerkinClimbSolver<dim>::getNodeVelocitiesBulk() const
     {
         Eigen::VectorXd nodeVelocities(Eigen::VectorXd::Zero(this->DN.networkNodes().size()*dim));
         size_t k=0;
@@ -458,13 +460,13 @@ namespace model
         return nodeVelocities;
     }
 
-    template <typename DislocationNetworkType>
-    Eigen::VectorXd GalerkinClimbSolver<DislocationNetworkType>::getNodeVelocities() const
+    template <int dim>
+    Eigen::VectorXd GalerkinClimbSolver<dim>::getNodeVelocities() const
     {
         return getNodeVelocitiesBulk()+getNodeVelocitiesPipe();
     }
 
-    template class GalerkinClimbSolver<DislocationNetwork<3>>;
+    template class GalerkinClimbSolver<3>;
 
 }
 #endif

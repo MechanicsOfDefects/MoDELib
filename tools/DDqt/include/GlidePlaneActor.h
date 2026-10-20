@@ -43,14 +43,14 @@
 
 #include <IDreader.h>
 //#include <PlanarPolygon.h>
-#include <DDauxIO.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 #include <Polycrystal.h>
 #include <GlidePlaneFactory.h>
 #include <GlidePlaneNoise.h>
 //#include <ConfigurationFields.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <TriangularMesh.h>
 #include <CompareVectorsByComponent.h>
 

@@ -178,7 +178,7 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
     const auto folder=std::filesystem::temp_directory_path()/("elastic-mixed-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     const auto input=folder/"inputFiles";
     std::filesystem::create_directories(input);
-    std::filesystem::create_directories(folder/"evl");
+    std::filesystem::create_directories(folder/"config");
     std::filesystem::create_directories(folder/"F");
     std::filesystem::copy_file(root/"Library/Materials/W.txt",input/"W.txt");
     std::filesystem::copy_file(root/"Library/Meshes"/meshName,input/"mesh.msh");
@@ -252,9 +252,13 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
         writeLoading(true,alpha,stress0,stressRate);
     }
     {
-        DislocationDynamicsBase<3> base(folder.string());
+        DefectiveCrystalBase<3> base(folder.string());
         require(base.fe!=nullptr,"Explicit FEM request was disabled in a periodic domain");
         require(base.periodicLatticeBasis.cols()==rank,"Unexpected active periodic rank");
+        // Each physics configuration has its own immutable context. Do not
+        // change the meaning of an existing base by rewriting its input file.
+        std::unique_ptr<DefectiveCrystalBase<3>> sourceBase;
+        std::unique_ptr<MicrostructureContainer<3>> sourceContainer;
         MicrostructureContainer<3> container(base);
         ElasticDeformation<3> physics(container);
         physics.initializeSolver();
@@ -275,7 +279,10 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
         {
             sourceStress<<0.0002,0.0003,-0.0001,0.0002,0,-0.0001;
             writeLoading(false,V::Zero(),sourceStress,V::Zero());
-            auto source=std::make_shared<UniformSource>(container);
+            StaticID<PlanarMeshFace<3>>::force_count(0);
+            sourceBase=std::make_unique<DefectiveCrystalBase<3>>(folder.string());
+            sourceContainer=std::make_unique<MicrostructureContainer<3>>(*sourceBase);
+            auto source=std::make_shared<UniformSource>(*sourceContainer);
             eigenstrain<<0.0004,0.0001,0,0.0002,0,0;
             source->plastic=base.voigtTraits.v2m(eigenstrain,true);
             source->uniformLoadController->gs=eigenstrain;
@@ -286,6 +293,10 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
         for(double time : {7.0,12.0,12.0})
         {
             base.simulationParameters.totalTime=time;
+            if(sourceBase)
+            {
+                sourceBase->simulationParameters.totalTime=time;
+            }
             physics.solve();
             for(const auto& bc : u->dirichletConditions())
             {

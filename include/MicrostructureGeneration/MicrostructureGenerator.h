@@ -32,14 +32,14 @@
 #include <Polycrystal.h>
 #include <PolycrystallineMaterialBase.h>
 #include <LatticeModule.h>
-#include <DDtraitsIO.h>
-#include <DDconfigIO.h>
-#include <DDauxIO.h>
+#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 
-#include <DislocationDynamicsBase.h>
-#include <DislocationLinkingNumber.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
+#include <DislocationDynamics/DislocationLinkingNumber.h>
 #include <TextFileParser.h>
-#include <DislocationInjector.h>
+#include <DislocationDynamics/DislocationInjector.h>
 #include <MeshBoundarySegment.h>
 //#include <ConfinedDislocationObject.h>
 #include <GlidePlaneModule.h>
@@ -89,20 +89,20 @@ struct PolyPoint
 
     public:
         
-        DislocationDynamicsBase<3>& ddBase;
-        DDconfigIO<3> configIO;
-        DDauxIO<3> auxIO;
+        DefectiveCrystalBase<3>& ddBase;
+        DefectiveCrystalConfigIO<3> configIO;
+        DefectiveCrystalAuxIO<3> auxIO;
         const bool outputBinary;
         const double minSize;
         const double maxSize;
         std::map<VectorDimD,size_t,CompareVectorsByComponent<double,dim,float>> uniqueNetworkNodeMap;
-        const DDtraitsIO& traits() const;
-        const DDconfigIO<3>& config() const;
-        const DDauxIO<3>& aux() const;
-        DDconfigIO<3>& config();
-        DDauxIO<3>& aux();
+        const DefectiveCrystalTraitsIO& traits() const;
+        const DefectiveCrystalConfigIO<3>& config() const;
+        const DefectiveCrystalAuxIO<3>& aux() const;
+        DefectiveCrystalConfigIO<3>& config();
+        DefectiveCrystalAuxIO<3>& aux();
 
-        MicrostructureGenerator(DislocationDynamicsBase<3>& ddBase_in);
+        MicrostructureGenerator(DefectiveCrystalBase<3>& ddBase_in);
         void readMicrostructureFile();
         void addShearLoopDensity(const ShearLoopDensitySpecification& spec);
         void addShearLoopIndividual(const ShearLoopIndividualSpecification& spec);

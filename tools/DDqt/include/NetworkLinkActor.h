@@ -38,10 +38,10 @@
 #include <vtkFloatArray.h>
 #include <IDreader.h>
 //#include <PlanarPolygon.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 //#include <ConfigurationFields.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <SlipSystemTab.h>
 
 

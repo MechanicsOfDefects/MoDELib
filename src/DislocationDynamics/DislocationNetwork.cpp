@@ -1,4 +1,3 @@
-#include <PeriodicContourTopology.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -9,6 +8,8 @@
 #ifndef model_DislocationNetwork_CPP_
 #define model_DislocationNetwork_CPP_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
+#include <PeriodicContourTopology.h>
 #include <numbers>
 
 #include <DislocationNetwork.h>
@@ -27,7 +28,7 @@ namespace model
     /* init */,ddBase(this->microstructures.ddBase)
     /* init */,networkRemesher(*this)
     /* init */,junctionsMaker(*this)
-    /* init */,crossSlipModel(DislocationCrossSlip<DislocationNetwork<dim>>::getModel(ddBase.poly,ddBase.simulationParameters.traitsIO))
+    /* init */,crossSlipModel(DislocationCrossSlip<dim>::getModel(ddBase.poly,ddBase.simulationParameters.traitsIO))
     /* init */,crossSlipMaker(*this)
     /* init */,nodeContractor(*this)
     /* init */,timeStepper(*this)
@@ -66,7 +67,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
 }
 
     template <int dim>
-    void DislocationNetwork<dim>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream&,const std::ofstream&)
+    void DislocationNetwork<dim>::initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream&,const std::ofstream&)
     {
         this->lastUpdateTime=this->microstructures.ddBase.simulationParameters.totalTime;
         
@@ -76,15 +77,15 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
         NetworkLinkType::initFromFile(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt");
         DislocationFieldBase<dim>::initFromFile(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt");
         
-        glideSolver=DislocationGlideSolverFactory<DislocationNetwork<dim>>::getGlideSolver(*this,TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("glideSolverType",false));
-        climbSolver=DislocationClimbSolverFactory<DislocationNetwork<dim>>::getClimbSolver(*this,TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("climbSolverType",false));
+        glideSolver=DislocationGlideSolverFactory<dim>::getGlideSolver(*this,TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("glideSolverType",false));
+        climbSolver=DislocationClimbSolverFactory<dim>::getClimbSolver(*this,TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("climbSolverType",false));
         _inclusions=this->microstructures.template getUniqueTypedMicrostructure<InclusionMicrostructure<dim>>();
         
         setConfiguration(configIO);
     }
 
     template <int dim>
-    void DislocationNetwork<dim>::addConfiguration(const DDconfigIO<dim>& evl)
+    void DislocationNetwork<dim>::addConfiguration(const DefectiveCrystalConfigIO<dim>& evl)
     {
         //    DislocationNode<3>::force_count(0);
         //    DislocationLoopNode<3>::force_count(0);
@@ -110,7 +111,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
             LoopType::set_count(loopIDtoUse);
             
             GlidePlaneKey<dim> loopPlaneKey(loop.P, ddBase.poly.grain(loop.grainID)->reciprocalLatticeDirection(loop.N));
-            tempLoops.push_back(this->loops().create(loop.B, ddBase.glidePlaneFactory.getFromKey(loopPlaneKey)));
+            tempLoops.push_back(this->loops().create(loop.B, ddBase.dislocationDynamics().glidePlaneFactory.getFromKey(loopPlaneKey)));
             assert(this->loops().get(loopIDtoUse)->sID == loopIDtoUse);
             loopNumber++;
         }
@@ -156,7 +157,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
         assert(loopMap.size()==evl.loops().size());
         
         for(const auto& loop : evl.loops())
-        {// for each loop in the DDconfigIO<dim> object
+        {// for each loop in the DefectiveCrystalConfigIO<dim> object
             
             const auto loopFound=loopMap.find(loop.sID); // there must be an entry with key loopID in loopMap
             assert(loopFound!=loopMap.end());
@@ -184,7 +185,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
     }
 
     template <int dim>
-    void DislocationNetwork<dim>::setConfiguration(const DDconfigIO<dim>& evl)
+    void DislocationNetwork<dim>::setConfiguration(const DefectiveCrystalConfigIO<dim>& evl)
     {
         DislocationNode<3>::force_count(0);
         DislocationLoopNode<3>::force_count(0);
@@ -207,7 +208,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
         //            LoopType::set_count(loopIDinFile);
         //
         //            GlidePlaneKey<dim> loopPlaneKey(loop.P, ddBase.poly.grain(loop.grainID)->reciprocalLatticeDirection(loop.N));
-        //            tempLoops.push_back(this->loops().create(loop.B, ddBase.glidePlaneFactory.getFromKey(loopPlaneKey)));
+        //            tempLoops.push_back(this->loops().create(loop.B, ddBase.dislocationDynamics().glidePlaneFactory.getFromKey(loopPlaneKey)));
         //            assert(this->loops().get(loopIDinFile)->sID == loopIDinFile);
         //            loopNumber++;
         //        }
@@ -253,7 +254,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
         //        assert(loopMap.size()==evl.loops().size());
         //
         //        for(const auto& loop : evl.loops())
-        //        {// for each loop in the DDconfigIO<dim> object
+        //        {// for each loop in the DefectiveCrystalConfigIO<dim> object
         //
         //            const auto loopFound=loopMap.find(loop.sID); // there must be an entry with key loopID in loopMap
         //            assert(loopFound!=loopMap.end());
@@ -563,7 +564,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
                         if(intersect.size()==1)
                         {
                             //                            const int grainID((*intersect.begin())->region.regionID);
-                            //                            StressStraight<3> ss(ddBase.poly,segment->source->get_P(),segment->sink->get_P(),segment->burgers(),ddBase.EwaldLength);
+                            //                            StressStraight<3> ss(ddBase.poly,segment->source->get_P(),segment->sink->get_P(),segment->burgers(),ddBase.dislocationDynamics().EwaldLength);
                             //                            for(const auto& shift : ddBase.periodicShifts)
                             //                            {
                             temp+=segment->clusterConcentration(x,climbSolver->CD->cdp);
@@ -1057,7 +1058,7 @@ void DislocationNetwork<dim>::reSolve()
     }
 
     template <int dim>
-    void DislocationNetwork<dim>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
+    void DislocationNetwork<dim>::output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
     {
         
         for(const auto& loop : this->loops())

@@ -12,25 +12,27 @@
 #include <PeriodicVelocityConstraints.h>
 #include <TerminalColors.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
     
-    template <typename DislocationNetworkType>
-    GalerkinGlideSolver<DislocationNetworkType>::GalerkinGlideSolver(const DislocationNetworkType& DN_in) :
-    /* init */ DislocationGlideSolverBase<DislocationNetworkType>(DN_in)
+    template <int dim>
+    GalerkinGlideSolver<dim>::GalerkinGlideSolver(const DislocationNetwork<dim>& DN_in) :
+    /* init */ DislocationGlideSolverBase<dim>(DN_in)
     {
         std::cout<<greenBoldColor<<"Creating GalerkinGlideSolver"<<defaultColor<<std::endl;
     }
         
-    template <typename DislocationNetworkType>
-    Eigen::VectorXd GalerkinGlideSolver<DislocationNetworkType>::getNodeVelocities() const
+    template <int dim>
+    Eigen::VectorXd GalerkinGlideSolver<dim>::getNodeVelocities() const
     {
         return lumpedSolve();
     }
     
     
-    template <typename DislocationNetworkType>
-    size_t GalerkinGlideSolver<DislocationNetworkType>::assembleNCtriplets(TripletContainerType& kqqT, Eigen::VectorXd& Fq) const
+    template <int dim>
+    size_t GalerkinGlideSolver<dim>::assembleNCtriplets(TripletContainerType& kqqT, Eigen::VectorXd& Fq) const
     {
         const size_t Ndof(this->DN.networkNodes().size()*NdofXnode); // the total number of dof in the subnetwork
         // Rebuild after every topology change; never retain indices on nodes.
@@ -53,14 +55,14 @@ namespace model
     }
     
 // Shared periodic crossings enforce every participating loop interpolation.
-    template <typename DislocationNetworkType>
-    size_t GalerkinGlideSolver<DislocationNetworkType>::assemblePeriodicConstraints(TripletContainerType &zT) const
+    template <int dim>
+    size_t GalerkinGlideSolver<dim>::assemblePeriodicConstraints(TripletContainerType &zT) const
     {
         return periodicVelocityConstraints<dim>(this->DN,zT);
     }
 
-    template <typename DislocationNetworkType>
-    Eigen::VectorXd GalerkinGlideSolver<DislocationNetworkType>::lumpedSolve() const
+    template <int dim>
+    Eigen::VectorXd GalerkinGlideSolver<dim>::lumpedSolve() const
     {
         std::cout<<", glideSolver "<<std::flush;
         TripletContainerType kqqT;
@@ -111,7 +113,7 @@ namespace model
         return Z*velocity;
     }
 
-    template class GalerkinGlideSolver<DislocationNetwork<3>>;
+    template class GalerkinGlideSolver<3>;
     
 }
 #endif

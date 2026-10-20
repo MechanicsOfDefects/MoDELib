@@ -22,16 +22,16 @@
 #include <Polycrystal.h>
 #include <PolycrystallineMaterialBase.h>
 #include <LatticeModule.h>
-#include <DislocationNodeIO.h>
-#include <DislocationLoopIO.h>
-#include <DislocationLoopLinkIO.h>
-#include <DislocationLoopNodeIO.h>
-#include <DDconfigIO.h>
-#include <DDauxIO.h>
+#include <DislocationDynamics/DislocationNodeIO.h>
+#include <DislocationDynamics/DislocationLoopIO.h>
+#include <DislocationDynamics/DislocationLoopLinkIO.h>
+#include <DislocationDynamics/DislocationLoopNodeIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 
-#include <DislocationLinkingNumber.h>
+#include <DislocationDynamics/DislocationLinkingNumber.h>
 #include <TextFileParser.h>
-#include <DislocationInjector.h>
+#include <DislocationDynamics/DislocationInjector.h>
 #include <MeshBoundarySegment.h>
 #include <GlidePlaneModule.h>
 #include <MeshModule.h>

@@ -105,7 +105,7 @@ Slip systems are named by their crystallography, for example `a/2<111>{110}` ins
 | Capability | Where | Notes |
 |---|---|---|
 | Dislocation network topology | `include/LoopNetwork/`, `include/DislocationDynamics/` | loops, loop nodes and loop links; network nodes and segments shared between loops |
-| Elastic fields of dislocations | `DislocationDynamicsBase/StraightDislocationSegment.h`, `StressStraight.h` | piecewise-straight segments; `_MODEL_NON_SINGULAR_DD_` selects classical (0), Cai (1, default) or Lazar (2) fields; `coreSize` in `DD.txt` |
+| Elastic fields of dislocations | `DislocationDynamics/StraightDislocationSegment.h`, `StressStraight.h` | piecewise-straight segments; `_MODEL_NON_SINGULAR_DD_` selects classical (0), Cai (1, default) or Lazar (2) fields; `coreSize` in `DD.txt` |
 | Glide solver | `GalerkinGlideSolver.h` | nodal velocities by Galerkin projection of the line velocity; periodic constraints by a null-space projection |
 | Glide solver in Python | `PyGlideSolver.h`, `python/MLglideSolver.py` | `glideSolverType=pybind11`; the module path is `pyModuleName` in `DD.txt` |
 | Climb solver | `GalerkinClimbSolver.h` | `climbSolverType=Galerkin`; needs `ClusterDynamics` in `physics`, since climb is driven by the point-defect concentrations |
@@ -118,7 +118,7 @@ Slip systems are named by their crystallography, for example `a/2<111>{110}` ins
 | Nucleation | `DislocationNucleation.h` | `bulkNucleationModel=1` inserts shear loops in mesh elements; a first model |
 | Periodic domains | `GlidePlanes/PeriodicGlidePlane.h` | periodic faces chosen per mesh face (`periodicFaceIDs`); image sums set by `periodicImageSize`; `EwaldLengthFactor` |
 | Finite domains | `include/FEM/`, `ElasticDeformationFEM.h` | `useFEM=1`; direct solvers (CHOLMOD, UMFPACK) or iterative solvers |
-| Uniform load control | `DislocationDynamicsBase/UniformController.h` | stress control, strain control, or mixed, per Voigt component ([section 3.5](#35-load-control)) |
+| Uniform load control | `DefectiveCrystal/UniformController.h` | stress control, strain control, or mixed, per Voigt component ([section 3.5](#35-load-control)) |
 | Glide-plane noise | `GlidePlanes/AnalyticalSolidSolutionNoise.h`, `MDSolidSolutionNoise.h`, `MDStackingFaultNoise.h` | stress noise of a solid solution and stacking-fault energy noise, sampled on a grid (FFTW) from analytical or MD correlations |
 | Stochastic force | `DD.txt` | `useStochasticForce`, `stochasticForceSeed` |
 | Inclusions | `SphericalInclusion.h`, `PolyhedronInclusion.h` | eigendistortion, velocity reduction factor and second phase per inclusion |
@@ -292,7 +292,7 @@ The values of these units are printed when a simulation starts. For zirconium ($
 
 ### 3.8 The input files
 
-A simulation folder holds `inputFiles/`, `evl/` and `F/`. These files in `inputFiles/` define the run:
+A simulation folder holds `inputFiles/`, `config/` and `F/`. Configuration and auxiliary IO default to `config`; existing runs stored in `evl/` must move that directory to `config/` before restarting or opening them in DDqt. Filenames inside the directory remain unchanged. These files in `inputFiles/` define the run:
 
 | File | Declares | Read when |
 |---|---|---|
@@ -308,13 +308,20 @@ Mesh nodes $\mathbf{X}$ are mapped to $\mathbf{x} = \mathbf{F}(\mathbf{X} - \mat
 
 ## 4. Repository structure
 
+The active DD helpers use dimension-based APIs, for example
+`DislocationNetworkRemesh<3>`, `DislocationJunctionFormation<3>`, and
+`GalerkinGlideSolver<3>`. Their implementations explicitly instantiate dimension 3
+in the corresponding source files. DD IO records accept concrete objects such as
+`DislocationLoopLink<dim>`; serialization is implemented in the matching IO source
+files, and live-object conversions in `DislocationIOConversions.cpp`. The generic
+`LoopNetwork` layer retains its type-based templates.
+
+
 ```
 MoDELib/
-├── include/                      # headers (397 files)
-│   ├── DislocationDynamics/      # DefectiveCrystal, network, solvers, cross slip, junctions, remeshing, nucleation
-│   ├── DislocationDynamicsBase/  # microstructure interfaces, segment fields, inclusions, load controller,
-│   │                             # cluster-dynamics parameters
-│   ├── DislocationDynamicsIO/    # configuration (evl) and auxiliary (ddAux) files, parameters
+├── include/                      # headers
+│   ├── DefectiveCrystal/         # shared physics contexts, configuration and auxiliary output, orchestration
+│   ├── DislocationDynamics/      # DD context, fields, network, solvers, topology, and dislocation IO
 │   ├── MicrostructureGeneration/ # generators and specifications of initial microstructures
 │   ├── DislocationMobilities/    # mobility laws and their selector
 │   ├── PolycrystallineMaterials/ # crystals, slip systems, grains, grain boundaries, gamma surfaces
@@ -326,7 +333,7 @@ MoDELib/
 │   ├── Lattices/  Lattices_NEW/  # lattice arithmetic
 │   ├── Geometry/  Math/  IO/  Utilities/
 │   ├── ParticleInteraction/  MPI/  DDvtk/
-├── src/                          # implementations (168 files), one folder per header folder
+├── src/                          # implementations, matching the header folders
 ├── tools/
 │   ├── DDomp/                    # the simulation driver
 │   ├── MicrostructureGenerator/  # writes the initial configuration
@@ -451,8 +458,8 @@ A run has three steps: generate the input files, generate the initial microstruc
 
 ```bash
 cd tutorials/dipoleNoise
-python3 generateInputFiles.py                                         # writes inputFiles/, creates evl/ and F/
-../../build/tools/MicrostructureGenerator/microstructureGenerator .   # writes evl/evl_0.txt
+python3 generateInputFiles.py                                         # writes inputFiles/, creates config/ and F/
+../../build/tools/MicrostructureGenerator/microstructureGenerator .   # writes config/evl_0.txt
 ../../build/tools/DDomp/DDomp .                                       # runs Nsteps steps
 ```
 
@@ -465,7 +472,7 @@ import sys
 sys.path.append("../../python/")
 from modlibUtils import *          # also brings in os, shutil and numpy as np
 
-for folder in ['evl', 'F', 'inputFiles']:
+for folder in ['config', 'F', 'inputFiles']:
     os.makedirs(folder, exist_ok=True)
 
 # the physics and the run controls
@@ -518,7 +525,7 @@ import numpy as np
 sys.path.append("../build/tools/pyMoDELib")
 import pyMoDELib
 
-ddBase = pyMoDELib.DislocationDynamicsBase(os.path.abspath("../tutorials/uniformLoadController"))   # after generateInputFiles.py
+ddBase = pyMoDELib.DefectiveCrystalBase(os.path.abspath("../tutorials/uniformLoadController"))   # after generateInputFiles.py
 
 generator = pyMoDELib.MicrostructureGenerator(ddBase)
 spec = pyMoDELib.ShearLoopIndividualSpecification()
@@ -532,6 +539,27 @@ crystal = pyMoDELib.DefectiveCrystal(ddBase)
 crystal.initializeConfiguration(generator.configIO)
 crystal.runSteps()            # or runSingleStep(); displacement(points) and stress(points) return the fields
 ```
+
+The shared crystal classes live in matching `include/DefectiveCrystal/` and
+`src/DefectiveCrystal/` folders. C++ clients include them with qualified paths,
+for example `#include <DefectiveCrystal/DefectiveCrystalBase.h>`. Include the
+physics context header explicitly when accessing that context’s members.
+The `testSharedHeaders` target compiles each shared header independently.
+
+`DefectiveCrystalBase` owns the shared mesh, polycrystal, FEM mesh, simulation parameters,
+and active periodic lattice. Its `activePhysics` list controls construction of
+`dislocationDynamicsBase`, `clusterDynamicsBase`, and `elasticDeformationBase`; disabled
+contexts are `None` in Python. The checked accessors `dislocationDynamics()`,
+`clusterDynamics()`, and `elasticDeformation()` raise an error for disabled physics.
+Dislocation generators require DD to be enabled in `physics`. The same-grain lattice-shift
+check runs only when constructing the DD context. Periodic image shifts remain shared
+because both dislocations and inclusions use them.
+
+Python exposes `periodicCoordinates()`, the periodic bases and image shifts, DD glide-plane
+lookup methods, CD concentration/diffusion/reaction methods, and the elasticity settings.
+Generators and crystals keep their common base alive; retained physics contexts keep their
+own dependencies alive. Use `DefectiveCrystalBase(folder)` in place of the former
+`DislocationDynamicsBase(folder)` constructor.
 
 `python/defectFields.py` gives the complete example. The module also exposes the mobility laws (`DislocationMobilitySelector`), the noise generators, `GammaSurface`, `SlipSystem`, `SingleCrystalBase`, `StressStraight` and the interpolants; `testsPy/` shows their use.
 
@@ -559,8 +587,8 @@ A run writes into the simulation folder:
 
 | File | Contents |
 |---|---|
-| `evl/evl_<runID>.txt` or `.bin` | the configuration: network nodes, loops, loop links, loop nodes, spherical and polyhedral inclusions, the finite-element displacement, and the cluster-dynamics fields |
-| `evl/ddAux_<runID>.txt` or `.bin` | auxiliary data of the dislocation network: quadrature points with their stress, forces, velocity and point-defect concentrations (with `outputQuadraturePoints=1`) |
+| `config/evl_<runID>.txt` or `.bin` | the configuration: network nodes, loops, loop links, loop nodes, spherical and polyhedral inclusions, the finite-element displacement, and the cluster-dynamics fields |
+| `config/ddAux_<runID>.txt` or `.bin` | auxiliary data of the dislocation network: quadrature points with their stress, forces, velocity and point-defect concentrations (with `outputQuadraturePoints=1`) |
 | `F/F_0.txt` | one row per output step: `runID`, time, `dt`, the average plastic distortion and its rate, then the columns added by each physics |
 | `F/F_labels.txt` | the label of each column of `F_0.txt`, one per line |
 
@@ -569,7 +597,7 @@ Further points:
 - **Text layout of `evl`.** Ten lines give the number of rows of each block; the blocks follow in the order of the table.
 - **Cluster-dynamics fields.** The last block of `evl_<runID>.txt` has one row per finite-element node. Its columns are the mobile concentrations, then the number densities $N_c, N_{a1}, N_{a2}, N_{a3}$ in units of $b^{-3}$, then the defect contents $c_c, c_{a1}, c_{a2}, c_{a3}$. Cluster dynamics is written in text format only (`outputBinary=0`).
 - **Columns of `F_0.txt`.** The crystal writes `runID`, `time`, `dt`, the nine components of `betaP`, its trace and norm, and the same for its rate. `DislocationDynamics` adds the glissile, sessile, boundary and grain-boundary densities in m$^{-2}$; the densities and the plastic distortion per slip system, and the elastic and core energies, when the corresponding switches of `DD.txt` are set. `ElasticDeformation` adds the strain and stress components (with the uniform controller). `ClusterDynamics` adds no column: its strain is in `betaP`.
-- **Format and frequency.** `outputBinary` and `outputFrequency` are in `DefectiveCrystal.txt`. `tools/DDconverter` converts the binary files in `./evl` to text; it has its own `Makefile` and is not part of the CMake build.
+- **Format and frequency.** `outputBinary` and `outputFrequency` are in `DefectiveCrystal.txt`. `tools/DDconverter` converts the binary files in `./config` to text; it has its own `Makefile` and is not part of the CMake build.
 - **Restart.** `startAtTimeStep=-1` restarts from the last step recorded in `F/F_0.txt`.
 - **Reading in Python.** `python/modlibUtils.py` provides `readEVLtxt`, `readAUXtxt`, `readFfile` and `getFarray(F, labels, label)`. `lib/readF.py` and `lib/readFile.py` read the `F` files and the input files; `lib/readEVLMod2.py` and `lib/readNodesMod2.py` read the current `evl` layout.
 - **Viewing.** `DDqt` opens a simulation folder and displays its configurations.
@@ -694,7 +722,7 @@ Cite also the papers behind the features you use:
 ## 14. Repository conventions
 
 - **Templates are copied, not edited.** A simulation copies its input files from `Library/` into its own `inputFiles/` and changes the copies. The templates stay as the reference.
-- **One folder per simulation.** `inputFiles/`, `evl/` and `F/` sit together, and every tool takes that folder as its argument.
+- **One folder per simulation.** `inputFiles/`, `config/` and `F/` sit together, and every tool takes that folder as its argument.
 - **Input syntax.** `name=value;` with `#` starting a comment. Vectors and matrices are space-separated values, with one matrix row per line, ended by one `;`.
 - **SI at the boundary only.** Input variables in SI units end in `_SI` (or name their unit, as in `dH0_eV`). Everything inside the code is in units of $b$, $\mu$ and $c_s$.
 - **Headers and sources mirror each other.** A class declared in `include/<Module>/` is implemented in `src/<Module>/`.

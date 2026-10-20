@@ -12,11 +12,11 @@
 #include <Eigen/CholmodSupport>
 #endif
 
-#include <MicrostructureContainer.h>
-#include <ElasticDeformationFEM.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <ElasticDeformation/ElasticDeformationFEM.h>
 #include <IntegrationDomain.h>
 #include <GaussLegendre.h>
-#include <UniformController.h>
+#include <DefectiveCrystal/UniformController.h>
 #include <WeakProblem.h>
 #include <GlobalRigidMotionPenalty.h>
 #include <FEMLoadController.h>
@@ -52,11 +52,11 @@ namespace model
     bool solverInitialized;
     
     ElasticDeformation(MicrostructureContainerType& mc);
-    void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
+    void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
     void solve() override;
     void reSolve() override;
     double getDt() const override;
-    void output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
+    void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
     void updateConfiguration() override;
     MatrixDim averagePlasticDistortion() const override ;
     MatrixDim averagePlasticDistortionRate() const override;

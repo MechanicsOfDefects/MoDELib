@@ -8,6 +8,7 @@
 #ifndef model_PrismaticLoopGenerator_cpp_
 #define model_PrismaticLoopGenerator_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <numbers>
 #include <chrono>
 #include <random>
@@ -27,16 +28,16 @@
 #include <PolycrystallineMaterialBase.h>
 #include <LatticeModule.h>
 //#include <PlaneMeshIntersection.h>
-#include <DislocationNodeIO.h>
-#include <DislocationLoopIO.h>
-#include <DislocationLoopLinkIO.h>
-#include <DislocationLoopNodeIO.h>
-#include <DDconfigIO.h>
-#include <DDauxIO.h>
+#include <DislocationDynamics/DislocationNodeIO.h>
+#include <DislocationDynamics/DislocationLoopIO.h>
+#include <DislocationDynamics/DislocationLoopLinkIO.h>
+#include <DislocationDynamics/DislocationLoopNodeIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 
-#include <DislocationLinkingNumber.h>
+#include <DislocationDynamics/DislocationLinkingNumber.h>
 #include <TextFileParser.h>
-#include <DislocationInjector.h>
+#include <DislocationDynamics/DislocationInjector.h>
 #include <MeshBoundarySegment.h>
 //#include <ConfinedDislocationObject.h>
 #include <GlidePlaneModule.h>
@@ -172,7 +173,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
             const int sessilePlaneHeight(axis.planeIndexOfPoint(center));
 //            const LatticePlaneKey sessilePlaneKey(axis,sessilePlaneHeight,grain->grainID);
             const LatticePlaneKey sessilePlaneKey(sessilePlaneHeight,axis);
-            const auto sessilePlane(mg.ddBase.periodicGlidePlaneFactory.getFromKey(sessilePlaneKey));
+            const auto sessilePlane(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.getFromKey(sessilePlaneKey));
             
             // Define prismatic planes.
             std::vector<LatticePlane> planes;
@@ -324,7 +325,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
             {
                 point+=topShift;
             }
-            const auto topPlane=mg.ddBase.periodicGlidePlaneFactory.getFromKey(
+            const auto topPlane=mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.getFromKey(
                 LatticePlaneKey(axis.planeIndexOfPoint(center+step+topShift),axis));
             // The cap is validation-only: inserting it would cancel the physical loop.
             prepare(top,topPlane,DislocationLoopIO<3>::SESSILELOOP);
@@ -341,7 +342,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
                     point+=sideShift;
                 }
                 const LatticePlaneKey key(planes[k2].n.planeIndexOfPoint(side.front()),planes[k2].n);
-                prepared.push_back(prepare(side,mg.ddBase.periodicGlidePlaneFactory.getFromKey(key),
+                prepared.push_back(prepare(side,mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.getFromKey(key),
                                            DislocationLoopIO<3>::GLISSILELOOP));
             }
             // Commit all prepared loops together; also roll back unexpected

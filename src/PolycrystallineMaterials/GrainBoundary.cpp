@@ -23,7 +23,7 @@
 //#include <LineMeshIntersection.h>
 //#include <CSL.h>
 //#include <DSCL.h>
-//#include <StressStraight.h>
+//#include <DislocationDynamics/StressStraight.h>
 //#include <GlidePlane.h>
 #include <MeshPlane.h>
 #include <GrainBoundary.h>

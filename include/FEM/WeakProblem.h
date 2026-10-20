@@ -120,6 +120,11 @@ namespace model
                 {
                     root[node*components+c]=representative*components+c;
                     result.offset(node*components+c)=jump(c);
+                    if(field.periodicNodalOffset().size())
+                    {
+                        result.offset(node*components+c)+=field.periodicNodalOffset()(node*components+c)
+                            -field.periodicNodalOffset()(representative*components+c);
+                    }
                 }
             }
             const Vector prescribedOffset=result.offset;

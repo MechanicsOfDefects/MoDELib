@@ -8,6 +8,7 @@
 #ifndef model_DislocationSegment_cpp_
 #define model_DislocationSegment_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationSegment.h>
 #include <PlanesIntersection.h>
 
@@ -22,7 +23,7 @@ namespace model
     // /* init */,ConfinedDislocationObjectType(this->source->get_P(),this->sink->get_P())
     /* init */,Burgers(VectorDim::Zero())
     /* init */,BurgersNorm(Burgers.norm())
-    /* init */,straight(this->network().ddBase.poly,this->source->get_P(),this->sink->get_P(),Burgers,this->chordLength(),this->unitDirection(),this->network().ddBase.EwaldLength)
+    /* init */,straight(this->network().ddBase.poly,this->source->get_P(),this->sink->get_P(),Burgers,this->chordLength(),this->unitDirection(),this->network().ddBase.dislocationDynamics().EwaldLength)
     /* init */,_slipSystem(nullptr)
     {
         VerboseDislocationSegment(1,"Constructing DislocationSegment "<<this->tag()<<std::endl);

@@ -1,5 +1,5 @@
-#include <EllipsoidalInclusionIO.h>
-#include <EllipsoidalInclusion.h>
+#include <InclusionMicrostructure/EllipsoidalInclusionIO.h>
+#include <InclusionMicrostructure/EllipsoidalInclusion.h>
 #include <iostream>
 #include <stdexcept>
 #include <string>

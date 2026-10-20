@@ -9,6 +9,7 @@
 #ifndef model_NetworkLinkActor_cpp_
 #define model_NetworkLinkActor_cpp_
 
+#include <DislocationNetwork.h>
 #include <numbers>
 #include <map>
 #include <iostream>
@@ -39,7 +40,7 @@
 #include <vtkCellData.h>
 
 //#include <IDreader.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 #include <NetworkLinkActor.h>
 #include <Vector2Color.h>

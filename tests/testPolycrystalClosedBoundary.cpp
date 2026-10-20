@@ -1,6 +1,6 @@
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
 #include <filesystem>
 #include <fstream>
 #include <chrono>
@@ -27,7 +27,7 @@ int main(int argc,char** argv)
         const auto input=folder/"inputFiles";
         std::filesystem::create_directories(input);
         std::filesystem::create_directories(folder/"F");
-        std::filesystem::create_directories(folder/"evl");
+        std::filesystem::create_directories(folder/"config");
         for(const auto* name : {"polycrystal.txt","DD.txt"})
         {
             std::filesystem::copy_file(fixture/name,input/name);
@@ -38,10 +38,10 @@ int main(int argc,char** argv)
             std::ofstream out(input/"DefectiveCrystal.txt");
             out<<"physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
         }
-        model::DislocationDynamicsBase<3> base(folder.string());
+        model::DefectiveCrystalBase<3> base(folder.string());
         model::MicrostructureContainer<3> container(base);
         model::DislocationNetwork<3> network(container);
-        model::DDconfigIO<3> saved(folder.string());
+        model::DefectiveCrystalConfigIO<3> saved(folder.string());
         std::ifstream stream(fixture/"evl_34.txt");
         require(bool(stream),"Missing frame 34 fixture");
         saved.readTxtStream(stream);

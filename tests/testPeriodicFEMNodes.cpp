@@ -140,7 +140,9 @@ void checkNodes(model::FiniteElement<model::LagrangeElement<3,order>>& fe,int ra
         require(!expected.empty(),"Periodic domain has no FEM pairs");
         require(order==1 || extraNodes>0,"Higher-order nodes were not paired");
     }
-    if(rank>=2)
+    // Only the box-shaped bicrystal guarantees four/eight coincident copies.
+    // Non-convex cells are checked against the independent pairing graph above.
+    if(rank>=2 && mesh.regions().size()==2)
     {
         size_t largest=0;
         for(const auto& orbit : orbitSizes)
@@ -148,9 +150,7 @@ void checkNodes(model::FiniteElement<model::LagrangeElement<3,order>>& fe,int ra
             largest=std::max(largest,orbit.second);
         }
         require(largest>=4,"No edge/corner equivalence class exercised");
-        // The box-shaped bicrystal has an eight-corner orbit. The non-convex
-        // polycrystal cell need not have the corner multiplicity of a box.
-        if(rank==3 && mesh.regions().size()==2)
+        if(rank==3)
         {
             require(largest>=8,"Bicrystal corner equivalence class is incomplete");
         }

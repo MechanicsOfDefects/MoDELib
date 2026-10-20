@@ -1,6 +1,7 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -40,7 +41,7 @@ int main(int argc, char** argv)
                 p << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\nF=" << std::setprecision(17) << length << " 0 0 0 " << length << " 0 0 0 " << length << ";\nX0=0 0 0;\nperiodicFaceIDs=";
                 p << ";\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::MicrostructureContainer<3> container(base);
             using Network=model::DislocationNetwork<3>;
             using V=Eigen::Vector3d;
@@ -52,7 +53,7 @@ int main(int argc, char** argv)
             const V normal=ss->unitNormal;
             const V tangent=normal.cross(burgers).normalized();
             const V glide=normal.cross(tangent).normalized();
-            const auto plane=base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V::Zero(),ss->n));
+            const auto plane=base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V::Zero(),ss->n));
             const auto loop=network.loops().create(burgers,plane);
             const auto makeNode=[&](const V& p)
             {

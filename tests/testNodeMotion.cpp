@@ -1,6 +1,7 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -69,17 +70,17 @@ int main(int argc, char** argv)
                 }
                 p << ";\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::MicrostructureContainer<3> container(base);
             using Network=model::DislocationNetwork<3>;
             using V=Eigen::Vector3d;
             Network network(container);
             const auto grain=base.poly.grain(1);
-            const auto plane=base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitZ())));
+            const auto plane=base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitZ())));
             const V burgers=2.0/std::sqrt(3.0)*V::UnitX();
 
             const auto first=network.loops().create(burgers,plane);
-            const auto secondPlane=scenario==4 ? base.glidePlaneFactory.getFromKey(
+            const auto secondPlane=scenario==4 ? base.dislocationDynamics().glidePlaneFactory.getFromKey(
                 model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitY()))) : plane;
             const auto second=network.loops().create(2.0*burgers,secondPlane);
             const bool surface=scenario==2 || scenario==3;

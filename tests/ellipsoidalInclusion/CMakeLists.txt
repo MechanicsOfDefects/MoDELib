@@ -26,18 +26,24 @@ else()
     endif()
     set(MODELIB_EXTRA_INCLUDE_DIRS "" CACHE STRING "Additional MoDELib dependency include directories")
     add_library(ellipsoidalInclusionTestCore STATIC
-        "${MODELIB_ROOT}/src/DislocationDynamicsBase/EshelbyInclusionBase.cpp"
-        "${MODELIB_ROOT}/src/DislocationDynamicsBase/SphericalInclusion.cpp"
-        "${MODELIB_ROOT}/src/DislocationDynamicsBase/EllipsoidalInclusion.cpp"
-        "${MODELIB_ROOT}/src/DislocationDynamicsIO/EllipsoidalInclusionIO.cpp"
-        "${MODELIB_ROOT}/src/DislocationDynamicsIO/DDconfigIO.cpp"
-        "${MODELIB_ROOT}/src/DislocationDynamicsIO/DDbaseIO.cpp"
+        "${MODELIB_ROOT}/src/InclusionMicrostructure/EshelbyInclusionBase.cpp"
+        "${MODELIB_ROOT}/src/InclusionMicrostructure/SphericalInclusion.cpp"
+        "${MODELIB_ROOT}/src/InclusionMicrostructure/EllipsoidalInclusion.cpp"
+        "${MODELIB_ROOT}/src/InclusionMicrostructure/EllipsoidalInclusionIO.cpp"
+        "${MODELIB_ROOT}/src/DislocationDynamics/DislocationNodeIO.cpp"
+        "${MODELIB_ROOT}/src/DislocationDynamics/DislocationLoopIO.cpp"
+        "${MODELIB_ROOT}/src/DislocationDynamics/DislocationLoopNodeIO.cpp"
+        "${MODELIB_ROOT}/src/DislocationDynamics/DislocationLoopLinkIO.cpp"
+        "${MODELIB_ROOT}/src/DislocationDynamics/DislocationQuadraturePointIO.cpp"
+        "${MODELIB_ROOT}/src/DislocationDynamics/DislocationSegmentIO.cpp"
+        "${MODELIB_ROOT}/src/DefectiveCrystal/DefectiveCrystalConfigIO.cpp"
+        "${MODELIB_ROOT}/src/DefectiveCrystal/DefectiveCrystalBaseIO.cpp"
         "${MODELIB_ROOT}/src/MicrostructureGeneration/MicrostructureSpecificationBase.cpp"
         "${MODELIB_ROOT}/src/MicrostructureGeneration/EllipsoidalInclusionIndividualSpecification.cpp")
     target_compile_features(ellipsoidalInclusionTestCore PUBLIC cxx_std_20)
     target_precompile_headers(ellipsoidalInclusionTestCore PRIVATE <cfloat>)
     target_include_directories(ellipsoidalInclusionTestCore PUBLIC
-        "${ELLIPSOIDAL_BOOST_INCLUDE_DIR}" ${MODELIB_EXTRA_INCLUDE_DIRS})
+        "${MODELIB_ROOT}/include" "${ELLIPSOIDAL_BOOST_INCLUDE_DIR}" ${MODELIB_EXTRA_INCLUDE_DIRS})
     file(GLOB model_include_dirs LIST_DIRECTORIES true "${MODELIB_ROOT}/include/*")
     foreach(dir IN LISTS model_include_dirs)
         if(IS_DIRECTORY "${dir}" AND NOT dir MATCHES "_NEW$")

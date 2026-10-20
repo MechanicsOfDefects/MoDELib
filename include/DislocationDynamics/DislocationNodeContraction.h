@@ -14,11 +14,11 @@
 
 namespace model
 {
-    template <typename DislocationNetworkType>
+    template<int dim> class DislocationNetwork;
+    template <int dim>
     class DislocationNodeContraction
     {
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
-        typedef typename TypeTraits<DislocationNetworkType>::NetworkNodeType NetworkNodeType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::NetworkNodeType NetworkNodeType;
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         
         std::vector<std::set<std::shared_ptr<NetworkNodeType>>> contractBoundary(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
@@ -28,13 +28,13 @@ namespace model
 
         bool canReach(const std::shared_ptr<NetworkNodeType>& node,const VectorDim& target) const;
         bool commitContraction(std::shared_ptr<NetworkNodeType> a,std::shared_ptr<NetworkNodeType> b,const VectorDim& target,const bool reconcileBoundary);
-        DislocationNetworkType& DN;
+        DislocationNetwork<dim>& DN;
 
     public:
         
         const int verboseNodeContraction;
 
-        DislocationNodeContraction(DislocationNetworkType& DN_in);
+        DislocationNodeContraction(DislocationNetwork<dim>& DN_in);
         bool contract(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary=true);
     };
 }

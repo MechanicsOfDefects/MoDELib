@@ -32,7 +32,7 @@
 #include <vtkIdList.h>
 //#include <vtkXMLUnstructuredGridWriter.h>
 #include <InclusionActor.h>
-#include <EllipsoidalInclusion.h>
+#include <InclusionMicrostructure/EllipsoidalInclusion.h>
 #include <EllipsoidalInclusionPolyData.h>
 #include <vtkAppendPolyData.h>
 

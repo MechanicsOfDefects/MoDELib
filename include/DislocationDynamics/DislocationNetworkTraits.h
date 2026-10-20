@@ -44,13 +44,13 @@ namespace model
     template <int dim>
     class DislocationSegment;
     
-    template <typename DislocationNetworkType>
+    template <int dim>
     class DislocationNetworkRemesh;
     
-    template <typename DislocationNetworkType>
+    template <int dim>
     class DislocationCrossSlip;
     
-    template <typename DislocationNetworkType>
+    template <int dim>
     class DislocationJunctionFormation;
     
     /********************************************************************/

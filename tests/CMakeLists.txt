@@ -4,6 +4,8 @@ add_subdirectory(ellipsoidalInclusion)
 
 if(TARGET testSurfaceMesh)
     add_test(NAME surfaceMesh COMMAND testSurfaceMesh "${PROJECT_SOURCE_DIR}")
+    add_test(NAME surfaceMeshWithoutDD COMMAND testSurfaceMesh "${PROJECT_SOURCE_DIR}" --without-dd)
+    set_tests_properties(surfaceMeshWithoutDD PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
     set_tests_properties(surfaceMesh PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
 endif()
 
@@ -266,3 +268,55 @@ add_executable(testPlaneSectionMesh testPlaneSectionMesh.cpp)
 target_link_libraries(testPlaneSectionMesh PRIVATE MoDELib)
 add_test(NAME planeSectionMesh COMMAND testPlaneSectionMesh "${PROJECT_SOURCE_DIR}")
 set_tests_properties(planeSectionMesh PROPERTIES TIMEOUT 120)
+
+if(MODELIB_CD_MSIZE STREQUAL "4" AND MODELIB_CD_ISIZE STREQUAL "8")
+    add_executable(testClusterPeriodic testClusterPeriodic.cpp)
+    target_link_libraries(testClusterPeriodic PRIVATE MoDELib)
+    add_test(NAME clusterPeriodic COMMAND testClusterPeriodic "${PROJECT_SOURCE_DIR}")
+    set_tests_properties(clusterPeriodic PROPERTIES TIMEOUT 180)
+endif()
+
+add_subdirectory(spatialCDtest)
+
+add_executable(testPhysicsBases testPhysicsBases.cpp)
+target_link_libraries(testPhysicsBases PRIVATE MoDELib)
+add_test(NAME physicsBases COMMAND testPhysicsBases "${PROJECT_SOURCE_DIR}")
+set_tests_properties(physicsBases PROPERTIES TIMEOUT 120)
+
+if(TARGET pyMoDELib)
+    add_test(NAME pythonPhysicsBases
+        COMMAND "${Python_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/testPhysicsBases.py"
+                "$<TARGET_FILE_DIR:pyMoDELib>" "${PROJECT_SOURCE_DIR}")
+    set_tests_properties(pythonPhysicsBases PROPERTIES TIMEOUT 120)
+endif()
+
+# Separate translation units ensure each shared header is self-contained.
+add_executable(testSharedHeaders
+    sharedHeaders/main.cpp
+    sharedHeaders/DefectiveCrystal.cpp
+    sharedHeaders/DefectiveCrystalBase.cpp
+    sharedHeaders/DefectiveCrystalParameters.cpp
+    sharedHeaders/MicrostructureBase.cpp
+    sharedHeaders/MicrostructureContainer.cpp
+)
+add_test(NAME sharedHeaders COMMAND testSharedHeaders)
+
+add_executable(testPhysicsHeaders
+    physicsHeaders/main.cpp
+    physicsHeaders/ClusterDynamicsBase.cpp
+    physicsHeaders/ClusterDynamicsParameters.cpp
+    physicsHeaders/ElasticDeformationBase.cpp
+    physicsHeaders/ElasticDeformationFEM.cpp
+    physicsHeaders/EllipsoidalInclusion.cpp
+    physicsHeaders/EshelbyInclusionBase.cpp
+    physicsHeaders/InclusionMicrostructureBase.cpp
+    physicsHeaders/PolyhedronInclusion.cpp
+    physicsHeaders/SphericalInclusion.cpp
+    physicsHeaders/UniformController.cpp
+    physicsHeaders/VoigtTraits.cpp
+)
+add_test(NAME physicsHeaders COMMAND testPhysicsHeaders)
+
+add_executable(testDDConcreteAPI testDDConcreteAPI.cpp)
+target_link_libraries(testDDConcreteAPI PRIVATE MoDELib)
+add_test(NAME DDConcreteAPI COMMAND testDDConcreteAPI)

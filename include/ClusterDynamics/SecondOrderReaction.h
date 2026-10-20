@@ -8,15 +8,15 @@
 #ifndef model_SecondOrderReaction_H_
 #define model_SecondOrderReaction_H_
 
-//#include <MicrostructureContainer.h>
-//#include <ClusterDynamicsParameters.h>
-//#include <ClusterDynamicsBase.h>
+//#include <DefectiveCrystal/MicrostructureContainer.h>
+//#include <ClusterDynamics/ClusterDynamicsParameters.h>
+//#include <ClusterDynamics/ClusterDynamicsBase.h>
 //#include <SimpleNullSpaceSolver.h>
 //#include <FixedDirichletSolver.h>
-//#include <UniformController.h>
+//#include <DefectiveCrystal/UniformController.h>
 #include <Eigen/Dense>
 #include <EvalFunction.h>
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 
 namespace model
 {

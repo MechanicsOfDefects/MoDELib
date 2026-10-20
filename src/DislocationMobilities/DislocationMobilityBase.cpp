@@ -13,7 +13,7 @@
 namespace model
 {
 
-    StochasticForceGenerator::StochasticForceGenerator(const DDtraitsIO& traitsIO):
+    StochasticForceGenerator::StochasticForceGenerator(const DefectiveCrystalTraitsIO& traitsIO):
     stochasticForceSeed(TextFileParser(traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("stochasticForceSeed",true))
     , seed(stochasticForceSeed<0?std::chrono::system_clock::now().time_since_epoch().count():stochasticForceSeed)
     {

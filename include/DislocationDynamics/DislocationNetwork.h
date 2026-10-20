@@ -44,24 +44,24 @@
 
 #include <DislocationNetworkRemesh.h>
 #include <DislocationJunctionFormation.h>
-#include <DislocationFieldBase.h>
+#include <DislocationDynamics/DislocationFieldBase.h>
 #include <DDtimeStepper.h>
-#include <DefectiveCrystalParameters.h>
+#include <DefectiveCrystal/DefectiveCrystalParameters.h>
 #include <SimplicialMesh.h>
 #include <Polycrystal.h>
 #include <GlidePlaneModule.h>
 
 #include <DislocationNodeContraction.h>
-#include <EshelbyInclusionBase.h>
-#include <SphericalInclusion.h>
-#include <PolyhedronInclusion.h>
+#include <InclusionMicrostructure/EshelbyInclusionBase.h>
+#include <InclusionMicrostructure/SphericalInclusion.h>
+#include <InclusionMicrostructure/PolyhedronInclusion.h>
 
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <DislocationGlideSolverFactory.h>
 #include <DislocationClimbSolverFactory.h>
 #include <CrossSlipModels.h>
-#include <MicrostructureBase.h>
-#include <MicrostructureContainer.h>
+#include <DefectiveCrystal/MicrostructureBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
 #include <InclusionMicrostructure.h>
 
 #ifndef NDEBUG
@@ -112,8 +112,8 @@ namespace model
         void updateBoundaryNodes(const std::function<void()>& checkpoint={});
         bool contract(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
         
-        std::shared_ptr<DislocationGlideSolverBase<DislocationNetwork<dim>>> glideSolver;
-        std::shared_ptr<DislocationClimbSolverBase<DislocationNetwork<dim>>> climbSolver;
+        std::shared_ptr<DislocationGlideSolverBase<dim>> glideSolver;
+        std::shared_ptr<DislocationClimbSolverBase<dim>> climbSolver;
 
     private:
         
@@ -122,13 +122,13 @@ namespace model
 
     public:
 
-        DislocationDynamicsBase<dim>& ddBase;
-        DislocationNetworkRemesh<LoopNetworkType> networkRemesher;
-        DislocationJunctionFormation<DislocationNetwork<dim>> junctionsMaker;
-        const std::shared_ptr<BaseCrossSlipModel<DislocationNetwork<dim>>> crossSlipModel;
-        DislocationCrossSlip<DislocationNetwork<dim>> crossSlipMaker;
-        DislocationNodeContraction<LoopNetworkType> nodeContractor;
-        DDtimeStepper<DislocationNetwork<dim>> timeStepper;
+        DefectiveCrystalBase<dim>& ddBase;
+        DislocationNetworkRemesh<dim> networkRemesher;
+        DislocationJunctionFormation<dim> junctionsMaker;
+        const std::shared_ptr<BaseCrossSlipModel<dim>> crossSlipModel;
+        DislocationCrossSlip<dim> crossSlipMaker;
+        DislocationNodeContraction<dim> nodeContractor;
+        DDtimeStepper<dim> timeStepper;
         std::shared_ptr<StochasticForceGenerator> stochasticForceGenerator;
         int ddSolverType;
         int bulkNucleationModel;
@@ -152,11 +152,11 @@ namespace model
             
         DislocationNetwork(MicrostructureContainerType& mc);
                 
-        void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
+        void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
         void solve() override;
         void reSolve() override;
         double getDt() const override;
-        void output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
+        void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
         void updateConfiguration() override;
         MatrixDim averagePlasticDistortion() const override ;
         MatrixDim averagePlasticDistortionRate() const override;
@@ -167,8 +167,8 @@ namespace model
         VectorMSize mobileConcentration(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
         VectorISize immobileClusters(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
 
-        void setConfiguration(const DDconfigIO<dim>&);
-        void addConfiguration(const DDconfigIO<dim>&);
+        void setConfiguration(const DefectiveCrystalConfigIO<dim>&);
+        void addConfiguration(const DefectiveCrystalConfigIO<dim>&);
 
         MatrixDim averagePlasticStrain() const;
         std::map<std::pair<int,int>,double> slipSystemAveragePlasticDistortion() const;

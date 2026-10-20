@@ -1,4 +1,5 @@
-#include <DislocationDynamicsBase.h>
+#include <DislocationDynamics/DislocationDynamicsBase.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -52,7 +53,7 @@ int main(int argc, char** argv)
             {
                 {
                     std::ofstream f(input / "DefectiveCrystal.txt");
-                    f << "physics=ElasticDeformation;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
+                    f << "physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
                       << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\n";
                     if(rank > 0)
                     {
@@ -74,9 +75,8 @@ int main(int argc, char** argv)
                     }
                     p << ";\n";
                 }
-                model::DislocationDynamicsBase<3> base(folder.string());
+                model::DefectiveCrystalBase<3> base(folder.string());
                 require(base.periodicLatticeBasis.cols() == rank, "Incorrect active rank");
-                require(base.isPeriodicDomain == (rank == 3), "Legacy flag changed");
                 require(base.periodicImageSize.size() == size_t(rank), "Image counts ignored for active directions");
                 const size_t expected = imageCount == 0 ? 1 : size_t(std::pow(3, rank));
                 require(base.periodicShifts.size() == expected, "Incorrect image count");
@@ -94,7 +94,7 @@ int main(int argc, char** argv)
                     coefficients.insert(key);
                 }
                 require(coefficients.size() == expected, "Duplicate periodic shift");
-                require(rank == 0 ? base.EwaldLength == 0.0 : base.EwaldLength > 0.0,
+                require(rank == 0 ? base.dislocationDynamics().EwaldLength == 0.0 : base.dislocationDynamics().EwaldLength > 0.0,
                         "Ewald initialization depends on domain flag or image count");
             }
         }

@@ -48,6 +48,7 @@ namespace model
             FiniteElementType* space;
             std::weak_ptr<const int> lifetime;
             Eigen::VectorXd dofvector;
+            Eigen::VectorXd periodicNodalOffset;
             DirichletNodeMapType nodes;
             DirichletConditionContainerType conditions;
             Eigen::Matrix<double,dofPerNode,dim> periodicGradient=Eigen::Matrix<double,dofPerNode,dim>::Zero();
@@ -105,6 +106,20 @@ namespace model
         const Eigen::Matrix<double,dofPerNode,dim>& periodicGradient() const
         {
             return state->periodicGradient;
+        }
+
+        // Optional known field whose differences supplement affine periodic jumps.
+        void setPeriodicNodalOffset(const Eigen::VectorXd& values) const
+        {
+            if((values.size()!=0 && values.size()!=Eigen::Index(gSize())) || !values.allFinite())
+            {
+                throw std::invalid_argument("Invalid FEM periodic nodal offset.");
+            }
+            state->periodicNodalOffset=values;
+        }
+        const Eigen::VectorXd& periodicNodalOffset() const
+        {
+            return state->periodicNodalOffset;
         }
 
         void setFullDofVector(const Eigen::VectorXd& values) const

@@ -17,17 +17,17 @@
 #endif
 
 
-#include <ClusterDynamicsParameters.h>
-#include <DislocationDynamicsBase.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <EvalFunction.h>
-#include <FixedDirichletSolver.h>
-#include <SpatialODESolver.h>
-#include <DDconfigIO.h>
-#include <MicrostructureBase.h>
+#include <WeakProblem.h>
+#include <ClusterBoundarySinks.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/MicrostructureBase.h>
 #include <SecondOrderReaction.h>
 #include <FirstOrderReaction.h>
 #include <ImmobileSinkRate.h>
-#include <MicrostructureContainer.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
 
 namespace model
 {
@@ -35,7 +35,7 @@ namespace model
     template <int dim>
     struct FluxMatrix : public EvalFunction<FluxMatrix<dim>>
     {
-        typedef typename DislocationDynamicsBase<dim>::ElementType ElementType;
+        typedef typename DefectiveCrystalBase<dim>::ElementType ElementType;
         typedef Eigen::Matrix<double,dim+1,1> BaryType;
         constexpr static int mSize=ClusterDynamicsParameters<dim>::mSize;
         constexpr static int rows=dim*mSize;
@@ -51,7 +51,7 @@ namespace model
     template <int dim>
     struct InvDscaling : public EvalFunction<InvDscaling<dim>>
     {
-        typedef typename DislocationDynamicsBase<dim>::ElementType ElementType;
+        typedef typename DefectiveCrystalBase<dim>::ElementType ElementType;
         typedef Eigen::Matrix<double,dim+1,1> BaryType;
         constexpr static int mSize=ClusterDynamicsParameters<dim>::mSize;
         constexpr static int rows=mSize;
@@ -100,38 +100,38 @@ namespace model
         typedef BilinearForm<MobileIncrementTestGradType,TrialProd<Constant<double,1,1>,MobileIncrementFluxType>> MobileIncrementBilinearFormType;
         typedef BilinearWeakForm<MobileIncrementBilinearFormType,VolumeIntegrationDomainType> MobileIncrementBilinearWeakFormType;
 
-        // typedef TrialGrad<MobileTrialType> MobileGradType;
-        // typedef TrialProd<FluxMatrix<dim>,MobileGradType> MobileFluxType;
-
-        // typedef TrialGrad<MobileTrialType> MobileTestGradType;
-        // typedef BilinearForm<MobileTestGradType,TrialProd<Constant<double,1,1>,MobileFluxType>> MobileBilinearFormType;
-        // typedef BilinearWeakForm<MobileBilinearFormType,VolumeIntegrationDomainType> MobileBilinearWeakFormType;
-
-        // typedef TrialFunction<'d',mSize,FiniteElementType> MobileIncrementTrialType;
-        // typedef TrialGrad<MobileIncrementTrialType> MobileIncrementTestGradType;
-
-        // typedef TrialGrad<MobileIncrementTrialType> MobileIncrementGradType;
-        // typedef TrialProd<FluxMatrix<dim>,MobileIncrementGradType> MobileIncrementFluxType;
-        // typedef BilinearForm<MobileIncrementTestGradType,TrialProd<Constant<double,1,1>,MobileIncrementFluxType>> MobileIncrementBilinearFormType;
-        // typedef BilinearWeakForm<MobileIncrementBilinearFormType,VolumeIntegrationDomainType> MobileIncrementBilinearWeakFormType;
-        
-        typedef Eigen::SparseMatrix<double,Eigen::RowMajor> SparseMatrixType;
-#ifdef CHOLMOD_H // SuiteSparse Cholmod (LLT) module
-    typedef Eigen::CholmodSupernodalLLT<SparseMatrixType> LltSolverType;
-#else
-    typedef Eigen::SimplicialLLT<SparseMatrixType> LltSolverType;
-#endif
-        
-#ifdef UMFPACK_H // SuiteSparse Umfpack (LU) module
-    typedef Eigen::UmfPackLU<SparseMatrixType> LuSolverType;
-#else
-    typedef Eigen::SparseLU<SparseMatrixType> LuSolverType;
-#endif
-                
-        typedef FixedDirichletSolver<LltSolverType,Eigen::ConjugateGradient<SparseMatrixType>> MobileSolverType;
-        typedef FixedDirichletSolver<LuSolverType,Eigen::BiCGSTAB<SparseMatrixType>> MobileReactionSolverType;
-
-        const DislocationDynamicsBase<dim>& ddBase;
+        using SparseMatrixType=Eigen::SparseMatrix<double>;
+        using Problem=WeakProblem<Eigen::SparseLU<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>;
+        template<class Trial>
+        struct Load
+        {
+            std::shared_ptr<Trial> trial;
+            Eigen::VectorXd value;
+            const auto& field() const
+            {
+                return trial->field();
+            }
+            Eigen::VectorXd globalVector() const
+            {
+                return value;
+            }
+        };
+        template<class Trial>
+        struct MatrixForm
+        {
+            std::shared_ptr<Trial> trial;
+            std::vector<Eigen::Triplet<double>> entries;
+            const auto& field() const
+            {
+                return trial->field();
+            }
+            auto globalTriplets() const
+            {
+                return entries;
+            }
+        };
+        using ImmobileRateTrialType=TrialFunction<'r',iSize,FiniteElementType>;
+        const DefectiveCrystalBase<dim>& ddBase;
         const ClusterDynamicsParameters<dim>& cdp;
         const std::shared_ptr<InvDscaling<dim>> iDs;
         
@@ -142,34 +142,43 @@ namespace model
         std::shared_ptr<MobileFluxType> mobileFlux;
         std::shared_ptr<ImmobileTrialType> immobileClusters;
 
-        const int nodeListInternalExternal;
+        const std::map<size_t,std::vector<VectorDim>> sinkNormals;
         std::shared_ptr<MobileIncrementTrialType> mobileClustersIncrement;
         VolumeIntegrationDomainType dV;
         std::shared_ptr<MobileBilinearWeakFormType> mBWF;
         std::shared_ptr<MobileIncrementBilinearWeakFormType> dmBWF;
 
-        MobileSolverType mSolver;
+        std::shared_ptr<Problem> mSolver,rSolver,iSolver;
+        std::shared_ptr<Load<MobileTrialType>> mobileLoad;
+        std::shared_ptr<Load<MobileIncrementTrialType>> reactionLoad;
+        std::shared_ptr<MatrixForm<MobileIncrementTrialType>> reactionMatrix;
+        std::shared_ptr<ImmobileRateTrialType> immobileRateTrial;
+        SparseMatrixType diffusionMatrix;
+        std::vector<Eigen::Triplet<double>> diffusionTriplets;
+        Eigen::MatrixXd meanRows;
+        Eigen::MatrixXd conservedRows(const bool useImmobileClusters) const;
+        void enforceMobileConstraints();
         bool solverInitialized;
 
         const Eigen::VectorXd cascadeGlobalProduction;
         Eigen::VectorXd immobileClusterRate;
 
-//         ClusterDynamicsFEM(const DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
+//         ClusterDynamicsFEM(const DefectiveCrystalBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
 //         void solveMobileClusters();
 //         void solveImmobileClusters();
 //         void solve();
 // //        void applyBoundaryConditions();
-//         void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels);
+//         void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels);
 //         void initializeSolver();
 //         VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const;
 
-        ClusterDynamicsFEM(DislocationDynamicsBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
+        ClusterDynamicsFEM(DefectiveCrystalBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in);
         void solveMobileClusters(const bool hasDiscreteLoops);
         void solveImmobileClusters();
         void updateImmobileClusters(const double dt);
         void solve(const bool hasDiscreteLoops);
 //        void applyBoundaryConditions();
-        void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels);
+        void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels);
         void initializeSolver();
         VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const;
 

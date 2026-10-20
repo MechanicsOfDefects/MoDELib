@@ -31,16 +31,16 @@
 namespace model
 {
 
-    template <typename DislocationNetworkType>
-    DislocationNodeContraction<DislocationNetworkType>::DislocationNodeContraction(DislocationNetworkType& DN_in) :
+    template <int dim>
+    DislocationNodeContraction<dim>::DislocationNodeContraction(DislocationNetwork<dim>& DN_in) :
     /* init */ DN(DN_in)
     /* init */,verboseNodeContraction(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseNodeContraction",true))
     {
         
     }
 
-    template <typename DislocationNetworkType>
-    std::vector<std::set<std::shared_ptr<typename DislocationNodeContraction<DislocationNetworkType>::NetworkNodeType>>> DislocationNodeContraction<DislocationNetworkType>::contractBoundary(std::shared_ptr<NetworkNodeType> nA,
+    template <int dim>
+    std::vector<std::set<std::shared_ptr<typename DislocationNodeContraction<dim>::NetworkNodeType>>> DislocationNodeContraction<dim>::contractBoundary(std::shared_ptr<NetworkNodeType> nA,
                                                                                                                                                                   std::shared_ptr<NetworkNodeType> nB)
     {
         using NodeSet=std::set<std::shared_ptr<NetworkNodeType>>;
@@ -122,8 +122,8 @@ namespace model
         return groups;
     }
 
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::canReach(const std::shared_ptr<NetworkNodeType>& node,const VectorDim& target) const
+    template <int dim>
+    bool DislocationNodeContraction<dim>::canReach(const std::shared_ptr<NetworkNodeType>& node,const VectorDim& target) const
     {
         if(!target.allFinite() || !node->isMovableTo(target))
         {
@@ -160,8 +160,8 @@ namespace model
         return true;
     }
 
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::commitContraction(std::shared_ptr<NetworkNodeType> a,
+    template <int dim>
+    bool DislocationNodeContraction<dim>::commitContraction(std::shared_ptr<NetworkNodeType> a,
         std::shared_ptr<NetworkNodeType> b,const VectorDim& target,const bool reconcileBoundary)
     {
         if(!a || !b || a==b || a->loopNodes().empty() || b->loopNodes().empty() ||
@@ -171,7 +171,7 @@ namespace model
         }
         // All ordinary rejection paths are above this point. Commit the exact
         // common point without running boundary reconciliation between moves.
-        using LoopNodeType=typename DislocationNetworkType::LoopNodeType;
+        using LoopNodeType=typename DislocationNetwork<dim>::LoopNodeType;
         using NodePtr=std::shared_ptr<LoopNodeType>;
         struct Subdivision
         {
@@ -287,23 +287,23 @@ namespace model
         return true;
     }
 
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::contractSecondAndVirtual(std::shared_ptr<NetworkNodeType> nA,
+    template <int dim>
+    bool DislocationNodeContraction<dim>::contractSecondAndVirtual(std::shared_ptr<NetworkNodeType> nA,
         std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary)
     {
         return commitContraction(nA,nB,nA->get_P(),reconcileBoundary);
     }
 
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::contractYoungest(std::shared_ptr<NetworkNodeType> nA,
+    template <int dim>
+    bool DislocationNodeContraction<dim>::contractYoungest(std::shared_ptr<NetworkNodeType> nA,
                                                                               std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary)
     {
         return nA->sID<nB->sID? contractSecondAndVirtual(nA,nB,reconcileBoundary) : contractSecondAndVirtual(nB,nA,reconcileBoundary);
         
     }
 
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::contractToPosition(std::shared_ptr<NetworkNodeType> nA,
+    template <int dim>
+    bool DislocationNodeContraction<dim>::contractToPosition(std::shared_ptr<NetworkNodeType> nA,
                                                                                 std::shared_ptr<NetworkNodeType> nB,
                                                                                 const VectorDim& X,
                                                                                 const double& maxRange,const bool reconcileBoundary)
@@ -317,8 +317,8 @@ namespace model
     }
 
 
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::contract(std::shared_ptr<NetworkNodeType> nA,
+    template <int dim>
+    bool DislocationNodeContraction<dim>::contract(std::shared_ptr<NetworkNodeType> nA,
                                                                       std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary)
     {
         if(!nA || !nB || nA==nB || nA->loopNodes().empty() || nB->loopNodes().empty())
@@ -401,7 +401,7 @@ namespace model
         }
     }
 
-template class DislocationNodeContraction<DislocationNetwork<3>>;
+template class DislocationNodeContraction<3>;
 }
 #endif
 

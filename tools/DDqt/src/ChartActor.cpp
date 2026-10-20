@@ -28,7 +28,7 @@
 namespace model
 {
 
-        ChartActor::ChartActor(const DDtraitsIO& traitsIO_in,vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow_in,vtkRenderer* const renderer_in) :
+        ChartActor::ChartActor(const DefectiveCrystalTraitsIO& traitsIO_in,vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow_in,vtkRenderer* const renderer_in) :
         /* init */ traitsIO(traitsIO_in)
         /* init */,mainLayout(new QGridLayout(this))
         /* init */,showChart(new QCheckBox(this))

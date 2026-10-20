@@ -20,7 +20,7 @@
 #include <TerminalColors.h> // defines mode::cout
 #include <PolycrystallineMaterialBase.h>
 #include <StaticID.h>
-#include <DDtraitsIO.h>
+#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
 #include <DislocationMobilityBase.h>
 
 namespace model

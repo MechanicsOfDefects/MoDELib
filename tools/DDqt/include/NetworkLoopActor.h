@@ -43,10 +43,10 @@
 #include <vtkFloatArray.h>
 #include <IDreader.h>
 //#include <PlanarPolygon.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 #include <PeriodicGlidePlaneFactory.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <SlipSystemTab.h>
 
 namespace model

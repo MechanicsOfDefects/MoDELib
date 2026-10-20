@@ -9,6 +9,8 @@
 #define model_ClusterDynamics_cpp_
 
 #ifdef _OPENMP
+#include <ClusterDynamics/ClusterDynamicsBase.h>
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <omp.h>
 #endif
 
@@ -55,7 +57,7 @@ namespace model
     //};
 
 template <int dim>
-typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<dim>::getUniformControllers(const DislocationDynamicsBase<dim>& ddBase,const ClusterDynamicsParameters<dim>& cdp)
+typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<dim>::getUniformControllers(const DefectiveCrystalBase<dim>& ddBase,const ClusterDynamicsParameters<dim>& cdp)
 {
     typedef typename UniformControllerType::MatrixVoigt MatrixVoigt;
     typedef typename UniformControllerType::VectorVoigt VectorVoigt;
@@ -87,14 +89,13 @@ typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<di
     template<int dim>
     ClusterDynamics<dim>::ClusterDynamics(MicrostructureContainerType& mc) :
     /* init */ MicrostructureBase<dim>("ClusterDynamics",mc)
-    /* init */,cdp(this->microstructures.ddBase)
+    /* init */,cdp(this->microstructures.ddBase.clusterDynamics())
 //    /* init */,ClusterDynamicsBase<dim>(this->microstructures.ddBase)
-    // /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("useClusterDynamicsFEM",true)) : false )
-    /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ClusterDynamics.txt").readScalar<int>("useClusterDynamicsFEM",true)) : false )
-//    /* init */,useClusterDynamicsFEM(bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("useClusterDynamicsFEM",true)))
+    // /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.clusterDynamics().useClusterDynamicsFEM)
+    /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.clusterDynamics().useClusterDynamicsFEM)
+//    /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.clusterDynamics().useClusterDynamicsFEM)
     /* init */,clusterDynamicsFEM(useClusterDynamicsFEM?  new ClusterDynamicsFEM<dim>(this->microstructures.ddBase,cdp) : nullptr)
     /* init */,uniformControllers(useClusterDynamicsFEM? UniformControllerContainerType() : getUniformControllers(this->microstructures.ddBase,this->cdp))
-//    /* init */,nodeListInternalExternal(this->microstructures.ddBase.isPeriodicDomain ? -1 : this->microstructures.ddBase.fe->template createNodeList<ExternalAndInternalBoundary>())
 //    /* init */,mobileClustersIncrement(this->microstructures.ddBase.fe->template trial<'d',mSize>())
 //    /* init */,dV(this->microstructures.ddBase.fe->template domain<EntireDomain,dVorder,GaussLegendre>())
 //    /* init */,mBWF((test(this->mobileGrad),-this->microstructures.ddBase.poly.Omega*this->mobileFlux)*dV)
@@ -111,7 +112,7 @@ typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<di
     
 
     template<int dim>
-    void ClusterDynamics<dim>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
+    void ClusterDynamics<dim>::initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
     {
         this->lastUpdateTime=this->microstructures.ddBase.simulationParameters.totalTime;
         
@@ -129,32 +130,49 @@ template<int dim>
 void ClusterDynamics<dim>::applyBoundaryConditions()
 {
  
-    const auto& nodesInternalExternal(clusterDynamicsFEM->mobileClusters->fe().nodeList(clusterDynamicsFEM->nodeListInternalExternal));
-    
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for(size_t k=0;k<nodesInternalExternal.size();++k)
+    auto& fem=*clusterDynamicsFEM;
+    Eigen::VectorXd offset=Eigen::VectorXd::Zero(fem.mobileClusters->gSize());
+    std::map<size_t,double> prescribed;
+    std::set<size_t> periodicNodes;
+    for(const auto& pair : fem.mobileClusters->fe().periodicNodePairs())
     {
-        const auto& node(nodesInternalExternal[k]);
-        const auto outNormal(node->outNormal()); // used to compute traction
-        const MatrixDim sigma(this->microstructures.stress(node->P0,node,nullptr,nullptr));
-        const double normalTraction(outNormal.dot(sigma*outNormal));
-        const auto bndConcentration(cdp.boundaryMobileConcentration(sigma.trace(),normalTraction));
-        
-        VectorMSize otherConcentration(VectorMSize::Zero());
+        periodicNodes.insert(pair.source);
+        periodicNodes.insert(pair.sink);
+    }
+    for(const auto& node : fem.mobileClusters->fe().nodes())
+    {
+        const auto sink=fem.sinkNormals.find(node.gID);
+        // Nonlinear positivity checks require the known concentration throughout the domain.
+        if(!cdp.computeReactions && sink==fem.sinkNormals.end() && !periodicNodes.count(node.gID))
+        {
+            continue;
+        }
+        VectorMSize otherConcentration=VectorMSize::Zero();
         for(const auto& microstructure : this->microstructures)
         {
-            if(microstructure.get()!=static_cast<const MicrostructureBase<dim>* const>(this))
-            {// not the ClusterDynamics physics
-                otherConcentration += microstructure->mobileConcentration(node->P0,node,nullptr,nullptr);
+            if(microstructure.get()!=static_cast<const MicrostructureBase<dim>*>(this))
+            {
+                otherConcentration+=microstructure->mobileConcentration(node.P0,&node,nullptr,nullptr);
             }
         }
-        for(int k=0;k<mSize;++k)
+        offset.template segment<mSize>(mSize*node.gID)=-otherConcentration;
+        if(sink!=fem.sinkNormals.end())
         {
-            clusterDynamicsFEM->mobileClusters->dirichletConditions().at(mSize*node->gID+k) = bndConcentration(k) - otherConcentration(k);
+            const MatrixDim sigma=this->microstructures.stress(node.P0,&node,nullptr,nullptr);
+            double normalTraction=0.0;
+            for(const auto& normal : sink->second)
+            {
+                normalTraction+=normal.dot(sigma*normal)/double(sink->second.size());
+            }
+            const auto concentration=cdp.boundaryMobileConcentration(sigma.trace(),normalTraction);
+            for(int c=0;c<mSize;++c)
+            {
+                prescribed.emplace(mSize*node.gID+c,concentration(c)-otherConcentration(c));
+            }
         }
     }
+    fem.mobileClusters->setPeriodicNodalOffset(offset);
+    fem.mobileClusters->dirichletConditions()=std::move(prescribed);
 }
 
     template<int dim>
@@ -218,7 +236,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     }
 
     template<int dim>
-    void ClusterDynamics<dim>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
+    void ClusterDynamics<dim>::output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
     {
         if(clusterDynamicsFEM)
         {
@@ -467,7 +485,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //                     {
     //                         const long int planeIndex(n.closestPlaneIndexOfPoint(tetCenter));
     //                         GlidePlaneKey<dim> glidePlaneKey(planeIndex,n);
-    //                         std::shared_ptr<PeriodicGlidePlane<dim>> periodicGlidePlane(this->microstructures.ddBase.periodicGlidePlaneFactory.get(glidePlaneKey)); 
+    //                         std::shared_ptr<PeriodicGlidePlane<dim>> periodicGlidePlane(this->microstructures.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(glidePlaneKey));
     //                         const VectorDim loopCenter(periodicGlidePlane->referencePlane->snapToPlane(tetCenter));
     //                         std::vector<VectorDim> pts;
     //                         if(radius > cdp.minimumLoopSize)
@@ -498,7 +516,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //                                 const int signedb(cdp.immobileSpeciesVector(k)/abs(cdp.immobileSpeciesVector(k))); //negative for vacancy, positive for interstitial loops
     //                                 const VectorDim loopBurgers((trBetaLoop * signedb > 0)? b : -b);
 
-    //                                 auto newLoop(DN->loops().create(loopBurgers, this->microstructures.ddBase.glidePlaneFactory.getFromKey(glidePlaneKey)));
+    //                                 auto newLoop(DN->loops().create(loopBurgers, this->microstructures.ddBase.dislocationDynamics().glidePlaneFactory.getFromKey(glidePlaneKey)));
     //                                 std::vector<std::shared_ptr<DislocationLoopNode<dim>>> loopNodes;
     //                                 for(const auto &pGlobal:pts)
     //                                 {

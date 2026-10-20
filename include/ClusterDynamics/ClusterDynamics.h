@@ -8,11 +8,11 @@
 #ifndef model_ClusterDynamics_H_
 #define model_ClusterDynamics_H_
 
-#include <MicrostructureContainer.h>
-#include <ClusterDynamicsParameters.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <ClusterDynamicsFEM.h>
 //#include <SimpleNullSpaceSolver.h>
-#include <UniformController.h>
+#include <DefectiveCrystal/UniformController.h>
 //#include <SecondOrderReaction.h>
 
 namespace model
@@ -72,7 +72,7 @@ namespace model
         
         ClusterDynamics(MicrostructureContainerType& mc);
         
-        const ClusterDynamicsParameters<dim> cdp;
+        const ClusterDynamicsParameters<dim>& cdp;
 
         const bool useClusterDynamicsFEM;
         const std::unique_ptr<ClusterDynamicsFEM<dim>> clusterDynamicsFEM;
@@ -90,11 +90,11 @@ namespace model
 //
 //        const Eigen::VectorXd cascadeGlobalProduction;
         
-        void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
+        void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
         void solve() override;
         void reSolve() override;
         double getDt() const override;
-        void output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
+        void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
         void updateConfiguration() override;
         MatrixDim averagePlasticDistortion() const override ;
         MatrixDim averagePlasticDistortionRate() const override;
@@ -113,7 +113,7 @@ namespace model
         // void initializeDiscreteClimbLoops();
         
         
-        static UniformControllerContainerType getUniformControllers(const DislocationDynamicsBase<dim>& ddBase,const ClusterDynamicsParameters<dim>& cdp);
+        static UniformControllerContainerType getUniformControllers(const DefectiveCrystalBase<dim>& ddBase,const ClusterDynamicsParameters<dim>& cdp);
 
     };
 

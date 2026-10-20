@@ -3,7 +3,7 @@ sys.path.append("../../python/")
 from modlibUtils import *
 
 # Create folder structure
-folders=['evl','F','inputFiles']
+folders=['config','F','inputFiles']
 for x in folders:
     if not os.path.exists(x):
         os.makedirs(x)

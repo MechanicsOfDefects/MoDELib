@@ -1,4 +1,5 @@
-#include <DislocationDynamicsBase.h>
+#include <DislocationDynamics/DislocationDynamicsBase.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -30,7 +31,7 @@ int main(int argc, char** argv)
 
         std::filesystem::copy_file(root / "Library/Meshes/bicrystal_48.msh", input / "mesh.msh");
         std::filesystem::copy_file(root / "Library/DislocationDynamics/DD.txt", input / "DD.txt");
-        std::filesystem::create_directories(folder / "evl");
+        std::filesystem::create_directories(folder / "config");
         const double length=3671.9477120460206;
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
@@ -40,9 +41,9 @@ int main(int argc, char** argv)
               << "C2G2=0.8 0 0.6 0 1 0 -0.6 0 0.8;\nF=" << length << " 0 0 0 " << length << " 0 0 0 " << length
               << ";\nX0=0 0 0;\nperiodicFaceIDs=-1;\n";
         }
-        model::DislocationDynamicsBase<3> base(folder.string());
+        model::DefectiveCrystalBase<3> base(folder.string());
         const auto grain=base.poly.grain(2);
-        const auto plane=base.periodicGlidePlaneFactory.get(model::GlidePlaneKey<3>(Eigen::Vector3d(1295.5740040615206,1619.467505076901,-971.68050304614053),grain->reciprocalLatticeDirection(Eigen::Vector3d(0.56568542494923801,0.70710678118654757,-0.42426406871192851))));
+        const auto plane=base.dislocationDynamics().periodicGlidePlaneFactory.get(model::GlidePlaneKey<3>(Eigen::Vector3d(1295.5740040615206,1619.467505076901,-971.68050304614053),grain->reciprocalLatticeDirection(Eigen::Vector3d(0.56568542494923801,0.70710678118654757,-0.42426406871192851))));
         std::vector<Eigen::Vector2d> vertices;
         std::ifstream source(root/"tests/data/bicrystalCorner1537.txt");
         require(bool(source),"Missing frame 1537 contour");

@@ -22,7 +22,7 @@ C2G = read_value(inputs / "polycrystal.txt", "C2G1").reshape(3, 3)
 F = read_value(inputs / "polycrystal.txt", "F").reshape(3, 3)
 b = read_value(inputs / "W.txt", "b_SI")[0]
 volume_SI = abs(np.linalg.det(F)) * b**3
-lines = (folder / "evl/evl_0.txt").read_text().splitlines()
+lines = (folder / "config/evl_0.txt").read_text().splitlines()
 counts = [int(line) for line in lines[:11]]
 start = 11 + sum(counts[:5])
 records = np.array([np.fromstring(line, sep=" ") for line in lines[start:start + counts[5]]])

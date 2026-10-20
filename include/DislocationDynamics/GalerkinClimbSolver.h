@@ -24,18 +24,18 @@
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
     
-    template <typename DislocationNetworkType>
-    class GalerkinClimbSolver : public DislocationClimbSolverBase<DislocationNetworkType>
+    template <int dim>
+    class GalerkinClimbSolver : public DislocationClimbSolverBase<dim>
     {
-        typedef typename DislocationNetworkType::VectorDim   VectorDim;
-        typedef typename DislocationNetworkType::MatrixDim   MatrixDim;
-        typedef typename DislocationNetworkType::NetworkNodeType   NetworkNodeType;
-        typedef typename DislocationNetworkType::NetworkLinkType NetworkLinkType;
-        typedef typename DislocationNetworkType::LoopNodeType   LoopNodeType;
-        typedef typename DislocationNetworkType::LoopType   LoopType;
+        typedef typename DislocationNetwork<dim>::VectorDim   VectorDim;
+        typedef typename DislocationNetwork<dim>::MatrixDim   MatrixDim;
+        typedef typename DislocationNetwork<dim>::NetworkNodeType   NetworkNodeType;
+        typedef typename DislocationNetwork<dim>::NetworkLinkType NetworkLinkType;
+        typedef typename DislocationNetwork<dim>::LoopNodeType   LoopNodeType;
+        typedef typename DislocationNetwork<dim>::LoopType   LoopType;
         constexpr static int NdofXnode=NetworkNodeType::NdofXnode;
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
         static constexpr int mSize=ClusterDynamicsParameters<dim>::mSize;     // Cv, Ci, C2i, C3i
         static constexpr int iSize=ClusterDynamicsParameters<dim>::iSize;  // Nc, Na1, Na2, Na3, rc, ra1, ra2, ra3
         typedef Eigen::Matrix<double,2,mSize> ForceVectorMatrixType;
@@ -60,7 +60,7 @@ namespace model
         
         public:
         
-        GalerkinClimbSolver(const DislocationNetworkType&,const ClusterDynamics<dim>* const );
+        GalerkinClimbSolver(const DislocationNetwork<dim>&,const ClusterDynamics<dim>* const );
         Eigen::VectorXd getNodeVelocities() const override;
         void computeClimbScalarVelocities(const bool& updateStiffness) override;
         

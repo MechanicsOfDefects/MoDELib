@@ -21,12 +21,12 @@
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
         
-    template <typename DislocationNetworkType>
+    template <int dim>
     class DislocationCrossSlip
     {
-        typedef TypeTraits<DislocationNetworkType> TraitsType;
-        static constexpr int dim=TraitsType::dim;
+        typedef TypeTraits<DislocationNetwork<dim>> TraitsType;
         typedef typename TraitsType::NetworkLinkType NetworkLinkType;
         typedef typename TraitsType::NetworkNodeType NetworkNodeType;
         typedef typename TraitsType::LoopNodeType LoopNodeType;
@@ -35,10 +35,10 @@ namespace model
         typedef typename TraitsType::VectorDim VectorDim;
         typedef std::tuple<std::shared_ptr<NetworkNodeType>,std::shared_ptr<NetworkNodeType>,size_t,size_t> CrossSlipTupleType;
         typedef std::deque<CrossSlipTupleType> CrossSlipContainerType;
-        typedef std::deque<CrossSlipBranch<LoopNodeType>> CrossSlipBranchContainerType;
+        typedef std::deque<CrossSlipBranch<dim>> CrossSlipBranchContainerType;
         
         friend struct CrossSlipTestAccess;
-        DislocationNetworkType& DN; //! A reference to the DislocationNetwork
+        DislocationNetwork<dim>& DN; //! A reference to the DislocationNetwork
 //        CrossSlipContainerType crossSlipDeq;
         CrossSlipBranchContainerType csNodes;
         
@@ -46,10 +46,10 @@ namespace model
         
         const int verboseCrossSlip;
 
-        DislocationCrossSlip(DislocationNetworkType& DN_in) ;
+        DislocationCrossSlip(DislocationNetwork<dim>& DN_in) ;
         void findCrossSlipSegments(const double dt=-1.0);
         void execute();
-        static std::shared_ptr<BaseCrossSlipModel<DislocationNetworkType>> getModel(const PolycrystallineMaterialBase& material,const DDtraitsIO& traitsIO);
+        static std::shared_ptr<BaseCrossSlipModel<dim>> getModel(const PolycrystallineMaterialBase& material,const DefectiveCrystalTraitsIO& traitsIO);
 
         
     };

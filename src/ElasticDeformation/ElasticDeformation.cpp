@@ -9,6 +9,7 @@
 #define model_ElasticDeformation_cpp_
 
 #ifdef _OPENMP
+#include <ElasticDeformation/ElasticDeformationBase.h>
 #include <omp.h>
 #endif
 
@@ -23,7 +24,7 @@ namespace model
     }
 
     template <int dim>
-    std::unique_ptr<UniformController<SymmetricVoigtTraits<dim>::voigtSize>> getUniformEDcontroller(const DislocationDynamicsBase<dim>& ddBase)
+    std::unique_ptr<UniformController<SymmetricVoigtTraits<dim>::voigtSize>> getUniformEDcontroller(const DefectiveCrystalBase<dim>& ddBase)
     {
         
         typedef UniformController<SymmetricVoigtTraits<dim>::voigtSize> UniformControllerType;
@@ -61,10 +62,10 @@ namespace model
     template<int dim>
     ElasticDeformation<dim>::ElasticDeformation(MicrostructureContainerType& mc) :
     /* init */ MicrostructureBase<dim>("ElasticDeformation",mc)
-    /* init */,useElasticDeformationFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ElasticDeformation.txt").readScalar<int>("useElasticDeformationFEM",true)) : false )
+    /* init */,useElasticDeformationFEM(this->microstructures.ddBase.elasticDeformation().useElasticDeformationFEM)
     /* init */,elasticDeformationFEM(useElasticDeformationFEM?  new ElasticDeformationFEM<dim>(this->microstructures.ddBase) : nullptr)
     /* init */,uniformLoadController(useElasticDeformationFEM? std::unique_ptr<UniformControllerType>(nullptr) : getUniformEDcontroller(this->microstructures.ddBase))
-    /* init */,inertiaReliefPenaltyFactor(uniformLoadController? 0.0 : TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ElasticDeformation.txt").readScalar<double>("inertiaReliefPenaltyFactor",true))
+    /* init */,inertiaReliefPenaltyFactor(this->microstructures.ddBase.elasticDeformation().inertiaReliefPenaltyFactor)
     /* init */,solverInitialized(false)
     {
         if(useElasticDeformationFEM)
@@ -96,7 +97,7 @@ namespace model
     }
 
     template<int dim>
-    void ElasticDeformation<dim>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
+    void ElasticDeformation<dim>::initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
     {
         this->lastUpdateTime=this->microstructures.ddBase.simulationParameters.totalTime;
         
@@ -233,7 +234,7 @@ void ElasticDeformation<dim>::reSolve()
     }
 
     template<int dim>
-    void ElasticDeformation<dim>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
+    void ElasticDeformation<dim>::output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
     {
         if(uniformLoadController)
         {
@@ -380,7 +381,7 @@ void ElasticDeformation<dim>::reSolve()
 
 
 //    template <int dim>
-//    std::unique_ptr<ExternalLoadControllerBase<dim>> selectExternalLoadController(const DislocationDynamicsBase<dim>& ddBase)
+//    std::unique_ptr<ExternalLoadControllerBase<dim>> selectExternalLoadController(const DefectiveCrystalBase<dim>& ddBase)
 //    {
 //        if(ddBase.simulationParameters.externalLoadControllerName=="UniformExternalLoadController")
 //        {
@@ -410,7 +411,7 @@ void ElasticDeformation<dim>::reSolve()
 //}
 
 //template <int dim>
-//std::unique_ptr<UniformController<dim,dim>> getUniformController(const DislocationDynamicsBase<dim>& ddBase, const VoigtTraits<dim,dim>& vt)
+//std::unique_ptr<UniformController<dim,dim>> getUniformController(const DefectiveCrystalBase<dim>& ddBase, const VoigtTraits<dim,dim>& vt)
 //{
 //    typedef typename UniformController<dim,dim>::MatrixGrad MatrixGrad;
 //    typedef typename UniformController<dim,dim>::MatrixGrad MatrixGrad;

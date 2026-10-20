@@ -1,7 +1,8 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <SurfaceMeshActor.h>
 #include <FrameCameraRotation.h>
 #include <vtkLightCollection.h>
-#include <DislocationLoopPatches.h>
+#include <DislocationDynamics/DislocationLoopPatches.h>
 #include <QApplication>
 #include <vtkCellData.h>
 #include <vtkProperty.h>
@@ -86,21 +87,23 @@ int main(int argc, char **argv)
             motion.apply(camera,V::Zero(),V::UnitZ(),0,15,0);
             check(V(camera->GetPosition()).isApprox(V(10,0,0)), "Disabling camera motion did not restore position");
         }
-        check(argc == 2, "Expected repository root");
+        check(argc == 2 || argc == 3, "Expected repository root and optional --without-dd");
+        const bool withDD=argc==2;
         const std::filesystem::path root(argv[1]);
         const auto dir =
             std::filesystem::temp_directory_path() /
             ("model-surface-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        for(const auto *name : {"inputFiles", "evl", "F"})
+        for(const auto *name : {"inputFiles", "config", "F"})
         {
             std::filesystem::create_directories(dir / name);
         }
         const auto input = dir / "inputFiles";
         std::filesystem::copy_file(root / "Library/Materials/W.txt", input / "W.txt");
+        std::filesystem::copy_file(root / "Library/DislocationDynamics/DD.txt", input / "DD.txt");
         std::filesystem::copy_file(root / "Library/Meshes/unitCube24.msh", input / "mesh.msh");
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
-            f << "physics=ElasticDeformation;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\n"
+            f << "physics=" << (withDD ? "ElasticDeformation DislocationDynamics" : "ElasticDeformation") << ";\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\n"
               << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\n";
             std::ofstream p(input / "polycrystal.txt");
             p << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\n"
@@ -112,7 +115,7 @@ int main(int argc, char **argv)
               << "stiffnessRatio=0 0 0 0 0 0;\n";
         }
         {
-            model::DislocationDynamicsBase<3> base(dir.string());
+            model::DefectiveCrystalBase<3> base(dir.string());
             const auto coarse = model::SurfaceMeshGeometry::build(base.mesh, 2500);
             const auto fine = model::SurfaceMeshGeometry::build(base.mesh, 625);
             std::set<size_t> allExternalIDs;
@@ -270,7 +273,7 @@ int main(int argc, char **argv)
                 check(rejected, "Invalid or excessive refinement accepted");
             }
             model::DefectiveCrystal<3> crystal(base);
-            model::DDconfigIO<3> config((dir / "evl").string());
+            model::DefectiveCrystalConfigIO<3> config((dir / "config").string());
             crystal.initializeConfiguration(config);
             auto window = vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New();
             window->SetReadyForRendering(false);
@@ -463,8 +466,9 @@ int main(int argc, char **argv)
                 check(surface.actor->GetVisibility() && surface.polyData->GetNumberOfCells() == 24,
                       "Surface did not recover after correcting mesh input");
             }
+            if(withDD)
             {
-                auto plane = base.glidePlaneFactory.getFromKey(
+                auto plane = base.dislocationDynamics().glidePlaneFactory.getFromKey(
                     model::GlidePlaneKey<3>(V::Zero(), base.poly.grain(1)->reciprocalLatticeDirection(V(1, 1, 0))));
                 model::SurfaceMeshActor surface(window, renderer, crystal);
                 surface.meshSizeEdit->setText("625");
@@ -479,6 +483,7 @@ int main(int argc, char **argv)
                 check(surface.polyData->GetNumberOfPoints() == static_cast<vtkIdType>(fine.referencePoints.size()),
                       "Expired glide plane cuts survived frame update");
             }
+            if(withDD)
             {
 #ifdef _OPENMP
                 const int savedThreads = omp_get_max_threads();
@@ -488,7 +493,7 @@ int main(int argc, char **argv)
 #endif
                 // Enough samples to exercise the parallel branch, including
                 // one-sided samples where a live glide plane cuts the surface.
-                auto plane = base.glidePlaneFactory.getFromKey(
+                auto plane = base.dislocationDynamics().glidePlaneFactory.getFromKey(
                     model::GlidePlaneKey<3>(V::Zero(), base.poly.grain(1)->reciprocalLatticeDirection(V(1, 1, 0))));
                 model::SurfaceMeshActor surface(window, renderer, crystal);
                 surface.meshSizeEdit->setText("39.0625");

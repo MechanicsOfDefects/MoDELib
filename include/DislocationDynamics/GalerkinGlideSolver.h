@@ -21,24 +21,24 @@
 #include <DislocationGlideSolverFactory.h>
 namespace model
 {
+    template<int dim> class DislocationNetwork;
     
-    template <typename DislocationNetworkType>
+    template <int dim>
 //    template<int dim,int corder>
-    class GalerkinGlideSolver : public DislocationGlideSolverBase<DislocationNetworkType>
+    class GalerkinGlideSolver : public DislocationGlideSolverBase<dim>
     {
-//        typedef DislocationNetwork<dim,corder> DislocationNetworkType;
-        typedef typename DislocationNetworkType::VectorDim   VectorDim;
-        typedef typename DislocationNetworkType::MatrixDim   MatrixDim;
-        typedef typename DislocationNetworkType::NetworkNodeType   NetworkNodeType;
-        typedef typename DislocationNetworkType::LoopNodeType   LoopNodeType;
-        typedef typename DislocationNetworkType::LoopType   LoopType;
+//        typedef DislocationNetwork<dim,corder> DislocationNetwork<dim>;
+        typedef typename DislocationNetwork<dim>::VectorDim   VectorDim;
+        typedef typename DislocationNetwork<dim>::MatrixDim   MatrixDim;
+        typedef typename DislocationNetwork<dim>::NetworkNodeType   NetworkNodeType;
+        typedef typename DislocationNetwork<dim>::LoopNodeType   LoopNodeType;
+        typedef typename DislocationNetwork<dim>::LoopType   LoopType;
 
         typedef Eigen::SparseMatrix<double> SparseMatrixType;
         //        typedef std::vector<Eigen::Triplet<double> > TripletContainerType;
         typedef std::deque<Eigen::Triplet<double> > TripletContainerType;
 //        enum {NdofXnode=NodeType::NdofXnode};
         constexpr static int NdofXnode=NetworkNodeType::NdofXnode;
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
 
 
 //        void lumpedSolve();
@@ -51,7 +51,7 @@ namespace model
         
         public:
         
-        GalerkinGlideSolver(const DislocationNetworkType& );
+        GalerkinGlideSolver(const DislocationNetwork<dim>& );
         Eigen::VectorXd getNodeVelocities() const override;
 
         

@@ -1,4 +1,5 @@
 #include <DefectiveCrystalActor.h>
+#include <ElasticDeformation.h>
 #include <DDqtMainWindow.h>
 #include <QApplication>
 #include <QPointer>
@@ -170,7 +171,7 @@ int main(int argc, char **argv)
         const auto dir =
             std::filesystem::temp_directory_path() /
             ("model-surface-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        for(const auto *name : {"inputFiles", "evl", "F"})
+        for(const auto *name : {"inputFiles", "config", "F"})
         {
             std::filesystem::create_directories(dir / name);
         }
@@ -195,12 +196,12 @@ int main(int argc, char **argv)
         std::ofstream(dir / "F/F_0.txt").close();
         std::ofstream(dir / "F/F_labels.txt").close();
         {
-            model::DislocationDynamicsBase<3> base(dir.string());
+            model::DefectiveCrystalBase<3> base(dir.string());
             check(base.simulationParameters.runID == 0 && base.simulationParameters.totalTime == 0.0,
                   "Empty history did not retain the default restart state");
 
-            model::DDconfigIO<3> config((dir / "evl").string());
-            model::DDauxIO<3> aux((dir / "evl").string());
+            model::DefectiveCrystalConfigIO<3> config((dir / "config").string());
+            model::DefectiveCrystalAuxIO<3> aux((dir / "config").string());
             for(size_t frame : {0, 10, 20})
             {
                 config.write(frame, false);

@@ -26,6 +26,7 @@
 #include <vtkFloatArray.h>
 #include <vtkAxis.h>
 #include <DDFieldWidget.h>
+#include <ClusterDynamics/ClusterDynamicsBase.h>
 
 #include <DDqtControls.h>
 #include <PlaneSectionMesh.h>
@@ -218,9 +219,18 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
     }
     fieldComboBox->insertItem(6+3,"tr(stress)");
     fieldComboBox->insertItem(7+3,"stress_VM");
-    for(int k=0;k<ClusterDynamicsParameters<3>::mSize;++k)
+    if(defectiveCrystal.ddBase.clusterDynamicsBase)
     {
-        fieldComboBox->insertItem(8+3+k,"v");
+        const auto& mobileSpecies=defectiveCrystal.ddBase.clusterDynamics().msVector;
+        for(Eigen::Index k=0;k<mobileSpecies.size();++k)
+        {
+            const int species=static_cast<int>(mobileSpecies(k));
+            const int size=std::abs(species);
+            const QString defect=species<0 ? "v" : "i";
+            const QString label=species==-1 ? "c_v" :
+                "c_"+(size==1 ? QString() : QString::number(size))+defect;
+            fieldComboBox->insertItem(11+static_cast<int>(k),label);
+        }
     }
     
     for(const auto& mstruct : defectiveCrystal.microstructures())

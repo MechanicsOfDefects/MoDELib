@@ -10,6 +10,7 @@
 #ifndef model_DislocationQuadraturePoint_cpp_
 #define model_DislocationQuadraturePoint_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationQuadraturePoint.h>
 #include <DislocationSegment.h>
 
@@ -448,7 +449,7 @@ namespace model
                                 {
                                     const VectorDim tangent(chord/chordLength);
                                     //                                const StraightDislocationSegment<dim> ss(parentSegment.network().poly,P0-patch.first->shift,P1-patch.first->shift,loop.second.lock()->burgers(),chordLength,tangent);
-                                    const StraightDislocationSegment<dim> ss(parentSegment.network().ddBase.poly,P0,P1,loop.second.lock()->burgers(),chordLength,tangent,parentSegment.network().ddBase.EwaldLength);
+                                    const StraightDislocationSegment<dim> ss(parentSegment.network().ddBase.poly,P0,P1,loop.second.lock()->burgers(),chordLength,tangent,parentSegment.network().ddBase.dislocationDynamics().EwaldLength);
                                     updateKernel(parentSegment,ss,L0,c);
                                 }
                             }

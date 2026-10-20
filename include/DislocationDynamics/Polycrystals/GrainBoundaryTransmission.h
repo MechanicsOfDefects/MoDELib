@@ -226,7 +226,7 @@ namespace model
 //                    const VectorDim glidePlaneNormal(link.second->glidePlaneNormal());
 //
 //                    if(   link.second->isGrainBoundarySegment()
-//                       && chord.norm()>chordTol*DislocationNetworkRemesh<DislocationNetworkType>::Lmin
+//                       && chord.norm()>chordTol*DislocationNetworkRemesh<dim>::Lmin
 //                       )
 //                    {
 //                        const VectorDim unitChord(chord.normalized());

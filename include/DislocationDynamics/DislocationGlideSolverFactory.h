@@ -14,19 +14,20 @@
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
     
-    template <typename DislocationNetworkType>
-    struct DislocationGlideSolverBase : public DislocationVelocitySolverBase<DislocationNetworkType>
+    template <int dim>
+    struct DislocationGlideSolverBase : public DislocationVelocitySolverBase<dim>
     {
-//        const DislocationNetworkType& DN;
-        DislocationGlideSolverBase(const DislocationNetworkType& );
+//        const DislocationNetwork<dim>& DN;
+        DislocationGlideSolverBase(const DislocationNetwork<dim>& );
 //        virtual Eigen::VectorXd getNodeVelocities() const = 0;
     };
 
-    template <typename DislocationNetworkType>
+    template <int dim>
     struct DislocationGlideSolverFactory
     {
-        static std::shared_ptr<DislocationGlideSolverBase<DislocationNetworkType>> getGlideSolver(const DislocationNetworkType& DN, const std::string& solverType);
+        static std::shared_ptr<DislocationGlideSolverBase<dim>> getGlideSolver(const DislocationNetwork<dim>& DN, const std::string& solverType);
     };
     
 }

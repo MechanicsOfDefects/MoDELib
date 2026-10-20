@@ -1,7 +1,8 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <MicrostructureGenerator.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <DislocationCrossSlip.h>
 #include <filesystem>
 #include <fstream>
@@ -13,7 +14,7 @@ namespace model
 {
     struct CrossSlipTestAccess
     {
-        template<class N> static void queue(N& network,const std::deque<CrossSlipBranch<typename N::LoopNodeType>>& branches)
+        template<class N> static void queue(N& network,const std::deque<CrossSlipBranch<TypeTraits<N>::dim>>& branches)
         {
             network.crossSlipMaker.csNodes=branches;
         }
@@ -39,7 +40,7 @@ int main(int argc,char** argv)
         const auto input=folder/"inputFiles";
         std::filesystem::create_directories(input);
         std::filesystem::create_directories(folder/"F");
-        std::filesystem::create_directories(folder/"evl");
+        std::filesystem::create_directories(folder/"config");
         std::filesystem::copy_file(root/"Library/Materials/Zr.txt",input/"Zr.txt");
         std::filesystem::copy_file(root/"Library/Meshes/bicrystal_48.msh",input/"mesh.msh");
         {
@@ -64,12 +65,12 @@ int main(int argc,char** argv)
             }
             using Network=model::DislocationNetwork<3>;
             using V=Eigen::Vector3d;
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::MicrostructureContainer<3> container(base);
             Network network(container);
             const auto grain=base.poly.grain(1);
             const auto slip=grain->slipSystems().begin()->second;
-            const auto plane=base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V(-0.5*box,0,0),slip->n));
+            const auto plane=base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V(-0.5*box,0,0),slip->n));
             const V center=plane->snapToPlane(V(-0.5*box,0,0));
             const V along=slip->s.cartesian().normalized();
             const V side=plane->unitNormal.cross(along);
@@ -82,11 +83,11 @@ int main(int argc,char** argv)
             polygon.push_back(end+100.0*side);
             polygon.push_back(a+100.0*side);
             model::MicrostructureGenerator generator(base);
-            require(generator.insertJunctionLoop(polygon,base.periodicGlidePlaneFactory.get(plane->key),slip->s.cartesian(),plane->unitNormal,plane->P,1,model::DislocationLoopIO<3>::GLISSILELOOP),"Parent insertion failed");
+            require(generator.insertJunctionLoop(polygon,base.dislocationDynamics().periodicGlidePlaneFactory.get(plane->key),slip->s.cartesian(),plane->unitNormal,plane->P,1,model::DislocationLoopIO<3>::GLISSILELOOP),"Parent insertion failed");
             network.initializeConfiguration(generator.config(),std::ofstream(),std::ofstream());
             const auto parent=network.loops().begin()->second.lock();
             base.simulationParameters.dt=1.0;
-            auto* thermal=dynamic_cast<model::EscaigCrossSlipModelHEX<Network>*>(network.crossSlipModel.get());
+            auto* thermal=dynamic_cast<model::EscaigCrossSlipModelHEX<model::TypeTraits<Network>::dim>*>(network.crossSlipModel.get());
             require(thermal,"Missing production HEX thermal model");
             double totalRate=0.0,totalLength=0.0;
             for(const auto* link : parent->linkSequence())
@@ -110,7 +111,7 @@ int main(int argc,char** argv)
             }
             require(std::abs(totalLength-0.6*box)<1.e-6,"Thermal eligibility depends on remeshing length");
             require(totalRate>0.0 && std::abs(totalRate-thermal->csw*totalLength/thermal->csLb)<1.e-8*totalRate,"Integrated branch hazard depends on segmentation");
-            std::deque<model::CrossSlipBranch<Network::LoopNodeType>> candidates;
+            std::deque<model::CrossSlipBranch<model::TypeTraits<Network>::dim>> candidates;
             parent->crossSlipBranches(candidates,0.0);
             require(candidates.empty(),"Thermal sampler ignored the supplied timestep");
             thermal->gen.seed(77);

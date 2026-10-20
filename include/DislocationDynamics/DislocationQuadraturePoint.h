@@ -14,14 +14,14 @@
 #include <SplineBase.h>
 #include <QuadratureDynamic.h>
 #include <QuadPowDynamic.h>
-#include <StressStraight.h>
+#include <DislocationDynamics/StressStraight.h>
 #include <SegmentSegmentDistance.h>
-#include <StraightDislocationSegment.h>
-#include <EshelbyInclusionBase.h>
-#include <DefectiveCrystalParameters.h>
+#include <DislocationDynamics/StraightDislocationSegment.h>
+#include <InclusionMicrostructure/EshelbyInclusionBase.h>
+#include <DefectiveCrystal/DefectiveCrystalParameters.h>
 #include <Polygon2D.h>
 #include <CatmullRomSplineSegment.h>
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <InclusionMicrostructure.h>
 
 //#include <DislocationSegment.h>

@@ -16,7 +16,7 @@
 #include <SplineSegment.h>
 //#include <ConfinedDislocationObject.h>
 #include <DislocationQuadraturePoint.h>
-#include <DislocationLoopIO.h>
+#include <DislocationDynamics/DislocationLoopIO.h>
 #include <PlaneLineIntersection.h>
 
 #ifndef NDEBUG

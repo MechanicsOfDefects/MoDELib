@@ -14,27 +14,29 @@
 #include <GalerkinGlideSolver.h>
 #include <PyGlideSolver.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
     
-    template <typename DislocationNetworkType>
-    DislocationGlideSolverBase<DislocationNetworkType>::DislocationGlideSolverBase(const DislocationNetworkType& DN) :
+    template <int dim>
+    DislocationGlideSolverBase<dim>::DislocationGlideSolverBase(const DislocationNetwork<dim>& DN) :
 //    /* init */ DN(DN_in)
-    /* init */ DislocationVelocitySolverBase<DislocationNetworkType>(DN)
+    /* init */ DislocationVelocitySolverBase<dim>(DN)
     {
         
     }
 
-template <typename DislocationNetworkType>
-std::shared_ptr<DislocationGlideSolverBase<DislocationNetworkType>> DislocationGlideSolverFactory<DislocationNetworkType>::getGlideSolver(const DislocationNetworkType& DN,const std::string& solverType)
+template <int dim>
+std::shared_ptr<DislocationGlideSolverBase<dim>> DislocationGlideSolverFactory<dim>::getGlideSolver(const DislocationNetwork<dim>& DN,const std::string& solverType)
 {
         if(solverType=="Galerkin" || solverType=="galerkin")
         {
-            return std::shared_ptr<DislocationGlideSolverBase<DislocationNetworkType>>(new GalerkinGlideSolver<DislocationNetworkType>(DN));
+            return std::shared_ptr<DislocationGlideSolverBase<dim>>(new GalerkinGlideSolver<dim>(DN));
         }
         else if(solverType=="Pybind11" || solverType=="pybind11")
         {
-            return std::shared_ptr<DislocationGlideSolverBase<DislocationNetworkType>>(new PyGlideSolver<DislocationNetworkType>(DN));
+            return std::shared_ptr<DislocationGlideSolverBase<dim>>(new PyGlideSolver<dim>(DN));
         }
     else
     {
@@ -44,8 +46,8 @@ std::shared_ptr<DislocationGlideSolverBase<DislocationNetworkType>> DislocationG
     
 }
     
-    template struct DislocationGlideSolverBase<DislocationNetwork<3>>;
-    template struct DislocationGlideSolverFactory<DislocationNetwork<3>>;
+    template struct DislocationGlideSolverBase<3>;
+    template struct DislocationGlideSolverFactory<3>;
 
 }
 #endif

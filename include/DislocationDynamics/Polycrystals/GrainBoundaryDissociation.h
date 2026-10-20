@@ -42,7 +42,7 @@ namespace model
                     
                     if ( !(segment.second.source->isBoundaryNode() && segment.second.sink->isBoundaryNode())
                         && segment.second.isGrainBoundarySegment()
-                        && segment.second.chord().norm()>chordTol*DislocationNetworkRemesh<DislocationNetworkType>::Lmin)
+                        && segment.second.chord().norm()>chordTol*DislocationNetworkRemesh<TypeTraits<DislocationNetworkType>::dim>::Lmin)
                     {
                         this->emplace_back(segment.second);
                     }

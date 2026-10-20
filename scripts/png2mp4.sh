@@ -1,6 +1,6 @@
 #!/bin/bash
 # Example (from the repository root):
-# bash scripts/png2mp4.sh tutorials/inclusions/evl
+# bash scripts/png2mp4.sh tutorials/inclusions/config
 #
 # Encode img_<runID>.png in the supplied folder in numeric runID order.
 # Relative output paths are resolved inside folderContainingImages.

@@ -7,7 +7,7 @@ sys.path.append("../build/tools/pyMoDELib")
 import pyMoDELib
 
 simulationDir=os.path.abspath("../tutorials/crossSlip")
-ddBase=pyMoDELib.DislocationDynamicsBase(simulationDir)
+ddBase=pyMoDELib.DefectiveCrystalBase(simulationDir)
 
 # Microstructure Generation
 microstructureGenerator=pyMoDELib.MicrostructureGenerator(ddBase)
@@ -156,12 +156,12 @@ for loopID in DN.loops():
 ## create the DefectsFieldsExtractor object
 #dfe=DefectsFields.DefectsFieldsExtractor(simulationDir)
 #
-## Read a pre-existing configuration file (e.g. readConfiguration(X) reads file simulationDir/evl/evl_X.txt)
+## Read a pre-existing configuration file (e.g. readConfiguration(X) reads file simulationDir/config/evl_X.txt)
 #dfe.readConfiguration(0)
 #
 ## Alternatively, generate a new configuration using simulationDir/inputFiles/initialMicrostructure.txt
 ##dfe.readMicrostructure()
-##dfe.writeConfiguration(0) # Optional. Write the generated configuration to file (writeConfiguration(X) writes file simulationDir/evl/evl_X.txt)
+##dfe.writeConfiguration(0) # Optional. Write the generated configuration to file (writeConfiguration(X) writes file simulationDir/config/evl_X.txt)
 #
 ## grab the domain corners
 #ldc=dfe.lowerDomainCorner()

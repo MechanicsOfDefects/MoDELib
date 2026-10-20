@@ -244,7 +244,7 @@ def main() -> int:
     processInitialConfigurations()
 
     simulationDir = os.path.abspath(".")
-    ddBase = pyMoDELib.DislocationDynamicsBase(simulationDir)
+    ddBase = pyMoDELib.DefectiveCrystalBase(simulationDir)
 
     matFile = "inputFiles/AlMg5.txt"
     absoluteTemp = 1

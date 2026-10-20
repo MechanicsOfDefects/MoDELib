@@ -9,6 +9,7 @@
 #ifndef model_NetworkLoopActor_cpp_
 #define model_NetworkLoopActor_cpp_
 
+#include <DislocationNetwork.h>
 #include <iostream>
 #include <map>
 #include <deque>
@@ -42,10 +43,10 @@
 #include <vtkUnsignedCharArray.h>
 #include <QLabel>
 
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 #include <NetworkLoopActor.h>
-#include <DislocationLoopPatches.h>
+#include <DislocationDynamics/DislocationLoopPatches.h>
 #include <LoopAreaTriangulation.h>
 
 #include <DDqtControls.h>

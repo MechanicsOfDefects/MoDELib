@@ -21,7 +21,7 @@ int main(int argc,char** argv)
         const auto dir =
             std::filesystem::temp_directory_path() /
             ("model-surface-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        for(const auto *name : {"inputFiles", "evl", "F"})
+        for(const auto *name : {"inputFiles", "config", "F"})
         {
             std::filesystem::create_directories(dir / name);
         }
@@ -43,7 +43,7 @@ int main(int argc,char** argv)
         }
 
         {
-            model::DislocationDynamicsBase<3> base(dir.string());
+            model::DefectiveCrystalBase<3> base(dir.string());
             std::set<size_t> externalIDs,internalIDs;
             std::set<const model::Simplex<3,2>*> internalTriangles;
             for(const auto& region : base.mesh.regions())
@@ -91,7 +91,7 @@ int main(int argc,char** argv)
             check(both.triangles.size()==outside.triangles.size()+internalTriangles.size(),"Combined faces duplicated interfaces");
             check(model::SurfaceMeshGeometry::build(base.mesh,625,{}).triangles.empty(),"Empty selection rendered faces");
             model::DefectiveCrystal<3> crystal(base);
-            model::DDconfigIO<3> config((dir/"evl").string());
+            model::DefectiveCrystalConfigIO<3> config((dir/"config").string());
             crystal.initializeConfiguration(config);
             auto window=vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New();
             window->SetReadyForRendering(false);

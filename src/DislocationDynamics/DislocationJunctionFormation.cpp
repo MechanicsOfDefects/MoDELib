@@ -8,6 +8,7 @@
 #ifndef model_DislocationJunctionFormation_cpp_
 #define model_DislocationJunctionFormation_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <utility> // for std::pair
 #include <algorithm>
 #include <vector>
@@ -15,7 +16,7 @@
 #include <SegmentSegmentDistance.h>
 #include <SweepPlane.h>
 #include <TypeTraits.h>
-#include <StressStraight.h>
+#include <DislocationDynamics/StressStraight.h>
 
 #include <DislocationJunctionFormation.h>
 
@@ -26,11 +27,13 @@
 #endif
 
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
 
-    template <typename DislocationNetworkType>
-    void DislocationJunctionFormation<DislocationNetworkType>::insertIntersection(std::deque<IntersectionTypeContainerType> &intersectionContainer,
+    template <int dim>
+    void DislocationJunctionFormation<dim>::insertIntersection(std::deque<IntersectionTypeContainerType> &intersectionContainer,
                                                                                   const NetworkLinkType *const linkA,
                                                                                   const NetworkLinkType *const linkB,
                                                                                   const SegmentSegmentDistance<dim> &ssd,
@@ -63,11 +66,11 @@ namespace model
                     {
                         StressStraight<dim> stressA(DN.ddBase.poly,ssd.x0 - infiniteLineLength / LA * chordA,
                                                     ssd.x0 + infiniteLineLength / LA * chordA,
-                                                    linkA->burgers(),DN.ddBase.EwaldLength);
+                                                    linkA->burgers(),DN.ddBase.dislocationDynamics().EwaldLength);
                         
                         StressStraight<dim> stressB(DN.ddBase.poly,ssd.x1 - infiniteLineLength / LB * chordB,
                                                     ssd.x1 + infiniteLineLength / LB * chordB,
-                                                    linkB->burgers(),DN.ddBase.EwaldLength);
+                                                    linkB->burgers(),DN.ddBase.dislocationDynamics().EwaldLength);
                         
                         VerboseJunctions(3, "Non-intersecting pair" << std::endl;);
                         const VectorDim forceOnA = (stressB.stress(ssd.x0) * linkA->burgers()).cross(chordA);
@@ -110,8 +113,8 @@ namespace model
         }
     }
 
-    template <typename DislocationNetworkType>
-    void DislocationJunctionFormation<DislocationNetworkType>::findIntersections(std::deque<IntersectionTypeContainerType>& intersectionContainer,
+    template <int dim>
+    void DislocationJunctionFormation<dim>::findIntersections(std::deque<IntersectionTypeContainerType>& intersectionContainer,
                                                                                  const size_t& nThreads)
 
     {/*! @param[in]  avoidNodeIntersection
@@ -189,8 +192,8 @@ namespace model
 
     }
 
-    template <typename DislocationNetworkType>
-    void DislocationJunctionFormation<DislocationNetworkType>::findPairIntersections(
+    template <int dim>
+    void DislocationJunctionFormation<dim>::findPairIntersections(
         std::deque<IntersectionTypeContainerType>& intersectionContainer,
         const NetworkLinkType* linkA,const NetworkLinkType* linkB)
     {
@@ -345,8 +348,8 @@ namespace model
     }
 
     //     Yash's version(Working)
-    template <typename DislocationNetworkType>
-    std::pair<std::shared_ptr<typename DislocationJunctionFormation<DislocationNetworkType>::NetworkNodeType>, bool> DislocationJunctionFormation<DislocationNetworkType>::junctionNode(const double &t,
+    template <int dim>
+    std::pair<std::shared_ptr<typename DislocationJunctionFormation<dim>::NetworkNodeType>, bool> DislocationJunctionFormation<dim>::junctionNode(const double &t,
                                                                                                                                                                                         const VectorDim &x,
                                                                                                                                                                                         const std::shared_ptr<NetworkLinkType> &L)
     {
@@ -442,8 +445,8 @@ namespace model
     }
 
     //New Implemnetation with update of the boundary nodes
-    template <typename DislocationNetworkType>
-    size_t DislocationJunctionFormation<DislocationNetworkType>::contractJunctions(const std::deque<IntersectionTypeContainerType>& intersectionContainer)
+    template <int dim>
+    size_t DislocationJunctionFormation<dim>::contractJunctions(const std::deque<IntersectionTypeContainerType>& intersectionContainer)
     {
         const auto t0= std::chrono::system_clock::now();
         std::cout<<"        : "<<std::flush;
@@ -592,8 +595,8 @@ namespace model
     }
 
     //This version also compares the network links burgers across the boundary
-    template <typename DislocationNetworkType>
-    void DislocationJunctionFormation<DislocationNetworkType>::glissileJunctions(const double &dx)
+    template <int dim>
+    void DislocationJunctionFormation<dim>::glissileJunctions(const double &dx)
     {
         const auto t0 = std::chrono::system_clock::now();
         std::cout << "        Forming Glissile Junctions: " << std::flush;
@@ -730,8 +733,8 @@ namespace model
             }
 
             const VectorDim midpoint=0.5*(source->get_P()+sink->get_P());
-            const auto glidePlane=DN.ddBase.glidePlaneFactory.getFromKey(GlidePlaneKey<dim>(midpoint,slip->n));
-            const auto periodicPlane=DN.ddBase.periodicGlidePlaneFactory.get(glidePlane->key);
+            const auto glidePlane=DN.ddBase.dislocationDynamics().glidePlaneFactory.getFromKey(GlidePlaneKey<dim>(midpoint,slip->n));
+            const auto periodicPlane=DN.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(glidePlane->key);
             using EdgePair=std::pair<std::shared_ptr<PeriodicPlaneEdge<dim>>,std::shared_ptr<PeriodicPlaneEdge<dim>>>;
             struct SeedPoint
             {
@@ -839,8 +842,8 @@ namespace model
         std::cout << "(" << formedJunctions << " junctions)" << magentaColor << " [" << (std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count() << " sec]" << defaultColor << std::endl;
     }
 
-    template <typename DislocationNetworkType>
-    DislocationJunctionFormation<DislocationNetworkType>::DislocationJunctionFormation(DislocationNetworkType& DN_in) :
+    template <int dim>
+    DislocationJunctionFormation<dim>::DislocationJunctionFormation(DislocationNetwork<dim>& DN_in) :
     /* init */ DN(DN_in)
     /* init */,maxJunctionIterations(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("maxJunctionIterations",true))
     /* init */,verboseJunctions(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseJunctions",true))
@@ -849,14 +852,14 @@ namespace model
         
     }
 
-    template <typename DislocationNetworkType>
-    void DislocationJunctionFormation<DislocationNetworkType>::initFromFile(const std::string& fileName)
+    template <int dim>
+    void DislocationJunctionFormation<dim>::initFromFile(const std::string& fileName)
     {
         collisionTol=TextFileParser(fileName).readScalar<double>("collisionTol",true);
     }
 
-    template <typename DislocationNetworkType>
-    void DislocationJunctionFormation<DislocationNetworkType>::formJunctions(const double& dx)
+    template <int dim>
+    void DislocationJunctionFormation<dim>::formJunctions(const double& dx)
     {
     #ifdef _OPENMP
         // const size_t nThreads = omp_get_max_threads();
@@ -884,8 +887,8 @@ namespace model
         
     }
 
-    template <typename DislocationNetworkType>
-    void DislocationJunctionFormation<DislocationNetworkType>::breakJunctions()
+    template <int dim>
+    void DislocationJunctionFormation<dim>::breakJunctions()
     {
         for (const auto &nodeIter : DN.networkNodes())
         {
@@ -903,10 +906,10 @@ namespace model
     }
 
 
-    template <typename DislocationNetworkType>
-    double DislocationJunctionFormation<DislocationNetworkType>::collisionTol=10.0;
+    template <int dim>
+    double DislocationJunctionFormation<dim>::collisionTol=10.0;
 
-    template class DislocationJunctionFormation<DislocationNetwork<3>>;
+    template class DislocationJunctionFormation<3>;
 
 }
 #endif

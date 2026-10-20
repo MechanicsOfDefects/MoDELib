@@ -34,7 +34,7 @@
 #include <vtkActor2D.h>
 #include <vtkProperty2D.h>
 //#include <IDreader.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 #include <NetworkNodeActor.h>
 #include <DislocationNetwork.h>
@@ -179,7 +179,7 @@ namespace model
 
         
         /**********************************************************************/
-        void NetworkNodeActor::updateConfiguration(const DDconfigIO<3>& configIO, const DislocationNetwork<3>* network)
+        void NetworkNodeActor::updateConfiguration(const DefectiveCrystalConfigIO<3>& configIO, const DislocationNetwork<3>* network)
         {// https://stackoverflow.com/questions/6878263/remove-individual-points-from-vtkpoints
             std::cout<<"Updating nodes..."<<std::flush;
             const auto t0= std::chrono::system_clock::now();

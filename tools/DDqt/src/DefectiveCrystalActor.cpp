@@ -9,6 +9,7 @@
 #ifndef model_DefectiveCrystalActor_cpp_
 #define model_DefectiveCrystalActor_cpp_
 
+#include <DislocationNetwork.h>
 #include <algorithm>
 #include <QString>
 #include <QApplication>
@@ -32,7 +33,7 @@ namespace model
         
         DefectiveCrystalActor::DefectiveCrystalActor(vtkGenericOpenGLRenderWindow* const renWin,vtkRenderer* const ren,
                                  QVTKOpenGLStereoWidget* const qvtkGLwidget_in,
-                                 DislocationDynamicsBase<3>& ddBase_in) :
+                                 DefectiveCrystalBase<3>& ddBase_in) :
         /* init */ renderWindow(renWin)
         /* init */,qvtkGLwidget(qvtkGLwidget_in)
         /* init */,ddBase(ddBase_in)
@@ -49,8 +50,8 @@ namespace model
         /* init */,ddField(new DDFieldWidget(renderWindow,ren,defectiveCrystal))
         /* init */,surfaceMesh(new SurfaceMeshActor(renderWindow,ren,defectiveCrystal))
         /* init */,slipSystemTab(new SlipSystemTab(defectiveCrystal))
-        /* init */,configuration(std::make_unique<DDconfigIO<3>>(ddBase.simulationParameters.traitsIO.evlFolder))
-        /* init */,auxiliary(std::make_unique<DDauxIO<3>>(ddBase.simulationParameters.traitsIO.auxFolder))
+        /* init */,configuration(std::make_unique<DefectiveCrystalConfigIO<3>>(ddBase.simulationParameters.traitsIO.configFolder))
+        /* init */,auxiliary(std::make_unique<DefectiveCrystalAuxIO<3>>(ddBase.simulationParameters.traitsIO.auxFolder))
         /* init */,playbackTimer(new QTimer(this))
         /* init */,renderer(ren)
         /* init */,mainLayout(new QGridLayout(this))
@@ -235,22 +236,22 @@ namespace model
             }
         }
 
-        const DDconfigIO<3>& DefectiveCrystalActor::configIO() const
+        const DefectiveCrystalConfigIO<3>& DefectiveCrystalActor::configIO() const
         {
             return *configuration;
         }
 
-        DDconfigIO<3>& DefectiveCrystalActor::configIO()
+        DefectiveCrystalConfigIO<3>& DefectiveCrystalActor::configIO()
         {
             return *configuration;
         }
 
-        const DDauxIO<3>& DefectiveCrystalActor::auxIO() const
+        const DefectiveCrystalAuxIO<3>& DefectiveCrystalActor::auxIO() const
         {
             return *auxiliary;
         }
 
-        DDauxIO<3>& DefectiveCrystalActor::auxIO()
+        DefectiveCrystalAuxIO<3>& DefectiveCrystalActor::auxIO()
         {
             return *auxiliary;
         }
@@ -351,11 +352,11 @@ namespace model
                 return false;
             }
             QScopedValueRollback<bool> updating(updatingFrame, true);
-            auto nextConfig = std::make_unique<DDconfigIO<3>>(ddBase.simulationParameters.traitsIO.evlFolder);
-            auto nextAux = std::make_unique<DDauxIO<3>>(ddBase.simulationParameters.traitsIO.auxFolder);
+            auto nextConfig = std::make_unique<DefectiveCrystalConfigIO<3>>(ddBase.simulationParameters.traitsIO.configFolder);
+            auto nextAux = std::make_unique<DefectiveCrystalAuxIO<3>>(ddBase.simulationParameters.traitsIO.auxFolder);
             try
             {
-                // Read both files before touching the displayed frame. DDauxIO's
+                // Read both files before touching the displayed frame. DefectiveCrystalAuxIO's
                 // missing-file path asserts, so check availability explicitly.
                 nextConfig->read(frameID);
                 if(!nextAux->isBinGood(frameID) && !nextAux->isTxtGood(frameID))
@@ -419,7 +420,7 @@ namespace model
             // A capture failure does not undo an otherwise valid frame load.
             if(saveImage->isChecked())
             {
-                const QString filename = QString::fromStdString(ddBase.simulationParameters.traitsIO.evlFolder +
+                const QString filename = QString::fromStdString(ddBase.simulationParameters.traitsIO.configFolder +
                                                                "/img_" + std::to_string(frameID) + ".png");
                 if(!ready || !qvtkGLwidget || !qvtkGLwidget->grabFramebuffer().save(filename, "PNG"))
                 {

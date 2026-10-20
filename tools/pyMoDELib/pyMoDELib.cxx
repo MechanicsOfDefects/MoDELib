@@ -10,6 +10,10 @@
 #define model_pyMoDELib_cpp_
 
 #ifdef _MODEL_PYBIND11_
+#include <DislocationNetwork.h>
+#include <ElasticDeformation/ElasticDeformationBase.h>
+#include <ClusterDynamics/ClusterDynamicsBase.h>
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
@@ -30,18 +34,18 @@
 #include <InterpolantBase.h>
 #include <LagrangeInterpolant.h>
 #include <LinearInterpolant.h>
-#include <DefectiveCrystalParameters.h>
+#include <DefectiveCrystal/DefectiveCrystalParameters.h>
 #include <SimplicialMesh.h>
 #include <PolycrystallineMaterialBase.h>
-#include <StressStraight.h>
+#include <DislocationDynamics/StressStraight.h>
 #include <BCClattice.h>
 #include <FCClattice.h>
 #include <HEXlattice.h>
 #include <Polycrystal.h>
-#include <MicrostructureBase.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/MicrostructureBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <MicrostructureGenerator.h>
 #include <EllipsoidalInclusionIndividualSpecification.h>
 #include <DislocationMobilitySelector.h>
@@ -172,20 +176,20 @@ PYBIND11_MODULE(pyMoDELib,m)
       >())
     ;
     
-    py::class_<DDtraitsIO>(m,"DDtraitsIO")
+    py::class_<DefectiveCrystalTraitsIO>(m,"DefectiveCrystalTraitsIO")
         .def(py::init<const std::string&>())
-        .def_readonly("simulationFolder", &DDtraitsIO::simulationFolder)
-        .def_readonly("inputFilesFolder", &DDtraitsIO::inputFilesFolder)
-        .def_readonly("evlFolder", &DDtraitsIO::evlFolder)
-        .def_readonly("auxFolder", &DDtraitsIO::auxFolder)
-        .def_readonly("fFolder", &DDtraitsIO::fFolder)
-        .def_readonly("dcFile", &DDtraitsIO::dcFile)
-        .def_readonly("fFile", &DDtraitsIO::fFile)
-        .def_readonly("flabFile", &DDtraitsIO::flabFile)
-        .def_readonly("polyFile", &DDtraitsIO::polyFile)
-        .def_readonly("materialFile", &DDtraitsIO::materialFile)
-        .def_readonly("microstructureFile", &DDtraitsIO::microstructureFile)
-        .def_readonly("meshFile", &DDtraitsIO::meshFile)
+        .def_readonly("simulationFolder", &DefectiveCrystalTraitsIO::simulationFolder)
+        .def_readonly("inputFilesFolder", &DefectiveCrystalTraitsIO::inputFilesFolder)
+        .def_readonly("configFolder", &DefectiveCrystalTraitsIO::configFolder)
+        .def_readonly("auxFolder", &DefectiveCrystalTraitsIO::auxFolder)
+        .def_readonly("fFolder", &DefectiveCrystalTraitsIO::fFolder)
+        .def_readonly("dcFile", &DefectiveCrystalTraitsIO::dcFile)
+        .def_readonly("fFile", &DefectiveCrystalTraitsIO::fFile)
+        .def_readonly("flabFile", &DefectiveCrystalTraitsIO::flabFile)
+        .def_readonly("polyFile", &DefectiveCrystalTraitsIO::polyFile)
+        .def_readonly("materialFile", &DefectiveCrystalTraitsIO::materialFile)
+        .def_readonly("microstructureFile", &DefectiveCrystalTraitsIO::microstructureFile)
+        .def_readonly("meshFile", &DefectiveCrystalTraitsIO::meshFile)
     ;
     
     py::class_<DefectiveCrystalParameters>(m,"DefectiveCrystalParameters")
@@ -363,14 +367,84 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def("grain", &Polycrystal<3>::grain)
     ;
     
-    py::class_<DislocationDynamicsBase<3>>(m,"DislocationDynamicsBase")
+    py::class_<PeriodicGlidePlane<3>,std::shared_ptr<PeriodicGlidePlane<3>>>(m,"PeriodicGlidePlane")
+        .def_readonly("referencePlane", &PeriodicGlidePlane<3>::referencePlane)
+        .def("findPatch", &PeriodicGlidePlane<3>::findPatch)
+    ;
+    py::class_<DislocationDynamicsBase<3>,std::shared_ptr<DislocationDynamicsBase<3>>>(m,"DislocationDynamicsBase")
+        .def_readonly("EwaldLength", &DislocationDynamicsBase<3>::EwaldLength)
+        .def("glidePlane", [](DislocationDynamicsBase<3>& base, const Eigen::Vector3d& point,
+                              const Eigen::Vector3d& normal, size_t grainID)
+        {
+            const auto grain=base.polyOwner->grain(grainID);
+            return base.glidePlaneFactory.getFromKey(GlidePlaneKey<3>(point,grain->reciprocalLatticeDirection(normal)));
+        }, py::keep_alive<0,1>())
+        .def("periodicGlidePlane", [](DislocationDynamicsBase<3>& base, const Eigen::Vector3d& point,
+                                      const Eigen::Vector3d& normal, size_t grainID)
+        {
+            const auto grain=base.polyOwner->grain(grainID);
+            return base.periodicGlidePlaneFactory.getFromKey(GlidePlaneKey<3>(point,grain->reciprocalLatticeDirection(normal)));
+        }, py::keep_alive<0,1>())
+        .def("glidePlaneCount", [](const DislocationDynamicsBase<3>& base)
+        {
+            return base.glidePlaneFactory.glidePlanes().size();
+        })
+        .def("periodicGlidePlaneCount", [](const DislocationDynamicsBase<3>& base)
+        {
+            return base.periodicGlidePlaneFactory.periodicGlidePlanes().size();
+        })
+    ;
+    py::class_<ClusterDynamicsBase<3>,std::shared_ptr<ClusterDynamicsBase<3>>>(m,"ClusterDynamicsBase")
+        .def_readonly("useClusterDynamicsFEM", &ClusterDynamicsBase<3>::useClusterDynamicsFEM)
+        .def("equilibriumMobileConcentration", &ClusterDynamicsBase<3>::equilibriumMobileConcentration)
+        .def("boundaryMobileConcentration", &ClusterDynamicsBase<3>::boundaryMobileConcentration)
+        .def("dislocationMobileConcentration", &ClusterDynamicsBase<3>::dislocationMobileConcentration)
+        .def("clusterRadius", &ClusterDynamicsBase<3>::clusterRadius)
+        .def("clusterDensity", &ClusterDynamicsBase<3>::clusterDensity)
+        .def("getDlocal", &ClusterDynamicsBase<3>::getDlocal)
+        .def("getR1", &ClusterDynamicsBase<3>::getR1)
+        .def("getR2", &ClusterDynamicsBase<3>::getR2)
+        .def("getInvD", &ClusterDynamicsBase<3>::getInvD)
+        .def("getDetD", &ClusterDynamicsBase<3>::getDetD)
+        .def("sigmoid", &ClusterDynamicsBase<3>::sigmoid)
+        .def("rpyr", &ClusterDynamicsBase<3>::rpyr)
+        .def("rloop", &ClusterDynamicsBase<3>::rloop)
+        .def("sigmoidalVectorInterpolation", &ClusterDynamicsBase<3>::sigmoidalVectorInterpolation)
+        .def("sigmoidalMatrixInterpolation", &ClusterDynamicsBase<3>::sigmoidalMatrixInterpolation)
+        .def("sigmoidalPlotVectorInterpolation", &ClusterDynamicsBase<3>::sigmoidalPlotVectorInterpolation)
+        .def_readonly("D", &ClusterDynamicsBase<3>::D)
+        .def_readonly("G", &ClusterDynamicsBase<3>::G)
+        .def_readonly("T", &ClusterDynamicsBase<3>::T)
+    ;
+    py::class_<ElasticDeformationBase<3>,std::shared_ptr<ElasticDeformationBase<3>>>(m,"ElasticDeformationBase")
+        .def_readonly("useElasticDeformationFEM", &ElasticDeformationBase<3>::useElasticDeformationFEM)
+        .def_readonly("inertiaReliefPenaltyFactor", &ElasticDeformationBase<3>::inertiaReliefPenaltyFactor)
+    ;
+
+    py::class_<DefectiveCrystalBase<3>,std::shared_ptr<DefectiveCrystalBase<3>>>(m,"DefectiveCrystalBase")
         .def(py::init<const std::string&>())
-        .def_property_readonly("mesh", [](const DislocationDynamicsBase<3>& base) -> const SimplicialMesh<3>&
+        .def_property_readonly("mesh", [](const DefectiveCrystalBase<3>& base) -> const SimplicialMesh<3>&
         {
             return base.mesh;
         }, py::return_value_policy::reference_internal)
-        .def_readonly("poly", &DislocationDynamicsBase<3>::poly)
-        .def_readonly("simulationParameters", &DislocationDynamicsBase<3>::simulationParameters)
+        .def_property_readonly("poly", [](const DefectiveCrystalBase<3>& base) -> const Polycrystal<3>&
+        {
+            return base.poly;
+        }, py::return_value_policy::reference_internal)
+        .def_readonly("activePhysics", &DefectiveCrystalBase<3>::activePhysics)
+        .def("hasPhysics", &DefectiveCrystalBase<3>::hasPhysics)
+        .def("periodicCoordinates", &DefectiveCrystalBase<3>::periodicCoordinates)
+        .def_readonly("periodicLatticeBasis", &DefectiveCrystalBase<3>::periodicLatticeBasis)
+        .def_readonly("periodicLatticeReciprocalBasis", &DefectiveCrystalBase<3>::periodicLatticeReciprocalBasis)
+        .def_readonly("periodicImageSize", &DefectiveCrystalBase<3>::periodicImageSize)
+        .def_readonly("periodicShifts", &DefectiveCrystalBase<3>::periodicShifts)
+        .def_readonly("dislocationDynamicsBase", &DefectiveCrystalBase<3>::dislocationDynamicsBase)
+        .def_readonly("clusterDynamicsBase", &DefectiveCrystalBase<3>::clusterDynamicsBase)
+        .def_readonly("elasticDeformationBase", &DefectiveCrystalBase<3>::elasticDeformationBase)
+        .def("dislocationDynamics", &DefectiveCrystalBase<3>::dislocationDynamics, py::return_value_policy::reference_internal)
+        .def("clusterDynamics", &DefectiveCrystalBase<3>::clusterDynamics, py::return_value_policy::reference_internal)
+        .def("elasticDeformation", &DefectiveCrystalBase<3>::elasticDeformation, py::return_value_policy::reference_internal)
+        .def_readonly("simulationParameters", &DefectiveCrystalBase<3>::simulationParameters)
     ;
     
     py::class_<MicrostructureBase<3>>(m,"MicrostructureBase")
@@ -379,7 +453,7 @@ PYBIND11_MODULE(pyMoDELib,m)
     ;
     
     py::class_<MicrostructureContainer<3>,MicrostructureBase<3>>(m,"MicrostructureContainer",py::multiple_inheritance())
-        .def(py::init<DislocationDynamicsBase<3>&>())
+        .def(py::init<DefectiveCrystalBase<3>&>(), py::keep_alive<1,2>())
     ;
     
     // LoopNode
@@ -429,7 +503,7 @@ PYBIND11_MODULE(pyMoDELib,m)
     py::class_<MeshedDislocationLoop
     /*      */ >(m,"MeshedDislocationLoop")
 //        .def(py::init<const VectorDim&,
-//             const DislocationDynamicsBase<3>&,
+//             const DefectiveCrystalBase<3>&,
 //             const GlidePlane<3>&,const std::vector<Eigen::Matrix<double,3,1>>&,
 //             const double&,const double&>())
         .def("solidAngle",&MeshedDislocationLoop::solidAngle)
@@ -451,29 +525,29 @@ PYBIND11_MODULE(pyMoDELib,m)
     py::class_<DislocationNetworkType
     /*      */,MicrostructureBase<3>
     /*      */,LoopNetwork<DislocationNetworkType>>(m,"DislocationNetwork")
-        .def(py::init<MicrostructureContainer<3>&>())
+        .def(py::init<MicrostructureContainer<3>&>(), py::keep_alive<1,2>())
         .def("networkLength",&DislocationNetworkType::networkLength)
     ;
     
     py::class_<DefectiveCrystal<3>
     /*      */,MicrostructureContainer<3>
     /*      */>(m,"DefectiveCrystal")
-        .def(py::init<DislocationDynamicsBase<3>&>())
-        .def("initializeConfiguration", static_cast<void (DefectiveCrystal<3>::*)(const DDconfigIO<3>&)>(&DefectiveCrystal<3>::initializeConfiguration))
+        .def(py::init<DefectiveCrystalBase<3>&>(), py::keep_alive<1,2>())
+        .def("initializeConfiguration", static_cast<void (DefectiveCrystal<3>::*)(const DefectiveCrystalConfigIO<3>&)>(&DefectiveCrystal<3>::initializeConfiguration))
         .def("dislocationNetwork", &DefectiveCrystal<3>::dislocationNetwork,pybind11::return_value_policy::reference)
         .def("runSingleStep",&DefectiveCrystal<3>::runSingleStep)
         .def("runSteps",&DefectiveCrystal<3>::runSteps)
     ;
 
-    py::class_<DDconfigIO<3>
-    /*      */>(m,"DDconfigIO")
-        .def(py::init<const std::string&>())
-        .def("read", &DDconfigIO<3>::read)
+    py::class_<DefectiveCrystalConfigIO<3>
+    /*      */>(m,"DefectiveCrystalConfigIO")
+        .def(py::init<const std::string&>(), py::arg("folderName")="config")
+        .def("read", &DefectiveCrystalConfigIO<3>::read)
     ;
     
     py::class_<MicrostructureGenerator
     /*      */>(m,"MicrostructureGenerator")
-        .def(py::init<DislocationDynamicsBase<3>&>())
+        .def(py::init<DefectiveCrystalBase<3>&>(), py::keep_alive<1,2>())
         .def_readonly("configIO", &MicrostructureGenerator::configIO)
         .def("addShearLoopDensity", &MicrostructureGenerator::addShearLoopDensity)
         .def("addShearLoopIndividual", &MicrostructureGenerator::addShearLoopIndividual)

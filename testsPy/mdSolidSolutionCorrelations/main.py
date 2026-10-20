@@ -209,7 +209,7 @@ def main() -> int:
     processInitialConfigurations()
 
     simulationDir = os.path.abspath(".")
-    ddBase = pyMoDELib.DislocationDynamicsBase(simulationDir)
+    ddBase = pyMoDELib.DefectiveCrystalBase(simulationDir)
 
     matFile = "inputFiles/FeCrAl_Fe.txt"
     absoluteTemp = 1

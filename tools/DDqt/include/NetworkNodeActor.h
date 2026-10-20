@@ -39,7 +39,7 @@
 #include <vtkFloatArray.h>
 #include <IDreader.h>
 //#include <PlanarPolygon.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 //#include <DDconfigVtkBase.h>
 
@@ -92,7 +92,7 @@ namespace model
         unsigned char nodeClr[4][3];
         
         NetworkNodeActor(vtkGenericOpenGLRenderWindow* const,vtkRenderer* const);
-        void updateConfiguration(const DDconfigIO<3>& configIO, const DislocationNetwork<3>* network=nullptr);
+        void updateConfiguration(const DefectiveCrystalConfigIO<3>& configIO, const DislocationNetwork<3>* network=nullptr);
         
         
     };

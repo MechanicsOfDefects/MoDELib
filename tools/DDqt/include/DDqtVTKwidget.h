@@ -24,8 +24,8 @@
 //#include <DDFieldWidget.h>
 #include <SimplicialMeshActor.h>
 #include <DefectiveCrystalActor.h>
-//#include <DDtraitsIO.h>
-#include <DislocationDynamicsBase.h>
+//#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <GlidePlaneFactory.h>
 #include <PeriodicGlidePlaneFactory.h>
 
@@ -56,7 +56,7 @@ private:
 
 public:
         
-    DislocationDynamicsBase<3> ddBase;
+    DefectiveCrystalBase<3> ddBase;
     QLabel* workingDirLabel;
     SimplicialMeshActor* meshActor;
     DefectiveCrystalActor* defectiveCrystalActor;

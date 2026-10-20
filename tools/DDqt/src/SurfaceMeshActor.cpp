@@ -1,4 +1,5 @@
 /* This file is part of MoDELib, distributed under GNU GPL v2. */
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <SurfaceMeshActor.h>
 #include <GlidePlaneFactory.h>
 #include <QGridLayout>
@@ -471,24 +472,27 @@ namespace model
                 referenceGeometry = SurfaceMeshGeometry::build(defectiveCrystal.ddBase.mesh, area, selectedFaceIDs());
             }
             std::vector<SurfaceMeshGeometry::Trace> traces;
-            for(const auto &entry : defectiveCrystal.ddBase.glidePlaneFactory.glidePlanes())
+            if(defectiveCrystal.ddBase.dislocationDynamicsBase)
             {
-                const auto plane = entry.second.lock();
-                if(!plane)
+                for(const auto &entry : defectiveCrystal.ddBase.dislocationDynamics().glidePlaneFactory.glidePlanes())
                 {
-                    continue;
-                }
-                SurfaceMeshGeometry::Trace trace{plane->P, plane->unitNormal, {}};
-                for(const auto &segment : plane->meshIntersections)
-                {
-                    for(const auto *face : segment->faces)
+                    const auto plane = entry.second.lock();
+                    if(!plane)
                     {
-                        trace.faces.insert(face->simplices().begin(), face->simplices().end());
+                        continue;
                     }
-                }
-                if(!trace.faces.empty())
-                {
-                    traces.push_back(std::move(trace));
+                    SurfaceMeshGeometry::Trace trace{plane->P, plane->unitNormal, {}};
+                    for(const auto &segment : plane->meshIntersections)
+                    {
+                        for(const auto *face : segment->faces)
+                        {
+                            trace.faces.insert(face->simplices().begin(), face->simplices().end());
+                        }
+                    }
+                    if(!trace.faces.empty())
+                    {
+                        traces.push_back(std::move(trace));
+                    }
                 }
             }
             geometry = referenceGeometry.split(traces);

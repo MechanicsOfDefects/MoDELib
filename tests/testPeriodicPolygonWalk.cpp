@@ -1,4 +1,5 @@
-#include <DislocationDynamicsBase.h>
+#include <DislocationDynamics/DislocationDynamicsBase.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -15,13 +16,13 @@ void require(bool condition, const char* message)
 
 struct OriginalNode {};
 
-void exercise(model::DislocationDynamicsBase<3>& base,
+void exercise(model::DefectiveCrystalBase<3>& base,
               const std::vector<Eigen::Vector2d>& vertices, double expectedArea, bool reverse=false)
 {
     const double length=base.mesh.xMax()[0]-base.mesh.xMin()[0];
     const auto& grain=base.poly.grains.begin()->second;
     const auto normal=grain->reciprocalLatticeDirection(Eigen::Vector3d::UnitZ());
-    auto plane=base.periodicGlidePlaneFactory.get(model::GlidePlaneKey<3>(Eigen::Vector3d::Zero(),normal));
+    auto plane=base.dislocationDynamics().periodicGlidePlaneFactory.get(model::GlidePlaneKey<3>(Eigen::Vector3d::Zero(),normal));
     std::vector<OriginalNode> nodes(vertices.size());
     std::vector<std::pair<Eigen::Vector3d,const OriginalNode* const>> polygon;
     for(size_t k=0; k<vertices.size(); ++k)
@@ -169,12 +170,12 @@ void exercise(model::DislocationDynamicsBase<3>& base,
 }
 
 // No polygon segment remains inside a fully enclosed cross-section.
-void exerciseEnclosure(model::DislocationDynamicsBase<3>& base,bool reverse)
+void exerciseEnclosure(model::DefectiveCrystalBase<3>& base,bool reverse)
 {
     using V=Eigen::Vector3d;
     const double length=base.mesh.xMax().x()-base.mesh.xMin().x();
     const auto grain=base.poly.grains.begin()->second;
-    const auto plane=base.periodicGlidePlaneFactory.get(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitZ())));
+    const auto plane=base.dislocationDynamics().periodicGlidePlaneFactory.get(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitZ())));
     for(int winding : {1,2})
     {
         std::vector<V> vertices;
@@ -219,12 +220,12 @@ void exerciseEnclosure(model::DislocationDynamicsBase<3>& base,bool reverse)
     }
 }
 
-void exercisePeriodicEnclosure(model::DislocationDynamicsBase<3>& base,bool reverse)
+void exercisePeriodicEnclosure(model::DefectiveCrystalBase<3>& base,bool reverse)
 {
     using V=Eigen::Vector3d;
     const double length=base.mesh.xMax().x()-base.mesh.xMin().x();
     const auto grain=base.poly.grains.begin()->second;
-    const auto plane=base.periodicGlidePlaneFactory.get(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V(1,0,3))));
+    const auto plane=base.dislocationDynamics().periodicGlidePlaneFactory.get(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V(1,0,3))));
     std::vector<V> vertices={V(-2,-.8,2.0/3),V(2,-.8,-2.0/3),V(2,.8,-2.0/3),V(-2,.8,2.0/3)};
     if(reverse)
     {
@@ -346,7 +347,7 @@ int main(int argc,char** argv)
             const bool periodic=rank>0;
             {
                 std::ofstream f(input/"DefectiveCrystal.txt");
-                f<<"physics=ElasticDeformation;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nEwaldLengthFactor=0;\n";
+                f<<"physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nEwaldLengthFactor=0;\n";
                 f<<"periodicImageSize="<<(rank==3 ? "0 0 0" : "0")<<";\n";
                 std::ofstream p(input/"polycrystal.txt");
                 const double length=200/std::sqrt(3.0);
@@ -358,7 +359,7 @@ int main(int argc,char** argv)
                 }
                 p<<";\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             for(bool reverse:{false,true})
             {
                 exercise(base,{{-.2,-.2},{.2,-.2},{.2,.2},{-.2,.2}},.16,reverse);
@@ -466,7 +467,7 @@ int main(int argc,char** argv)
              <<length<<" 0 0 0 "<<length<<" 0 0 0 "<<length<<";\nX0=0 0 0;\nperiodicFaceIDs=;\n";
         }
         {
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::PlanarMeshFace<3>* left=nullptr;
             model::PlanarMeshFace<3>* right=nullptr;
             for(const auto& region : base.mesh.regions())
@@ -506,10 +507,10 @@ int main(int argc,char** argv)
         }
         {
             std::ofstream f(input/"DefectiveCrystal.txt");
-            f<<"physics=ElasticDeformation;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
+            f<<"physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
         }
         {
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             for(bool reverse : {false,true})
             {
                 exercise(base,{{-.4,-.1},{-.2,-.1},{-.2,.1},{-.4,.1}},.04,reverse);

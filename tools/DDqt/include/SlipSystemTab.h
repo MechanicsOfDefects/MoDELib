@@ -17,7 +17,7 @@
 #include <QPushButton>
 
 
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <SlipSystem.h>
 
 namespace model

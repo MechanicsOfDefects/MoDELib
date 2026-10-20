@@ -1,5 +1,5 @@
 #include <DislocationNetwork.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <CrossSlipModels.h>
 #include <filesystem>
 #include <fstream>
@@ -19,7 +19,7 @@ void require(bool condition,const char* message)
 }
 // Reference algorithms from before the cross-slip allocation optimizations.
 std::pair<bool,int> legacyBase(const Network::NetworkLinkType& link,
-                              const model::AthermalCrossSlipModel<Network>& model,
+                              const model::AthermalCrossSlipModel<model::TypeTraits<Network>::dim>& model,
                               const bool enforceRemeshLength=true)
 {
         if(   !link.isBoundarySegment()
@@ -40,7 +40,7 @@ std::pair<bool,int> legacyBase(const Network::NetworkLinkType& link,
         return std::make_pair(false,-1);
     }
 std::pair<bool,std::pair<int,int>> legacySelection(const Network::NetworkLinkType& link,
-                                                 const model::AthermalCrossSlipModel<Network>& model)
+                                                 const model::AthermalCrossSlipModel<model::TypeTraits<Network>::dim>& model)
 {
 
         const auto isBaseCSLink(legacyBase(link,model));
@@ -83,7 +83,7 @@ std::pair<bool,std::pair<int,int>> legacySelection(const Network::NetworkLinkTyp
 void verify(Network& network)
 {
     network.updateGeometry();
-    model::AthermalCrossSlipModel<Network> model(network.ddBase.simulationParameters.traitsIO);
+    model::AthermalCrossSlipModel<model::TypeTraits<Network>::dim> model(network.ddBase.simulationParameters.traitsIO);
     for(const auto& entry : network.loops())
     {
         const auto loop=entry.second.lock();
@@ -146,8 +146,8 @@ int main(int argc, char** argv)
 #ifdef _OPENMP
             omp_set_num_threads(12);
 #endif
-            model::DislocationDynamicsBase<3> base(argv[2]);
-            model::DDconfigIO<3> saved(base.simulationParameters.traitsIO.evlFolder);
+            model::DefectiveCrystalBase<3> base(argv[2]);
+            model::DefectiveCrystalConfigIO<3> saved(base.simulationParameters.traitsIO.configFolder);
             saved.read(base.simulationParameters.runID);
             model::DefectiveCrystal<3> crystal(base);
             crystal.initializeConfiguration(saved);
@@ -165,7 +165,7 @@ int main(int argc, char** argv)
 
         std::filesystem::copy_file(root / "Library/Meshes/bicrystal_48.msh", input / "mesh.msh");
         std::filesystem::copy_file(root / "Library/DislocationDynamics/DD.txt", input / "DD.txt");
-        std::filesystem::create_directories(folder / "evl");
+        std::filesystem::create_directories(folder / "config");
         const double length=3671.9477120460206;
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
@@ -175,10 +175,10 @@ int main(int argc, char** argv)
               << "C2G2=0.8 0 0.6 0 1 0 -0.6 0 0.8;\nF=" << length << " 0 0 0 " << length << " 0 0 0 " << length
               << ";\nX0=0 0 0;\nperiodicFaceIDs=-1;\n";
         }
-        model::DislocationDynamicsBase<3> base(folder.string());
+        model::DefectiveCrystalBase<3> base(folder.string());
         model::MicrostructureContainer<3> container(base);
         model::DislocationNetwork<3> network(container);
-        model::DDconfigIO<3> saved(folder.string());
+        model::DefectiveCrystalConfigIO<3> saved(folder.string());
         std::ifstream stream(argc==3 ? std::filesystem::path(argv[2]) : root/"tests/data/bicrystalSharedConstraints1915.txt");
         require(bool(stream),"Missing bicrystal junction regression fixture");
         saved.readTxtStream(stream);

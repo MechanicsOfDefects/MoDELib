@@ -10,11 +10,13 @@
 
 #include <DislocationNetworkRemesh.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    DislocationNetworkRemesh<DislocationNetworkType>::DislocationNetworkRemesh(DislocationNetworkType& DN_in):
+    template <int dim>
+    DislocationNetworkRemesh<dim>::DislocationNetworkRemesh(DislocationNetwork<dim>& DN_in):
     /* init */ DN(DN_in)
     /* init */,Lmax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("Lmax",true))
     /* init */,Lmin(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("Lmin",true))
@@ -30,8 +32,8 @@ namespace model
     }
     
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::remesh(const long int &runID)
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::remesh(const long int &runID)
     { /*! Performs remeshByContraction and then remeshByExpansion.
        * This order guarantees that 2-vertex NetworkComponents are expanded.
        */
@@ -50,8 +52,8 @@ namespace model
         }
     }
 
-template <typename DislocationNetworkType>
-void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
+template <int dim>
+void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
 {
         std::cout << "        Remeshing network: removeCollapsedLoops... " << std::flush;
 //        std::cout<<"Removing collapsed via climb... " << std::flush;
@@ -79,10 +81,10 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
         std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
     }
     
-    template <typename DislocationNetworkType>
-    size_t DislocationNetworkRemesh<DislocationNetworkType>::simplifyPhysicalBoundaryChains()
+    template <int dim>
+    size_t DislocationNetworkRemesh<dim>::simplifyPhysicalBoundaryChains()
     {
-        using LoopNode=typename DislocationNetworkType::LoopNodeType;
+        using LoopNode=typename DislocationNetwork<dim>::LoopNodeType;
         size_t removed=0;
         bool changed=true;
         while(changed)
@@ -168,15 +170,15 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
     }
 
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::remeshByRemoval()
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::remeshByRemoval()
     {
         const auto t0 = std::chrono::system_clock::now();
         std::cout << "        Remeshing network: removing... " << std::flush;
         simplifyPhysicalBoundaryChains();
         DN.danglingBoundaryLoopNodes.clear();
         
-        std::vector<std::shared_ptr<typename DislocationNetworkType::LoopNodeType>> tempLoopNodes;
+        std::vector<std::shared_ptr<typename DislocationNetwork<dim>::LoopNodeType>> tempLoopNodes;
         for (const auto &loopNode : DN.loopNodes())
         {
             tempLoopNodes.push_back(loopNode.second.lock());
@@ -187,7 +189,7 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
         //IF that happens the corresponding boundary node should be classified as a dangling loop node
         //Also believe that this is only required here as nothing else can change the configuration of the loops near the boundary
         size_t Nremoved = 0;
-        std::set<const typename DislocationNetworkType::LoopNodeType*> removedLoopNodes;
+        std::set<const typename DislocationNetwork<dim>::LoopNodeType*> removedLoopNodes;
 
         // std::deque<size_t> toBeRemoved;
         for (const auto &loopNode : DN.loopNodes())
@@ -329,8 +331,8 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
     }
     
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::remeshByExpansion()
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::remeshByExpansion()
     {
         const auto t0 = std::chrono::system_clock::now();
         std::cout << "        Remeshing network: expanding... " << std::flush;
@@ -390,13 +392,13 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
     }
     
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::contractBoundaryNodes() //This function contracts boundary nodes if they are at the same position and share atleast one same neightbors
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::contractBoundaryNodes() //This function contracts boundary nodes if they are at the same position and share atleast one same neightbors
     {
         std::cout << "Contracting BoundaryNodes... " << std::flush;
         const auto t0 = std::chrono::system_clock::now();
         
-        typedef std::pair<std::shared_ptr<typename DislocationNetworkType::NetworkNodeType>, std::shared_ptr<typename DislocationNetworkType::NetworkNodeType>> NetNodePairType;
+        typedef std::pair<std::shared_ptr<typename DislocationNetwork<dim>::NetworkNodeType>, std::shared_ptr<typename DislocationNetwork<dim>::NetworkNodeType>> NetNodePairType;
         typedef std::set<NetNodePairType> BndSetType;
         
         std::map<NetNodePairType, BndSetType> bndNodesContractionMap;
@@ -407,7 +409,7 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
             {
                 //                std::cout<<"NetNode is "<<netNode.second.lock()->tag()<<std::endl;
                 
-                std::set<std::shared_ptr<typename DislocationNetworkType::NetworkNodeType>> internalNodes; // used to be regular ptrs
+                std::set<std::shared_ptr<typename DislocationNetwork<dim>::NetworkNodeType>> internalNodes; // used to be regular ptrs
                 for (const auto &loopNode : netNode.second.lock()->loopNodes())
                 {
                     internalNodes.insert(loopNode->periodicPrev()->networkNode);
@@ -423,7 +425,7 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
                     
                     if (bndNodesContractionMap.find(key) == bndNodesContractionMap.end())
                     { // key not found
-                        std::map<std::set<const PlanarMeshFace<dim> *>, std::set<typename DislocationNetworkType::NetworkNodeType *>> bndNodeMap;
+                        std::map<std::set<const PlanarMeshFace<dim> *>, std::set<typename DislocationNetwork<dim>::NetworkNodeType *>> bndNodeMap;
                         
                         for (const auto &loopNode : (*internalNodes.begin())->loopNodes())
                         {
@@ -491,8 +493,8 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
     }
     
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    bool DislocationNetworkRemesh<DislocationNetworkType>::zeroChordCandidate(
+    template <int dim>
+    bool DislocationNetworkRemesh<dim>::zeroChordCandidate(
         const std::shared_ptr<typename TraitsType::NetworkLinkType>& link) const
     {
         if(!link || link->hasZeroBurgers())
@@ -529,8 +531,8 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
                 DN.ddBase.simulationParameters.dt<FLT_EPSILON;
     }
 
-    template <typename DislocationNetworkType>
-    size_t DislocationNetworkRemesh<DislocationNetworkType>::contractZeroChordCandidates(
+    template <int dim>
+    size_t DislocationNetworkRemesh<dim>::contractZeroChordCandidates(
         const std::vector<std::pair<size_t,size_t>>& candidates)
     {
         size_t contracted=0;
@@ -548,8 +550,8 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
         return contracted;
     }
 
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::contract0chordSegments()
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::contract0chordSegments()
     {
         std::cout<<"        Contracting zero-chord segments... "<<std::flush;
         const auto t0=std::chrono::system_clock::now();
@@ -573,8 +575,8 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
                  <<" sec]"<<defaultColor<<std::endl;
     }
 
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::remove0AreaLoopAcrossBnd()
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::remove0AreaLoopAcrossBnd()
     {
         std::cout << "        Removing zero-area loops across boundary... " << std::flush;
         const auto t0 = std::chrono::system_clock::now();
@@ -619,13 +621,13 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
     }
     
 //    /**************************************************************************/
-//    template <typename DislocationNetworkType>
-//    double DislocationNetworkRemesh<DislocationNetworkType>::minMeshSize(const SimplicialMesh<dim> &mesh)
+//    template <int dim>
+//    double DislocationNetworkRemesh<dim>::minMeshSize(const SimplicialMesh<dim> &mesh)
 //    {
 //        return std::min(mesh.xMax(0) - mesh.xMin(0), std::min(mesh.xMax(1) - mesh.xMin(1), mesh.xMax(2) - mesh.xMin(2)));
 //    }
     
-    template class DislocationNetworkRemesh<DislocationNetwork<3>>;
+    template class DislocationNetworkRemesh<3>;
 
     
 } // namespace model

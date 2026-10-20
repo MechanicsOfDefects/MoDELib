@@ -20,7 +20,7 @@
 #include <TerminalColors.h> // defines mode::cout
 #include <PolycrystallineMaterialBase.h>
 #include <StaticID.h>
-#include <DDtraitsIO.h>
+#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
 
 namespace model
 {
@@ -33,7 +33,7 @@ namespace model
         const int stochasticForceSeed;
         const int seed;
 
-        StochasticForceGenerator(const DDtraitsIO& traitsIO);
+        StochasticForceGenerator(const DefectiveCrystalTraitsIO& traitsIO);
         double stochasticVelocity(const double& kB,
                                const double& T,
                                const double& B,

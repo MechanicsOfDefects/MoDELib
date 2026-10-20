@@ -1,7 +1,8 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <MicrostructureGenerator.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -107,7 +108,7 @@ int main(int argc, char** argv)
             std::ofstream outputDD(input/"DD.txt");
             outputDD<<contents;
         }
-        std::filesystem::create_directories(folder / "evl");
+        std::filesystem::create_directories(folder / "config");
         model::SimplicialMesh<3> mesh((input/"mesh.msh").string(),Eigen::Matrix3d::Identity(),Eigen::Vector3d::Zero(),{-1});
         std::array<int,3> seeds{-1,-1,-1};
         for(const auto& region : mesh.regions())
@@ -145,7 +146,7 @@ int main(int argc, char** argv)
                 }
                 p<<";\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::MicrostructureContainer<3> container(base);
             using Network=model::DislocationNetwork<3>;
             using V=Eigen::Vector3d;
@@ -166,7 +167,7 @@ int main(int argc, char** argv)
             const auto css=grain->slipSystems().at(other);
             const V b=slip->s.cartesian();
             const V center=scenario==4 ? V::Zero().eval() : V(length*V(-0.5,periodic ? 0.49 : 0.0,0));
-            const auto plane=base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(center,slip->n));
+            const auto plane=base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(center,slip->n));
             const long spacing=std::max(1L,static_cast<long>(20.0/css->n.planeSpacing()));
             const long height=std::lround(double(css->n.closestPlaneIndexOfPoint(center))/spacing)*spacing;
             model::PlanePlaneIntersection<3> intersection(plane->P,plane->unitNormal,height*css->n.planeSpacing()*css->unitNormal,css->unitNormal);
@@ -204,7 +205,7 @@ int main(int argc, char** argv)
                 polygon[2]+=2.0*css->n.planeSpacing()/css->unitNormal.dot(side)*side;
             }
             model::MicrostructureGenerator generator(base);
-            require(generator.insertJunctionLoop(polygon,base.periodicGlidePlaneFactory.get(plane->key),b,plane->unitNormal,plane->P,1,model::DislocationLoopIO<3>::GLISSILELOOP),"Parent insertion failed");
+            require(generator.insertJunctionLoop(polygon,base.dislocationDynamics().periodicGlidePlaneFactory.get(plane->key),b,plane->unitNormal,plane->P,1,model::DislocationLoopIO<3>::GLISSILELOOP),"Parent insertion failed");
             network.initializeConfiguration(generator.config(),std::ofstream(),std::ofstream());
 
             const auto parent=network.loops().begin()->second.lock();
@@ -225,7 +226,7 @@ int main(int argc, char** argv)
             // alignment, or locks the displaced endpoint against that motion.
             const auto endpoint=branch.back()->networkNode;
             const V normal=scenario==3 ? css->unitNormal : plane->unitNormal;
-            const auto extraPlane=base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(endpoint->get_P(),grain->reciprocalLatticeDirection(normal)));
+            const auto extraPlane=base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(endpoint->get_P(),grain->reciprocalLatticeDirection(normal)));
             const auto extra=network.loops().create(b,extraPlane);
             V u=normal.cross(along).normalized();
             if(scenario==4 && u.x()>0.0)
@@ -271,7 +272,7 @@ int main(int argc, char** argv)
                         point.pkForce=css->unitNormal.cross(b.normalized());
                     }
                 }
-                std::deque<model::CrossSlipBranch<Network::LoopNodeType>> discovered;
+                std::deque<model::CrossSlipBranch<model::TypeTraits<Network>::dim>> discovered;
                 parent->crossSlipBranches(discovered);
                 bool found=false;
                 for(const auto& candidate : discovered)

@@ -8,6 +8,7 @@
 #ifndef model_DislocationCrossSlip_cpp_
 #define model_DislocationCrossSlip_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <numbers>
 #include <memory>
 #include <chrono>
@@ -19,23 +20,25 @@
 #include <CrossSlipModels.h>
 #include <OneSidedMotion.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
-    template <typename DislocationNetworkType>
-    std::shared_ptr<BaseCrossSlipModel<DislocationNetworkType>> DislocationCrossSlip<DislocationNetworkType>::getModel(const PolycrystallineMaterialBase& material,const DDtraitsIO& traitsIO)
+    template <int dim>
+    std::shared_ptr<BaseCrossSlipModel<dim>> DislocationCrossSlip<dim>::getModel(const PolycrystallineMaterialBase& material,const DefectiveCrystalTraitsIO& traitsIO)
     {
         const int crossSlipModel(TextFileParser(traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("crossSlipModel",true));
         switch (crossSlipModel)
         {
             case 0:
             {// no cross-slip
-                return std::shared_ptr<BaseCrossSlipModel<DislocationNetworkType>>(nullptr);
+                return std::shared_ptr<BaseCrossSlipModel<dim>>(nullptr);
                 break;
             }
                 
             case 1:
             {// deterministic cross-slip model based on max glide PK force
-                return std::shared_ptr<BaseCrossSlipModel<DislocationNetworkType>>(new AthermalCrossSlipModel<DislocationNetworkType>(traitsIO));
+                return std::shared_ptr<BaseCrossSlipModel<dim>>(new AthermalCrossSlipModel<dim>(traitsIO));
                 break;
             }
                 
@@ -43,12 +46,12 @@ namespace model
             {
                 if(material.crystalStructure=="HEX")
                 {
-                    return std::shared_ptr<BaseCrossSlipModel<DislocationNetworkType>>(new EscaigCrossSlipModelHEX<DislocationNetworkType>(material,traitsIO));
+                    return std::shared_ptr<BaseCrossSlipModel<dim>>(new EscaigCrossSlipModelHEX<dim>(material,traitsIO));
                 }
                 else
                 {
                     throw std::runtime_error("Unknown cross-slip model "+std::to_string(crossSlipModel)+" for crystal structure "+material.crystalStructure);
-                    return std::shared_ptr<BaseCrossSlipModel<DislocationNetworkType>>(nullptr);
+                    return std::shared_ptr<BaseCrossSlipModel<dim>>(nullptr);
                 }
                 break;
             }
@@ -56,21 +59,21 @@ namespace model
             default:
             {
                 throw std::runtime_error("Unknown cross-slip model "+std::to_string(crossSlipModel));
-                return std::shared_ptr<BaseCrossSlipModel<DislocationNetworkType>>(nullptr);
+                return std::shared_ptr<BaseCrossSlipModel<dim>>(nullptr);
                 break;
             }
         }
     }
 
-    template <typename DislocationNetworkType>
-    DislocationCrossSlip<DislocationNetworkType>::DislocationCrossSlip(DislocationNetworkType& DN_in) :
+    template <int dim>
+    DislocationCrossSlip<dim>::DislocationCrossSlip(DislocationNetwork<dim>& DN_in) :
     /* init */ DN(DN_in)
     /* init */,verboseCrossSlip(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseCrossSlip",true))
     {
     }
 
-    template <typename DislocationNetworkType>
-    void  DislocationCrossSlip<DislocationNetworkType>::findCrossSlipSegments(const double dt)
+    template <int dim>
+    void  DislocationCrossSlip<dim>::findCrossSlipSegments(const double dt)
     {
         
         if(DN.crossSlipModel)
@@ -87,8 +90,8 @@ namespace model
         }
     }
 
-    template <typename DislocationNetworkType>
-    void DislocationCrossSlip<DislocationNetworkType>::execute()
+    template <int dim>
+    void DislocationCrossSlip<dim>::execute()
     {
         if(!DN.crossSlipModel || !DN.glideSolver || DN.isClimbStep())
         {
@@ -348,7 +351,7 @@ namespace model
             const auto& system=parent->grain.slipSystems().at(branch.second);
             const auto anchor=branch.first.back();
             const VectorDim originShift=anchor->networkNode->get_P()-anchor->get_P();
-            const auto plane=DN.ddBase.glidePlaneFactory.getFromKey(
+            const auto plane=DN.ddBase.dislocationDynamics().glidePlaneFactory.getFromKey(
                 GlidePlaneKey<dim>(anchor->networkNode->get_P(),system->n));
             const auto seed=DN.loops().create(system->s.cartesian(),plane);
             std::deque<std::shared_ptr<LoopNodeType>> nodes;
@@ -451,6 +454,6 @@ namespace model
         csNodes.clear();
     }
 
-    template class DislocationCrossSlip<DislocationNetwork<3>>;
+    template class DislocationCrossSlip<3>;
 }
 #endif

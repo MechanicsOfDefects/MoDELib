@@ -1,6 +1,6 @@
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 
         std::filesystem::copy_file(root / "Library/Meshes/bicrystal_48.msh", input / "mesh.msh");
         std::filesystem::copy_file(root / "Library/DislocationDynamics/DD.txt", input / "DD.txt");
-        std::filesystem::create_directories(folder / "evl");
+        std::filesystem::create_directories(folder / "config");
         const double length=3671.9477120460206;
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
@@ -54,10 +54,10 @@ int main(int argc, char** argv)
             output<<contents;
         }
 
-        model::DislocationDynamicsBase<3> base(folder.string());
+        model::DefectiveCrystalBase<3> base(folder.string());
         model::MicrostructureContainer<3> container(base);
         model::DislocationNetwork<3> network(container);
-        model::DDconfigIO<3> saved(folder.string());
+        model::DefectiveCrystalConfigIO<3> saved(folder.string());
         std::ifstream stream(root/"tests/data/bicrystalBoundary621.txt");
         require(bool(stream),"Missing bicrystal junction regression fixture");
         saved.readTxtStream(stream);

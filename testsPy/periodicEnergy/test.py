@@ -51,13 +51,13 @@ if compute:
                 for k in range(0,len(X)):
                     x=X[k]
                     os.system('rm -r F/*.*')
-                    os.system('rm -r evl/*.*')
+                    os.system('rm -r config/*.*')
                     setInputVariable(microstrucureFileName,'glideSteps',str(x))
                     os.system('../../build/tools/MicrostructureGenerator/microstructureGenerator '+ curDir)
                     os.system('../../build/tools/DDomp/DDomp '+ curDir)
                     F,Flabels=readFfile('./F')
                     E[k]=getFarray(F,Flabels,'dislocation elastic energy [mu b^3]')
-                    aux =readAUXtxt('evl/ddAux_0')
+                    aux =readAUXtxt('config/ddAux_0')
                     S11[k]=np.mean(aux.gaussPoints[:,10])
                     S12[k]=np.mean(aux.gaussPoints[:,11])
                     S13[k]=np.mean(aux.gaussPoints[:,12])

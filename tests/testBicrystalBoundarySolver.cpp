@@ -1,7 +1,7 @@
 #include <MicrostructureGenerator.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 
         std::filesystem::copy_file(root / "Library/Meshes/bicrystal_48.msh", input / "mesh.msh");
         std::filesystem::copy_file(root / "Library/DislocationDynamics/DD.txt", input / "DD.txt");
-        std::filesystem::create_directories(folder / "evl");
+        std::filesystem::create_directories(folder / "config");
         const std::string mode=argc==3 ? argv[2] : "full";
         const bool partial=mode=="partial";
         const bool physicalOnly=mode=="physical";
@@ -70,7 +70,7 @@ int main(int argc, char** argv)
               << "C2G2=0.8 0 0.6 0 1 0 -0.6 0 0.8;\nF=" << length << " 0 0 0 " << length << " 0 0 0 " << length
               << ";\nX0=0 0 0;\nperiodicFaceIDs=" << faceIDs << ";\n";
         }
-        model::DislocationDynamicsBase<3> base(folder.string());
+        model::DefectiveCrystalBase<3> base(folder.string());
         model::MicrostructureGenerator generator(base);
         model::PrismaticLoopIndividualSpecification spec;
         spec.slipSystemIDs={0};
@@ -111,7 +111,7 @@ int main(int argc, char** argv)
         using V=Eigen::Vector3d;
         if(argc==3 && !partial && !physicalOnly)
         {
-            model::DDconfigIO<3> saved(folder.string());
+            model::DefectiveCrystalConfigIO<3> saved(folder.string());
             std::ifstream stream(argv[2]);
             require(bool(stream),"Cannot read saved configuration");
             saved.readTxtStream(stream);
@@ -151,7 +151,7 @@ int main(int argc, char** argv)
         }
         require(physicalOnly || sharedPhysical>0,"No shared physical boundary node");
         require(physicalOnly ? periodic==0 : periodic>0,"Unexpected same-grain periodic crossing count");
-        require(base.isPeriodicDomain==(!partial && !physicalOnly),"Unexpected global domain flag in regression");
+        require(base.periodicLatticeBasis.cols()==(physicalOnly ? 0 : (partial ? 1 : 3)),"Incorrect active periodic rank");
         for(const auto& entry : network.networkLinks())
         {
             const auto segment=entry.second.lock();

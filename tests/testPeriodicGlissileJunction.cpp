@@ -1,6 +1,7 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -42,7 +43,7 @@ int main(int argc,char** argv)
         const auto input=folder/"inputFiles";
         std::filesystem::create_directories(input);
         std::filesystem::create_directories(folder/"F");
-        std::filesystem::create_directories(folder/"evl");
+        std::filesystem::create_directories(folder/"config");
         std::filesystem::copy_file(root/"Library/Materials/W.txt",input/"W.txt");
         std::filesystem::copy_file(root/"Library/DislocationDynamics/DD.txt",input/"DD.txt");
         std::filesystem::copy_file(root/"Library/Meshes/unitCube24.msh",input/"mesh.msh");
@@ -91,7 +92,7 @@ int main(int argc,char** argv)
                 }
                 p<<";\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
+            model::DefectiveCrystalBase<3> base(folder.string());
             model::MicrostructureContainer<3> container(base);
             Network network(container);
             const auto grain=base.poly.grain(1);
@@ -100,7 +101,7 @@ int main(int argc,char** argv)
             const V side=parentNormal.cross(direction).normalized();
             const auto planeAt=[&](const V& point)
             {
-                return base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(point,grain->reciprocalLatticeDirection(parentNormal)));
+                return base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(point,grain->reciprocalLatticeDirection(parentNormal)));
             };
             const auto plane=planeAt(V::Zero());
             V burgers=V::Zero();

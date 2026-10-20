@@ -1,6 +1,7 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationNetwork.h>
-#include <MicrostructureContainer.h>
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -70,14 +71,14 @@ int main(int argc, char** argv)
                 std::ofstream p(input/"polycrystal.txt");
                 p<<std::setprecision(17)<<"materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\nF="<<length<<" 0 0 0 "<<length<<" 0 0 0 "<<length<<";\nX0=0 0 0;\nperiodicFaceIDs="<<seeds[0]<<";\n";
             }
-            model::DislocationDynamicsBase<3> base(folder.string());
-            require(!base.isPeriodicDomain,"Expected partially periodic domain");
+            model::DefectiveCrystalBase<3> base(folder.string());
+            require(base.periodicLatticeBasis.cols()==1,"Incorrect active periodic rank");
             model::MicrostructureContainer<3> container(base);
             using Network=model::DislocationNetwork<3>;
             using V=Eigen::Vector3d;
             Network network(container);
             const auto grain=base.poly.grain(1);
-            const auto plane=base.glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitZ())));
+            const auto plane=base.dislocationDynamics().glidePlaneFactory.getFromKey(model::GlidePlaneKey<3>(V::Zero(),grain->reciprocalLatticeDirection(V::UnitZ())));
             const V burgers=2.0/std::sqrt(3.0)*V::UnitX();
 
             if(scenario>=4)

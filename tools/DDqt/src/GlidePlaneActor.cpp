@@ -9,6 +9,8 @@
 #ifndef model_GlidePlaneActor_cpp_
 #define model_GlidePlaneActor_cpp_
 
+#include <DislocationNetwork.h>
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <numbers>
 #include <vtkLine.h>
 #include <vtkPlanes.h>
@@ -272,7 +274,7 @@ namespace model
                 
                 if(planeNoise)
                 {
-                    for(const auto& weakGlidePlane : dislocationNetwork->ddBase.glidePlaneFactory.glidePlanes())
+                    for(const auto& weakGlidePlane : dislocationNetwork->ddBase.dislocationDynamics().glidePlaneFactory.glidePlanes())
                     {
                         if(!weakGlidePlane.second.expired())
                         {
@@ -489,7 +491,7 @@ void GlidePlaneActor::computeStackingFaults()
             vtkSmartPointer<vtkPoints> glidePlanePoints = vtkSmartPointer<vtkPoints>::New();
             vtkSmartPointer<vtkCellArray> glidePlaneCells(vtkSmartPointer<vtkCellArray>::New());
             size_t pointIDs(0);
-            for(const auto& weakGlidePlane : dislocationNetwork->ddBase.glidePlaneFactory.glidePlanes())
+            for(const auto& weakGlidePlane : dislocationNetwork->ddBase.dislocationDynamics().glidePlaneFactory.glidePlanes())
             {
                 if(!weakGlidePlane.second.expired())
                 {

@@ -12,17 +12,19 @@
 
 #include <DislocationVelocitySolverBase.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
     
-    template <typename DislocationNetworkType>
-    DislocationVelocitySolverBase<DislocationNetworkType>::DislocationVelocitySolverBase(const DislocationNetworkType& DN_in) :
+    template <int dim>
+    DislocationVelocitySolverBase<dim>::DislocationVelocitySolverBase(const DislocationNetwork<dim>& DN_in) :
     /* init */ DN(DN_in)
     {
         
     }
     
-    template struct DislocationVelocitySolverBase<DislocationNetwork<3>>;
+    template struct DislocationVelocitySolverBase<3>;
 
 }
 #endif

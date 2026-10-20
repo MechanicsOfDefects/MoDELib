@@ -15,8 +15,8 @@
 namespace model
 {
 
-    template <typename DislocationNetworkType>
-    BaseCrossSlipModel<DislocationNetworkType>::BaseCrossSlipModel(const DDtraitsIO& traitsIO) :
+    template <int dim>
+    BaseCrossSlipModel<dim>::BaseCrossSlipModel(const DefectiveCrystalTraitsIO& traitsIO) :
     /* init */ crossSlipDeg(TextFileParser(traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("crossSlipAngle_deg",true))
     /* init */,sinCrossSlip(std::sin(crossSlipDeg*std::numbers::pi/180.0))
     {
@@ -28,8 +28,8 @@ namespace model
 
     }
 
-    template <typename DislocationNetworkType>
-    std::pair<bool,int> BaseCrossSlipModel<DislocationNetworkType>::isBaseCrossSlipLink(const NetworkLinkType& link,const bool enforceRemeshLength) const
+    template <int dim>
+    std::pair<bool,int> BaseCrossSlipModel<dim>::isBaseCrossSlipLink(const NetworkLinkType& link,const bool enforceRemeshLength) const
     {
         if(   !link.isBoundarySegment()
            && !link.isGrainBoundarySegment()
@@ -60,15 +60,15 @@ namespace model
         return std::make_pair(false,-1);
     }
 
-    template <typename DislocationNetworkType>
-    AthermalCrossSlipModel<DislocationNetworkType>::AthermalCrossSlipModel(const DDtraitsIO& traitsIO) :
-    /* init */ BaseCrossSlipModel<DislocationNetworkType>(traitsIO)
+    template <int dim>
+    AthermalCrossSlipModel<dim>::AthermalCrossSlipModel(const DefectiveCrystalTraitsIO& traitsIO) :
+    /* init */ BaseCrossSlipModel<dim>(traitsIO)
     {
         std::cout<<greenBoldColor<<"Creating AthermalCrossSlipModel"<<defaultColor<<std::endl;
     }
 
-    template <typename DislocationNetworkType>
-    std::pair<bool,std::pair<int,int>> AthermalCrossSlipModel<DislocationNetworkType>::isCrossSlipLink(const NetworkLinkType& link)
+    template <int dim>
+    std::pair<bool,std::pair<int,int>> AthermalCrossSlipModel<dim>::isCrossSlipLink(const NetworkLinkType& link)
     {
 
         const auto isBaseCSLink(this->isBaseCrossSlipLink(link));
@@ -113,8 +113,8 @@ namespace model
         return std::make_pair(false,std::make_pair(-1,-1));
     }
 
-    template <typename DislocationNetworkType>
-    void AthermalCrossSlipModel<DislocationNetworkType>::addToCrossSlip(const NetworkLinkType& link,
+    template <int dim>
+    void AthermalCrossSlipModel<dim>::addToCrossSlip(const NetworkLinkType& link,
                                                                         CrossSlipContainerType& crossSlipDeq)
     {
         const auto isCSLink(isCrossSlipLink(link));
@@ -128,9 +128,9 @@ namespace model
     }
 
 //// Added for FCC
-//template <typename DislocationNetworkType>
-//EscaigCrossSlipModelFCC<DislocationNetworkType>::EscaigCrossSlipModelFCC(const PolycrystallineMaterialBase& material,const DDtraitsIO& traitsIO) :
-///* init */ BaseCrossSlipModel<DislocationNetworkType>(traitsIO)
+//template <int dim>
+//EscaigCrossSlipModelFCC<dim>::EscaigCrossSlipModelFCC(const PolycrystallineMaterialBase& material,const DefectiveCrystalTraitsIO& traitsIO) :
+///* init */ BaseCrossSlipModel<dim>(traitsIO)
 ///* init */,gen(rd())
 ///* init */,dist(0.0,1.0)
 ///* init */,kB_DD(TextFileParser(material.materialFile).readScalar<double>("kB_DD",true) ) // /material.b_SI
@@ -145,8 +145,8 @@ namespace model
 //}
 //
 //// Added for FCC
-//template <typename DislocationNetworkType>
-//double EscaigCrossSlipModelFCC<DislocationNetworkType>::crossSlipRateKernel(const int& k,const NetworkLinkType& link,const SlipSystem& css,
+//template <int dim>
+//double EscaigCrossSlipModelFCC<dim>::crossSlipRateKernel(const int& k,const NetworkLinkType& link,const SlipSystem& css,
 //                                                                            const double& w,
 //                                                                            const double& L,
 //                                                                            const double& dE,
@@ -165,8 +165,8 @@ namespace model
 //}
 //
 //// Added for FCC
-//template <typename DislocationNetworkType>
-//std::pair<bool,std::pair<int,int>> EscaigCrossSlipModelFCC<DislocationNetworkType>::isCrossSlipLink(const NetworkLinkType& link)
+//template <int dim>
+//std::pair<bool,std::pair<int,int>> EscaigCrossSlipModelFCC<dim>::isCrossSlipLink(const NetworkLinkType& link)
 //{
 //
 //    const auto isBaseCSLink(this->isBaseCrossSlipLink(link));
@@ -184,7 +184,7 @@ namespace model
 //                {
 //
 //                    double csRate(0.0);
-//                    NetworkLinkType::QuadratureDynamicType::integrate(link.quadraturePoints().size(),this,csRate,&EscaigCrossSlipModelFCC<DislocationNetworkType>::crossSlipRateKernel,link,*slipSystem,
+//                    NetworkLinkType::QuadratureDynamicType::integrate(link.quadraturePoints().size(),this,csRate,&EscaigCrossSlipModelFCC<dim>::crossSlipRateKernel,link,*slipSystem,
 //                                                                          omegaA,lengthC,Ea,activeVol);
 //
 //                    const double csProb(1.0-std::exp(-csRate*link.network().simulationParameters.dt));
@@ -206,8 +206,8 @@ namespace model
 //}
 //
 //
-//template <typename DislocationNetworkType>
-//void EscaigCrossSlipModelFCC<DislocationNetworkType>::addToCrossSlip(const NetworkLinkType& link,
+//template <int dim>
+//void EscaigCrossSlipModelFCC<dim>::addToCrossSlip(const NetworkLinkType& link,
 //                                                                     CrossSlipContainerType& crossSlipDeq)
 //{
 //    const auto isCSLink(isCrossSlipLink(link));
@@ -220,9 +220,9 @@ namespace model
 //    }
 //}
 
-    template <typename DislocationNetworkType>
-    EscaigCrossSlipModelHEX<DislocationNetworkType>::EscaigCrossSlipModelHEX(const PolycrystallineMaterialBase& material,const DDtraitsIO& traitsIO) :
-    /* init */ BaseCrossSlipModel<DislocationNetworkType>(traitsIO)
+    template <int dim>
+    EscaigCrossSlipModelHEX<dim>::EscaigCrossSlipModelHEX(const PolycrystallineMaterialBase& material,const DefectiveCrystalTraitsIO& traitsIO) :
+    /* init */ BaseCrossSlipModel<dim>(traitsIO)
     /* init */,gen(rd())
     /* init */,dist(0.0,1.0)
     /* init */,enableBasalSlipSystems(material.enabledSlipSystems.count("<a>{basal}")!=0)
@@ -248,8 +248,8 @@ namespace model
         std::cout<<greenBoldColor<<"Creating EscaigCrossSlipModelHEX"<<defaultColor<<std::endl;
     }
 
-    template <typename DislocationNetworkType>
-    double EscaigCrossSlipModelHEX<DislocationNetworkType>::crossSlipRateKernel(const int& k,const NetworkLinkType& link,const SlipSystem& css,
+    template <int dim>
+    double EscaigCrossSlipModelHEX<dim>::crossSlipRateKernel(const int& k,const NetworkLinkType& link,const SlipSystem& css,
                                                                                 const double& w,
                                                                                 const double& L,
                                                                                 const double& dE,
@@ -266,22 +266,22 @@ namespace model
         return w*std::exp(-dG/link.network().ddBase.poly.kB/link.network().ddBase.poly.T)*link.quadraturePoint(k).j/L;
     }
 
-    template <typename DislocationNetworkType>
-    double EscaigCrossSlipModelHEX<DislocationNetworkType>::nucleationLength(const NetworkLinkType& link) const
+    template <int dim>
+    double EscaigCrossSlipModelHEX<dim>::nucleationLength(const NetworkLinkType& link) const
     {
         return link.slipSystem()->n.base()(0)==0 && link.slipSystem()->n.base()(1)==0? csLb : csLp;
     }
 
-    template <typename DislocationNetworkType>
-    std::pair<bool,std::pair<int,int>> EscaigCrossSlipModelHEX<DislocationNetworkType>::isCrossSlipLink(const NetworkLinkType& link)
+    template <int dim>
+    std::pair<bool,std::pair<int,int>> EscaigCrossSlipModelHEX<dim>::isCrossSlipLink(const NetworkLinkType& link)
     {
         // Geometric eligibility only: no random draw until the branch is complete.
         const auto candidate=this->isBaseCrossSlipLink(link,false);
         return {candidate.first,{candidate.second,-1}};
     }
 
-    template <typename DislocationNetworkType>
-    std::map<int,double> EscaigCrossSlipModelHEX<DislocationNetworkType>::targetRates(const NetworkLinkType& link) const
+    template <int dim>
+    std::map<int,double> EscaigCrossSlipModelHEX<dim>::targetRates(const NetworkLinkType& link) const
     {
         std::map<int,double> rates;
         if(!link.slipSystem() || !link.slipSystem()->mobility || link.network().ddBase.poly.T<=0.0)
@@ -303,13 +303,13 @@ namespace model
                     if(   (link.slipSystem()->n.base()(0)==0 && link.slipSystem()->n.base()(1)==0)
                        && slipSystem->n.base()(2)==0)
                     {// basal to prismatic crossSlip
-                        NetworkLinkType::QuadratureDynamicType::integrate(link.quadraturePoints().size(),this,csRate,&EscaigCrossSlipModelHEX<DislocationNetworkType>::crossSlipRateKernel,link,*slipSystem,
+                        NetworkLinkType::QuadratureDynamicType::integrate(link.quadraturePoints().size(),this,csRate,&EscaigCrossSlipModelHEX<dim>::crossSlipRateKernel,link,*slipSystem,
                                                                           csw,csLb,csb2pE,csb2pVeg,csb2pVsc,csb2pVec);
                     }
                     else if(   link.slipSystem()->n.base()(2)==0
                             && (slipSystem->n.base()(0)==0 && slipSystem->n.base()(1)==0))
                     {// prismatic to basal  crossSlip
-                        NetworkLinkType::QuadratureDynamicType::integrate(link.quadraturePoints().size(),this,csRate,&EscaigCrossSlipModelHEX<DislocationNetworkType>::crossSlipRateKernel,link,*slipSystem,
+                        NetworkLinkType::QuadratureDynamicType::integrate(link.quadraturePoints().size(),this,csRate,&EscaigCrossSlipModelHEX<dim>::crossSlipRateKernel,link,*slipSystem,
                                                                           csw,csLp,csp2bE,csp2bVeg,csp2bVsc,csp2bVec);
                     }
                     if(!std::isfinite(csRate) || csRate<0.0)
@@ -326,8 +326,8 @@ namespace model
         return rates;
     }
 
-    template <typename DislocationNetworkType>
-    std::optional<ThermalCrossSlipEvent> EscaigCrossSlipModelHEX<DislocationNetworkType>::sampleBranch(const std::vector<const NetworkLinkType*>& links,const double dt)
+    template <int dim>
+    std::optional<ThermalCrossSlipEvent> EscaigCrossSlipModelHEX<dim>::sampleBranch(const std::vector<const NetworkLinkType*>& links,const double dt)
     {
         if(links.empty())
         {
@@ -351,17 +351,17 @@ namespace model
         return sampleThermalCrossSlip(lengths,rates,nuclei,dt,occurrence,target,position);
     }
 
-    template <typename DislocationNetworkType>
-    void EscaigCrossSlipModelHEX<DislocationNetworkType>::addToCrossSlip(const NetworkLinkType& link,
+    template <int dim>
+    void EscaigCrossSlipModelHEX<dim>::addToCrossSlip(const NetworkLinkType& link,
                                                                          CrossSlipContainerType& crossSlipDeq)
     {
 
         throw std::runtime_error("Thermal cross-slip requires branch-based sampling");
     }
 
-    template struct BaseCrossSlipModel<DislocationNetwork<3>>;
-    template struct AthermalCrossSlipModel<DislocationNetwork<3>>;
-    template struct EscaigCrossSlipModelHEX<DislocationNetwork<3>>;
+    template struct BaseCrossSlipModel<3>;
+    template struct AthermalCrossSlipModel<3>;
+    template struct EscaigCrossSlipModelHEX<3>;
 
 }
 #endif
