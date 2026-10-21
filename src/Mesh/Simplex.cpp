@@ -464,6 +464,11 @@ std::set<size_t> Simplex<dim,dim>::regionIDs() const
     return temp;
 }
 
+template class Simplex<1,0>;
+template class Simplex<1,1>;
+template class Simplex<2,0>;
+template class Simplex<2,1>;
+template class Simplex<2,2>;
 template class Simplex<3,0>;
 template class Simplex<3,1>;
 template class Simplex<3,2>;

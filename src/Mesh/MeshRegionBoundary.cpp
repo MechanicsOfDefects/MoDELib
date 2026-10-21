@@ -133,6 +133,8 @@ namespace model
 
 
 //    template struct MeshRegionBoundary<2>;
+    template struct MeshRegionBoundary<1>;
+    template struct MeshRegionBoundary<2>;
     template struct MeshRegionBoundary<3>;
 
 }	// close namespace

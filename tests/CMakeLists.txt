@@ -343,6 +343,10 @@ set_property(TEST physicsBases APPEND PROPERTY LABELS "integration")
 set_tests_properties(physicsBases PROPERTIES TIMEOUT 120)
 
 if(TARGET pyMoDELib)
+    add_test(NAME pythonMesh
+        COMMAND "${Python_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/testPythonMesh.py"
+                "$<TARGET_FILE_DIR:pyMoDELib>")
+    set_tests_properties(pythonMesh PROPERTIES LABELS "integration" TIMEOUT 120)
     add_test(NAME pythonPhysicsBases
         COMMAND "${Python_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/testPhysicsBases.py"
                 "$<TARGET_FILE_DIR:pyMoDELib>" "${PROJECT_SOURCE_DIR}")
@@ -407,3 +411,10 @@ add_executable(testSimplexFactories testSimplexFactories.cpp)
 target_link_libraries(testSimplexFactories PRIVATE MoDELib)
 add_test(NAME simplexFactories COMMAND testSimplexFactories "${PROJECT_SOURCE_DIR}")
 set_tests_properties(simplexFactories PROPERTIES LABELS "numerical;integration" TIMEOUT 120)
+
+if(MODELIB_CD_MSIZE STREQUAL "4" AND MODELIB_CD_ISIZE STREQUAL "8")
+    add_executable(testPeriodicClimbSolver testPeriodicClimbSolver.cpp)
+    target_link_libraries(testPeriodicClimbSolver PRIVATE MoDELib)
+    add_test(NAME periodicClimbSolver COMMAND testPeriodicClimbSolver "${PROJECT_SOURCE_DIR}")
+    set_tests_properties(periodicClimbSolver PROPERTIES LABELS "integration" TIMEOUT 120)
+endif()

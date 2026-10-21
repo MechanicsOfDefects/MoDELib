@@ -56,6 +56,14 @@ namespace model
         }
     public:
         ~Simplex();
+        const Eigen::Matrix<double,dim,1>& center() const
+        {
+            return P0;
+        }
+        std::set<const Simplex<dim,0>*> regionBoundaryNeighbors() const
+        {
+            return {};
+        }
         std::set<const Simplex<dim,0>*> boundaryNeighbors() const;
         Eigen::Matrix<double,dim,1> outNormal() const;
         Eigen::Matrix<double,dim,1> outNormal(const size_t& rID) const;

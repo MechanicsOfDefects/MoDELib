@@ -13,6 +13,7 @@
 
 #include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <GalerkinClimbSolver.h>
+#include <ConstrainedVelocitySolve.h>
 #include <TerminalColors.h>
 #include <EqualIteratorRange.h>
 
@@ -427,15 +428,14 @@ namespace model
         }
 #endif
 
+        const auto Z=periodicClimbVelocityMap<dim>(this->DN);
         std::vector<Eigen::Array<double,1,mSize>> nodeV(nodeCount,Eigen::Array<double,1,mSize>::Zero());
         for(int kc=0;kc<mSize;++kc)
         {
+            const Eigen::VectorXd constrained=solveConstrainedVelocityDiagonal(KKc[kc],Fc[kc],Z);
             for(size_t n=0;n<nodeCount;++n)
             {
-                if(std::fabs(KKc[kc](n))>FLT_EPSILON)
-                {
-                    nodeV[n](kc)=Fc[kc](n)/KKc[kc](n);
-                }
+                nodeV[n](kc)=constrained(n);
             }
         }
 
@@ -457,7 +457,7 @@ namespace model
             nodeVelocities.template segment<dim>(k*dim)= vScalarTotal*node.second.lock()->climbDirection();
             k++;
         }
-        return nodeVelocities;
+        return interpolateClimbSubdivisionVelocities<dim>(this->DN,nodeVelocities);
     }
 
     template <int dim>

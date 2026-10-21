@@ -11,6 +11,7 @@
 #include <random>
 #include <filesystem>
 #include <PyGlideSolver.h>
+#include <ConstrainedVelocitySolve.h>
 #include <TerminalColors.h>
 #include <Eigen/StdVector>
 #include <vector>
@@ -170,28 +171,13 @@ namespace model
     {
         std::filesystem::path pyModulePath(pyModuleName);
         std::string pyModuleDir(pyModulePath.parent_path());
-        std::string pyModuleFile(pyModulePath.filename());
+        std::string pyModuleFile(pyModulePath.extension()==".py" ? pyModulePath.stem().string() : pyModulePath.filename().string());
         std::cout<<greenBoldColor<<"Creating PyGlideSolver: dir= "<<pyModuleDir<<", file="<<pyModuleFile<<defaultColor<<std::endl;
         //pybind11::scoped_interpreter guard{};
         pybind11::module sys = pybind11::module::import("sys");
         pybind11::list path = sys.attr("path");
         path.append(pyModuleDir.c_str());
         pyModule=pybind11::module::import(pyModuleFile.c_str());
-    }
-
-    template <int dim>
-    Eigen::MatrixXd PyGlideSolver<dim>::updateBoundaryNodePythonVelocity(const Eigen::MatrixXd& nodePythonVelocity, const std::map<size_t, size_t>& boundaryNodeIDmap) const
-    {
-        Eigen::MatrixXd updatedNodePythonVelocity = nodePythonVelocity;
-        for (const auto& pair : boundaryNodeIDmap)
-        {
-            int rowIndex = pair.second;
-            if (rowIndex < updatedNodePythonVelocity.rows())
-            {
-                updatedNodePythonVelocity.row(rowIndex) = Eigen::RowVectorXd::Zero(this->NdofXnode);
-            }
-        }
-        return updatedNodePythonVelocity;
     }
 
     template <int dim>
@@ -228,31 +214,29 @@ namespace model
         const auto t0= std::chrono::system_clock::now();
         std::cout<<"PyGlideSolver solving " << "\n" << std::flush;
         
-//        auto configIO(this->DN.io().configIO()); //evl files
-//        const auto auxIO(this->DN.io().auxIO()); //DDaux files
-//        const auto Temperature(this->DN.ddBase.poly.T);
-//        configIO.finalize();
-//        const auto segmentMap(configIO.segments());
-//        
         DefectiveCrystalConfigIO<dim> configIO(".");
         DefectiveCrystalAuxIO<dim> auxIO(".");
         std::ofstream f_file;
         std::ofstream F_labels;
         this->DN.output(configIO,auxIO,f_file,F_labels);
+        // Solver input is independent of optional diagnostic output.
+        auxIO.quadraturePoints().clear();
+        for(const auto& entry : this->DN.networkLinks())
+        {
+            for(const auto& point : entry.second.lock()->quadraturePoints())
+            {
+                auxIO.quadraturePoints().emplace_back(point);
+            }
+        }
         const auto Temperature(this->DN.ddBase.poly.T);
         configIO.finalize();
         const auto segmentMap(configIO.segments());
 
         std::map<size_t, DislocationNodeIO<3>> nodeMap;
-        std::map<size_t, size_t> boundaryNodeMap;
         int k(0);
         for (const auto &node : configIO.nodes())
         {
             nodeMap.emplace(node.sID, node);
-            if (node.meshLocation==1)
-            {
-                boundaryNodeMap.emplace(node.sID, k);
-            }
             k++;
         }
 
@@ -373,8 +357,12 @@ namespace model
 
         }
 
+        if(nodePythonVelocity.rows()!=nodeSize || nodePythonVelocity.cols()!=dim || !nodePythonVelocity.allFinite())
+        {
+            throw std::runtime_error("Python glide model returned invalid nodal velocities.");
+        }
         Eigen::MatrixXd updatedVelo = updateUnconnectedNodePythonVelocity(nodePythonVelocity, nodesToRemove);
-        Eigen::MatrixXd updatedVelocity = updateBoundaryNodePythonVelocity(updatedVelo, boundaryNodeMap);
+        Eigen::MatrixXd updatedVelocity = updatedVelo;
         updatedVelocity /= 3.228757859764734e01; //Convert to Velocities
         
 //        pybind11::print(pyModule.attr("PIGNN")().attr("MLmobility")(positionNodes,stressNodes,burgersNodes,connections,Temperature).template cast<Eigen::MatrixXd>());
@@ -399,7 +387,7 @@ namespace model
 //        
         std::cout<<magentaColor<<std::setprecision(3)<<std::scientific<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]."<<defaultColor<<std::endl;
        
-        return updatedVelocity.reshaped<Eigen::RowMajor>();
+        return compatiblePredictedVelocities<dim>(this->DN,updatedVelocity.reshaped<Eigen::RowMajor>());
         
     }
 

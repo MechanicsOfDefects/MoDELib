@@ -23,11 +23,15 @@
 \emergencystretch=2em
 \setlength{\parskip}{0.35em}\setlength{\parindent}{0pt}
 \setcounter{tocdepth}{1}
+% Keep figures top-aligned on float-only pages as well.
+\makeatletter
+\setlength{\@fptop}{0pt}
+\makeatother
 \lstset{basicstyle=\small\ttfamily,breaklines=true,columns=fullflexible,keepspaces=true,
  frame=single,rulecolor=\color{manualblue!35},backgroundcolor=\color{manualblue!3}}
 \newcommand{\code}[1]{\nolinkurl{#1}}
 \newcommand{\sourcefile}[1]{\par\smallskip{\footnotesize\textbf{Implementation:} \nolinkurl{#1}.}\par}
-\newcommand{\manualfigure}[3]{\begin{figure}[htbp]\centering\includegraphics[width=#2\textwidth]{#1}\caption{#3}\end{figure}}
+\newcommand{\manualfigure}[3]{\begin{figure}[t]\centering\includegraphics[width=#2\textwidth]{#1}\caption{#3}\end{figure}}
 % Language symbols for paired code examples.
 \newcommand{\cppsymbol}{\begin{tikzpicture}[x=1mm,y=1mm,baseline=-1mm]
 \fill[manualblue] (0,1.5)--(0,4)--(4.5,5.5)--(9,4)--(9,1.5)--(4.5,0)--cycle;
@@ -55,7 +59,7 @@
  ([yshift=15cm]current page.south east);
 \node[anchor=north west,text=white,inner sep=0pt]
  at ([xshift=0.8in,yshift=14cm]current page.south west)
- {\Huge\bfseries MoDELib manual};
+ {\Huge\bfseries MoDELib};
 \node[anchor=north west,text=white,inner sep=0pt]
  at ([xshift=0.8in,yshift=13cm]current page.south west)
  {\fontsize{22}{26}\selectfont Mechanics of Defects Evolution Library};
@@ -64,7 +68,7 @@
  {\LARGE Architecture, Theory and User Guide};
 \node[anchor=north west,text=white,inner sep=0pt]
  at ([xshift=0.8in,yshift=10cm]current page.south west)
- {\large Code version 2.0.0 --- commit \texttt{1ed6555} + local changes};
+ {\large Code version 2.0.0 --- commit \texttt{eeaa727} + local changes};
 \draw[very thick,orange]
  ([yshift=9cm]current page.south west) --
  ([yshift=9cm]current page.south east);

@@ -143,7 +143,25 @@ namespace model
 
         //            PlanarMeshFaceHull<dim>::makeHull(vertices,outNormal(),center,this->hull);
 
-        if (vertices.size())
+        if constexpr (dim < 3)
+        {
+            this->hull.assign(vertices.begin(), vertices.end());
+            if constexpr (dim == 2)
+            {
+                const VectorDim tangent = (this->hull.back()->P0 - this->hull.front()->P0).normalized();
+                std::sort(this->hull.begin(), this->hull.end(), [&](const auto *a, const auto *b)
+                {
+                    return a->P0.dot(tangent) < b->P0.dot(tangent);
+                });
+                this->hull = {this->hull.front(), this->hull.back()};
+            }
+            this->c.setZero();
+            for (const auto *vertex : this->hull)
+            {
+                this->c += vertex->P0 / this->hull.size();
+            }
+        }
+        else if (vertices.size())
         {
 
             //            assert(dim==3 && "ALGORITHM ONLY VALID IN dim=3");
@@ -211,6 +229,10 @@ namespace model
         return Plane<dim>(center(), this->n);
     }
 
+    template struct Polyhedron<1, 0>;
+    template struct Polyhedron<1, 1>;
+    template struct Polyhedron<2, 1>;
+    template struct Polyhedron<2, 2>;
     template struct Polyhedron<3, 3>;
     template struct Polyhedron<3, 2>;
 } // namespace model

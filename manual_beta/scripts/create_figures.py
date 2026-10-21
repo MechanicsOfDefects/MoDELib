@@ -87,3 +87,5 @@ runpy.run_path(str(ROOT / "scripts/create_polycrystal_figure.py"))
 runpy.run_path(str(ROOT / "scripts/create_entity_figures.py"))
 
 runpy.run_path(str(ROOT / "scripts/create_periodicity_figure.py"))
+
+runpy.run_path(str(ROOT / "scripts/create_mesh_library_figure.py"))

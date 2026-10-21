@@ -68,46 +68,52 @@ namespace model
         elementReader.read(meshID, true);
         for (const auto &eIter : elementReader)
         {
-            typename SimplexTraits<dim, dim>::SimplexIDType key;
+            std::set<size_t> vertices;
             for (int d = 0; d < dim + 1; ++d)
             {
-                key[d] = eIter.second[d];
+                vertices.insert(eIter.second[d]);
             }
             size_t regionID(eIter.second[dim + 1]);
-            this->elements().emplace(eIter.first, std::make_pair(key, regionID));
+            this->elements().emplace(eIter.first, std::make_pair(typename SimplexTraits<dim, dim>::SimplexIDType(vertices), regionID));
         }
         //            assert(elementReader.size()==this->elements().size());
     }
 
-    auto SimplexReader<3>::read(const std::string &meshFileName, const Eigen::Matrix<double, 3, 3> &A,
-                                const Eigen::Matrix<double, 3, 1> &x0) -> void
+    template <int dim>
+    void SimplexReader<dim>::read(const std::string &meshFileName, const Eigen::Matrix<double, dim, dim> &A,
+                                  const Eigen::Matrix<double, dim, 1> &x0)
     {
         this->clear();
-        GmshReader gmshReader(meshFileName, A, x0);
-        this->nodes() = gmshReader.nodes();
-        // assert(nodeReader.size()==this->nodes().size());
-
-        for (const auto &eIter : gmshReader.elements())
+        GmshReader reader(meshFileName, Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero());
+        for (const auto &node : reader.nodes())
         {
-            if (eIter.second.type == 4     // 4-node (linear) tetrahedron
-                || eIter.second.type == 11 // 11-node (quadratic) tetrahedron
-            )
+            this->nodes().emplace(node.first, A * (node.second.template head<dim>() - x0));
+        }
+        constexpr int linearType = dim == 3 ? 4 : (dim == 2 ? 2 : 1);
+        constexpr int quadraticType = dim == 3 ? 11 : (dim == 2 ? 9 : 8);
+        for (const auto &entry : reader.elements())
+        {
+            const auto &element = entry.second;
+            if (element.type == linearType || element.type == quadraticType)
             {
-                //                    typename SimplexTraits<dim,dim>::SimplexIDType key;
-                std::set<size_t> set;
-                for (int d = 0; d < dim + 1; ++d)
+                if (element.nodeIDs.size() < dim + 1 || element.tags.size() < 2)
                 {
-                    set.insert(eIter.second.nodeIDs[d]);
-                    //                        key[d]=eIter.second.nodeIDs[d]; // first dim+1 nodes are the principa
-                    //                        vertex nodes. See Node order in
-                    //                        http://gmsh.info/doc/texinfo/gmsh.html#Node-ordering
+                    throw std::runtime_error("Mesh element is missing vertices or region tag");
                 }
-                size_t regionID(eIter.second.tags[1]); // FINISH HERE, WHAT IS THE RIGHT TAG FOR A POLYCRYSTAL
-                this->elements().emplace(
-                    eIter.first, std::make_pair(typename SimplexTraits<dim, dim>::SimplexIDType(set), regionID));
+                std::set<size_t> vertices;
+                for (int k = 0; k <= dim; ++k)
+                {
+                    vertices.insert(element.nodeIDs[k]);
+                }
+                this->elements().emplace(entry.first, std::make_pair(
+                    typename SimplexTraits<dim, dim>::SimplexIDType(vertices), element.tags[1]));
             }
         }
     }
+    template struct SimplexReaderBase<1>;
+    template struct SimplexReaderBase<2>;
     template struct SimplexReaderBase<3>;
-
+    template struct SimplexReader<1>;
+    template struct SimplexReader<2>;
+    template struct SimplexReader<3>;
 } // namespace model

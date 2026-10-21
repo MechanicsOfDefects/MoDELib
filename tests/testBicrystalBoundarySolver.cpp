@@ -1,5 +1,7 @@
 #include <MicrostructureGenerator.h>
 #include <DislocationNetwork.h>
+#include <ConstrainedVelocitySolve.h>
+#include <PyGlideSolver.h>
 #include <DefectiveCrystal/MicrostructureContainer.h>
 #include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
@@ -19,6 +21,9 @@ void require(bool condition, const char* message)
 
 int main(int argc, char** argv)
 {
+#ifdef _MODEL_PYBIND11_
+    pybind11::scoped_interpreter interpreter;
+#endif
     try
     {
         require(argc == 2 || argc == 3, "Expected repository root");
@@ -196,6 +201,81 @@ int main(int argc, char** argv)
             }
             require((velocities-expected).norm()<1.e-10,"Nonperiodic solve changed unconstrained velocities");
         }
+
+        // Both alternate solvers consume the same actual bicrystal topology.
+        const Eigen::VectorXd predicted=Eigen::VectorXd::LinSpaced(velocities.size(),0.1,1.0);
+        const auto compatible=model::compatiblePredictedVelocities<3>(network,predicted);
+        const auto climbMap=model::periodicClimbVelocityMap<3>(network);
+        const Eigen::VectorXd mass=Eigen::VectorXd::LinSpaced(network.networkNodes().size(),1.0,2.0);
+        const Eigen::VectorXd force=Eigen::VectorXd::LinSpaced(mass.size(),0.2,0.7);
+        const auto scalar=model::solveConstrainedVelocityDiagonal(mass,force,climbMap);
+        require((climbMap.transpose()*(mass.cwiseProduct(scalar)-force)).norm()<1.e-9,
+                "Reduced climb balance is not satisfied");
+        Eigen::VectorXd climb=Eigen::VectorXd::Zero(velocities.size());
+        size_t index=0;
+        for(const auto& entry : network.networkNodes())
+        {
+            climb.segment<3>(3*index)=scalar(index)*entry.second.lock()->climbDirection();
+            ++index;
+        }
+        climb=model::interpolateClimbSubdivisionVelocities<3>(network,climb);
+        model::forEachPeriodicVelocityRelation(network,[&](size_t n,size_t a,size_t b,double wa,double wb)
+        {
+            require((compatible.segment<3>(3*n)-wa*compatible.segment<3>(3*a)-wb*compatible.segment<3>(3*b)).norm()<1.e-9,
+                    "Predicted periodic junction velocity is incompatible");
+            require((climb.segment<3>(3*n)-wa*climb.segment<3>(3*a)-wb*climb.segment<3>(3*b)).norm()<1.e-9,
+                    "Vector climb velocity is incompatible");
+        });
+        if(physicalOnly)
+        {
+            require((compatible-predicted).norm()==0.0,"Python projection changed nonperiodic predictions");
+            require((scalar-force.cwiseQuotient(mass)).norm()<1.e-12,"Nonperiodic climb balance changed");
+        }
+#ifdef _MODEL_PYBIND11_
+        // Exercise the complete Python bridge with a deterministic model, including
+        // re-insertion of disconnected nodes and actual periodic projection.
+        std::set<size_t> connected;
+        for(const auto& entry : network.networkLinks())
+        {
+            const auto link=entry.second.lock();
+            if(!link->quadraturePoints().empty())
+            {
+                connected.insert(link->source->sID);
+                connected.insert(link->sink->sID);
+            }
+        }
+        std::ofstream(input/"periodic_solver_stub.py")
+            <<"import numpy as np\nclass PIGNN:\n    def MLmobility(self, *args):\n        return np.ones(("
+            <<connected.size()<<", 3))\n";
+        {
+            std::ifstream file(input/"DD.txt");
+            std::string text((std::istreambuf_iterator<char>(file)),{});
+            const auto begin=text.find("pyModuleName=");
+            const auto end=text.find(';',begin);
+            require(begin!=std::string::npos && end!=std::string::npos,"Missing Python module setting");
+            text.replace(begin,end-begin,"pyModuleName=periodic_solver_stub.py");
+            std::ofstream(input/"DD.txt")<<text;
+        }
+        network.outputQuadraturePoints=false;
+        model::PyGlideSolver<3> pythonSolver(network);
+        Eigen::VectorXd raw=Eigen::VectorXd::Zero(velocities.size());
+        index=0;
+        for(const auto& entry : network.networkNodes())
+        {
+            if(connected.count(entry.first))
+            {
+                raw.segment<3>(3*index).setConstant(1.0/3.228757859764734e01);
+            }
+            ++index;
+        }
+        require((pythonSolver.getNodeVelocities()-model::compatiblePredictedVelocities<3>(network,raw)).norm()<1.e-10,
+                "Python bridge pinned boundary nodes or reordered velocities");
+        for(const auto& entry : network.networkLinks())
+        {
+            entry.second.lock()->quadraturePoints().clear();
+        }
+        require(pythonSolver.getNodeVelocities().isZero(0.0),"Empty quadrature network should remain stationary");
+#endif
 
         size_t movingPhysical=0;
         size_t movingSharedPhysical=0;

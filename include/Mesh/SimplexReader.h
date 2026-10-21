@@ -60,19 +60,9 @@ namespace model
     /**************************************************************************/
     template <int dim> struct SimplexReader : public SimplexReaderBase<dim>
     {
-
-        /**********************************************************************/
         void read(const int &meshID);
-    };
-
-    template <> struct SimplexReader<3> : public SimplexReaderBase<3>
-    {
-
-        static constexpr int dim = 3;
-
-        /**********************************************************************/
-        void read(const std::string &meshFileName, const Eigen::Matrix<double, 3, 3> &A,
-                  const Eigen::Matrix<double, 3, 1> &x0);
+        void read(const std::string &meshFileName, const Eigen::Matrix<double, dim, dim> &A,
+                  const Eigen::Matrix<double, dim, 1> &x0);
     };
 
 } // namespace model

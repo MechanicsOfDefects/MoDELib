@@ -1,5 +1,6 @@
 #include <DislocationNetwork.h>
 #include <PeriodicVelocityConstraints.h>
+#include <ConstrainedVelocitySolve.h>
 #include <DefectiveCrystal/MicrostructureContainer.h>
 #include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <filesystem>
@@ -103,6 +104,34 @@ int main(int argc, char** argv)
             require((M.row(3)-0.4*M.row(0)-0.6*M.row(1)).norm()<1.e-12,"Incorrect crossing interpolation");
             require((M.row(4)-0.8*M.row(0)-0.2*M.row(2)).norm()<1.e-12,"Incorrect second crossing interpolation");
             require((M*Eigen::Vector2d::Ones()-Eigen::VectorXd::Ones(5)).norm()<1.e-12,"Constant velocity changed");
+        }
+        {
+            // v0=s0 ex, v1=s1 ey, v2=s2 (ex+ey)/sqrt(2),
+            // with v2=(v0+v1)/2. Scalar interpolation alone is incorrect here.
+            model::PeriodicVelocityConstraints directions(3);
+            directions.constrain({{2,1/std::sqrt(2.0)},{0,-0.5}});
+            directions.constrain({{2,1/std::sqrt(2.0)},{1,-0.5}});
+            Triplets entries;
+            const auto count=directions.append<1>(entries);
+            model::VelocityMatrix map(3,count);
+            map.setFromTriplets(entries.begin(),entries.end());
+            const Eigen::Vector3d diagonal(1,2,3), force(1,2,4), mode(1,1,1/std::sqrt(2.0));
+            const Eigen::Vector3d expected=mode*(mode.dot(force)/mode.dot(diagonal.cwiseProduct(mode)));
+            const auto actual=model::solveConstrainedVelocityDiagonal(diagonal,force,map);
+            require((actual-expected).norm()<1.e-12,"Direction-aware climb differs from independent reduced balance");
+            require(model::solveConstrainedVelocityDiagonal(diagonal,Eigen::Vector3d::Zero(),map).isZero(0.0),
+                    "Undriven constrained climb is not stationary");
+        }
+        {
+            model::PeriodicVelocityConstraints constraints(3);
+            constraints.interpolate(1,0,2,0.5,0.5);
+            Triplets entries;
+            const auto count=constraints.append<1>(entries);
+            model::VelocityMatrix map(3,count);
+            map.setFromTriplets(entries.begin(),entries.end());
+            const auto actual=model::solveConstrainedVelocityDiagonal(Eigen::Vector3d(1,0,1),Eigen::Vector3d(0,1,0),map);
+            require((actual-Eigen::Vector3d::Constant(0.5)).norm()<1.e-12,
+                    "Force on a dependent zero-mass crossing was lost during reduction");
         }
         std::filesystem::remove_all(folder);
         std::cout<<"PASS: frame 1915 shared periodic constraints, compatibility and uniform translation\n";

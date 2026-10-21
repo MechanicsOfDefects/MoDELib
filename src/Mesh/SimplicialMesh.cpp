@@ -609,6 +609,8 @@ namespace model
         return regionBoundaries().at(std::make_pair(std::min(i,j),std::max(i,j)));
     }
 
+    template class SimplicialMesh<1>;
+    template class SimplicialMesh<2>;
     template class SimplicialMesh<3>;
 }
 #endif

@@ -51,7 +51,6 @@ namespace model
 #endif
 
         Eigen::MatrixXd updateUnconnectedNodePythonVelocity(const Eigen::MatrixXd& nodePythonVelocity, const std::map<size_t, size_t>& removedNodeIDmap) const;
-        Eigen::MatrixXd updateBoundaryNodePythonVelocity(const Eigen::MatrixXd& nodePythonVelocity, const std::map<size_t, size_t>& removedNodeIDmap) const;
 
         PyGlideSolver(const DislocationNetwork<dim>&);
         Eigen::VectorXd getNodeVelocities() const override;

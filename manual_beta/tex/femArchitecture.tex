@@ -18,7 +18,7 @@ The elastic module builds the corresponding expression with \code{def(u)}, a sti
 \paragraph{Solve a clamped elasticity problem.}
 The following C++ function accepts a shared, nonperiodic mesh of a connected block with a planar $x=x_{\min}$ face. It clamps all displacement components on that face, applies a constant body force, and leaves the other faces traction-free. The example uses $\mu=1$ and $\nu=0.3$ in consistent units. The returned vector contains the solved nodal displacements. The weak-form API used here is not currently exposed by \code{pyMoDELib}.
 
-\begin{figure}[htbp]
+\begin{figure}[t]
 \begin{tcolorbox}[enhanced,colback=manualblue!5,colframe=manualblue!35,boxrule=0.4pt,
  arc=1mm,left=2mm,right=2mm,top=7mm,bottom=2mm,
  overlay={\node[anchor=north east,inner sep=1mm] at (frame.north east) {\cppsymbol};}]
