@@ -89,7 +89,7 @@ int main(int argc, char** argv)
             }
         }
         require(seeds.size() == 3, "Expected three cube periodic directions");
-        model::StaticID<model::PlanarMeshFace<3>>::force_count(0);
+        model::StaticID<model::Polyhedron<3,3-1>>::force_count(0);
 
         std::filesystem::copy_file(root / "Library/DislocationDynamics/DD.txt", input / "DD.txt");
         const double length=200.0/std::sqrt(3.0);

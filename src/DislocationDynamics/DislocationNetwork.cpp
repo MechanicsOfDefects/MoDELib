@@ -140,9 +140,52 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
             const auto loop(this->loops().get(node.loopID+initialLoopCount));
             const auto netNode(this->networkNodes().get(node.networkNodeID+initialNetworkNodeCount));
             const auto periodicPatch(loop->periodicGlidePlane? loop->periodicGlidePlane->patches().getFromKey(node.periodicShift) : nullptr);
-            const auto periodicPatchEdge((periodicPatch && node.edgeIDs.first>=0)? (node.edgeIDs.second>=0 ? std::make_pair(periodicPatch->edges()[node.edgeIDs.first],
-                                                                                                                            periodicPatch->edges()[node.edgeIDs.second]):
-                                                                                    std::make_pair(periodicPatch->edges()[node.edgeIDs.first],nullptr)):std::make_pair(nullptr,nullptr));
+            std::pair<std::shared_ptr<PeriodicPlaneEdge<dim>>,std::shared_ptr<PeriodicPlaneEdge<dim>>> periodicPatchEdge;
+            if(periodicPatch && node.edgeIDs.first>=0)
+            {
+                const VectorDim position=node.P+node.periodicShift;
+                const auto& edges=periodicPatch->edges();
+                // Old snapshots can have a small loop/network position mismatch.
+                // Use that recorded discrepancy as the reconstruction uncertainty.
+                const double tolerance=FLT_EPSILON+(position-netNode->get_P()).norm();
+                const auto matches=[&](int index)
+                {
+                    return index>=0 && size_t(index)<edges.size() && edges[index]->meshIntersection->distanceTo(position)<=tolerance;
+                };
+                if(matches(node.edgeIDs.first) && (node.edgeIDs.second<0 || (node.edgeIDs.second!=node.edgeIDs.first && matches(node.edgeIDs.second))))
+                {
+                    periodicPatchEdge.first=edges[node.edgeIDs.first];
+                    if(node.edgeIDs.second>=0)
+                    {
+                        periodicPatchEdge.second=edges[node.edgeIDs.second];
+                    }
+                }
+                else
+                {
+                    // Older configurations stored contour-vector indices. Those
+                    // indices change when its starting edge changes. Recover the
+                    // incidence from the saved position, never snap to an unrelated
+                    // indexed edge. This is IO compatibility, not contour ordering.
+                    std::vector<std::shared_ptr<PeriodicPlaneEdge<dim>>> candidates;
+                    for(const auto& edge : edges)
+                    {
+                        if(edge->meshIntersection->distanceTo(position)<=tolerance)
+                        {
+                            candidates.push_back(edge);
+                        }
+                    }
+                    const size_t expected=node.edgeIDs.second>=0 ? 2 : 1;
+                    if(candidates.size()!=expected)
+                    {
+                        throw std::runtime_error("Cannot recover saved boundary incidences for loop node "+std::to_string(node.sID));
+                    }
+                    periodicPatchEdge.first=candidates.front();
+                    if(expected==2)
+                    {
+                        periodicPatchEdge.second=candidates.back();
+                    }
+                }
+            }
             tempLoopNodes.push_back(this->loopNodes().create(loop,netNode,node.P,periodicPatch,periodicPatchEdge));
             assert(this->loopNodes().get(nodeIDtoUse)->sID==nodeIDtoUse);
             loopNodeNumber++;

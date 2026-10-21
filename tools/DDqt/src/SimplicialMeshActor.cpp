@@ -265,7 +265,7 @@ namespace model
             polydata->Allocate();
             
             size_t pointID(0);
-            for (const auto& node : mesh.observer<0>())
+            for (const auto& node : mesh.simplexFactory<0>().liveSimplices())
             {
                 if(node.second->isBoundarySimplex())
                 {
@@ -286,7 +286,7 @@ namespace model
             
             
             //            size_t connectivityID=0;
-            for (const auto& edge : mesh.observer<1>())
+            for (const auto& edge : mesh.simplexFactory<1>().liveSimplices())
             {
                 if(edge.second->isBoundarySimplex())
                 {
@@ -398,9 +398,9 @@ namespace model
                         }
                     }
                 }
-                for(const auto& meshTriangle : mesh.observer<2>())
+                for(const auto& meshTriangle : mesh.simplexFactory<2>().liveSimplices())
                 {// Color triangles the grain they belong to. TO DO: triangles can be replaced by mesh faces
-                    if(sameGrainPeriodicTriangles.count(meshTriangle.second))
+                    if(sameGrainPeriodicTriangles.count(meshTriangle.second.get()))
                     {
                         continue;
                     }
@@ -470,7 +470,7 @@ namespace model
             gbActor->GetProperty()->SetColor(0.0,0.5,0.5);
             
             
-            std::set<std::pair<const PlanarMeshFace<3>*,const PlanarMeshFace<3>*>> periodicFaceSet;
+            std::set<std::pair<const Polyhedron<3,3-1>*,const Polyhedron<3,3-1>*>> periodicFaceSet;
             for(const auto& region : mesh.regions())
             {
                 for(const auto& face : region.second->faces())
@@ -707,7 +707,7 @@ namespace model
         /**************************************************************************/
         void SimplicialMeshActor::modifyPts()
         {
-            for (const auto& node : mesh.observer<0>())
+            for (const auto& node : mesh.simplexFactory<0>().liveSimplices())
             {
                 if(node.second->isBoundarySimplex())
                 {

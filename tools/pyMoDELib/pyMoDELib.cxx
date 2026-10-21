@@ -89,6 +89,81 @@ PYBIND11_MAKE_OPAQUE(typename TypeTraits<SingleCrystalBase<3>>::SecondPhaseConta
 //PYBIND11_MAKE_OPAQUE(std::map<const GlidePlaneBase*,std::shared_ptr<GammaSurface>>);
 
 
+template<int order>
+void bindPolyhedron(pybind11::module_& module, const char* name)
+{
+    namespace py = pybind11;
+    using Cell = Polyhedron<3,order>;
+    auto binding = py::class_<Cell,std::shared_ptr<Cell>>(module,name)
+        .def_property_readonly("key", [](const Cell& cell) { return cell.key; })
+        .def("simplexIDs", [](const Cell& cell)
+        {
+            std::vector<std::vector<size_t>> result;
+            for (const auto* simplex : cell.simplices())
+            {
+                result.emplace_back(simplex->xID.begin(),simplex->xID.end());
+            }
+            return result;
+        });
+    if constexpr (order > 0)
+    {
+        binding.def_property_readonly("children", [](const Cell& cell)
+        {
+            py::dict result;
+            for (const auto& child : cell.children)
+            {
+                if constexpr (order == 3)
+                {
+                    result[py::int_(child.first)] = py::cast(child.second);
+                }
+                else
+                {
+                    result[py::tuple(py::cast(child.first))] = py::cast(child.second);
+                }
+            }
+            return result;
+        });
+    }
+    if constexpr (order < 3)
+    {
+        binding.def_property_readonly("parents", [](const Cell& cell)
+        {
+            py::dict result;
+            for (const auto& parent : cell.parents)
+            {
+                if (const auto owner = parent.second.lock())
+                {
+                    if constexpr (order >= 1)
+                    {
+                        result[py::int_(parent.first)] = py::cast(owner);
+                    }
+                    else
+                    {
+                        result[py::tuple(py::cast(parent.first))] = py::cast(owner);
+                    }
+                }
+            }
+            return result;
+        });
+    }
+    if constexpr (order == 3)
+    {
+        binding.def_readonly("regionID", &Cell::regionID)
+            .def("faces", [](const Cell& cell) { return cell.faces(); });
+    }
+    if constexpr (order == 2)
+    {
+        binding.def_readonly("sID", &Cell::sID)
+            .def("isExternal", &Cell::isExternal)
+            .def("center", &Cell::center)
+            .def("outNormal", [](const Cell& cell, int id) { return cell.outNormal(id); });
+    }
+    if constexpr (order == 0)
+    {
+        binding.def_readonly("position", &Cell::position);
+    }
+}
+
 PYBIND11_MODULE(pyMoDELib,m)
 {
     namespace py=pybind11;
@@ -199,15 +274,12 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readonly("traitsIO", &DefectiveCrystalParameters::traitsIO)
     ;
     
-    py::class_<MeshRegionObserver<MeshRegion<3>>>(m,"MeshRegionObserver")
-        .def(py::init<>())
-    ;
     
     py::class_<SimplexReader<3>>(m,"SimplexReader")
         .def(py::init<>())
     ;
     
-    py::class_<std::map<typename SimplexTraits<3,3>::SimplexIDType,const Simplex<3,3>>>(m,"SimplexIDMap")
+    py::class_<std::map<typename SimplexTraits<3,3>::SimplexIDType,std::shared_ptr<Simplex<3,3>>>>(m,"SimplexIDMap")
         .def(py::init<>())
     ;
     
@@ -215,17 +287,26 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def(py::init<>())
     ;
     
+    bindPolyhedron<0>(m,"Polyhedron0");
+    bindPolyhedron<1>(m,"Polyhedron1");
+    bindPolyhedron<2>(m,"Polyhedron2");
+    bindPolyhedron<3>(m,"Polyhedron3");
+
     py::class_<SimplicialMesh<3>,
-    /*      */ MeshRegionObserver<MeshRegion<3>>,
     /*      */ SimplexReader<3>,
-    /*      */ std::map<typename SimplexTraits<3,3>::SimplexIDType,const Simplex<3,3>>,
+    /*      */ std::map<typename SimplexTraits<3,3>::SimplexIDType,std::shared_ptr<Simplex<3,3>>>,
     /*      */ std::map<std::pair<size_t,size_t>,MeshRegionBoundary<3>>>(m,"SimplicialMesh")
         .def(py::init<>())
-//        .def(py::init<const std::string&,const Eigen::Matrix<double,3,3>&,const Eigen::Matrix<double,3,1>&,const std::set<int>&>())
+        .def(py::init<const std::string&,const Eigen::Matrix<double,3,3>&,const Eigen::Matrix<double,3,1>&,const std::set<int>&>())
         .def("xMin",static_cast<const Eigen::Matrix<double,3,1>& (SimplicialMesh<3>::*)() const>(&SimplicialMesh<3>::xMin))
         .def("xMax",static_cast<const Eigen::Matrix<double,3,1>& (SimplicialMesh<3>::*)() const>(&SimplicialMesh<3>::xMax))
         .def("volume",&SimplicialMesh<3>::volume)
         .def("xCenter",&SimplicialMesh<3>::xCenter)
+        .def("region", [](const SimplicialMesh<3>& mesh, size_t id) { return mesh.regions().at(id); })
+        .def("regions", [](const SimplicialMesh<3>& mesh)
+        {
+            return std::map<size_t,std::shared_ptr<Polyhedron<3,3>>>(mesh.regions().begin(),mesh.regions().end());
+        })
     ;
 
     py::class_<PolycrystallineMaterialBase>(m,"PolycrystallineMaterialBase")
@@ -356,7 +437,7 @@ PYBIND11_MODULE(pyMoDELib,m)
     ;
     
     py::class_<Grain<3>,std::shared_ptr<Grain<3>>>(m,"Grain")
-        .def(py::init<const MeshRegion<3>&,const PolycrystallineMaterialBase&,const std::string& >())
+        .def(py::init<const Polyhedron<3,3>&,const PolycrystallineMaterialBase&,const std::string& >())
 //            .def_readonly("grainID", &Grain<3>::grainID)
     ;
     

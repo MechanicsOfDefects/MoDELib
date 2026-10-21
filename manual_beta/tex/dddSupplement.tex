@@ -1,0 +1,94 @@
+\chapter{DDD: supplementary derivations}
+\begin{draftnote}
+This chapter groups the earlier disconnected notes with the DDD theory. The distributional manipulations are retained for review. The uniform-controller algebra is useful for DDD loading, although its current implementation belongs to ElasticDeformation (Chapter~\ref{chap:elastic}).
+\end{draftnote}
+\section{Kunin identity}
+see Berdichevsky, Victor: Variational Principles of Continuum Mechanics: I. Fundamentals, 2009. p.239.
+\begin{align}
+\int\varphi(\bm x)e^{jkl}\frac{\partial}{\partial x_k}\int_\mathcal{S} \delta(\bm x-\bm x')\hat{n}_ldS'dV&=\int_\mathcal{S} \int\varphi(\bm x)e^{jkl}\frac{\partial}{\partial x_k}\delta(\bm x-\bm x')\hat{n}_ldVdS'\nonumber\\
+&=-\int_\mathcal{S} \int\frac{\partial\varphi}{\partial x_k}(\bm x)e^{jkl}\delta(\bm x-\bm x')\hat{n}_ldVdS'\nonumber\\
+&=-\int_\mathcal{S} \frac{\partial\varphi}{\partial x_k}(\bm x')e^{jkl}\hat{n}_ldS'\nonumber\\
+\end{align}
+
+
+\section{Distributional identities for loop fields}
+
+Now, since 
+\begin{align}
+\delta(R)=-\frac{1}{4\pi}\nabla^2\left(\frac{1}{R}\right)=-\frac{1}{8\pi}\nabla^2(R_{,pp})=-\frac{1}{8\pi}R_{,ppqq}
+\end{align}
+then:
+\begin{align}
+\beta^p_{kl}(\bm x')=\frac{b_k}{8\pi}\int_\mathcal{S} R_{,ppqq}\hat{n}_ldS''
+\label{plasticStrainRderivative}
+\end{align}
+
+
+
+Consider the derivative of the solid angle using eq.~(\ref{KelvinStokesCorollary})
+\begin{align}
+\Omega_{,j}=-\frac{1}{2}\int R_{,ppkj}\hat{n}_kdS&=-\frac{1}{2}\int R_{,ppkk}\hat{n}_jdS-\frac{1}{2}\oint\epsilon_{mkj}R_{,ppk}\xi_mdl
+\end{align}
+then, from eq.~(\ref{plasticStrainRderivative})
+\begin{align}
+-\frac{b_i}{4\pi}\Omega_{,j}&=\frac{b_i}{8\pi}\int R_{,ppkk}\hat{n}_jdS+\frac{b_i}{4\pi}\oint\epsilon_{kjm}R_{,ppk}\xi_mdl\nonumber\\
+&=\beta^p_{ij}+\frac{b_i}{4\pi}\oint\epsilon_{kjm}R_{,ppk}\xi_mdl
+\end{align}
+
+\section{Uniform loading: retained derivation}\label{sec:legacycontroller}
+
+
+The original loading notes describe a uniform controller used to apply a uniform external stress state to the dislocations in the RVE.  The RVE is assumed to be subjected to two loads, an applied stress $\bm \sigma_0$, and a stress $\bm \sigma_s$ exerted by a ``multiaxial spring". Assuming Voigt notation throughout, the spring has \emph{diagonal} stiffness $\bm D$, and it is under an applied strain $\bm \varepsilon_0$, so that $\bm \sigma_s=\bm D\left(\bm \varepsilon_0-\bm\varepsilon\right)$, where $\bm\varepsilon$ is the strain in the RVE. 
+Therefore the stress in the RVE is
+\begin{align}
+\bm \sigma=\bm \sigma_0+\bm \sigma_s= \bm \sigma_0+\bm D\left(\bm \varepsilon_0-\bm\varepsilon\right)
+\label{ULC1}
+\end{align} 
+On the other hand, the RVE stress $\bm \sigma$ is  related to the RVE strain $\bm \varepsilon$ by the relation
+\begin{align}
+\bm \sigma=\bm C\left(\bm \varepsilon-\bm\varepsilon_p\right)
+\label{ULC2}
+\end{align} 
+where $\bm C$ is the material stiffness, and $\varepsilon_p$ is the plastic strain in the RVE. From \eqref{ULC1} and \eqref{ULC2}, we see that the RVE strain is
+\begin{align}
+\bm \varepsilon&=\left(\bm C+\bm D\right)^{-1} \left[\bm \sigma_0+\bm D\bm \varepsilon_0+\bm C\bm\varepsilon_p\right]
+\end{align}
+while the RVE stress is
+\begin{align}
+\bm \sigma&=\bm C\left(\bm C+\bm D\right)^{-1} \left[\bm \sigma_0+\bm D\left(\bm \varepsilon_0- \bm\varepsilon_p\right)\right]\nonumber\\
+\end{align}
+
+We take the diagonal values of $\bm D$ to be $D_i=\alpha_i C_{ii}$ (no summation over $i$), where $\alpha_i$ is an array called ``\emph{machine stiffness ratio}". To understand the effects of the machine stiffness ratio, consider the two limits of small and large $\{\alpha_i\}$'s.
+
+First, suppose that $\alpha_i=0$ for some $i$. Let us rewrite stress as
+\begin{align}
+\bm \sigma&=\underbrace{\left(\bm I+\bm D\bm C^{-1}\right)^{-1}}_{\bm A}\bm \sigma_0+\underbrace{\left(\bm I+\bm D\bm C^{-1}\right)^{-1}\bm D}_{\bm B}\left(\bm \varepsilon_0- \bm\varepsilon_p\right)
+\end{align}
+ Note that the $i$-th row of the matrix $\bm I+\bm D\bm C^{-1}$ has a 1 in position $i$ and zeros everywhere else. This implies that also the $i$-th row of the matrix $\bm A$ has a 1 in position $i$ and zeros everywhere else, and in turn that  the $i$-th row of $\bm B$ is zero. This means $\sigma_{i}= \sigma_{0i}$. In other words, setting the $i$-th component of the machine stiffness ratio to zero implies that the corresponding stress component $\sigma_{i}$  matches the applied stress component $\sigma_{0i}$.
+
+Next, consider $\alpha_i\rightarrow\infty$ for some $i$. Let us rewrite strain as
+\begin{align}
+\bm \varepsilon=\underbrace{\left(\bm I+\bm D^{-1}\bm C\right)^{-1}\bm D^{-1}}_{\bm E} \left[\bm \sigma_0+\bm C\bm\varepsilon_p\right]
++\underbrace{\left(\bm I+\bm D^{-1}\bm C\right)^{-1}}_{\bm F} \bm \varepsilon_0
+\end{align}
+Here we simply note that the matrices $\bm E$ and $\bm F$ behave similar to the matrices $\bm B$ and $\bm A$ above, respectively. Hence the  $\varepsilon_{i}= \varepsilon_{0i}$. In other words, setting the $i$-th component of the machine stiffness ratio to $\infty$ implies that the corresponding strain component $\varepsilon_{i}$  matches the applied strain component $\varepsilon_{0i}$.
+%where $\bm D=\text{diag}{\{D_i\}}$ is a \emph{diagonal} matrix of ``machine stiffness ratios". With this choice we obtain
+%\begin{align}
+%\bm \varepsilon=\bm C^{-1}\left(\bm I+\bm D\right)^{-1} \left(\bm \sigma_0+\bm C\bm D\bm \varepsilon_0+\bm C\bm\varepsilon_p\right)
+%\end{align}
+%\begin{align}
+%\bm \sigma=\left(\bm I+\bm D\right)^{-1} \bm \sigma_0 + \left(\bm I+\bm D\right)^{-1} \bm D\bm C \left(\bm \varepsilon_0- \bm\varepsilon_p\right)
+%\end{align}
+
+%\begin{align}
+%\bm \varepsilon=\bm C^{-1}\left(\bm I+\bm D\right)^{-1}\left[\bm \sigma_0+\bm D\bm \varepsilon_0+\bm C\bm\varepsilon_p\right]
+%\end{align}
+
+%Method 2
+%Now, we assume that $\bm D=\bm C\bm D$, where $\bm D=\text{diag}{\{D_i\}}$ is a \emph{diagonal} matrix of ``machine stiffness ratios". With this choice we obtain
+%\begin{align}
+%\bm \sigma=\bm C\left(\bm I+\bm D\right)^{-1}\bm C^{-1} \left[\bm \sigma_0+\bm C\bm D\left(\bm \varepsilon_0- \bm\varepsilon_p\right)\right]
+%\end{align}
+
+
+

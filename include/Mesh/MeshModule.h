@@ -31,17 +31,15 @@ namespace model
     template <int dim>
     struct MeshLine;
     
-    template<int dim>
-    struct MeshRegion;
+    template<int dim,int order>
+    struct Polyhedron;
     
     template<int dim>
     struct MeshRegionBoundary;
     
-    template<typename RegionType>
-    struct MeshRegionObserver;
 
-    template<int dim>
-    struct PlanarMeshFace;
+
+
     
     template<short int dim, short int order>
     class Simplex;
@@ -52,8 +50,8 @@ namespace model
     template<short int dim,short int order>
     class SimplexChild;
     
-    template<short int dim>
-    struct SimplexObserver;
+    template<short int dim,short int order>
+    struct SimplexFactory;
     
     template<short int dim,short int order>
     struct SimplexParent;
@@ -88,14 +86,13 @@ namespace model
 #include <MeshBoundarySegment.h>
 #include <MeshPlane.h>
 #include <MeshLine.h>
-#include <MeshRegion.h>
+#include <Polyhedron.h>
 #include <MeshRegionBoundary.h>
-#include <MeshRegionObserver.h>
-#include <PlanarMeshFace.h>
+#include <Polyhedron.h>
 #include <Simplex.h>
 #include <SimplexBase.h>
 #include <SimplexChild.h>
-#include <SimplexObserver.h>
+#include <SimplexFactory.h>
 #include <SimplexParent.h>
 #include <SimplexReader.h>
 #include <SimplexTraits.h>

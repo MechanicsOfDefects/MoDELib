@@ -425,7 +425,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
                     
                     if (bndNodesContractionMap.find(key) == bndNodesContractionMap.end())
                     { // key not found
-                        std::map<std::set<const PlanarMeshFace<dim> *>, std::set<typename DislocationNetwork<dim>::NetworkNodeType *>> bndNodeMap;
+                        std::map<std::set<const Polyhedron<dim,dim-1> *>, std::set<typename DislocationNetwork<dim>::NetworkNodeType *>> bndNodeMap;
                         
                         for (const auto &loopNode : (*internalNodes.begin())->loopNodes())
                         {

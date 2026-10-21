@@ -388,3 +388,22 @@ add_executable(testSourceSplits testSourceSplits.cpp)
 target_link_libraries(testSourceSplits PRIVATE MoDELib)
 add_test(NAME sourceSplits COMMAND testSourceSplits)
 set_property(TEST sourceSplits APPEND PROPERTY LABELS "numerical;integration")
+
+add_executable(testPolyhedralMesh testPolyhedralMesh.cpp)
+target_link_libraries(testPolyhedralMesh PRIVATE MoDELib)
+add_test(NAME polyhedralMesh COMMAND testPolyhedralMesh "${PROJECT_SOURCE_DIR}")
+set_tests_properties(polyhedralMesh PROPERTIES LABELS "numerical;integration" TIMEOUT 120)
+
+add_executable(testPolyhedralMeshDimensions testPolyhedralMeshDimensions.cpp)
+target_link_libraries(testPolyhedralMeshDimensions PRIVATE MoDELib)
+add_test(NAME polyhedralMeshDimensions COMMAND testPolyhedralMeshDimensions)
+set_tests_properties(polyhedralMeshDimensions PROPERTIES LABELS "numerical;integration" TIMEOUT 120)
+
+# Compile-only: the legacy mesh library currently links explicit 3D instantiations.
+add_library(testPolyhedralMeshAdapters OBJECT polyhedralMeshAdapters.cpp)
+target_link_libraries(testPolyhedralMeshAdapters PRIVATE MoDELib)
+
+add_executable(testSimplexFactories testSimplexFactories.cpp)
+target_link_libraries(testSimplexFactories PRIVATE MoDELib)
+add_test(NAME simplexFactories COMMAND testSimplexFactories "${PROJECT_SOURCE_DIR}")
+set_tests_properties(simplexFactories PROPERTIES LABELS "numerical;integration" TIMEOUT 120)

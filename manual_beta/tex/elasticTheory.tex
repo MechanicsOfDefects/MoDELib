@@ -1,5 +1,5 @@
 \newpage
-\chapter{The elastic theory of discrete dislocations\label{elasticTheoryDislocations}}
+\chapter{DDD: elastic theory of discrete dislocations\label{elasticTheoryDislocations}}
 
 
 The key aspect of the DDD method is that dislocation interactions are computed without resorting to expensive atomistic calculations. This is made possible by the 
@@ -464,7 +464,7 @@ Note that, in the Burgers equation, we have introduced the solid angle  $\Omega(
 \Omega(\bm x)=4\pi\int_\mathcal{S}\GP_{,j}\dA_j'=\int_\mathcal{S}\frac{R_j}{R^3}\dA_j'\, .
 \end{align}
 
-The kernel of Eq.~\eqref{}
+\begin{draftnote}The source notes stop before discussing the kernel of the preceding loop-field expressions. That missing derivation has not been reconstructed here.\end{draftnote}
 
 
 
@@ -472,7 +472,7 @@ The kernel of Eq.~\eqref{}
 
 %%%%%%%%%%%%%%%%%%%%%%
 \subsection{Discrete dislocation loops in infinite isotropic media}
-complete steps here
+\begin{draftnote}The original isotropic specialization contains working equations but not a complete connecting derivation.\end{draftnote}
 \begin{align}
 \bm u=-\frac{\bm b\Omega}{4\pi}-\frac{1}{4\pi}\oint\left[\frac{\bm b\times\bm \xi}{R}+\frac{\lambda+\mu}{\lambda+2\mu}\left(\frac{\bm \xi\times\bm b}{R}-\frac{(\bm b\times\bm R)\cdot\bm \xi}{R^3}\bm R\right)\right]dl
 \label{displcementIsotropicSolid}
@@ -731,7 +731,7 @@ E_I=-\frac{\mu}{4\pi(1-\nu)}\oint_{\mathcal{L}_{2}}\oint_{\mathcal{L}_{1}}&\frac
 -2\left(\bm b_1\cdot{\bm b}_2\right)\left( \hat{\bm\xi}_1\cdot\hat{\bm \xi}_2\right)
 \right]\right.\nonumber\\
 &\left.+\left( \hat{\bm\xi}_1\cdot\hat{\bm \xi}_2\right) \left[\left(\bm b_1\cdot\bm b_2\right)-\left(\bm b_1\cdot\hat{\bm R}\right)\left(\bm b_2\cdot\hat{\bm R}\right)\right]\right\} dL_{1} dL_{2}
-\label{interaction_energy_loop_vector}
+\label{interaction_energy_loop_vector_expanded}
 \end{align}
 
 \begin{align}
@@ -784,10 +784,30 @@ From a numerical viewpoint, it is interesting to ask; what is the distribution o
 \int_\mathcal{B}c_{ijkl}u^c_{k,l}\tilde{u}_{i,j}d\mathcal{V}=\int_{\partial_N\mathcal{B}}\left(p_i- \sigma^\infty_{ij}\hat{n}_j\right)\tilde{u}_id\mathcal{A}
 \label{BVPcorrectionWeak}
 \end{align} 
-and notice that the RHS involves a surface integral  of the stress field  $\sigma^\infty_{ij}$ induced by the dislocation network. When a dislocation segment reaches the domain boundary, the numerical evaluation of this integral becomes challenging. This numerical difficulty can be  overcome using the construction shown in Fig.~\ref{BVPStrategy}. In fact, because $\beta^{P*}_{ij}$ is arbitrary, it is possible to add an external loop with the same Burgers vector of the boundary segment and opposite line direction, constructed so that one side of the loop overlaps with the boundary segment, and the opposite side is pushed to infinity along the direction of the boundary normal vector. In this way, because the contributions of the overlapping segments cancel out, the line integral involved in the calculation of $\sigma^{\infty}_{ij}$ can be limited to the portion of the dislocation configuration strictly inside the domain, and the virtual straight dislocation lines extending from the domain boundary to infinity. Notice that this construction unambiguously defines $\beta^{P*}_{ij}$ and the surface over which it extends, a fundamental requirement for the calculation of $u^\infty_i$ needed to satisfy displacement boundary conditions in the BVP (\ref{BVPcorrection}). 
+and notice that the RHS involves a surface integral  of the stress field  $\sigma^\infty_{ij}$ induced by the dislocation network. When a dislocation segment reaches the domain boundary, the numerical evaluation of this integral becomes challenging. This numerical difficulty can be  overcome using the external-loop construction in Fig.~\ref{BVPStrategy}. In fact, because $\beta^{P*}_{ij}$ is arbitrary, it is possible to add an external loop with the same Burgers vector of the boundary segment and opposite line direction, constructed so that one side of the loop overlaps with the boundary segment, and the opposite side is pushed to infinity along the direction of the boundary normal vector. In this way, because the contributions of the overlapping segments cancel out, the line integral involved in the calculation of $\sigma^{\infty}_{ij}$ can be limited to the portion of the dislocation configuration strictly inside the domain, and the virtual straight dislocation lines extending from the domain boundary to infinity. Notice that this construction unambiguously defines $\beta^{P*}_{ij}$ and the surface over which it extends, a fundamental requirement for the calculation of $u^\infty_i$ needed to satisfy displacement boundary conditions in the BVP (\ref{BVPcorrection}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Force vector of a triangular element due to a straight segments}
+
+\begin{figure}[htbp]\centering
+\begin{tikzpicture}[scale=0.85,>=stealth]
+\fill[manualblue!6] (-3,-2) rectangle (3,0);
+\draw[thick] (-3,0)--(3,0);
+\node at (-2,-1) {$\mathcal B$};
+\draw[very thick,manualblue,->] (-1.4,-1.4)--(-1.4,0)--(1.4,0);
+\draw[very thick,manualblue] (1.4,0)--(1.4,-1.4);
+\draw[thick,orange,dashed,->] (1.4,0.08)--(-1.4,0.08);
+\draw[thick,orange,->] (-1.4,0.08)--(-1.4,1.9);
+\draw[thick,orange,<-] (1.4,0.08)--(1.4,1.9);
+\draw[thick,orange,dashed] (-1.4,1.9)--(1.4,1.9);
+\node at (0,2.3) {closure sent to infinity};
+\node at (0,1) {$\beta^{P*}$};
+\node[anchor=west] at (3.15,0) {physical boundary};
+\end{tikzpicture}
+\caption{Schematic external-loop construction. Oppositely oriented overlapping boundary segments cancel; the external closure is taken to infinity. The drawing shows connectivity, not a finite computational truncation prescription.}
+\label{BVPStrategy}
+\end{figure}
+
+\subsection{Force vector of a triangular element due to a straight segment}
 We would like to compute the force vector of a triangular boundary element due to a straight segment. The weak form involved in the FEM problem is
 \begin{align}
 \int_\mathcal{T}\tilde u_i t_i \text{d}A=\sum_n \tilde u^n_i\int_\mathcal{T}N^n \sigma_{ij}\hat{n}_j \text{d}A
@@ -805,7 +825,8 @@ and $\tilde{S}$ is the the third-order dislocation stress differential operator,
 \begin{align}
 \tilde{S}_{ijl}[\cdot]=\frac{\mu b_k}{8\pi}\left[\left(\delta_{il}\epsilon_{jmk}+\delta_{jl}\epsilon_{imk}\right)\partial_m\Delta+\frac{2}{1-\nu}\epsilon_{klm}\left(\partial_{i}\partial_j\partial_m-\delta_{ij}\partial_m\Delta\right)\right]
 \end{align}
-\textcolor{magenta}{
+\begin{draftnote}The following operator manipulation was highlighted as working material in the original notes. It is retained for review, not promoted to a verified implementation formula.\end{draftnote}
+{
 Note that this operator can be rewritten as 
 \begin{align}
 \tilde{S}_{ijl}[\cdot]=\partial_m\hat{S}_{ijlm}[\cdot]
@@ -834,7 +855,7 @@ F^{(n)}_{i}
 +\int_\mathcal{T} N^n  \partial_j\hat{S}_{ijlm}\left[q_l(\bm x)\right]\, \text{d}A_m\nonumber\\
 &+\int_\mathcal{T}N^n_{,j}  \hat{S}_{ijlm}\left[q_l(\bm x)\right]\, \, \text{d}A_m
 -\int_\mathcal{T}N^n_{,m}  \hat{S}_{ijlm}\left[q_l(\bm x)\right]\, \text{d}A_j\nonumber\\
-\label{FEMforceVectorDD1}
+\label{FEMforceVectorDD2}
 \end{align}
 Note that in the expression above, the only third-order differential operator is $\partial_j\hat{S}_{ijlm}$. However a closer inspection reveals that
 \begin{align}
@@ -870,3 +891,4 @@ Moreover
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Discrete dislocations in periodic media}
+The translation lattice is described in Section~\ref{sec:periodicity}; finite-image controls and periodic glide-plane geometry are described in Section~\ref{sec:dddPeriodicity}. The original notes supplied only this heading; a complete periodic elastic-sum derivation remains to be written.

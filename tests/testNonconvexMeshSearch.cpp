@@ -17,7 +17,7 @@ int main(int argc,char** argv)
         require(argc==2,"Expected repository root");
         model::SimplicialMesh<3> mesh(std::string(argv[1])+"/Library/Meshes/poly30_periodicXYZ.msh",
                                     Eigen::Matrix3d::Identity(),Eigen::Vector3d::Zero(),{});
-        const auto* guess=&mesh.simplices().begin()->second;
+        const auto* guess=mesh.simplices().begin()->second.get();
         // Node 398 in the reported tutorial frame. The original global walk
         // stopped at an external face, despite this point belonging to grain 26.
         const Eigen::Vector3d point=Eigen::Vector3d(-311.5153825721246,816.6921641196241,2568.115086056312)/3666.1742093541243;
@@ -28,7 +28,7 @@ int main(int argc,char** argv)
         require(!mesh.searchRegion(1,point).first,"Region-restricted search escaped its grain");
         for(const auto& entry : mesh.simplices())
         {
-            const Eigen::Vector3d center=entry.second.bary2pos(Eigen::Vector4d::Constant(0.25));
+            const Eigen::Vector3d center=entry.second->bary2pos(Eigen::Vector4d::Constant(0.25));
             const auto found=mesh.searchWithGuess(center,guess);
             require(found.first,"Global search missed a tetrahedron center");
             require(found.second->pos2bary(center).minCoeff()>-1.e-7,"Search returned a non-containing tetrahedron");

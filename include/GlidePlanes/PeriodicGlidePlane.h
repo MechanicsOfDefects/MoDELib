@@ -156,7 +156,7 @@ struct PeriodicPlanePatch : public StaticID<PeriodicPlanePatch<dim>>
     static bool isRightHandedBoundary(const BoundingMeshSegments<dim>&, const Plane<dim>&);
     void addMeshIntersections(const BoundingMeshSegments<dim>&);
     const PeriodicPlaneEdgeContainerType& edges() const;
-    std::shared_ptr<PeriodicPlaneEdge<dim>> edgeOnFaces(const std::set<const PlanarMeshFace<dim>*>& faces) const;
+    std::shared_ptr<PeriodicPlaneEdge<dim>> edgeOnFaces(const std::set<const Polyhedron<dim,dim-1>*>& faces) const;
     int contains(const VectorLowerDim& test) const;
 };
 

@@ -468,8 +468,8 @@ int main(int argc,char** argv)
         }
         {
             model::DefectiveCrystalBase<3> base(folder.string());
-            model::PlanarMeshFace<3>* left=nullptr;
-            model::PlanarMeshFace<3>* right=nullptr;
+            model::Polyhedron<3,3-1>* left=nullptr;
+            model::Polyhedron<3,3-1>* right=nullptr;
             for(const auto& region : base.mesh.regions())
             {
                 for(const auto& face : region.second->faces())

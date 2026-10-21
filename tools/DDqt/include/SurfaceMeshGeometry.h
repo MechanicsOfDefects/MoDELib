@@ -39,7 +39,7 @@ namespace model
             {
                 if(!result || entry.second->region->regionID<result->region->regionID)
                 {
-                    result=entry.second;
+                    result=entry.second.get();
                 }
             }
             return result;

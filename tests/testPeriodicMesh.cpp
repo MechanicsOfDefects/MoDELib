@@ -17,7 +17,7 @@ void check(const std::string& path, int expected, const Eigen::Matrix3d& rotatio
     model::SimplicialMesh<3> mesh(path,rotation,Eigen::Vector3d::Zero(),{-1});
     const auto basis = mesh.periodicBasis();
     require(basis.cols() == expected,"Wrong detected periodic rank: " + path);
-    std::vector<model::PlanarMeshFace<3>*> faces;
+    std::vector<model::Polyhedron<3,3-1>*> faces;
     for(const auto& region : mesh.regions())
     {
         for(const auto& entry : region.second->faces())

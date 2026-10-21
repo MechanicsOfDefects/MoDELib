@@ -69,7 +69,7 @@ int main(int argc,char** argv)
             }
         }
         require(seeds[0]>=0 && seeds[1]>=0,"Missing periodic face seeds");
-        model::StaticID<model::PlanarMeshFace<3>>::force_count(0);
+        model::StaticID<model::Polyhedron<3,3-1>>::force_count(0);
         const double length=200.0/std::sqrt(3.0);
         for(int scenario=0;scenario<4;++scenario)
         {

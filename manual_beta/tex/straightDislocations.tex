@@ -1,10 +1,10 @@
 
-\chapter{Elastic fields of piecewise-straight dislocations loop}
+\chapter{DDD: fields of piecewise-straight loops}
 
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Straight segments}
+\section{Straight segments}
 For a straight segment starting at $\bm A$ and ending at $\bm B$, it is useful to preliminary compute the function
 \begin{align}
 q(\bm x)=\int_{\bm A}^{\bm B}R_a\ d\ell'
@@ -213,7 +213,7 @@ Simplifying:
 
  
 %%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Stress field of a straight segment}
+\section{Stress field of a straight segment}
 
 
 The stress field of the segment $\bm A\rightarrow\bm B$ is
@@ -242,6 +242,7 @@ Plugging back in \eqref{stressStraightDerivation} we obtain
 &\left.-\epsilon_{klm}b_k\hat{\xi}_lY_{am}\delta_{ij}\left(\frac{2}{z_a\bm Y_a\cdot \hat{\bm \xi}}+\frac{a^2}{z_a^2(\bm Y_a\cdot \hat{\bm \xi})^2}+\frac{a^2}{z_a^3 \bm Y_a\cdot \hat{\bm \xi}}\right)\right]^{\bm z=\bm A-\bm x}_{\bm z=\bm B-\bm x}
 \end{align}
 Factoring the term $z_a\bm Y_a\cdot \hat{\bm \xi}=(Y_a^2+a^2)/2$ we obtain
+{\small
 \begin{align}
 \sigma_{ij}(\bm x)
 =\frac{\mu}{4\pi(1-\nu)}&\left[\frac{2}{Y_a^2+a^2}\left\{(1-\nu)\left(\hat{\xi}_ib_k\epsilon_{jmk}+\hat{\xi}_jb_k\epsilon_{imk}\right)\left[\left(1+\frac{a^2}{Y_a^2+a^2}\right)Y_{am}+\frac{a^2}{2z_a^2 }z_m\right]\right.\right.\nonumber\\
@@ -252,6 +253,7 @@ Factoring the term $z_a\bm Y_a\cdot \hat{\bm \xi}=(Y_a^2+a^2)/2$ we obtain
 %
 %&\left.\left.-\epsilon_{klm}b_k\hat{\xi}_lY_{am}\delta_{ij}\left(2+\frac{a^2}{z_a\bm Y_a\cdot \hat{\bm \xi}}+\frac{a^2}{z_a^2 }\right)\right\}\right]^{\bm z=\bm A-\bm x}_{\bm z=\bm B-\bm x}
 \end{align}
+}
 
 
 %\begin{align}
@@ -262,6 +264,7 @@ Factoring the term $z_a\bm Y_a\cdot \hat{\bm \xi}=(Y_a^2+a^2)/2$ we obtain
 %&\left.\left.-\epsilon_{klm}\hat{\xi}_lb_k\delta_{ij}\frac{2Y_m}{Y^2}\right\}\right]^{\bm z=\bm A-\bm x}_{\bm z=\bm B-\bm x}
 %\end{align}
 Inverting the order of evaluation, and changing the sign within the square bracket we have
+{\small
 \begin{align}
 \sigma_{ij}(\bm x)
 =\frac{\mu}{4\pi(1-\nu)}&\left[\frac{2}{Y_a^2+a^2}\left\{(1-\nu)\left(\hat{\xi}_ib_k\epsilon_{jkm}+\hat{\xi}_jb_k\epsilon_{ikm}\right)\left[\left(1+\frac{a^2}{Y_a^2+a^2}\right)Y_{am}+\frac{a^2}{2z_a^2 }z_m\right]\right.\right.\nonumber\\
@@ -272,6 +275,7 @@ Inverting the order of evaluation, and changing the sign within the square brack
 %
 %&\left.\left.-\epsilon_{klm}b_k\hat{\xi}_lY_{am}\delta_{ij}\left(2+\frac{a^2}{z_a\bm Y_a\cdot \hat{\bm \xi}}+\frac{a^2}{z_a^2 }\right)\right\}\right]^{\bm z=\bm A-\bm x}_{\bm z=\bm B-\bm x}
 \end{align}
+}
 
 %\begin{align}
 %\sigma_{ij}(\bm x)
@@ -397,7 +401,7 @@ Suppose that we want to compute the stress field of segment $\bm A\bm B$ at a po
 %$\rho_iY_j=(z_i-\bm z\cdot\hat{\bm \xi} \hat{\xi}_i)(z_j+z\hat{\xi}_j)=z_iz_j+zz_i\hat{\xi}_j-\bm z\cdot\hat{\bm \xi}\hat{\xi}_iz_j-z\bm z\cdot\hat{\bm \xi}\hat{\xi}_i\hat{\xi}_j$
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Straight Displacement}
+\section{Straight Displacement}
 \begin{align}
  u_i
  &=-\frac{ b_i\Omega}{4\pi}-b_k\hat{\xi}_lU_{ikl}\oint_\mathcal{L}R_adL'\nonumber\\

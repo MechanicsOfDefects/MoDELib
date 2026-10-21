@@ -1,0 +1,43 @@
+\chapter{The multiphysics architecture}\label{chap:multiphysics}
+\section{Shared context and evolving state}
+\code{DefectiveCrystalBase} constructs the simulation context: parameters and paths, shared mesh ownership, periodic translations, shared polycrystal ownership, optional finite elements, and the base contexts of enabled physics. It also serves microstructure generation. \code{DefectiveCrystal} creates the selected evolving microstructures and advances the simulation.
+
+\code{MicrostructureBase} is the interface each physics implements. \code{MicrostructureContainer} is both a collection of these objects and an implementation of the same interface. Thus the container can forward lifecycle operations and expose aggregate fields without requiring callers to know the concrete type of every physics.
+\manualfigure{multiphysics}{0.98}{Shared context and physics lifecycle. Boxes identify responsibilities rather than inheritance alone. Physics execute in configured order; the diagram does not imply a simultaneous coupled solve.}
+\sourcefile{include/DefectiveCrystal/DefectiveCrystalBase.h}
+\sourcefile{include/DefectiveCrystal/MicrostructureBase.h}
+\sourcefile{src/DefectiveCrystal/MicrostructureContainer.cpp}
+
+\section{Lifecycle and common field queries}
+The interface includes initialization from a configuration, \code{solve()}, \code{reSolve()}, \code{getDt()}, \code{output()} and \code{updateConfiguration()}. It also exposes stress, displacement, inelastic displacement rate, mobile concentrations, immobile clusters, and volume-average quantities. A physics contributes the quantities it represents and returns the appropriate zero contribution for others.
+
+The container sums returned fields. For example,
+\begin{equation}
+\bm\sigma(\bm x)=\sum_\alpha\bm\sigma^{(\alpha)}(\bm x),\qquad
+\langle\bm\beta^P\rangle=\sum_\alpha\langle\bm\beta^{P,(\alpha)}\rangle.
+\end{equation}
+This additive interface makes coupling accessible, but the module must still define which part of the field it owns. In particular, an elastic correction must not double-count a dislocation's analytical stress. The optional node, element and simplex arguments of field queries provide geometric context and can avoid redundant searches.
+
+\section{One simulation step}
+The actual ordering in \code{DefectiveCrystal::runSingleStep} is:
+\begin{enumerate}
+\item Call \code{solve()} on every microstructure in configured order.
+\item Perform \code{maxResolveSteps} additional \code{reSolve()} passes.
+\item Choose $\Delta t=\min(\Delta t_{\max},\Delta t_1,\ldots,\Delta t_n)$.
+\item If this step is an output step, write the current configuration, auxiliary data and scalar history.
+\item Call \code{updateConfiguration()} on every microstructure.
+\item Advance simulation time and increment \code{runID}.
+\end{enumerate}
+Output therefore records the configuration before that step's update. \code{Nsteps} is the terminal step index in the run loop; after a restart it is not automatically a count of additional steps. Extra re-solve passes are a prescribed iteration count, not a general convergence test for the coupled problem.
+\sourcefile{src/DefectiveCrystal/DefectiveCrystal.cpp}
+
+\section{Selecting and extending physics}
+The \code{physics} line in \code{DefectiveCrystal.txt} accepts space-separated names:
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}
+physics=DislocationDynamics ElasticDeformation;
+\end{lstlisting}
+\end{minipage}\par
+Available names are \code{DislocationDynamics}, \code{ElasticDeformation}, \code{InclusionMicrostructure} and \code{ClusterDynamics}. Parsing is case-insensitive and removes duplicate names while preserving order. \code{none} is a template placeholder; a run with no actual physics is rejected. Because lifecycle calls are sequential, the list order is part of the numerical setup.
+
+A new physics needs an implementation of \code{MicrostructureBase}, configuration and output support, and registration in the physics parsing and construction paths. Its field contribution, time-step restriction and re-solve behavior must be defined explicitly. Mesh and material data should come from the shared context rather than from a second independently constructed crystal.

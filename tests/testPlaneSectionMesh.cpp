@@ -16,7 +16,7 @@ double tetrahedralArea(const model::SimplicialMesh<3>& mesh,const model::Plane<3
     double area=0.0;
     for(const auto& entry : mesh.simplices())
     {
-        const auto vertices=entry.second.vertexPositionMatrix();
+        const auto vertices=entry.second->vertexPositionMatrix();
         std::vector<Eigen::Vector2d> points;
         for(int i=0;i<4;++i)
         {
@@ -83,16 +83,6 @@ int main(int argc,char** argv)
         const Eigen::Vector3d b(6756.931196017786,15784.62596385352,0);
         const Eigen::Vector3d c(-4183.466787360541,11902.59340322532,3411.985017726859);
         const model::Plane<3> plane(a,(b-a).cross(c-a));
-        bool reproduced=false;
-        try
-        {
-            model::MeshPlane<3> old(mesh,plane.P,plane.unitNormal);
-        }
-        catch(const std::runtime_error&)
-        {
-            reproduced=true;
-        }
-        require(reproduced,"Reported failure was not reproduced by the old whole-mesh construction");
         const double expected=tetrahedralArea(mesh,plane);
         for(const double maxArea : {1.e6,2.e5})
         {

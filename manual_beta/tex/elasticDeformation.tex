@@ -1,0 +1,19 @@
+\chapter{Elastic-deformation physics}\label{chap:elastic}
+\section{Uniform and finite-element formulations}
+\code{ElasticDeformation} supplies the shared elastic response through the microstructure interface. With \code{useElasticDeformationFEM=0}, a uniform controller relates average inelastic strain, applied stress and applied strain. With the FEM formulation enabled, spatial fields are solved with the shared finite elements and a controller for volume-average loading.
+
+The uniform formulation is appropriate when a homogeneous external response is intended. A finite-domain correction requires a spatial solution and consistent physical boundary data. DDD retains its analytical defect fields; elastic deformation supplies its own contribution through the aggregate field interface. The superposition derivation in the DDD theory chapter explains why this division is useful near singular line fields.
+\sourcefile{src/ElasticDeformation/ElasticDeformation.cpp}
+\sourcefile{src/ElasticDeformation/ElasticDeformationFEM.cpp}
+
+\section{Loading controls}
+\code{ExternalStress0}, \code{ExternalStressRate}, \code{ExternalStrain0} and \code{ExternalStrainRate} define ramps using absolute simulation time. \code{stiffnessRatio} provides six machine-stiffness ratios. The Voigt ordering is $11,22,33,12,23,13$; strain inputs use engineering shear components. Stress is in internal modulus units and strain rate in inverse internal time units.
+
+A zero stiffness ratio gives stress control for the corresponding component; a large value approaches strain control. The FEM controller treats values at least $10^{15}$ as exact average-strain constraints. The uniform algebra and its limiting cases are retained with the original DDD loading notes in Section~\ref{sec:legacycontroller}, because they were part of that derivation collection. Their current software owner is this physics.
+\manualfigure{controller_weights}{0.8}{Analytical scalar weights $1/(1+\alpha)$ and $\alpha/(1+\alpha)$ illustrate the transition from stress to strain control. The full tensor problem also couples components through stiffness; these curves are not a simulation response.}
+
+\section{FEM field state}
+\code{ElasticDeformationFEM} creates trial fields \code{u} and \code{z}, differential expressions and the elastic bilinear form. \code{z} participates in the inelastic-displacement bookkeeping; its rate is obtained through the aggregate inelastic-displacement-rate query. The FEM controller adds global loading modes and constraints, while the global rigid-motion penalty removes admissible drift.
+
+For a FEM run, \code{useFEM=1} must accompany \code{useElasticDeformationFEM=1}. Use the full \code{Library/ElasticDeformation/ElasticDeformation.txt} template. When switching from uniform to FEM loading, retain the intended six-component load path and recheck periodic directions, physical surfaces and rigid modes. A compatible mesh does not by itself determine the desired macroscopic loading.
+\sourcefile{Library/ElasticDeformation/ElasticDeformation.txt}

@@ -1,143 +1,91 @@
-/* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
- *
- *
- * MoDELib is distributed without any warranty under the
- * GNU General Public License (GPL) v2 <http://www.gnu.org/licenses/>.
- */
-
+/* This file is part of MoDELib, distributed under GNU GPL v2. */
 #ifndef model_SimplexChild_H_
 #define model_SimplexChild_H_
-
 #include <memory>
 #include <map>
+#include <set>
 #include <SimplexTraits.h>
-//#include <SimplexCompare.h>
 #include <BoundarySimplex.h>
-// gcc8 incomplete type problem https://www.reddit.com/r/cpp/comments/8joovp/gcc_8_cant_forward_declare_with_associative/
 namespace model
 {
-    
-    template<short int dim,short int order>
-    class SimplexChild : private std::map<typename SimplexTraits<dim,order+1>::SimplexIDType,const Simplex<dim,order+1>* const>
-    /*               */, private std::map<typename SimplexTraits<dim,order  >::SimplexIDType,const Simplex<dim,order  >* const>
-
+    template <short int dim, short int order> class SimplexChild
     {
-        
-    public:
-        typedef typename SimplexTraits<dim,order>::SimplexType   SimplexType;
-        typedef std::map<typename SimplexTraits<dim,order  >::SimplexIDType,const Simplex<dim,order  >* const>  SiblingsContainerType;
-        typedef typename SimplexTraits<dim,order+1>::SimplexType   ParentSimplexType;
-        typedef std::map<typename SimplexTraits<dim,order+1>::SimplexIDType,const Simplex<dim,order+1>* const>  ParentContainerType;
+      public:
+        using SimplexType = typename SimplexTraits<dim, order>::SimplexType;
+        using ParentSimplexType = typename SimplexTraits<dim, order + 1>::SimplexType;
+        using ParentSimplexIDType = typename SimplexTraits<dim, order + 1>::SimplexIDType;
+        using ParentContainerType = std::map<ParentSimplexIDType, std::shared_ptr<ParentSimplexType>>;
+        using ParentLinks = std::map<ParentSimplexIDType, std::weak_ptr<ParentSimplexType>>;
+        using SiblingsContainerType =
+            std::map<typename SimplexTraits<dim, order>::SimplexIDType, std::shared_ptr<SimplexType>>;
 
-        typedef typename SimplexTraits<dim,order+1>::SimplexIDType ParentSimplexIDType;
-        
-    private:
-        
-        void make_siblings()
+      private:
+        ParentLinks parentLinks_;
+
+      public:
+        void addParent(const std::shared_ptr<ParentSimplexType> &parent)
         {
-            siblings().clear();
-            for(const auto& parent : parents())
+            const auto found = parentLinks_.find(parent->xID);
+            if (found != parentLinks_.end())
             {
-                for(int c=0; c<ParentSimplexType::nFaces;++c)
+                if (const auto existing = found->second.lock(); existing && existing != parent)
                 {
-                    siblings().emplace(parent.second->child(c).xID,&parent.second->child(c));
+                    throw std::runtime_error("Conflicting simplex parent identity");
                 }
             }
+            parentLinks_.insert_or_assign(parent->xID, parent);
         }
-        
-        
-    public:
-                
-        void addToParents(const ParentSimplexType* const pP)
-        {/*!@param[in] pID the ID of the parent Simplex
-          * @param[in] pP the pointer to the parent Simplex
-          *
-          * Adds pP to the parentContainer.
-          */
-            //            const bool couldInsert(parentContainer.insert(pP).second);
-            const bool couldInsert(parents().emplace(pP->xID,pP).second);
-            if(!couldInsert)
+        const ParentLinks &parentLinks() const
+        {
+            return parentLinks_;
+        }
+        // A temporary locked view; expired entries never affect topology queries.
+        ParentContainerType parents() const
+        {
+            ParentContainerType result;
+            for (const auto &entry : parentLinks_)
             {
-                throw std::runtime_error("COULD NOT INSERT SIMPLEX IN SIPLEX-MAP");
+                if (const auto parent = entry.second.lock())
+                {
+                    result.emplace(entry.first, parent);
+                }
             }
-
-            // HERE WE SHOULD LOOP OVER PARENTS AND ADD pP TO THEIR NEIGHBORS
-            //update();
-            make_siblings();
+            return result;
         }
-        
-        /**********************************************************************/
-        void removeFromParents(const ParentSimplexType* const pP)
-        {/*!@param[in] pID the ID of the parent Simplex
-          *
-          * Removes pID from the parentContainer.
-          */
-            const int nRemoved(parents().erase(pP->xID));
-            if(nRemoved!=1)
+        SiblingsContainerType siblings() const
+        {
+            SiblingsContainerType result;
+            for (const auto &parent : parents())
             {
-                throw std::runtime_error("COULD NOT REMOVE SIMPLEX FROM SIPLEX-MAP");
+                for (const auto &child : parent.second->children())
+                {
+                    result.emplace(child->xID, child);
+                }
             }
-
-            
-            // HERE WE SHOULD LOOP OVER PARENTS AND REMOVE pP FROM THEIR NEIGHBORS
-            //update();
-            make_siblings();
-            
+            return result;
         }
-        
-        ParentContainerType& parents()
-        {
-            return *this;
-        }
-
-        const ParentContainerType& parents() const
-        {
-            return *this;
-        }
-        
-        const SiblingsContainerType& siblings() const
-        {
-            return *this;
-        }
-        
-        SiblingsContainerType& siblings()
-        {
-            return *this;
-        }
-        
         bool isBoundarySimplex() const
         {
-            return BoundarySimplex<dim,dim-order>::isBoundarySimplex(*this);
-            
+            return BoundarySimplex<dim, dim - order>::isBoundarySimplex(*this);
         }
-        
         bool isRegionBoundarySimplex() const
         {
-            return BoundarySimplex<dim,dim-order>::isRegionBoundarySimplex(*this);
+            return BoundarySimplex<dim, dim - order>::isRegionBoundarySimplex(*this);
         }
-
-        bool isInRegion(const size_t& rID) const
+        bool isInRegion(const size_t &id) const
         {
-            const std::set<size_t> rIDs=regionIDs();
-            return rIDs.find(rID)!=rIDs.end();
+            return regionIDs().count(id) != 0;
         }
-        
         std::set<size_t> regionIDs() const
         {
-            std::set<size_t> temp;
-            for(const auto& parent : parents())
+            std::set<size_t> result;
+            for (const auto &parent : parents())
             {
-                const std::set<size_t> parentIDs(parent.second->regionIDs());
-                for(const size_t& regionID : parentIDs)
-                {
-                    temp.insert(regionID);
-                }
+                const auto ids = parent.second->regionIDs();
+                result.insert(ids.begin(), ids.end());
             }
-            return temp;
+            return result;
         }
-        
-        
     };
-    
-}
+} // namespace model
 #endif

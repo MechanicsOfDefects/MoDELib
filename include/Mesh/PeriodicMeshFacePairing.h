@@ -1,7 +1,7 @@
 #ifndef model_PeriodicMeshFacePairing_h_
 #define model_PeriodicMeshFacePairing_h_
 
-#include <PlanarMeshFace.h>
+#include <Polyhedron.h>
 #include <PeriodicSimplexPair.h>
 #include <Eigen/LU>
 #include <algorithm>
@@ -17,7 +17,7 @@ namespace model
 {
     // Compare the complete boundary discretization, not just its convex hull.
     template<int dim>
-    bool isPeriodicFacePair(const PlanarMeshFace<dim>& a, const PlanarMeshFace<dim>& b,
+    bool isPeriodicFacePair(const Polyhedron<dim,dim-1>& a, const Polyhedron<dim,dim-1>& b,
                             Eigen::Matrix<double,dim,1>& shift, double tolerance,
                             PeriodicSimplexPairMap<dim>* correspondence=nullptr)
     {
@@ -144,7 +144,7 @@ namespace model
     template<int dim>
     struct PeriodicMeshLattice
     {
-        using Face = PlanarMeshFace<dim>;
+        using Face = Polyhedron<dim,dim-1>;
         using Vector = Eigen::Matrix<double,dim,1>;
         using Basis = Eigen::Matrix<double,dim,Eigen::Dynamic>;
         Basis basis = Basis(dim,0);
@@ -167,7 +167,7 @@ namespace model
 
     template<int dim>
     PeriodicMeshLattice<dim> discoverPeriodicMeshLattice(
-        const std::vector<PlanarMeshFace<dim>*>& faces, double tolerance)
+        const std::vector<Polyhedron<dim,dim-1>*>& faces, double tolerance)
     {
         using Vector = Eigen::Matrix<double,dim,1>;
         using Lattice = PeriodicMeshLattice<dim>;

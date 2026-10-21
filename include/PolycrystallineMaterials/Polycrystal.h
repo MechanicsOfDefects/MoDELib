@@ -37,8 +37,8 @@ namespace model
     public:
 
         typedef SimplicialMesh<dim> SimplicialMeshType;
-        typedef MeshRegion<dim> MeshRegionType;
-        typedef MeshRegionObserver<MeshRegionType> MeshRegionObserverType;
+        typedef Polyhedron<dim,dim> MeshRegionType;
+
         typedef LatticeVector<dim> LatticeVectorType;
         typedef ReciprocalLatticeVector<dim> ReciprocalLatticeVectorType;
         typedef Eigen::Matrix<double,dim,1> VectorDim;

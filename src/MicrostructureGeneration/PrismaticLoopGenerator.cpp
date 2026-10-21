@@ -229,7 +229,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
                 double parameter=0.0;
                 for(size_t crossing=0;crossing<10000;++crossing)
                 {
-                    const PlanarMeshFace<3>* exitFace=nullptr;
+                    const Polyhedron<3,3-1>* exitFace=nullptr;
                     double exitParameter=1.0;
                     for(const auto& entry : grain->region.faces())
                     {

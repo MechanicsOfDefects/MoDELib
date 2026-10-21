@@ -23,33 +23,33 @@
 #include <SimplexReader.h>
 #include <IDreader.h>
 //#include <MeshStats.h>
-#include <MeshRegionObserver.h>
  // defines mode::cout
 #include <MeshRegionBoundary.h>
-#include <SimplexObserver.h>
+#include <SimplexFactory.h>
 //#include <SimplicialMeshFace.h>
 #include <GmshReader.h>
 #include <PeriodicSimplexPair.h>
+#include <PolyhedralMesh.h>
 
 
 namespace model
 {
+    template<int dim> class PolyhedralMesh;
     
     
     /**************************************************************************/
     /**************************************************************************/
     template<int _dim>
-    class SimplicialMesh : public SimplexObserver<_dim>                                // make sure this is destroyed after map of Simplex<_dim,_dim>
-    /*                  */,public MeshRegionObserver<MeshRegion<_dim>>   // make sure this is destroyed after map of Simplex<_dim,_dim>
-    /*                  */,public SimplexReader<_dim>
+    class SimplicialMesh : public SimplexReader<_dim>
     /*                  */,public std::map<typename SimplexTraits<_dim,_dim>::SimplexIDType, // key
-    /*                                */ const Simplex<_dim,_dim>>
+    /*                                */ std::shared_ptr<Simplex<_dim,_dim>>>
     /*                  */,public std::map<std::pair<size_t,size_t>,MeshRegionBoundary<_dim>> // MeshRegionBoundary container
     //    /*                  */,public std::deque<SimplicialMeshFace<_dim>> // MeshRegionBoundary container
     {
      
         typedef Eigen::Matrix<double,_dim,1> VectorDim;
         
+        SimplexFactories<_dim> _simplexFactories{this};
         VectorDim _xMin;
         VectorDim _xMax;
         VectorDim _xC;
@@ -59,6 +59,7 @@ namespace model
         PeriodicSimplexPairMap<_dim> _periodicSimplexPairs;
         Eigen::Matrix<double,_dim,Eigen::Dynamic> _periodicBasis = Eigen::Matrix<double,_dim,Eigen::Dynamic>(_dim,0);
         
+        std::shared_ptr<PolyhedralMesh<_dim>> _polyhedralMesh = std::make_shared<PolyhedralMesh<_dim>>();
         void createMesh(const std::set<int>&);
         
         
@@ -69,10 +70,10 @@ namespace model
         
         
         typedef std::map<typename SimplexTraits<dim,dim>::SimplexIDType, // key
-        /*            */ const Simplex<dim,dim>>  SimplexMapType;
+        /*            */ std::shared_ptr<Simplex<dim,dim>>>  SimplexMapType;
         typedef IDreader<1,dim+2,size_t> ElementReaderType;
-        typedef MeshRegion<dim> MeshRegionType;
-        typedef MeshRegionObserver<MeshRegionType> MeshRegionObserverType;
+        typedef Polyhedron<dim,dim> MeshRegionType;
+
         typedef MeshRegionBoundary<dim> MeshRegionBoundaryType;
         typedef std::pair<size_t,size_t> MeshRegionIDType;
         typedef std::map<MeshRegionIDType,MeshRegionBoundaryType> MeshRegionBoundaryContainerType;
@@ -88,6 +89,21 @@ namespace model
         
         SimplexMapType& simplices();
         
+        template<short int order> auto& simplexFactory()
+        {
+            return _simplexFactories.template factory<order>();
+        }
+        template<short int order> const auto& simplexFactory() const
+        {
+            return _simplexFactories.template factory<order>();
+        }
+        const PolyhedralMesh<_dim>& polyhedralMesh() const;
+        const auto& regions() const { return _polyhedralMesh->template factory<_dim>(); }
+        Polyhedron<_dim,_dim>* region(const size_t& id) { return regions().at(id).get(); }
+        const Polyhedron<_dim,_dim>* region(const size_t& id) const { return regions().at(id).get(); }
+        std::shared_ptr<Polyhedron<_dim,_dim>> getSharedRegion(size_t id) { return _polyhedralMesh->getRegion(id); }
+
+
         void updateRegions();
         
         void updateRegionBoundaries();

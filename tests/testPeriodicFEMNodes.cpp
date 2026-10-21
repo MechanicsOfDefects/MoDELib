@@ -17,7 +17,7 @@ void require(bool value,const std::string& message)
 void checkSimplices(const model::SimplicialMesh<3>& mesh)
 {
     size_t expected=0;
-    std::set<const model::PlanarMeshFace<3>*> seen;
+    std::set<const model::Polyhedron<3,3-1>*> seen;
     const double tol=1.e-7*(mesh.xMax()-mesh.xMin()).norm();
     for(const auto& region : mesh.regions())
     {

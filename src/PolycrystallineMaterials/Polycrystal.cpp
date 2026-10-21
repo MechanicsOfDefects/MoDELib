@@ -45,7 +45,7 @@ namespace model
     {
         std::cout<<greenBoldColor<<"Created Polycrystal"<<defaultColor<<std::endl;
         StaticID<Lattice<dim>>::force_count(0);
-        StaticID<PlanarMeshFace<dim>>::force_count(0);
+        StaticID<Polyhedron<dim,dim-1>>::force_count(0);
     }
 
 
@@ -139,7 +139,7 @@ namespace model
     template <int dim>
     typename Polycrystal<dim>::LatticeVectorType Polycrystal<dim>::latticeVectorFromPosition(const VectorDim& p) const
     {
-        return latticeVectorFromPosition(p,&(mesh.simplices().begin()->second));
+        return latticeVectorFromPosition(p,mesh.simplices().begin()->second.get());
     }
 
     template <int dim>
@@ -154,7 +154,7 @@ namespace model
     template <int dim>
     typename Polycrystal<dim>::ReciprocalLatticeVectorType Polycrystal<dim>::reciprocalLatticeVectorFromPosition(const VectorDim& p) const
     {
-        return reciprocalLatticeVectorFromPosition(p,&(mesh.simplices().begin()->second));
+        return reciprocalLatticeVectorFromPosition(p,mesh.simplices().begin()->second.get());
     }
 
     template <int dim>

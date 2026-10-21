@@ -55,7 +55,7 @@ int main(int argc, char** argv)
                 }
             }
             require(found,"No Y periodic seed found");
-            model::StaticID<model::PlanarMeshFace<3>>::force_count(0);
+            model::StaticID<model::Polyhedron<3,3-1>>::force_count(0);
         }
         if(physicalOnly)
         {

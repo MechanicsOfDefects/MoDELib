@@ -37,7 +37,7 @@
 
 //MoDELib Mesh Module
 #include <Simplex.h>
-#include <PlanarMeshFace.h>
+#include <Polyhedron.h>
 
 //MoDELib Lattice Module
 #include <LatticeModule.h>

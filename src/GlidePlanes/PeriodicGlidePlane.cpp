@@ -12,7 +12,7 @@
 #include <memory>
 #include <math.h>
 
-#include <PlanarMeshFace.h>
+#include <Polyhedron.h>
 #include <MeshBoundarySegment.h>
 #include <PeriodicGlidePlane.h>
 //#include <PeriodicGlidePlane.hpp>
@@ -82,7 +82,7 @@ namespace model
     //    {
     //
     //        // VectorDim shift(VectorDim::Zero());
-    //        // for(const PlanarMeshFace<dim>* const face : meshIntersection->faces)
+    //        // for(const Polyhedron<dim,dim-1>* const face : meshIntersection->faces)
     //        // {
     //        //     const auto parallelFaceID(patch->glidePlane->grain.region.parallelFaces().at(face->sID));
     //        //     const auto parallelFace(patch->glidePlane->grain.region.faces().at(parallelFaceID));
@@ -92,7 +92,7 @@ namespace model
     //        // return shift;
     //        // std::cout<<"Starting to calculate delta shift "<<std::endl;
     //        VectorDim shift(VectorDim::Zero());
-    //        for(const PlanarMeshFace<dim>* const face : meshIntersection->faces)
+    //        for(const Polyhedron<dim,dim-1>* const face : meshIntersection->faces)
     //        {
     //            // std::cout<<"Normal corresponding to this face "<<face->sID<<face->outNormal().transpose()<<std::endl;
     //            const auto parallelFaceID(patch->glidePlane->grain.region.parallelFaces().at(face->sID));
@@ -436,7 +436,7 @@ namespace model
     }
 
     template<int dim>
-    std::shared_ptr<PeriodicPlaneEdge<dim>> PeriodicPlanePatch<dim>::edgeOnFaces(const std::set<const PlanarMeshFace<dim>*>& faces) const
+    std::shared_ptr<PeriodicPlaneEdge<dim>> PeriodicPlanePatch<dim>::edgeOnFaces(const std::set<const Polyhedron<dim,dim-1>*>& faces) const
     {
         for(const auto& edge : edges())
         {

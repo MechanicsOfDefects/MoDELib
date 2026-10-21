@@ -57,7 +57,7 @@ namespace model
         typedef std::set<const GrainType *> GrainContainerType;
         typedef GlidePlane<dim> GlidePlaneType;
         typedef std::set<const GlidePlaneType *> GlidePlaneContainerType;
-        typedef PlanarMeshFace<dim> PlanarMeshFaceType;
+        typedef Polyhedron<dim,dim-1> PlanarMeshFaceType;
         typedef std::set<const PlanarMeshFaceType *> PlanarMeshFaceContainerType;
         typedef typename DislocationQuadraturePoint<dim>::QuadratureDynamicType QuadratureDynamicType;
         

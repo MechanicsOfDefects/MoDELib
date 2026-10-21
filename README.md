@@ -694,12 +694,12 @@ Additional verification resources:
 | `DDqt` | the immobile cluster-dynamics fields are not plotted |
 | Sources outside the build | `PeriodicGlidePlane_NEW.h/.cpp`, `GalerkinGlideSolver_lumped.cpp`, `Lattices_NEW/`, `Math/Rational_NEW.h` and `MPI/` are in the repository and are not compiled |
 | Doxygen pages | the main page still describes the earlier header-only MODEL library |
-| Manual | `manual_beta/`: the theory chapters are written; the section on running MoDELib is referenced but not yet written. It does not describe the 2.0.0 input files |
+| Manual | `manual_beta/`: architecture, theory and user guide, ordered from meshes and periodicity through materials, FEM and multiphysics. Inherited DDD derivations are retained with review notes; detailed CD coverage is deferred pending its redesign |
 
 ## 12. Documentation
 
 - **API reference (Doxygen):** <https://mechanicsofdefects.github.io/MoDELib/>, built from `doxygen/` on each push to `master`.
-- **Theory manual:** `manual_beta/MoDELib_manual.pdf`. Chapters: the elastic theory of discrete dislocations; discrete dislocation dynamics in MoDELib (network topology, the uniform load controller); a review of tensor calculus; the elastic fields of piecewise-straight loops.
+- **Architecture, theory and user guide:** `manual_beta/MoDELib_manual.pdf`. Covers simplicial and polyhedral meshes, periodicity, materials and polycrystals, FEM, multiphysics, simulation setup, elastic deformation, inclusions and DDD. Cluster dynamics is last, with its detailed revision deferred. Build instructions and the migration map are in `manual_beta/BUILDING.txt`.
 - **Input reference:** the templates in `Library/` carry a comment on each variable. `Library/DefectiveCrystal/DefectiveCrystal.txt` and `Library/DislocationDynamics/DD.txt` list the controls; `Library/Materials/Zr4_Fitted.txt` lists the cluster-dynamics variables.
 - **Git notes:** `git_basic_commands.txt`.
 

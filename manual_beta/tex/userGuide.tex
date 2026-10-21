@@ -1,0 +1,52 @@
+\chapter{Running a simulation}\label{runningMoDELib}
+\section{Build the tools}
+The repository uses C++20 and CMake 3.20 or later. Eigen and FFTW are required by the current build. OpenMP is used by the simulation tools. Qt/VTK are needed for the optional viewer, and pybind11 for optional Python bindings. The root \code{CMakeLists.txt} is the authoritative list of build options for this snapshot.
+
+From the repository root, a command-line configuration is:
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[language=bash]
+cmake -S . -B build -DUSE_PYBIND11=OFF -DBUILD_DDQT=OFF
+cmake --build build -j
+\end{lstlisting}
+\end{minipage}\par
+This builds the simulation tools without requiring the viewer or Python bindings. Tutorial input generators still need Python and NumPy. Plotting scripts generally need Matplotlib. CD species counts are compile-time options; match them to the chosen CD material when that physics is enabled.
+
+\section{The simulation folder}
+A simulation has an \code{inputFiles/} directory, a \code{config/} directory, and an \code{F/} directory for history output. The generator writes the initial microstructure; the driver evolves it. Copy templates into the simulation before editing them.
+\begin{center}\small
+\begin{tabular}{p{0.35\textwidth}p{0.57\textwidth}}\toprule
+File & Responsibility\\\midrule
+\code{polycrystal.txt} & Mesh, transformations, temperature, material, grain orientations and periodic faces.\\
+\code{DefectiveCrystal.txt} & Physics selection, shared FEM switch, time stepping, image counts and output schedule.\\
+Material file & Units, elasticity, crystal structure and constitutive parameters.\\
+\code{DD.txt} & DDD solver, remeshing and dislocation-specific controls.\\
+\code{ElasticDeformation.txt} & Uniform/FEM elasticity, loading and rigid-motion control.\\
+\code{initialMicrostructure.txt} & List of microstructure specifications consumed by the generator.\\
+\code{ClusterDynamics.txt} & Current CD-specific controls, when enabled.\\\bottomrule
+\end{tabular}\end{center}
+Inputs generally use \code{name=value;} and \code{\#} comments. Arrays are whitespace-separated; matrices have rows and one terminating semicolon. Use the complete template for each enabled physics rather than assembling a deck from isolated examples in this manual.
+
+\section{A first DDD run}
+The \code{dipoles} tutorial demonstrates the complete path. Run in a fresh copy if that tutorial folder contains results you wish to keep. From the repository root:
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}[language=bash]
+cd tutorials/dipoles
+python3 generateInputFiles.py
+../../build/tools/MicrostructureGenerator/microstructureGenerator .
+../../build/tools/DDomp/DDomp .
+\end{lstlisting}
+\end{minipage}\par
+The supplied generator selects DDD and elastic deformation, copies the material and mesh, generates \code{polycrystal.txt}, and writes the microstructure specifications. Its default is a long run. For an initial check, edit the generated \code{DefectiveCrystal.txt} to set \code{Nsteps=2;} and \code{outputFrequency=1;} before invoking \code{DDomp}. The commands here document the workflow; no simulation was run as part of this manual revision.
+
+\section{Outputs and restart}
+\code{config/evl_*.txt} (or the binary equivalent) contains configurations. Auxiliary output carries additional fields selected by the physics. \code{F/F_0.txt} stores scalar history, and \code{F/F_labels.txt} identifies its columns. Read labels instead of assuming a fixed column layout across physics combinations.
+
+\code{outputFrequency} controls step-based output and must be positive; \code{outputBinary} selects configuration encoding. \code{startAtTimeStep=-1} requests the latest available history step. For a fresh run, ensure that old configuration and history files are not accidentally used as a restart. For continuation, retain the configuration and matching history and set \code{Nsteps} beyond the restored step index.
+
+Check the selected physics, unit scales, periodic basis and initial configuration before interpreting results. Compare time-step, spatial and image-sum resolution using the physical observable of interest. A run that completes successfully can still be under-resolved.
+\sourcefile{tutorials/dipoles/generateInputFiles.py}
+\sourcefile{src/DefectiveCrystal/DefectiveCrystalParameters.cpp}
+\sourcefile{src/DefectiveCrystal/DefectiveCrystalTraitsIO.cpp}
+
+\section{Periodic mesh input}
+Set \code{periodicFaceIDs} in \code{polycrystal.txt}: an empty set disables pairing; \code{periodicFaceIDs=-1;} enables all valid discovered directions. Explicit IDs select external planar MoDELib faces, not Gmsh physical surface tags. Inspect the mesh face numbering and the discovered translation basis before selecting a subset. Geometric matching is described in Section~\ref{sec:periodicity}; FEM constraints and DDD image controls are described in Sections~\ref{sec:periodicFEM} and~\ref{sec:dddPeriodicity}, respectively.

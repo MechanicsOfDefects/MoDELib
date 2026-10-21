@@ -54,7 +54,7 @@ fs::path fixture(const fs::path& root,int rank,int reactions,bool source,const s
     std::ofstream(folder/"inputFiles/material.txt")<<material;
     std::ofstream(folder/"inputFiles/ClusterDynamics.txt")<<"useClusterDynamicsFEM=1;\n";
     const Eigen::Matrix3d F=(Eigen::Matrix3d()<<100,50,0,0,50*std::sqrt(3.0),0,0,0,100*std::sqrt(8.0/3.0)).finished();
-    StaticID<PlanarMeshFace<3>>::force_count(0);
+    StaticID<Polyhedron<3,3-1>>::force_count(0);
     std::set<int> seeds;
     {
         SimplicialMesh<3> mesh((root/"Library/Meshes"/name).string(),F,Eigen::Vector3d::Zero(),{-1});
@@ -75,7 +75,7 @@ fs::path fixture(const fs::path& root,int rank,int reactions,bool source,const s
             }
         }
     }
-    StaticID<PlanarMeshFace<3>>::force_count(0);
+    StaticID<Polyhedron<3,3-1>>::force_count(0);
     std::ofstream poly(folder/"inputFiles/polycrystal.txt");
     poly<<std::setprecision(17)<<"materialFile=material.txt;\nmeshFile="<<"mesh.msh"<<";\nabsoluteTemperature=600;\nF=";
     for(int i=0;i<3;++i)

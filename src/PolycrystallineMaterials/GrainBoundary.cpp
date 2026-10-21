@@ -16,7 +16,6 @@
 #include <Eigen/Eigenvalues>
 //#include <RoundEigen.h>
 #include <SimplicialMesh.h>
-#include <MeshRegionObserver.h>
 #include <Grain.h>
 //#include <GrainBoundaryType.h>
 #include <LatticePlane.h>
@@ -68,7 +67,7 @@ namespace model
 
     template <int dim>
     GrainBoundary<dim>::GrainBoundary(const MeshRegionBoundaryType& regionbnd_in,
-                                      const std::shared_ptr<PlanarMeshFace<dim>>& face_in,
+                                      const std::shared_ptr<Polyhedron<dim,dim-1>>& face_in,
                                       const Grain<dim>& grainFirst,
                                       const Grain<dim>& grainSecond
                                       ) :

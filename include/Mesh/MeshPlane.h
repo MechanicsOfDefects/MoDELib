@@ -14,7 +14,7 @@
 #include <vector>
 #include <Eigen/Dense>
 #include <SimplicialMesh.h>
-#include <PlanarMeshFace.h>
+#include <Polyhedron.h>
 #include <Plane.h>
 #include <StaticID.h>
 #include <PlaneSegmentIntersection.h>
@@ -38,23 +38,19 @@ namespace model
         typedef Eigen::Matrix<double,dim,dim> MatrixDim;
         typedef std::pair<VectorDim,const Simplex<dim,1>* const> RootType;
         typedef std::deque<RootType> RootContainerType;
-        typedef std::set<Eigen::Matrix<double,dim,1>,CompareVectorsByComponent<double,dim,float> > UniquePointContainer;
         
-        static BoundingMeshSegments<dim> getFaceBoundary(const PlanarMeshFace<dim>& face);
+        static BoundingMeshSegments<dim> getFaceBoundary(const Polyhedron<dim,dim-1>& face);
         static void checkPlaneIntersections(const BoundingMeshSegments<dim>& temp);
-        BoundingMeshSegments<dim> sortMeshIntersections(const BoundingMeshSegments<dim>& mshInt) const;
+
         
         const std::pair<int,int> regionIDs;
         const BoundingMeshSegments<dim> meshIntersections;
 
         MeshPlane(const SimplicialMesh<dim>& mesh,
-                  const VectorDim& p,
-                  const VectorDim& n);
-        MeshPlane(const SimplicialMesh<dim>& mesh,
                   const size_t& rID,
                   const VectorDim& p,
                   const VectorDim& n);
-        MeshPlane(const PlanarMeshFace<dim>& face,
+        MeshPlane(const Polyhedron<dim,dim-1>& face,
                   const size_t& rID1,
                   const size_t& rID2);
     };

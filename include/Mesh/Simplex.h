@@ -16,11 +16,11 @@
 #include <Eigen/Dense>
 #include <SimplexTraits.h>
 #include <SimplexReader.h>
-#include <SimplexObserver.h>
+#include <SimplexFactory.h>
 #include <SimplexBase.h>
 #include <SimplexParent.h>
 #include <SimplexChild.h>
-#include <MeshRegion.h>
+#include <Polyhedron.h>
 //#include <VertexReader.h>
 #include <BarycentricTraits.h>
 #include <SimplexVolume.h>
@@ -46,8 +46,15 @@ namespace model
         
         const Eigen::Matrix<double,dim,1> P0;
         
+    private:
+        friend struct WeakPtrFactory<SimplexFactory<dim,order>,Simplex<dim,order>>;
         Simplex(SimplicialMesh<dim>* const m,
                 const SimplexIDType& vIN);
+        Simplex(SimplexFactory<dim,order>* factory, const SimplexIDType& id)
+            : Simplex(factory->mesh,id)
+        {
+        }
+    public:
         ~Simplex();
         std::set<const Simplex<dim,0>*> boundaryNeighbors() const;
         Eigen::Matrix<double,dim,1> outNormal() const;
@@ -80,8 +87,15 @@ namespace model
         double vol0; // SHOULD BE CONST, SEE BELOW
         
         /**********************************************************************/
+    private:
+        friend struct WeakPtrFactory<SimplexFactory<dim,order>,Simplex<dim,order>>;
         Simplex(SimplicialMesh<dim>* const m,
                 const SimplexIDType& vIN);
+        Simplex(SimplexFactory<dim,order>* factory, const SimplexIDType& id)
+            : Simplex(factory->mesh,id)
+        {
+        }
+    public:
         ~Simplex();
         //        BaseArrayType& children();
         //        const BaseArrayType& children() const;
@@ -121,8 +135,8 @@ namespace model
         typedef Simplex<dim,order-1> ChildSimplexType;
         typedef typename SimplexTraits<dim,order-1>::SimplexIDType ChildIDType;
         
-        typedef MeshRegion<dim> MeshRegionType;
-        typedef MeshRegionObserver<MeshRegionType> MeshRegionObserverType;
+        typedef Polyhedron<dim,dim> MeshRegionType;
+
         
         //! Shared pointer to MeshRegioin containing *this
         const std::shared_ptr<MeshRegionType> region;
@@ -135,8 +149,15 @@ namespace model
         
         const double vol0;
         
+    private:
+        friend struct WeakPtrFactory<SimplexFactory<dim,order>,Simplex<dim,order>>;
         Simplex(SimplicialMesh<dim>* const m,
                 const SimplexIDType& vIN, const int regionID=0);
+        Simplex(SimplexFactory<dim,order>* factory, const SimplexIDType& id, int regionID)
+            : Simplex(factory->mesh,id,regionID)
+        {
+        }
+    public:
         ~Simplex();
         //        BaseArrayType& children();
         //        const BaseArrayType& children() const;

@@ -1,5 +1,5 @@
 
-\chapter{Review of tensor calculus}
+\chapter{DDD: mathematical identities}
 
 
 
@@ -24,12 +24,10 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Surface Divergence Theorem}
-In this section we recall some useful theorems in surface integration. \cite{Slattery2006}, \cite{Scovazzi2007}.
+In this section we recall some useful theorems in surface integration. \cite{Slattery:2006wn}, \cite{Scovazzi:2007tc}.
 
 See \cite{Slattery:2006wn} p. 669.
-\begin{mytheorem} (Surface Divergence Theorem)
-fdsfsd
-\end{mytheorem}
+\begin{draftnote}The original notes did not supply the surface-divergence theorem here. The cited reference is retained for completion.\end{draftnote}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Surface Transport Theorem}
@@ -126,7 +124,7 @@ Now exapand the curl
    
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{OLD NOTES: Elastic Energy of a Dislocation Loop}
+\section{Elastic energy of a dislocation loop: working derivation}
 \subsection{Volume to Surface}
 (Eshelby) Let's consider a body delimited by a closed surface $S_0$ having a source of eigenstress\footnote{ no external surface traction}  $I$ enclosed within the surface $S$ and a source of stress $II$ outside $S$.
 
@@ -139,7 +137,7 @@ E&=&\frac{1}{2}\int_V\sigma_{ij}\epsilon_{ij}dV=\frac{1}{2}\int_V\left(\sigma^I_
 \end{eqnarray}
 Away from their respective sources strains are gradients of displacement fields therefore $\epsilon^{I}_{ij}=\frac{1}{2}\left(u^I_{i,j}+u^I_{j,i}\right)$ in $V_{II}$ and $\epsilon^{II}_{ij}=\frac{1}{2}\left(u^{II}_{i,j}+u^{II}_{j,i}\right)$ in $V_{I}$, but not conversely.
 \begin{eqnarray}
-E_{int}&=&\int_{V_I}\sigma^{I}_{ij}u^{II}_{i,j}dV_I+\int_{V_{II}}\sigma^{II}_{ij}u^{I}_{i,j}dV_{II}\noindent\\
+E_{int}&=&\int_{V_I}\sigma^{I}_{ij}u^{II}_{i,j}dV_I+\int_{V_{II}}\sigma^{II}_{ij}u^{I}_{i,j}dV_{II}\nonumber\\
 &=&\oint_{S}\sigma^{I}_{ij}u^{II}_{i}\hat{n}_jdS-\underbrace{\int_{V_I}\sigma^{I}_{i,j}u^{II}_{i}dV_I}_{\mbox{equilibrium}}\nonumber\\
 &+&\oint_{S_0}\sigma^{II}_{ij}u^{I}_{i}\hat{n}_jdS-\oint_{S}\sigma^{II}_{ij}u^{I}_{i}\hat{n}_jdS+\underbrace{\int_{V_{II}}\sigma^{II}_{i,j}u^{I}_{i}dV_{II}}_{\mbox{equilibrium}}\nonumber\\
 &=&\oint_{S}\left(\sigma^{I}_{ij}u^{II}_{i}-\sigma^{II}_{ij}u^{I}_{i}\right)\hat{n}_jdS+\underbrace{\oint_{S_0}t_i^{II}u_i^{I}dS}_{\mbox{no surface tractions}}
@@ -188,13 +186,14 @@ f*g=\int_{\mathbb{R}^3}f(\bm x-\bm x')g(\bm x')\dV'=-\int_{-\mathbb{R}^3}f(\bm x
 \end{align}
 
 \section{The nabla operator}
+We use $\nabla$ for the spatial gradient, $\Delta=\partial_i\partial_i$ for the Laplacian, and a comma for component differentiation. Repeated Cartesian indices are summed.
 
 
 \section{The Green's  tensor and the F-tensor in classical  anisotropic elasticity}
 
 \begin{figure}[t]
 \centering
-\include{fourierSphere}
+\includegraphics[width=0.55\textwidth]{fourier_sphere}
 %\includegraphics[width=0.4\textwidth]{fourierSphere}
 \caption{The unit sphere in Fourier space. The unit vector $\bm \kappa(\theta,\phi)$ is defined by the azimuth angle $\phi$, and the  zenith angle $\theta$  measured from the axis $\hat{\bm e}_3=\bm R/R$.}
 \label{kSpace}

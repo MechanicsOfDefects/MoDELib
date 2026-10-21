@@ -71,7 +71,7 @@ int main(int argc, char** argv)
             }
         }
         require(seeds[0]>=0 && seeds[1]>=0,"Missing periodic seeds");
-        model::StaticID<model::PlanarMeshFace<3>>::force_count(0);
+        model::StaticID<model::Polyhedron<3,3-1>>::force_count(0);
         const double length=3671.9477120460206;
         // A positive threshold distinguishes fresh area from a newly created
         // loop's initially zero cached area.

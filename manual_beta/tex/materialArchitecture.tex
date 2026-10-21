@@ -1,0 +1,60 @@
+\chapter{Materials and polycrystals}\label{chap:materials}
+\section{Shared material, grain-specific crystallography}
+\code{PolycrystallineMaterialBase} reads the material identity, crystal structure, temperature-dependent scales, elastic constants, enabled slip systems and second phases. \code{Polycrystal<3>} combines this shared material with the mesh's collection of grains. Each mesh region produces a \code{Grain}; each grain derives from \code{SingleCrystalBase}, which provides its oriented lattice, plane normals, slip systems and second phases.
+
+In this design, changing a grain's orientation changes its crystallography while the material scale is shared. A collection of differently oriented grains is therefore not, by itself, a collection of different material files. The current base reads one material file for the polycrystal and checks that grains have a common atomic volume.
+\manualfigure{polycrystal}{0.98}{Construction of the polycrystal. Geometry provides the regions, the shared material provides constitutive data, and a rotation supplies each grain's crystallographic orientation.}
+\sourcefile{src/PolycrystallineMaterials/PolycrystallineMaterialBase.cpp}
+\sourcefile{src/PolycrystallineMaterials/Polycrystal.cpp}
+
+\section{Units and temperature}
+The fundamental scales are the Burgers-vector magnitude $b_{\mathrm{SI}}$, the shear modulus $\mu_{\mathrm{SI}}$, and the shear-wave speed $c_{s,\mathrm{SI}}$. The current material constructor uses
+\begin{equation}
+\mu_{\mathrm{SI}}(T)=\mu_{0,\mathrm{SI}}+\mu_{1,\mathrm{SI}}T,
+\quad c_{s,\mathrm{SI}}=\sqrt{\mu_{\mathrm{SI}}/\rho_{\mathrm{SI}}},
+\quad E_{\mathrm{SI}}=2\mu_{\mathrm{SI}}(1+\nu).
+\end{equation}
+Internal values of $b$, $\mu$ and $c_s$ are one. To interpret outputs, use
+\begin{center}
+\begin{tabular}{lll}\toprule
+Quantity & Internal value & SI conversion\\\midrule
+Position & $\hat x$ & $b_{\mathrm{SI}}\hat x$\\
+Time & $\hat t$ & $(b_{\mathrm{SI}}/c_{s,\mathrm{SI}})\hat t$\\
+Velocity & $\hat v$ & $c_{s,\mathrm{SI}}\hat v$\\
+Stress & $\hat\sigma$ & $\mu_{\mathrm{SI}}\hat\sigma$\\
+Energy & $\hat E$ & $\mu_{\mathrm{SI}}b_{\mathrm{SI}}^3\hat E$\\\bottomrule
+\end{tabular}
+\end{center}
+A physical length used to scale a unit mesh must be divided by $b_{\mathrm{SI}}$. Input names ending in \code{_SI}, or naming units such as \code{_eV}, identify dimensional values; other controls must be checked in their template. Temperature is in kelvin.
+
+The presence of crystallographic anisotropy in slip systems does not imply that every elastic solver uses an anisotropic stiffness. The current elastic-deformation module constructs isotropic stiffness from $\mu$ and $\nu$. The anisotropic dislocation derivations retained later in the manual are general theory and should not be read as a statement that every runtime kernel implements that generality.
+
+\section{Grains, rotations and boundaries}
+For each region ID $r$, \code{Grain} reads the crystal to global (\code{C2G}) transformation matrix from the entry named \code{C2G} followed by that ID, for example \code{C2G1}. This matrix maps crystal coordinates to global coordinates. For a proper rotation $\bm Q$, a crystal vector transforms as $\bm v_g=\bm Q\bm v_c$, and a second-order tensor as $\bm T_g=\bm Q\bm T_c\bm Q^T$. Use orthogonal matrices with determinant $+1$; a mesh scaling belongs in \code{F}, not in the crystal rotation.
+
+\code{SingleCrystalSelector} chooses the lattice and available crystallographic objects from the material's crystal structure. \code{enabledSlipSystems} selects which systems are constructed. A slip system combines a slip direction, plane and mobility behavior; material mobility data must be compatible with the selected systems. Grain boundaries associate neighboring grains with their geometric region boundary and planar face. Their existence as objects does not automatically supply a constitutive rule for transmission of dislocations.
+\sourcefile{src/PolycrystallineMaterials/Grain.cpp}
+\sourcefile{include/PolycrystallineMaterials/SingleCrystalBase.h}
+\sourcefile{include/PolycrystallineMaterials/GrainBoundary.h}
+
+\section{Input workflow}
+Copy a material file from \code{Library/Materials/} to the simulation's \code{inputFiles/}. Select it in \code{polycrystal.txt} alongside the mesh and temperature. Supply a rotation for every mesh region, using the actual region IDs rather than assuming consecutive numbering.
+\par\noindent\begin{minipage}{\linewidth}
+\begin{lstlisting}
+# Illustrative polycrystal fragment: filenames must exist locally.
+materialFile=W.txt;
+meshFile=unitCube24.msh;
+absoluteTemperature=300;
+F=1000 0 0
+  0 1000 0
+  0 0 1000;
+X0=0 0 0;
+C2G1=1 0 0
+     0 1 0
+     0 0 1;
+periodicFaceIDs=-1;
+\end{lstlisting}
+\end{minipage}\par
+This example scales a unit cube to side length $1000b$. It is a geometry/material fragment, not a complete simulation. For a multigrain mesh, add the corresponding \code{C2G} entries. The tutorial helper \code{PolyCrystalFile} is useful for generating single-grain input; inspect its output before extending it to several grains.
+
+A source-level material investigation should follow the reading class: basic elastic scales in \code{PolycrystallineMaterialBase}, slip-system construction in the crystal-specific classes, mobility in \code{DislocationMobilities}, and diffusion/reaction parameters in the CD context. This avoids treating one material file as a single constitutive law.

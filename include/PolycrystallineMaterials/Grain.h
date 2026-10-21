@@ -11,8 +11,7 @@
 #include <cfloat> // FLT_EPSILON
 #include <Eigen/Core>
 #include <SimplicialMesh.h>
-#include <MeshRegionObserver.h>
-#include <MeshRegion.h>
+#include <Polyhedron.h>
 #include <LatticeModule.h>
 #include <GlidePlaneBase.h>
 #include <PolycrystallineMaterialBase.h>
@@ -32,8 +31,8 @@ namespace model
     {
         
         typedef Lattice<dim> LatticeType;
-        typedef MeshRegion<dim> MeshRegionType;
-        typedef MeshRegionObserver<MeshRegionType> MeshRegionObserverType;
+        typedef Polyhedron<dim,dim> MeshRegionType;
+
         typedef Eigen::Matrix<long int,dim,1> VectorDimI;
         typedef Eigen::Matrix<  double,dim,1> VectorDimD;
         typedef Eigen::Matrix<double,dim,dim> MatrixDimD;

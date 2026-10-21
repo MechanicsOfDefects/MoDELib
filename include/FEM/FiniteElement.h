@@ -116,7 +116,7 @@ namespace model
             // Insert elements
             for (const auto& simpl : mesh.simplices())
             {
-                auto temp=ElementContainerType::emplace(simpl.first,ElementType(simpl.second,*this,*this,mesh2femIDmap()));
+                auto temp=ElementContainerType::emplace(simpl.first,ElementType(*simpl.second,*this,*this,mesh2femIDmap()));
 //                assert(temp.second && "UNABLE TO INSERT ELEMENT IN ELEMENT CONTAINER.");
                 if(!temp.second)
                 {
@@ -137,13 +137,13 @@ namespace model
             
             if(std::is_same<ElementType,LagrangeElement<ElementType::dim,ElementType::order>>::value)
             {
-                if(mesh2femIDmap().size()!=mesh.template observer<0>().size())
+                if(mesh2femIDmap().size()!=mesh.template simplexFactory<0>().liveSimplices().size())
                 {
                     std::cout<<"mesh2femIDmap().size()="<<mesh2femIDmap().size()<<std::endl;
-                    std::cout<<"mesh.template observer<0>().size()="<<mesh.template observer<0>().size()<<std::endl;
+                    std::cout<<"mesh.template simplexFactory<0>().liveSimplices().size()="<<mesh.template simplexFactory<0>().liveSimplices().size()<<std::endl;
                     throw std::runtime_error("mesh2femIDmap has wrong size.");
                 }
-//                assert((mesh2femIDmap().size()==mesh.template observer<0>().size()) && "mesh2femIDmap has wrong size.");
+//                assert((mesh2femIDmap().size()==mesh.template simplexFactory<0>().liveSimplices().size()) && "mesh2femIDmap has wrong size.");
             
             }
             

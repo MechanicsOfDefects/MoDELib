@@ -1,0 +1,17 @@
+\chapter{Inclusion physics}\label{chap:inclusions}
+\section{Objects and field contributions}
+\code{InclusionMicrostructure} is a microstructure whose state is a collection of Eshelby inclusion objects. The current implementation restores spherical, ellipsoidal and polyhedral inclusions from configuration records. The current inclusion state is static: \code{solve()} and \code{reSolve()} do not evolve it, and its time-step proposal is the shared maximum. A common \code{EshelbyInclusionBase} interface provides the elastic-field behavior needed by the surrounding simulation.
+
+An inclusion carries shape data, a transformation eigenstrain, a phase identity and mobility-reduction information. Its stress is a contribution to the aggregate stress seen by other physics. The geometry used by a polyhedral inclusion belongs to that inclusion; it should not be confused with the \code{PolyhedralMesh} representation of grain boundaries.
+\sourcefile{src/InclusionMicrostructure/InclusionMicrostructure.cpp}
+\sourcefile{include/InclusionMicrostructure/EshelbyInclusionBase.h}
+
+\section{Initialization and coupling}
+Inclusion IDs share one namespace across shapes. Initialization checks for collisions, clears existing inclusion state and restores saved IDs. Spherical and ellipsoidal centers are located in the mesh to obtain a grain and its second-phase definition. An invalid phase ID is an input error. Polyhedral records supply node and face connectivity as well as the inclusion's constitutive data.
+
+The eigenstrain is the stress-free transformation associated with the inclusion. It generates an elastic field when constrained by the surrounding solid. This is the same eigendistortion concept developed in the DDD theory chapter, but the source occupies a volume rather than a dislocation's slip surface. Phase data and shape-specific kernels determine the actual field evaluation.
+
+\section{User workflow}
+Select \code{InclusionMicrostructure} in \code{physics}. Generate inclusion specifications using the templates under \code{Library/Microstructures/}, ensure that the material enables the intended second phase, and inspect the generated configuration before coupling it to DDD. Use distinct IDs for all inclusion shapes and check that their locations belong to the intended grain. Inclusion generation and inclusion field evaluation are separate stages; the generator does not select the evolving physics for the driver.
+
+For verification examples, inspect \code{tests/ellipsoidalInclusion/} and \code{tutorials/inclusions/}. Comparisons should include a shape limit or symmetry check and the behavior of fields outside the inclusion, not only successful parsing of a configuration.

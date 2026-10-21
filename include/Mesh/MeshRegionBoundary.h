@@ -12,24 +12,24 @@
 #include <deque>
 #include <assert.h>
 
-#include <MeshRegionObserver.h>
-#include <PlanarMeshFace.h>
+#include <Polyhedron.h>
 
 namespace model
 {
 
     template<int dim>
     struct MeshRegionBoundary : public std::set<const Simplex<dim,dim-1>*>
-    /*                       */,public std::map<int,std::shared_ptr<PlanarMeshFace<dim>>>
+    /*                       */,public std::map<size_t,std::shared_ptr<Polyhedron<dim,dim-1>>>
     {
         typedef Simplex<dim,dim-1> SimplexType;
-        typedef PlanarMeshFace<dim> PlanarMeshFaceType;
-        typedef std::map<int,std::shared_ptr<PlanarMeshFaceType>> MeshFacesContainerType;
+        typedef Polyhedron<dim,dim-1> PlanarMeshFaceType;
+        typedef std::map<size_t,std::shared_ptr<PlanarMeshFaceType>> MeshFacesContainerType;
         
     private:
         
+        PolyhedralMesh<dim>& topology;
         void buildSingleFace(const Simplex<dim,dim-1>* newStart,
-                             std::shared_ptr<PlanarMeshFace<dim>> newFace,
+                             std::shared_ptr<Polyhedron<dim,dim-1>> newFace,
                              std::set<const Simplex<dim,dim-1>*>& allSimplices);
         void buildFaces();
                 
@@ -37,7 +37,7 @@ namespace model
         
         const std::pair<int,int> regionBndID;
 
-        MeshRegionBoundary(const std::pair<size_t,size_t>& rbndID);
+        MeshRegionBoundary(const std::pair<size_t,size_t>& rbndID, PolyhedralMesh<dim>& topologyIn);
         void update();
         const std::set<const SimplexType*>& simplices() const;
         std::set<const SimplexType*>& simplices();

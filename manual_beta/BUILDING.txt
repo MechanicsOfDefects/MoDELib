@@ -1,0 +1,59 @@
+MoDELib manual: architecture, theory and user guide
+=================================================
+
+Entry points
+------------
+MoDELib_manual.tex is the master source; MoDELib_manual.pdf is the reviewed PDF.
+The chapters under tex/ follow the construction of a simulation:
+mesh architecture -> periodicity -> materials/polycrystals -> FEM ->
+multiphysics -> user workflow -> elastic deformation -> inclusions ->
+DDD architecture and theory -> cluster dynamics.
+
+The architecture reflects the working tree inspected on 21 October 2026,
+including the in-progress unification of mesh regions and faces as Polyhedron
+cells. It is not a release specification. The C++ code was not modified or
+compiled by this documentation update.
+
+Build
+-----
+From the repository root:
+  python3 manual_beta/scripts/build_manual.py
+This stages sources and figures into a new temporary directory and runs
+latexmk there, avoiding interference from historical auxiliary files. It prints
+the PDF and log paths. Inspect the PDF before copying it to the manual folder,
+or use --publish to copy a successful build automatically:
+  python3 manual_beta/scripts/build_manual.py --publish
+
+Requires a TeX distribution with latexmk and the packages in the master source.
+Existing figures are sufficient to build. To regenerate them, use Python with
+NumPy and Matplotlib:
+  python3 manual_beta/scripts/create_figures.py
+The cover illustration reads Library/Meshes/unitCube24.msh. Figure 1.1 reads
+Library/Meshes/polycrystalCube_10_periodicX.msh; its standalone generator is
+scripts/create_polycrystal_figure.py. Other generated
+figures are schematics or explicitly defined analytical functions, not
+simulation data. Vector PDF assets are used in the manual; PNGs are previews.
+
+Migration of the notes
+----------------------
+archive/ retains the exact original master and all seven original chapter
+sources. The duplicate DDD.tex and MoDELib.tex introductions are superseded by
+dddArchitecture.tex. Their loading derivation and OLD.tex's equations are
+collected in dddSupplement.tex. elasticTheory.tex, regularizedDislocations.tex,
+straightDislocations.tex and math.tex are all in the DDD part.
+
+Mathematical expressions were preserved apart from notation/formatting repairs:
+Levi-Civita symbols in regularizedDislocations.tex, a stray noindent in math.tex,
+line breaks, local type sizing, and unique equation labels. Empty prose/theorem
+placeholders became explicit status notes. This is not a mathematical audit.
+The missing Fourier-sphere figure and external-loop schematic are self-contained.
+
+manual_cited.bib contains the cited entries selected from the original local
+bibliographies, avoiding duplicate-key and malformed-unused-entry errors. The
+Scovazzi lecture notes are represented as misc because the local records do
+not supply an institution. Original bibliography files remain untouched.
+
+The existing .aux/.toc/.bbl and related files alongside the master are historical
+build products, not the source of truth. The isolated build does not use them.
+Cluster dynamics is intentionally limited to current architectural interfaces
+and the scope of its future revision.

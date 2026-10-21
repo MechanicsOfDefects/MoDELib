@@ -78,7 +78,7 @@ namespace model
 
         EvalMatrixType operator()(const Eigen::Matrix<double,dim,1>& P) const
         {
-            return this->operator()(P,&(field().mesh().simplices().begin()->second));
+            return this->operator()(P,field().mesh().simplices().begin()->second.get());
         }
 
         EvalMatrixType operator()(const NodeType& node) const

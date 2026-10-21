@@ -154,7 +154,7 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
     using M=Eigen::Matrix<double,6,6>;
     const std::string meshName=irregular ? "polycrystalCube_10_periodicXY.msh" : "bicrystal_48.msh";
     const Eigen::Matrix3d Q=rotated ? Eigen::AngleAxisd(0.63,Eigen::Vector3d(1,2,3).normalized()).toRotationMatrix() : Eigen::Matrix3d::Identity();
-    StaticID<PlanarMeshFace<3>>::force_count(0);
+    StaticID<Polyhedron<3,3-1>>::force_count(0);
     std::set<int> seeds;
     {
         SimplicialMesh<3> mesh((root/"Library/Meshes"/meshName).string(),Q,Eigen::Vector3d::Zero(),{-1});
@@ -174,7 +174,7 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
             }
         }
     }
-    StaticID<PlanarMeshFace<3>>::force_count(0);
+    StaticID<Polyhedron<3,3-1>>::force_count(0);
     const auto folder=std::filesystem::temp_directory_path()/("elastic-mixed-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     const auto input=folder/"inputFiles";
     std::filesystem::create_directories(input);
@@ -279,7 +279,7 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
         {
             sourceStress<<0.0002,0.0003,-0.0001,0.0002,0,-0.0001;
             writeLoading(false,V::Zero(),sourceStress,V::Zero());
-            StaticID<PlanarMeshFace<3>>::force_count(0);
+            StaticID<Polyhedron<3,3-1>>::force_count(0);
             sourceBase=std::make_unique<DefectiveCrystalBase<3>>(folder.string());
             sourceContainer=std::make_unique<MicrostructureContainer<3>>(*sourceBase);
             auto source=std::make_shared<UniformSource>(*sourceContainer);

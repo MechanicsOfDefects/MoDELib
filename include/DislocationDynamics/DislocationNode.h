@@ -43,7 +43,7 @@ namespace model
         typedef std::vector<VectorDim> VectorOfNormalsType;
         typedef GlidePlane<dim> GlidePlaneType;
         typedef std::set<const GlidePlaneType *> GlidePlaneContainerType;
-        typedef PlanarMeshFace<dim> PlanarMeshFaceType;
+        typedef Polyhedron<dim,dim-1> PlanarMeshFaceType;
         typedef std::set<const PlanarMeshFaceType *> PlanarMeshFaceContainerType;
         typedef Grain<dim> GrainType;
         typedef std::set<const GrainType*> GrainContainerType;

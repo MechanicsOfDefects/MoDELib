@@ -24,14 +24,14 @@
 #include <Simplex.h>
 #include <SimplexReader.h>
 //#include <MeshStats.h>
-#include <MeshRegionObserver.h>
 // defines mode::cout
 #include <MeshRegionBoundary.h>
-#include <SimplexObserver.h>
+#include <SimplexFactory.h>
 //#include <SimplicialMeshFace.h>
 #include <GmshReader.h>
 #include <SimplicialMesh.h>
 #include <PeriodicMeshFacePairing.h>
+#include <PolyhedralMesh.h>
 
 
 namespace model
@@ -53,14 +53,14 @@ namespace model
         }
         std::cout<<defaultColor<<std::endl;
         
-        this->info(); // print mesh info
+
         
         if(simplices().size())
         {
-            _xMin=this->template observer<0>().begin()->second->P0;
-            _xMax=this->template observer<0>().begin()->second->P0;
+            _xMin=this->template simplexFactory<0>().liveSimplices().begin()->second->P0;
+            _xMax=this->template simplexFactory<0>().liveSimplices().begin()->second->P0;
             
-            for (const auto& nIter : this->template observer<0>())
+            for (const auto& nIter : this->template simplexFactory<0>().liveSimplices())
             {
                 for(int d=0;d<dim;++d)
                 {
@@ -89,7 +89,7 @@ namespace model
         
         size_t bndSimplexCount=0;
         size_t rgnBndSimplexCount=0;
-        for (const auto& simpl : this->template observer<dim-1>())
+        for (const auto& simpl : this->template simplexFactory<dim-1>().liveSimplices())
         {
             
             if(simpl.second->isBoundarySimplex())
@@ -104,11 +104,11 @@ namespace model
                 const auto regionBndIter=regionBoundaries().find(regionIDs);
                 if(regionBndIter!=regionBoundaries().end())
                 {
-                    regionBndIter->second.simplices().insert(simpl.second);
+                    regionBndIter->second.simplices().insert(simpl.second.get());
                 }
                 else
                 {
-                    regionBoundaries().emplace(regionIDs,regionIDs).first->second.simplices().insert(simpl.second);
+                    regionBoundaries().try_emplace(regionIDs,regionIDs,*_polyhedralMesh).first->second.simplices().insert(simpl.second.get());
                 }
                 rgnBndSimplexCount++;
             }
@@ -116,11 +116,12 @@ namespace model
         
         updateRegions();
         updateRegionBoundaries();
+        _polyhedralMesh->buildTopology();
         identifyParallelFaces(periodicFaceIDs);
         
         // Check that all simplices have been accounted for
         size_t bndFaceSimplexSum=0;
-        for(auto region : MeshRegionObserverType::regions())
+        for(auto region : this->regions())
         {// Sum number of external faces for final check
             std::cout<<magentaColor<<"MeshRegion "<<region.second->regionID<<defaultColor<<std::endl;
             std::cout<<"    simplices: "<<region.second->simplices().size()<<" Simplex<"<<dim<<","<<dim<<">"<<std::endl;
@@ -183,8 +184,11 @@ namespace model
     template<int dim>
     void SimplicialMesh<dim>::readMesh(const std::string& meshFileName,const Eigen::Matrix<double,dim,dim>& A,const Eigen::Matrix<double,dim,1>& x0,const std::set<int>& periodicFaceIDs)
     {
+        regionBoundaries().clear();
         _periodicSimplexPairs.clear();
         simplices().clear();
+        _simplexFactories.clear();
+        _polyhedralMesh = std::make_shared<PolyhedralMesh<dim>>();
         this->read(meshFileName,A,x0);
         createMesh(periodicFaceIDs);
         this->simplexReader().clear();
@@ -203,9 +207,19 @@ namespace model
     }
 
     template<int dim>
+    const PolyhedralMesh<dim>& SimplicialMesh<dim>::polyhedralMesh() const
+    {
+        if(!_polyhedralMesh)
+        {
+            throw std::runtime_error("Polyhedral topology has not been built");
+        }
+        return *_polyhedralMesh;
+    }
+
+    template<int dim>
     void SimplicialMesh<dim>::updateRegions()
     {
-        for(auto region : MeshRegionObserverType::regions())
+        for(auto region : this->regions())
         {
             region.second->update();
         }
@@ -231,7 +245,7 @@ namespace model
     template<int dim>
     void SimplicialMesh<dim>::identifyParallelFaces(const std::set<int>& periodicFaceIDs)
     {
-        std::vector<PlanarMeshFace<dim>*> faces;
+        std::vector<Polyhedron<dim,dim-1>*> faces;
         std::set<int> available;
         for(const auto& region : this->regions())
         {
@@ -295,8 +309,8 @@ namespace model
         {
             const auto found = selected.find(face);
             face->periodicFacePair = found == selected.end()
-                ? std::make_pair(VectorDim(VectorDim::Zero()), static_cast<const PlanarMeshFace<dim>*>(nullptr))
-                : std::make_pair(found->second.first, static_cast<const PlanarMeshFace<dim>*>(found->second.second));
+                ? std::make_pair(VectorDim(VectorDim::Zero()), static_cast<const Polyhedron<dim,dim-1>*>(nullptr))
+                : std::make_pair(found->second.first, static_cast<const Polyhedron<dim,dim-1>*>(found->second.second));
         }
     }
 
@@ -313,12 +327,13 @@ namespace model
       * sorted array xIN.
       */
         const typename SimplexTraits<dim,dim>::SimplexIDType xID(SimplexTraits<dim,dim>::sortID(xIN));
-        const auto pair=simplices().emplace(std::piecewise_construct,
-                                            std::make_tuple(xID),
-                                            std::make_tuple(this,xID, regionID)
-                                            );
-        assert(pair.second);
-        vol0+=pair.first->second.vol0;
+        if (simplices().count(xID))
+        {
+            throw std::runtime_error("Duplicate volume simplex");
+        }
+        const auto simplex=this->template simplexFactory<dim>().getOrCreate(xID,regionID);
+        simplices().emplace(xID,simplex);
+        vol0+=simplex->vol0;
     }
 
     template<int dim>
@@ -331,7 +346,7 @@ namespace model
       *
       * By default the search starts at this->begin()->second
       */
-        return searchWithGuess(P,&(simplices().begin()->second));
+        return searchWithGuess(P,simplices().begin()->second.get());
     }
 
     template<int dim>
@@ -352,7 +367,7 @@ namespace model
         }
         else
         {
-            return searchWithGuess(true,P,&(simplices().begin()->second),searchSet);
+            return searchWithGuess(true,P,simplices().begin()->second.get(),searchSet);
         }
     }
 

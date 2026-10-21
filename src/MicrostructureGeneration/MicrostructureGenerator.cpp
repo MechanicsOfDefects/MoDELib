@@ -626,7 +626,7 @@ bool MicrostructureGenerator::allPointsInGrain(const std::vector<VectorDimD>& po
 
 bool MicrostructureGenerator::allPointsInMesh(const std::vector<VectorDimD>& points)
 {
-    auto guess(&ddBase.mesh.simplices().begin()->second);
+    const auto* guess=ddBase.mesh.simplices().begin()->second.get();
     bool temp=true;
     for(const auto& point : points)
     {

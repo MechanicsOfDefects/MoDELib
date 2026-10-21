@@ -86,3 +86,33 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
     assert np.isfinite(cd.equilibriumMobileConcentration(0.)).all()
     assert np.isfinite(cd.getDlocal()).all()
 print("PASS: Python base API, activation, and lifetimes")
+
+# Region/face APIs expose the same factory-owned polyhedra at every level.
+mesh = model.SimplicialMesh(str(root / "Library/Meshes/bicrystal_48.msh"),
+                           np.eye(3), np.zeros(3), set())
+regions = mesh.regions()
+assert len(regions) == 2
+shared_faces = {}
+for region_id, region in regions.items():
+    assert mesh.region(region_id) is region
+    assert region.regionID == region_id
+    assert region.simplexIDs()
+    for face_id, face in region.faces().items():
+        assert region.children[face_id] is face
+        assert face.key == face_id == face.sID
+        assert face.parents[region_id] is region
+        assert face.simplexIDs()
+        if face_id in shared_faces:
+            assert shared_faces[face_id] is face
+            assert not face.isExternal()
+        shared_faces[face_id] = face
+        for edge_key, edge in face.children.items():
+            assert tuple(edge.key) == edge_key
+            assert edge.parents[face_id] is face
+            assert len(edge.simplexIDs()) == 1
+            for vertex_key, vertex in edge.children.items():
+                assert tuple(vertex.key) == vertex_key
+                assert vertex.parents[edge_key] is edge
+                assert len(vertex.simplexIDs()) == 1
+assert any(not face.isExternal() for face in shared_faces.values())
+print("PASS: Python unified polyhedral hierarchy")
