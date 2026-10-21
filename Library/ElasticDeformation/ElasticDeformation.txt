@@ -1,13 +1,21 @@
 useElasticDeformationFEM=0;
+# Positive weight for global mean displacement and mean infinitesimal rotation
+# (half the curl of displacement), restricted to rigid motions admissible under
+# the active periodic and Dirichlet constraints. This fixes rigid drift globally.
 inertiaReliefPenaltyFactor=1e-3;
 
 ExternalStress0 = 0.0 0.0 0.0 0.0 0.0 0.0;
 ExternalStressRate = 0.0 0.0 0.0 0.0 0.0 0.0;
+# FEM and uniform loading use engineering strain and absolute simulation time.
+# FEM controls volume-average stress/strain. Only active periodic directions
+# have free affine jumps; physical faces receive the resulting uniform traction.
 ExternalStrain0 = 0.0 0.0 0.0 0.0 0.0 0.0;
 ExternalStrainRate = 0.0 0.0 0.0 0.0 0.0 0.0;
 stiffnessRatio =0.0 0.0 0.0 0.0 0.0 0.0;
 
 # Voigt order is 11,22,33,12,23,13
+# stiffnessRatio applies to both FEM and the uniform controller.
+# FEM treats values >=1e15 as exact average-strain constraints (e.g. 1e20).
 # stiffnessRatio =0 means pure stress control,  
 # stiffnessRatio =infinity (such as 1e20) means pure strain control
 

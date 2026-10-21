@@ -14,13 +14,14 @@
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
     
-    template <typename DislocationNetworkType>
+    template <int dim>
     struct DislocationVelocitySolverBase
     {
-        const DislocationNetworkType& DN;
+        const DislocationNetwork<dim>& DN;
 
-        DislocationVelocitySolverBase(const DislocationNetworkType& );
+        DislocationVelocitySolverBase(const DislocationNetwork<dim>& );
         virtual ~DislocationVelocitySolverBase() = default;
 
         virtual Eigen::VectorXd getNodeVelocities() const = 0;

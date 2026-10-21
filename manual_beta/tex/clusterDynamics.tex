@@ -1,0 +1,16 @@
+\chapter{Cluster dynamics: current interface and revision boundary}\label{chap:cd}
+Cluster dynamics is kept last because its physical model is expected to change. This chapter records the current architectural connection and user entry points; it does not freeze a new constitutive specification.
+
+\section{Connection to the common architecture}
+\code{ClusterDynamics} implements \code{MicrostructureBase}. Its base context and parameter object define species data and numerical resources, and its field queries expose mobile concentrations and immobile-cluster quantities to the other microstructures. DDD climb can consume these concentrations. The container also accepts the CD contribution to average plastic distortion and inelastic displacement rate.
+
+The current spatial model uses the shared FEM infrastructure. Species counts are compile-time parameters \code{MODELIB_CD_MSIZE} and \code{MODELIB_CD_ISIZE}; their values must match the material arrays. The default build uses four mobile components and eight immobile fields. These are implementation choices of this snapshot, not a proposed permanent interface for the revised model.
+\sourcefile{include/ClusterDynamics/ClusterDynamics.h}
+\sourcefile{include/ClusterDynamics/ClusterDynamicsParameters.h}
+\sourcefile{src/ClusterDynamics/ClusterDynamics.cpp}
+
+\section{Current user entry points}
+Select \code{ClusterDynamics} in \code{physics}, enable the shared FEM, and use a material and \code{ClusterDynamics.txt} compatible with the build. \code{tutorials/spatialCDtest/} is the entry point for the present spatial model. Coupled climb examples require a compatible DDD selection and species configuration as well.
+
+\section{What to document after the revision}
+The final CD chapter should define the new state variables and units first, then the conservation equations, diffusion and reaction operators, boundary conditions, time integration, and coupling to DDD and elastic deformation. Each field's contribution to the common interface must be stated. A completed revision should include mass-balance checks, positivity or admissibility criteria, mesh/time-step convergence, and plots from a reproducible example. Those model-specific derivations and plots are intentionally deferred until the implementation settles.

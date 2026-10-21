@@ -7,7 +7,7 @@ sys.path.append("../build/tools/pyMoDELib")
 import pyMoDELib
 
 simulationDir=os.path.abspath("../tutorials/uniformLoadController")
-ddBase=pyMoDELib.DislocationDynamicsBase(simulationDir)
+ddBase=pyMoDELib.DefectiveCrystalBase(simulationDir)
 
 # Microstructure Generation
 microstructureGenerator=pyMoDELib.MicrostructureGenerator(ddBase)

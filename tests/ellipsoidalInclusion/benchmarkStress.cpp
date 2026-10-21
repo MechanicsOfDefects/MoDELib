@@ -1,7 +1,7 @@
 // Build with EllipsoidalInclusion.cpp, reference/SphericalInclusion.cpp,
 // and the MoDELib base (or tests/support headers). Use -O3 -DNDEBUG.
-#include <EllipsoidalInclusion.h>
-#include <SphericalInclusion.h>
+#include <InclusionMicrostructure/EllipsoidalInclusion.h>
+#include <InclusionMicrostructure/SphericalInclusion.h>
 #include <Eigen/Geometry>
 #include <algorithm>
 #include <chrono>

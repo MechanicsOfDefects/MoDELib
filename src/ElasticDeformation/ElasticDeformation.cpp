@@ -9,12 +9,11 @@
 #define model_ElasticDeformation_cpp_
 
 #ifdef _OPENMP
+#include <ElasticDeformation/ElasticDeformationBase.h>
 #include <omp.h>
 #endif
 
 #include <ElasticDeformation.h>
-#include <FEMfaceEvaluation.h>
-#include <LinearWeakList.h>
 
 namespace model
 {
@@ -25,7 +24,7 @@ namespace model
     }
 
     template <int dim>
-    std::unique_ptr<UniformController<SymmetricVoigtTraits<dim>::voigtSize>> getUniformEDcontroller(const DislocationDynamicsBase<dim>& ddBase)
+    std::unique_ptr<UniformController<SymmetricVoigtTraits<dim>::voigtSize>> getUniformEDcontroller(const DefectiveCrystalBase<dim>& ddBase)
     {
         
         typedef UniformController<SymmetricVoigtTraits<dim>::voigtSize> UniformControllerType;
@@ -63,75 +62,42 @@ namespace model
     template<int dim>
     ElasticDeformation<dim>::ElasticDeformation(MicrostructureContainerType& mc) :
     /* init */ MicrostructureBase<dim>("ElasticDeformation",mc)
-    /* init */,useElasticDeformationFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ElasticDeformation.txt").readScalar<int>("useElasticDeformationFEM",true)) : false )
+    /* init */,useElasticDeformationFEM(this->microstructures.ddBase.elasticDeformation().useElasticDeformationFEM)
     /* init */,elasticDeformationFEM(useElasticDeformationFEM?  new ElasticDeformationFEM<dim>(this->microstructures.ddBase) : nullptr)
     /* init */,uniformLoadController(useElasticDeformationFEM? std::unique_ptr<UniformControllerType>(nullptr) : getUniformEDcontroller(this->microstructures.ddBase))
-    /* init */,inertiaReliefPenaltyFactor(uniformLoadController? 0.0 : TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ElasticDeformation.txt").readScalar<double>("inertiaReliefPenaltyFactor",true))
-    /* init */,ndA(this->microstructures.ddBase.fe? this->microstructures.ddBase.fe->template boundary<ExternalBoundary,imageTractionIntegrationOrder,GaussLegendre>() : TractionIntegrationDomainType())
-    /* init */,tractionList(ndA.template integrationList<FEMfaceEvaluation<ElementType,dim,dim>>())
+    /* init */,inertiaReliefPenaltyFactor(this->microstructures.ddBase.elasticDeformation().inertiaReliefPenaltyFactor)
     /* init */,solverInitialized(false)
-{
-        
+    {
+        if(useElasticDeformationFEM)
+        {
+            updatePeriodicGradient();
+        }
+    }
+
+    template<int dim>
+    void ElasticDeformation<dim>::updatePeriodicGradient()
+    {
+        // Free periodic jumps are solved jointly with the nodal field. Reset the
+        // prescribed offset before solving; the solved gradient is stored afterwards.
+        elasticDeformationFEM->u->setPeriodicGradient(MatrixDim::Zero());
     }
 
     template<int dim>
     void ElasticDeformation<dim>::initializeSolver()
     {
-        std::cout<<" gSize="<<elasticDeformationFEM->u.gSize()<<std::flush;
-        elasticDeformationFEM->A.resize(elasticDeformationFEM->u.gSize(),elasticDeformationFEM->u.gSize());
-        std::vector<Eigen::Triplet<double> > globalTriplets(elasticDeformationFEM->bWF.globalTriplets());
-        if(inertiaReliefPenaltyFactor>0.0)
-        {
-            //                std::cout<<"Adding inertia relief triplets"<<std::endl;
-            for(const auto& elePair : this->microstructures.ddBase.fe->elements())
-            {
-                const auto& ele(elePair.second);
-                const auto C(elasticDeformationFEM->elementMomentumMatrix(ele));
-                
-                const auto Ct(C.block(  0,0,dim,dim*ElementType::nodesPerElement)); // rigid translation contraint
-                const auto Cr(C.block(dim,0,dim,dim*ElementType::nodesPerElement)); // rigid rotation contraint
-                
-                //                    const auto CTC((C.transpose()*C).eval());
-                const auto CTC((Ct.transpose()*Ct+Cr.transpose()*Cr).eval());
-                
-                for(int i=0;i<dim*ElementType::nodesPerElement;++i)
-                {
-                    for(int j=0;j<dim*ElementType::nodesPerElement;++j)
-                    {
-                        if(CTC(i,j)!=0.0)
-                        {
-                            const size_t  nodeID_I(i/dim);
-                            const size_t nodeDof_I(i%dim);
-                            const size_t gI= ele.node(nodeID_I).gID*dim+nodeDof_I;
-                            
-                            const size_t  nodeID_J(j/dim);
-                            const size_t nodeDof_J(j%dim);
-                            const size_t gJ=ele.node(nodeID_J).gID*dim+nodeDof_J;
-                            
-                            globalTriplets.emplace_back(gI,gJ,inertiaReliefPenaltyFactor*CTC(i,j));
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            throw std::runtime_error("inertiaReliefPenaltyFactor<=0.0");
-        }
-        std::cout<<", assembling"<<std::flush;
-        elasticDeformationFEM->A.setFromTriplets(globalTriplets.begin(),globalTriplets.end());
-        //            elasticDeformationFEM->A.prune(elasticDeformationFEM->A.norm()/elasticDeformationFEM->A.nonZeros(),FLT_EPSILON);
-        std::cout<<", decomposing"<<std::flush;
-        directSolver.compute(elasticDeformationFEM->A);
-        if(directSolver.info()!=Eigen::Success)
-        {
-            throw std::runtime_error("Decomposing global stiffness matrix FAILED.");
-        }
+        auto settings=getUniformEDcontroller(this->microstructures.ddBase);
+        femLoadController=std::make_shared<FEMControllerType>(elasticDeformationFEM->u,*settings);
+        auto penalty=std::make_shared<GlobalRigidMotionPenalty<typename ElasticDeformationFEM<dim>::TrialFunctionType>>(elasticDeformationFEM->u,inertiaReliefPenaltyFactor,true);
+        auto total=elasticDeformationFEM->bWF+penalty+femLoadController;
+        auto rhs=femLoadController->rightHandSide(Eigen::VectorXd::Zero(elasticDeformationFEM->u->gSize()),0.0,FEMControllerType::Vector6::Zero());
+        weakProblemSolver=weakProblem<DirectSolverType,IterativeSolverType>(total,rhs);
+        weakProblemSolver->setAffineModes(femLoadController->affineModes());
+        weakProblemSolver->setLinearConstraints(femLoadController->constraintRows());
         solverInitialized=true;
     }
 
     template<int dim>
-    void ElasticDeformation<dim>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
+    void ElasticDeformation<dim>::initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
     {
         this->lastUpdateTime=this->microstructures.ddBase.simulationParameters.totalTime;
         
@@ -143,12 +109,13 @@ namespace model
         }
         else
         {
-            if(size_t(configIO.displacementMatrix().size())==elasticDeformationFEM->u.gSize()+elasticDeformationFEM->z.gSize())
+            updatePeriodicGradient();
+            if(size_t(configIO.displacementMatrix().size())==elasticDeformationFEM->u->gSize()+elasticDeformationFEM->z->gSize())
             {
                 std::cout<<" from configIO,"<<std::flush;
-                const size_t nNodes(elasticDeformationFEM->u.fe().nodes().size());
-                elasticDeformationFEM->u=configIO.displacementMatrix().block(0,0,nNodes,dim).transpose().reshaped(elasticDeformationFEM->u.gSize(),1);
-                elasticDeformationFEM->z=configIO.displacementMatrix().block(0,dim,nNodes,dim).transpose().reshaped(elasticDeformationFEM->z.gSize(),1);
+                const size_t nNodes(elasticDeformationFEM->u->fe().nodes().size());
+                *elasticDeformationFEM->u=configIO.displacementMatrix().block(0,0,nNodes,dim).transpose().reshaped(elasticDeformationFEM->u->gSize(),1);
+                *elasticDeformationFEM->z=configIO.displacementMatrix().block(0,dim,nNodes,dim).transpose().reshaped(elasticDeformationFEM->z->gSize(),1);
             }
             else
             {
@@ -157,7 +124,7 @@ namespace model
                     throw std::runtime_error("ElasticDeformation: TrialFunction u initializatoin size mismatch");
                 }
             }
-            zDot.setZero(elasticDeformationFEM->z.gSize());
+            zDot.setZero(elasticDeformationFEM->z->gSize());
         }
     }
 
@@ -173,7 +140,7 @@ void ElasticDeformation<dim>::reSolve()
     else
     {
         std::cout<<", zDot "<<std::flush;
-        for(const auto& node : elasticDeformationFEM->z.fe().nodes())
+        for(const auto& node : elasticDeformationFEM->z->fe().nodes())
         {
             zDot.template segment<dim>(dim*node.gID)=this->microstructures.inelasticDisplacementRate(node.P0,&node,nullptr,nullptr);
         }
@@ -191,60 +158,54 @@ void ElasticDeformation<dim>::reSolve()
         }
         else
         {
+            updatePeriodicGradient();
             if(!solverInitialized)
             {
                 initializeSolver();
                 
             }
-            //            elasticDeformationFEM->u.clearDirichletConditions();
-            
-            //
-            //            lc->update(DN);
-            //            lc->addDirichletConditions(DN);
-            
-            // Modify Dirichlet conditions
-            //            std::vector<FEMnodeEvaluation<ElementType,dim,1>> fieldPoints;
-            //            fieldPoints.reserve(displacement().dirichletNodeMap().size());
-            //            for (const auto& pair : displacement().dirichletNodeMap())
-            //            {
-            //                const auto& gID(pair.first);
-            //                fieldPoints.emplace_back(gID,fe.node(gID).P0);
-            //            }
-            //            for(const auto& microstructure : this->microstructures)
-            //            {
-            //                if(microstructure.get()!=static_cast<const MicrostructureBase<dim>* const>(this))
-            //                {// not the ElasticDeformation physics
-            //                    qPoint.stress += microstructure->stress(qPoint.r);
-            //                }
-            //            }
-            //            const auto t0= std::chrono::system_clock::now();
-            std::cout<<", image traction"<<std::flush;
-            //            auto ndA=this->microstructures.ddBase.fe->template boundary<ExternalBoundary,imageTractionIntegrationOrder,GaussLegendre>();
-            //            auto eb_list = ndA.template integrationList<FEMfaceEvaluation<ElementType,dim,dim>>(); // TO DO: make this a member data to be able to output
-            
-    #ifdef _OPENMP
-    #pragma omp parallel for
-    #endif
-            for(size_t k=0;k<tractionList.size();++k)
+            const auto& base=this->microstructures.ddBase;
+            Eigen::VectorXd source=Eigen::VectorXd::Zero(elasticDeformationFEM->u->gSize());
+            typename FEMControllerType::Vector6 otherStress=FEMControllerType::Vector6::Zero();
+            using Q=Quadrature<dim,4,GaussLegendre>;
+            // Volume virtual work includes both physical-face tractions and the
+            // work conjugate to free periodic jumps; face-only loading misses the latter.
+            for(const auto& entry : base.fe->elements())
             {
-                auto& pt(tractionList[k]);
-                pt.setZero();
-                for(const auto& microstructure : this->microstructures)
+                const auto& e=entry.second;
+                for(size_t k=0;k<Q::quadratureOrder;++k)
                 {
-                    if(microstructure.get()!=static_cast<const MicrostructureBase<dim>* const>(this))
-                    {// not the ElasticDeformation physics
-                        pt -= microstructure->stress(pt.P,nullptr,&pt.ele,nullptr);
+                    const auto bary=BarycentricTraits<dim>::x2l(Q::abscissa(k));
+                    MatrixDim stress=MatrixDim::Zero();
+                    for(const auto& physics : this->microstructures)
+                    {
+                        if(physics.get()!=static_cast<const MicrostructureBase<dim>*>(this))
+                        {
+                            stress+=physics->stress(e.position(bary),nullptr,&e,nullptr);
+                        }
+                    }
+                    const auto voigt=base.voigtTraits.m2v(stress,false);
+                    const double weight=e.absJ(bary)*Q::weight(k);
+                    otherStress+=weight/base.mesh.volume()*voigt;
+                    const auto local=(-weight*elasticDeformationFEM->u->sfmDef(e,bary).transpose()*voigt).eval();
+                    for(int node=0;node<ElementType::nodesPerElement;++node)
+                    {
+                        source.template segment<dim>(dim*e.node(node).gID)+=local.template segment<dim>(dim*node);
                     }
                 }
             }
-            auto tractionWF=(test(elasticDeformationFEM->u),tractionList);
-            std::cout<<", directSolver"<<std::flush;
-            elasticDeformationFEM->u=directSolver.solve(tractionWF.globalVector());
-            
+            const MatrixDim plastic=this->microstructures.averagePlasticDistortion();
+            const typename FEMControllerType::Vector6 strainOffset=base.voigtTraits.m2v(0.5*(plastic+plastic.transpose()),true)+elasticDeformationFEM->C.ldlt().solve(otherStress);
+            const double time=base.simulationParameters.totalTime;
+            weakProblemSolver->setRightHandSide(femLoadController->rightHandSide(source,time,strainOffset));
+            weakProblemSolver->setLinearConstraintValues(femLoadController->constraintValues(time,strainOffset));
+            weakProblemSolver->solveWithMasterSlaveConstraints();
+            elasticDeformationFEM->u->setPeriodicGradient(femLoadController->gradient(weakProblemSolver->affineCoefficients()));
+
             // Compute zDot
             std::cout<<", zDot "<<std::flush;
-//            zDot.setZero(elasticDeformationFEM->z.gSize());
-            for(const auto& node : elasticDeformationFEM->z.fe().nodes())
+//            zDot.setZero(elasticDeformationFEM->z->gSize());
+            for(const auto& node : elasticDeformationFEM->z->fe().nodes())
             {
                 zDot.template segment<dim>(dim*node.gID)=this->microstructures.inelasticDisplacementRate(node.P0,&node,nullptr,nullptr);
             }
@@ -262,7 +223,7 @@ void ElasticDeformation<dim>::reSolve()
         else
         {
             // Update z
-            elasticDeformationFEM->z += zDot*this->timeSinceLastUpdate();
+            *elasticDeformationFEM->z += zDot*this->timeSinceLastUpdate();
         }
     }
 
@@ -273,7 +234,7 @@ void ElasticDeformation<dim>::reSolve()
     }
 
     template<int dim>
-    void ElasticDeformation<dim>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
+    void ElasticDeformation<dim>::output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
     {
         if(uniformLoadController)
         {
@@ -302,10 +263,10 @@ void ElasticDeformation<dim>::reSolve()
         }
         else
         {
-            const size_t nNodes(elasticDeformationFEM->u.fe().nodes().size());
+            const size_t nNodes(elasticDeformationFEM->u->fe().nodes().size());
             configIO.displacementMatrix().resize(nNodes,dim+dim);
-            configIO.displacementMatrix().block(0,0,nNodes,dim)=elasticDeformationFEM->u.dofVector().reshaped(dim,nNodes).transpose();
-            configIO.displacementMatrix().block(0,dim,nNodes,dim)=elasticDeformationFEM->z.dofVector().reshaped(dim,nNodes).transpose();
+            configIO.displacementMatrix().block(0,0,nNodes,dim)=elasticDeformationFEM->u->dofVector().reshaped(dim,nNodes).transpose();
+            configIO.displacementMatrix().block(0,dim,nNodes,dim)=elasticDeformationFEM->z->dofVector().reshaped(dim,nNodes).transpose();
         }
     }
 
@@ -338,21 +299,21 @@ void ElasticDeformation<dim>::reSolve()
         {
             if(node)
             {
-                return eval(elasticDeformationFEM->u)(*node);
-//                return eval(elasticDeformationFEM->u)(*node)+eval(elasticDeformationFEM->z)(*node);
+                return (*eval(elasticDeformationFEM->u))(*node);
+//                return (*eval(elasticDeformationFEM->u))(*node)+(*eval(elasticDeformationFEM->z))(*node);
             }
             else
             {
                 if(ele)
                 {
-                    return eval(elasticDeformationFEM->u)(*ele,ele->simplex.pos2bary(x));
-//                    return eval(elasticDeformationFEM->u)(*ele,ele->simplex.pos2bary(x))+eval(elasticDeformationFEM->z)(*ele,ele->simplex.pos2bary(x));
+                    return (*eval(elasticDeformationFEM->u))(*ele,ele->simplex.pos2bary(x));
+//                    return (*eval(elasticDeformationFEM->u))(*ele,ele->simplex.pos2bary(x))+(*eval(elasticDeformationFEM->z))(*ele,ele->simplex.pos2bary(x));
 
                 }
                 else
                 {
-                    return eval(elasticDeformationFEM->u)(x,guess);
-//                    return eval(elasticDeformationFEM->u)(x,guess)+eval(elasticDeformationFEM->z)(x,guess);
+                    return (*eval(elasticDeformationFEM->u))(x,guess);
+//                    return (*eval(elasticDeformationFEM->u))(x,guess)+(*eval(elasticDeformationFEM->z))(x,guess);
                 }
             }
         }
@@ -369,17 +330,17 @@ void ElasticDeformation<dim>::reSolve()
         {
             if(node)
             {
-                return this->microstructures.ddBase.voigtTraits.v2m(eval(elasticDeformationFEM->s)(*node),false);
+                return this->microstructures.ddBase.voigtTraits.v2m((*eval(elasticDeformationFEM->s))(*node),false);
             }
             else
             {
                 if(ele)
                 {
-                    return this->microstructures.ddBase.voigtTraits.v2m(eval(elasticDeformationFEM->s)(*ele,ele->simplex.pos2bary(x)),false);
+                    return this->microstructures.ddBase.voigtTraits.v2m((*eval(elasticDeformationFEM->s))(*ele,ele->simplex.pos2bary(x)),false);
                 }
                 else
                 {
-                    return this->microstructures.ddBase.voigtTraits.v2m(eval(elasticDeformationFEM->s)(x,guess),false);
+                    return this->microstructures.ddBase.voigtTraits.v2m((*eval(elasticDeformationFEM->s))(x,guess),false);
                 }
             }
         }
@@ -406,7 +367,11 @@ void ElasticDeformation<dim>::reSolve()
         }
         else
         {
-            return MatrixDim::Zero();
+            if(!femLoadController)
+            {
+                return MatrixDim::Zero();
+            }
+            return this->microstructures.ddBase.voigtTraits.v2m(elasticDeformationFEM->C*femLoadController->averageStrain(),false);
         }
     }
 
@@ -416,7 +381,7 @@ void ElasticDeformation<dim>::reSolve()
 
 
 //    template <int dim>
-//    std::unique_ptr<ExternalLoadControllerBase<dim>> selectExternalLoadController(const DislocationDynamicsBase<dim>& ddBase)
+//    std::unique_ptr<ExternalLoadControllerBase<dim>> selectExternalLoadController(const DefectiveCrystalBase<dim>& ddBase)
 //    {
 //        if(ddBase.simulationParameters.externalLoadControllerName=="UniformExternalLoadController")
 //        {
@@ -446,7 +411,7 @@ void ElasticDeformation<dim>::reSolve()
 //}
 
 //template <int dim>
-//std::unique_ptr<UniformController<dim,dim>> getUniformController(const DislocationDynamicsBase<dim>& ddBase, const VoigtTraits<dim,dim>& vt)
+//std::unique_ptr<UniformController<dim,dim>> getUniformController(const DefectiveCrystalBase<dim>& ddBase, const VoigtTraits<dim,dim>& vt)
 //{
 //    typedef typename UniformController<dim,dim>::MatrixGrad MatrixGrad;
 //    typedef typename UniformController<dim,dim>::MatrixGrad MatrixGrad;

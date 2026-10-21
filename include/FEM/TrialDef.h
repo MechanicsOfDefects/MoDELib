@@ -8,26 +8,24 @@
 #ifndef model_TrialDef_H_
 #define model_TrialDef_H_
 
-#include <utility> // for std::move
-#include <type_traits> //static_assert
+#include <utility>
+#include <type_traits>
 #include <TypeTraits.h>
 #include <Simplex.h>
 #include <TrialBase.h>
 #include <TrialExpressionBase.h>
-#include <ExpressionRef.h>
+#include <memory>
+#include <stdexcept>
 
 namespace model
 {
-    
-	
-    /**************************************************************************/
-	/**************************************************************************/
+
     template <typename T>
     struct TrialDef : public TrialExpressionBase<TrialDef<T> >
     {
-        
+
         typedef typename T::TrialFunctionType TrialFunctionType;
-//        typedef TrialBase<TrialFunctionType> TrialBaseType;
+
         typedef typename TypeTraits<TrialFunctionType>::ElementType ElementType;
         typedef typename TypeTraits<TrialFunctionType>::BaryType BaryType;
         constexpr static int dim=TypeTraits<TrialFunctionType>::dim;
@@ -37,73 +35,35 @@ namespace model
         typedef Eigen::Matrix<double,rows,dofPerElement> ShapeFunctionMatrixType;
         typedef Eigen::Matrix<double,rows,1> EvalMatrixType;
 
-
         static_assert(TypeTraits<TrialFunctionType>::dim==TypeTraits<TrialFunctionType>::nComponents,"SYMMETRIC GRADIENT (DEF) CAN ONLY BE COMPUTED IF nComponents==dim.");
-        
-//        const T& op;
-        ExpressionRef<T> op;
 
-        
-    //public:
-        
+        const std::shared_ptr<T> op;
 
-        /**********************************************************************/
-        TrialDef(const T& x) :
-//        /* base init */ TrialBaseType(x.derived().trial()),
-        /* init list */ op(x)
+        explicit TrialDef(std::shared_ptr<T> x) : op(std::move(x))
         {
-            
+            if(!op)
+            {
+                throw std::invalid_argument("Null FEM expression operand.");
+            }
         }
-        
-        /**********************************************************************/
-        TrialDef(T&& x) :
-//        /* base init */ TrialBaseType(x.derived().trial()),
-        /* init list */ op(std::move(x))
-        {
-            
-        }
-        
-        
-        /**********************************************************************/
+
         Eigen::Matrix<double,rows,dofPerElement> sfm(const ElementType& ele,
                                                      const BaryType& bary) const
         {
-            return op().sfmDef(ele,bary);
+            return op->sfmDef(ele,bary);
         }
-        
-        //        /**********************************************************************/
-        //        void sfmGrad(const typename TF::ElementType& ele, const Eigen::Matrix<double,TF::dim+1,1>& bary) const
-        //        {
-        //            static_assert(0,"SECOND GRADIENTS ARE NOT SUPPORTED YET.");
-        //        }
+
+        const auto& field() const
+        {
+            return op->field();
+        }
 
     };
-    
-    
-    /**************************************************************************/
-    template <typename T>
-    TrialDef<T> def(const TrialExpressionBase<T>& x)
+
+    template<class T, std::enable_if_t<std::is_base_of_v<TrialExpressionBase<T>,T>,int> = 0>
+    auto def(const std::shared_ptr<T>& x)
     {
-        return TrialDef<T>(x.derived());
+        return std::make_shared<TrialDef<T>>(x);
     }
-    
-    /**************************************************************************/
-    template <typename T>
-    TrialDef<T> def(TrialExpressionBase<T>&& x)
-    {
-        return TrialDef<T>(std::move(x.derived()));
-    }
-    
-}	// close namespace
+}
 #endif
-
-
-//        /**********************************************************************/
-//        Eigen::Matrix<double,rows,1> operator()(const Eigen::Matrix<double,dim,1>& P) const
-//        {/*!@param[in] P the position vector
-//          * @param[in] guess the Simplex where the search starts
-//          * \returns the value of the Derived expression at P.
-//          */
-//            return operator()(P,&(op.trial.fe.mesh.begin()->second));
-//
-//        }

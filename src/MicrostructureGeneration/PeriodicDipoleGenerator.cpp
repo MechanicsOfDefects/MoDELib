@@ -9,6 +9,7 @@
 #define model_PeriodicDipoleGenerator_cpp_
 
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <chrono>
 #include <random>
 #include <cmath>
@@ -26,16 +27,16 @@
 #include <PolycrystallineMaterialBase.h>
 #include <LatticeModule.h>
 //#include <PlaneMeshIntersection.h>
-#include <DislocationNodeIO.h>
-#include <DislocationLoopIO.h>
-#include <DislocationLoopLinkIO.h>
-#include <DislocationLoopNodeIO.h>
-#include <DDconfigIO.h>
-#include <DDauxIO.h>
+#include <DislocationDynamics/DislocationNodeIO.h>
+#include <DislocationDynamics/DislocationLoopIO.h>
+#include <DislocationDynamics/DislocationLoopLinkIO.h>
+#include <DislocationDynamics/DislocationLoopNodeIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 
-#include <DislocationLinkingNumber.h>
+#include <DislocationDynamics/DislocationLinkingNumber.h>
 #include <TextFileParser.h>
-#include <DislocationInjector.h>
+#include <DislocationDynamics/DislocationInjector.h>
 #include <MeshBoundarySegment.h>
 //#include <ConfinedDislocationObject.h>
 #include <GlidePlaneModule.h>
@@ -160,13 +161,13 @@ namespace model
                             // Construct lower glide plane
                             const long int planeIndex(slipSystem.n.closestPlaneIndexOfPoint(planePoint));
                             GlidePlaneKey<3> glidePlaneKey(planeIndex, slipSystem.n);
-                            std::shared_ptr<PeriodicGlidePlane<3>> glidePlane(mg.ddBase.periodicGlidePlaneFactory.get(glidePlaneKey));
+                            std::shared_ptr<PeriodicGlidePlane<3>> glidePlane(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(glidePlaneKey));
                             
                             // Construct Prismatic Plane
                             const auto prismaticPlaneNormal(grain->reciprocalLatticeDirection(glidePlane->referencePlane->unitNormal.cross(faceAshift)));
                             const long int prismaticPlaneIndex(prismaticPlaneNormal.closestPlaneIndexOfPoint(dipolePoint));
                             GlidePlaneKey<3> prismaticPlaneKey(prismaticPlaneIndex, prismaticPlaneNormal);
-                            std::shared_ptr<PeriodicGlidePlane<3>> prismaticGlidePlane(mg.ddBase.periodicGlidePlaneFactory.get(prismaticPlaneKey));
+                            std::shared_ptr<PeriodicGlidePlane<3>> prismaticGlidePlane(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(prismaticPlaneKey));
 
                             PlanePlaneIntersection<3> ppi(*glidePlane->referencePlane,*prismaticGlidePlane->referencePlane);
                             Line<3> ppLine(ppi.P,ppi.d);
@@ -184,7 +185,7 @@ namespace model
                                 {
 
                                     GlidePlaneKey<3> parallelGlidePlaneKey(planeIndex+dipoleHeight, slipSystem.n);
-                                    std::shared_ptr<PeriodicGlidePlane<3>> parallelglidePlane(mg.ddBase.periodicGlidePlaneFactory.get(parallelGlidePlaneKey));
+                                    std::shared_ptr<PeriodicGlidePlane<3>> parallelglidePlane(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(parallelGlidePlaneKey));
 
 
                                     if(parallelglidePlane && prismaticGlidePlane)

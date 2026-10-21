@@ -16,7 +16,7 @@
 #include <SplineSegment.h>
 //#include <ConfinedDislocationObject.h>
 #include <DislocationQuadraturePoint.h>
-#include <DislocationLoopIO.h>
+#include <DislocationDynamics/DislocationLoopIO.h>
 #include <PlaneLineIntersection.h>
 
 #ifndef NDEBUG
@@ -57,7 +57,7 @@ namespace model
         typedef std::set<const GrainType *> GrainContainerType;
         typedef GlidePlane<dim> GlidePlaneType;
         typedef std::set<const GlidePlaneType *> GlidePlaneContainerType;
-        typedef PlanarMeshFace<dim> PlanarMeshFaceType;
+        typedef Polyhedron<dim,dim-1> PlanarMeshFaceType;
         typedef std::set<const PlanarMeshFaceType *> PlanarMeshFaceContainerType;
         typedef typename DislocationQuadraturePoint<dim>::QuadratureDynamicType QuadratureDynamicType;
         
@@ -109,6 +109,9 @@ namespace model
         const VectorDim& burgers() const;
         const VectorDim& glidePlaneNormal() const;
         void addToGlobalAssembly(std::deque<Eigen::Triplet<double> >& kqqT,Eigen::VectorXd& FQ) const;
+        // Indices belong to the caller's current, immutable assembly snapshot.
+        void addToGlobalAssembly(std::deque<Eigen::Triplet<double> >& kqqT,Eigen::VectorXd& FQ,
+                                 const size_t sourceIndex,const size_t sinkIndex) const;
         void createQuadraturePoints(const bool& isClimbStep);
         void updateQuadraturePoints(const bool& isClimbStep);
         int velocityGroup(const double &maxVelocity, const std::set<int> &subcyclingBins) const;

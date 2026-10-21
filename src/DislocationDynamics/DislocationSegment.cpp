@@ -8,6 +8,7 @@
 #ifndef model_DislocationSegment_cpp_
 #define model_DislocationSegment_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationSegment.h>
 #include <PlanesIntersection.h>
 
@@ -22,7 +23,7 @@ namespace model
     // /* init */,ConfinedDislocationObjectType(this->source->get_P(),this->sink->get_P())
     /* init */,Burgers(VectorDim::Zero())
     /* init */,BurgersNorm(Burgers.norm())
-    /* init */,straight(this->network().ddBase.poly,this->source->get_P(),this->sink->get_P(),Burgers,this->chordLength(),this->unitDirection(),this->network().ddBase.EwaldLength)
+    /* init */,straight(this->network().ddBase.poly,this->source->get_P(),this->sink->get_P(),Burgers,this->chordLength(),this->unitDirection(),this->network().ddBase.dislocationDynamics().EwaldLength)
     /* init */,_slipSystem(nullptr)
     {
         VerboseDislocationSegment(1,"Constructing DislocationSegment "<<this->tag()<<std::endl);
@@ -155,57 +156,17 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
         BurgersNorm=Burgers.norm();
         straight.updateGeometry();
         
-        //assert(0 && "Following addGlidePlane is wrong, must consider shifts");
-        
-        if(this->network().ddBase.isPeriodicDomain)
+        // Each participating loop supplies a patch plane. Both network
+        // endpoints must retain every such plane, including at shared junctions.
+        const auto sourcePlanes(this->source->glidePlanes());
+        const auto sinkPlanes(this->sink->glidePlanes());
+        for(const auto* plane : glidePlanes())
         {
-            const auto periodicPlanePatch(pL->periodicPlanePatch());
-            if(periodicPlanePatch)
+            if(sourcePlanes.count(plane)==0 || sinkPlanes.count(plane)==0)
             {
-                // this->confinedObject().addGlidePlane(periodicPlanePatch->glidePlane.get());
-               // /* Check for the consistency of the glide planes
-                //assert if the confined object glide planes are the same as that of the each node glide planes
-                bool glidePlanesConsistency(false);
-                for (const auto &Seggps : glidePlanes())
-                {
-                    glidePlanesConsistency = false;
-                    for (const auto &sourceGPs : this->source->glidePlanes())
-                    {
-                        if (Seggps == sourceGPs)
-                        {
-                            glidePlanesConsistency = true;
-                            break;
-                        }
-                    }
-                }
-                // std::cout<<" A " <<glidePlanesConsistency<<std::endl;
-
-                if (glidePlanesConsistency)
-                {
-                    for (const auto &Seggps : glidePlanes())
-                    {
-                        glidePlanesConsistency=false;
-                        for (const auto &sinkGPs : this->sink->glidePlanes())
-                        {
-                            if (Seggps==sinkGPs)
-                            {
-                                glidePlanesConsistency=true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                // std::cout<<" B " <<glidePlanesConsistency<<std::endl;
-
-                assert(glidePlanesConsistency && "Not a consistent definition of glide planes for segments and segment nodes");
-              // Check for the consistency of glide planes end here  */
+                throw std::runtime_error("Segment glide plane missing from an endpoint");
             }
         }
-        // else
-        // {
-        //     this->confinedObject().addGlidePlane(pL->loop->glidePlane.get());
-        // }
-
 
         updateSlipSystem();
     }
@@ -287,13 +248,13 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
       * 1 = inside mesh
       * 2 = on mesh boundary
       */
-        if(isBoundarySegment())
-        {
-            return MeshLocation::onMeshBoundary;
-        }
-        else if(isGrainBoundarySegment())
+        if(isGrainBoundarySegment())
         {
             return MeshLocation::onRegionBoundary;
+        }
+        else if(isBoundarySegment())
+        {
+            return MeshLocation::onMeshBoundary;
         }
 //        else if(isVirtualBoundarySegment())
 //        {
@@ -343,9 +304,17 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
     template <int dim>
     bool DislocationSegment<dim>::isGrainBoundarySegment() const
     {
-        return this->isOnInternalBoundary();
+        for(const auto* face : meshFaces())
+        {
+            if(face->regionIDs.first!=face->regionIDs.second ||
+               (face->periodicFacePair.second && face->regionIDs!=face->periodicFacePair.second->regionIDs))
+            {
+                return true;
+            }
+        }
+        return false;
     }
-    
+
     template <int dim>
     const typename DislocationSegment<dim>::VectorDim& DislocationSegment<dim>::burgers() const
     {
@@ -353,8 +322,18 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
     }
     
     template <int dim>
+    void DislocationSegment<dim>::addToGlobalAssembly(std::deque<Eigen::Triplet<double>>& kqqT,
+                                                     Eigen::VectorXd& FQ) const
+    {
+        if(!hasZeroBurgers())
+        {
+            addToGlobalAssembly(kqqT,FQ,this->source->networkID(),this->sink->networkID());
+        }
+    }
+
+    template <int dim>
     void DislocationSegment<dim>::addToGlobalAssembly(std::deque<Eigen::Triplet<double> >& kqqT,
-                             Eigen::VectorXd& FQ) const
+                             Eigen::VectorXd& FQ,const size_t sourceIndex,const size_t sinkIndex) const
     {/*!\param[in] kqqT the stiffness matrix of the network component
       * \param[in] FQ the force vector of the network component
       */
@@ -365,26 +344,10 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
             /*    */ std::pair<VectorNcoeff,VectorDim>,
             /*    */ std::less<size_t>
             /*    */ > h2posMap;
-            h2posMap.emplace(this->source->networkID(),std::make_pair((VectorNcoeff()<<1.0,0.0).finished(),this->source->get_P()));
-            h2posMap.emplace(this->  sink->networkID(),std::make_pair((VectorNcoeff()<<0.0,1.0).finished(),this->  sink->get_P()));
+            h2posMap.emplace(sourceIndex,std::make_pair((VectorNcoeff()<<1.0,0.0).finished(),this->source->get_P()));
+            h2posMap.emplace(sinkIndex,std::make_pair((VectorNcoeff()<<0.0,1.0).finished(),this->  sink->get_P()));
 
             
-//            switch (corder)
-//            {
-//                case 0:
-//                {
-//                    h2posMap.emplace(this->source->networkID(),std::make_pair((VectorNcoeff()<<1.0,0.0).finished(),this->source->get_P()));
-//                    h2posMap.emplace(this->  sink->networkID(),std::make_pair((VectorNcoeff()<<0.0,1.0).finished(),this->  sink->get_P()));
-//                    break;
-//                }
-//                    
-//                default:
-//                {
-//                    assert(0 && "IMPLEMENT THIS CASE FOR CURVED SEGMENTS");
-//                    break;
-//                }
-//            }
-            //        h2posMap=this->hermite2posMap();
             Eigen::Matrix<double, Ndof, Eigen::Dynamic> Mseg(Eigen::Matrix<double, Ndof, Eigen::Dynamic>::Zero(Ncoeff*dim,h2posMap.size()*dim));
 //            Mseg.setZero(Ncoeff*dim,h2posMap.size()*dim);
             size_t c=0;
@@ -604,8 +567,12 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
         {
             for (const auto &otherPlane : other)
             {
-                //                    if(plane!=otherPlane && plane->n.cross(otherPlane->n).squaredNorm()==0)
-                if (plane->n.cross(otherPlane->n).base().squaredNorm() == 0)
+                // Integer plane coordinates are comparable only within one
+                // crystal lattice. Across grains, compare global unit normals.
+                const bool parallel=&plane->n.lattice==&otherPlane->n.lattice?
+                    plane->n.cross(otherPlane->n).base().squaredNorm()==0 :
+                    plane->unitNormal.cross(otherPlane->unitNormal).norm()<FLT_EPSILON;
+                if(parallel)
                 { // parallel planes
                     pp.emplace_back(plane, otherPlane);
                 }

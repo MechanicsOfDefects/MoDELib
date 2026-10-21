@@ -15,14 +15,13 @@
 #include <Eigen/Eigenvalues>
 //#include <RoundEigen.h>
 #include <SimplicialMesh.h>
-#include <MeshRegionObserver.h>
 #include <Grain.h>
 //#include <GrainBoundaryType.h>
 #include <LatticePlane.h>
 //#include <LineMeshIntersection.h>
 //#include <CSL.h>
 //#include <DSCL.h>
-//#include <StressStraight.h>
+//#include <DislocationDynamics/StressStraight.h>
 //#include <GlidePlane.h>
 #include <MeshPlane.h>
 
@@ -58,11 +57,11 @@ namespace model
 
         static bool use_GBdislocations;
         const MeshRegionBoundaryType& regionBoundary;
-        const std::shared_ptr<PlanarMeshFace<dim>>& face;
+        const std::shared_ptr<Polyhedron<dim,dim-1>>& face;
         const std::pair<int,int>& grainBndID;
 
         GrainBoundary(const MeshRegionBoundaryType& regionbnd_in,
-                      const std::shared_ptr<PlanarMeshFace<dim>>& face_in,
+                      const std::shared_ptr<Polyhedron<dim,dim-1>>& face_in,
                       const Grain<dim>& grainFirst,
                       const Grain<dim>& grainSecond
                       );

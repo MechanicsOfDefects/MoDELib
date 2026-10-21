@@ -21,7 +21,7 @@
 namespace model
 {
 
-    QuadratureActor::QuadratureActor(vtkGenericOpenGLRenderWindow* const renWin,vtkRenderer* const ren,const Polycrystal<3>&,const DDtraitsIO&) :
+    QuadratureActor::QuadratureActor(vtkGenericOpenGLRenderWindow* const renWin,vtkRenderer* const ren,const Polycrystal<3>&,const DefectiveCrystalTraitsIO&) :
     /* init */ renderWindow(renWin)
     /* init */,renderer(ren)
     /* init */,mainLayout(new QGridLayout(this))
@@ -169,7 +169,7 @@ namespace model
 
     }
 
-    void QuadratureActor::updateConfiguration(const DDauxIO<3>& auxIO)
+    void QuadratureActor::updateConfiguration(const DefectiveCrystalAuxIO<3>& auxIO)
     {
         
         std::cout<<"Updating QuadraturePoints..."<<std::flush;

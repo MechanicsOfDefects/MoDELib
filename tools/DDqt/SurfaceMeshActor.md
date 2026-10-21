@@ -1,6 +1,6 @@
 # SurfaceMeshActor
 
-The SurfaceMesh tab, implemented by `SurfaceMeshActor`, refines the mesh's exterior boundary triangles and displays
+The SurfaceMesh tab, implemented by `SurfaceMeshActor`, refines the mesh's selected face triangles and displays
 `X + amplification * u(X)` using the same displacement field as Fields, summed
 across the selected microstructures. Enable **Show deformed surface** after loading
 a frame. The surface is opaque gray with lighting, recomputed normals, and no
@@ -16,7 +16,16 @@ These selections are independent of the Fields tab.
 **Mesh size** is the maximum reference triangle area in Burgers-vector units
 squared, matching the area convention in Fields. Press Enter in the mesh-size field to apply it. A common subdivision count keeps shared boundary edges
 conforming, including nonconvex boundaries and holes represented by the input
-mesh. Internal grain faces are excluded. Refinement is limited to 500000 triangles.
+mesh. Refinement is limited to 500000 triangles.
+
+**External Faces** lists the external mesh face IDs.
+**Internal Faces** lists internal grain interfaces. Both groups and all individual
+faces are unselected by default. The first activation of each group selects all
+of its faces; then uncheck individual faces to refine the selection. Disabling a
+group hides its faces while preserving the individual selections. Re-enabling it
+restores that selection, including an intentionally empty selection. Internal interfaces are meshed once, with orientation
+from the lower-ID adjacent grain. Both selections support displacement, shading,
+clipping, and slip-step walls, and persist across frame updates.
 
 **Displacement amplification** changes the displayed displacement without
 recomputing the field. Zero displays the reference surface. Reference coordinates
@@ -24,7 +33,7 @@ are retained, so neither changing frames nor changing amplification accumulates
 deformation. Each successful frame load, including playback, refreshes the field
 before image capture. Hidden surfaces defer computation until enabled.
 
-The exterior surface is cut along the live glide planes in GlidePlaneFactory,
+The selected surface is cut along the live glide planes in GlidePlaneFactory,
 using their mesh-intersection faces to restrict cuts to the appropriate grain
 boundary portions. Separate vertices on the two sides retain the same reference
 position but sample displacement just inside their respective surface regions.
@@ -33,8 +42,7 @@ where traces cross. Zero-height walls collapse in the reference configuration.
 The wall follows the full displacement jump, including tangential components;
 it is normal to the surface only when the jump is normal to that surface.
 
-Cuts are reconstructed from the current factory on each frame update. Only
-external faces are displayed; grain interfaces are excluded. Coplanar traces
+Cuts are reconstructed from the current factory on each frame update. Selected external faces and internal grain interfaces are displayed. Coplanar traces
 are merged. The 500000-triangle limit also applies after cutting and adding walls.
 One-sided samples move toward the cut polygon's centroid, with offsets scaled
 to the domain to avoid the solid-angle evaluator's on-plane tolerance and capped

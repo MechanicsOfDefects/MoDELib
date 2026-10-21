@@ -16,8 +16,7 @@
 #include <Eigen/Dense>
 
 #include <MeshModule.h>
-#include <MeshRegion.h>
-#include <MeshRegionObserver.h>
+#include <Polyhedron.h>
 #include <PlaneLineIntersection.h>
 #include <Polygon2D.h>
 

@@ -1,0 +1,69 @@
+\chapter{Finite-element infrastructure}\label{chap:fem}
+\section{Geometry, interpolation and fields}\label{sec:femArchitecture}
+The volume mesh is geometry. \code{FiniteElement<ElementType>} adds interpolation nodes and elements. \code{TrialFunction} carries a field's unknowns and conditions; differential operators and integration domains build weak forms; \code{WeakProblem} assembles and solves the constrained system. Keeping these roles separate allows multiple physics to reuse the same geometric discretization while defining different fields and equations.
+
+The current \code{DefectiveCrystalBase::ElementType} is \code{LagrangeElement<3,2>}: quadratic tetrahedra. A tetrahedron therefore has ten interpolation nodes, including its edge midpoints, even if the source Gmsh mesh supplies only the four vertices of each volume element. A vector displacement has three components per interpolation node; concentrations have their own component counts.
+\manualfigure{fem}{0.98}{Left: the three analytical quadratic Lagrange functions along an element edge. Their midpoint degree of freedom explains why vertex-only periodic matching is insufficient. Right: the responsibility chain from geometry to a constrained solve.}
+\sourcefile{include/FEM/FiniteElement.h}
+\sourcefile{include/FEM/LagrangeElement.h}
+\sourcefile{include/FEM/TrialFunction.h}
+
+\section{The weak-form contract}
+For illustration, small-strain elasticity uses $\bm\varepsilon(\bm u)=\operatorname{sym}\nabla\bm u$. Its bilinear form is
+\begin{equation}
+a(\bm v,\bm u)=\int_\Omega\bm\varepsilon(\bm v):\mathbb C:\bm\varepsilon(\bm u)\dV.
+\end{equation}
+The elastic module builds the corresponding expression with \code{def(u)}, a stiffness multiplication, a test function and a volume domain. This expression describes a mathematical operator; boundary conditions, affine modes and rigid-motion control are supplied separately. The right-hand side depends on the physics, external loading and coupling fields.
+
+\paragraph{Solve a clamped elasticity problem.}
+The following C++ function accepts a shared, nonperiodic mesh of a connected block with a planar $x=x_{\min}$ face. It clamps all displacement components on that face, applies a constant body force, and leaves the other faces traction-free. The example uses $\mu=1$ and $\nu=0.3$ in consistent units. The returned vector contains the solved nodal displacements. The weak-form API used here is not currently exposed by \code{pyMoDELib}.
+
+\begin{figure}[t]
+\begin{tcolorbox}[enhanced,colback=manualblue!5,colframe=manualblue!35,boxrule=0.4pt,
+ arc=1mm,left=2mm,right=2mm,top=7mm,bottom=2mm,
+ overlay={\node[anchor=north east,inner sep=1mm] at (frame.north east) {\cppsymbol};}]
+\lstinputlisting[language=C++,basicstyle=\footnotesize\ttfamily,frame=none,backgroundcolor=\color{manualblue!5},aboveskip=0pt,belowskip=0pt]{tex/snippets/elasticity.cpp}
+\end{tcolorbox}
+\captionsetup{hypcap=false}
+\captionof{lstlisting}{Solving linear elasticity with a clamped face and a body force.}
+\end{figure}
+
+For a discrete linear system $\bm K\bm u=\bm f$, constraint elimination can be understood through $\bm u=\bm P\bm q+\bm c$:
+\begin{equation}
+\bm P^T\bm K\bm P\bm q=\bm P^T(\bm f-\bm K\bm c).
+\end{equation}
+This is a conceptual reduction, not an assertion that every solve uses only this equation: \code{WeakProblem} also supports global linear constraints and additional affine modes. Its checks detect incompatible prescribed values and invalid constraint systems, and verify residuals after solving.
+\sourcefile{include/FEM/WeakProblem.h}
+\sourcefile{src/ElasticDeformation/ElasticDeformationFEM.cpp}
+
+\section{Periodic equivalence classes and field constraints}\label{sec:periodicFEM}
+\code{PeriodicFEMNodePairing} extends boundary-simplex correspondence to finite-element nodes using their barycentric integer indices. This includes higher-order edge and face nodes, not only mesh vertices. A graph traversal constructs a representative node and translation for every equivalence class. Cycles at edges and corners must give consistent total shifts.
+
+The pairing object records geometry; the weak-problem solver uses it to constrain field degrees of freedom. For an affine-periodic vector field,
+\begin{equation}\label{eq:affineperiodic}
+\bm u_i=\bm u_{r(i)}+\bm H\bm s_i+\bm q_i-\bm q_{r(i)},
+\end{equation}
+where $r(i)$ is the representative, $\bm s_i$ the geometric shift, $\bm H$ the prescribed field gradient, and $\bm q$ an optional nodal offset. Zero gradient and zero offset give a strictly periodic field. Global affine modes may also be solved as unknowns by the loading controller. Incompatible nodal Dirichlet values and affine/periodic conditions are rejected rather than silently overwritten.
+
+Continuous finite-element spaces acquire periodic node relations. Discontinuous spaces retain independent nodes. If active mesh pairing is changed after finite-element construction, explicitly rebuild the periodic node pairing before constructing or solving dependent fields.
+\sourcefile{include/FEM/PeriodicFEMNodePairing.h}
+\sourcefile{include/FEM/FiniteElement.h}
+\sourcefile{include/FEM/WeakProblem.h}
+
+\manualfigure{affine_periodic_field}{0.65}{An affine-periodic field $u(x)=0.5x+0.12\sin(2\pi x)$ combines an affine jump with a periodic fluctuation. These analytical curves illustrate field constraints; they are not solver output.}
+
+If a solve rejects constraints, inspect prescribed values on every copy of an equivalence class. Relevant checks include \code{testPeriodicFEMNodes.cpp}.
+
+\section{Physical boundaries and rigid modes}
+Equation~\eqref{eq:affineperiodic} expresses the relationship between equivalent field nodes. The finite-element pairing supplies representatives and shifts, while the field supplies its gradient and optional offset. This distinction allows the same periodic mesh to host different fields.
+
+A paired external face is not a free surface. \code{NonPeriodicExternalBoundary} excludes paired boundary simplices from the physical-boundary integration domain. For elastic loading, periodic directions can carry free affine jumps determined by the controller, while physical faces receive the associated traction. Applying a free-surface load to both members of a periodic pair would count a boundary that has already been identified internally.
+
+Elasticity also has rigid-motion null modes. The elastic module uses \code{GlobalRigidMotionPenalty} to control admissible mean displacement and mean infinitesimal rotation globally. Its weight is \code{inertiaReliefPenaltyFactor}. This is a global reference condition; it is not an arbitrary clamp on a chosen mesh vertex.
+\sourcefile{include/FEM/NonPeriodicExternalBoundary.h}
+\sourcefile{src/ElasticDeformation/ElasticDeformation.cpp}
+
+\section{Enabling and diagnosing FEM}
+\code{useFEM} in \code{DefectiveCrystal.txt} creates the shared finite-element infrastructure. \code{useElasticDeformationFEM} in \code{ElasticDeformation.txt} selects the elastic module's FEM formulation. They have different roles: enabling the shared FEM does not itself choose elastic-deformation physics. Conversely, a physics needing the FEM cannot work with that infrastructure disabled.
+
+For an elastic FEM run, select \code{ElasticDeformation} in \code{physics}, set \code{useFEM=1}, and set \code{useElasticDeformationFEM=1}. Keep the material, boundary pairing, and loading choices consistent. On a failed solve, inspect constraints and null modes before changing numerical tolerances. On a periodic mismatch, verify higher-order nodes as well as mesh vertices. For accuracy, compare an observable under mesh refinement; the polynomial order alone is not an accuracy certificate.

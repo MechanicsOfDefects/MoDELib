@@ -12,110 +12,59 @@
 #include <EvalExpression.h>
 #include <EvalFunction.h>
 #include <TestExpression.h>
-#include <ExpressionRef.h>
+#include <memory>
+#include <stdexcept>
 
 namespace model
 {
-    
-    /**************************************************************************/
-    /**************************************************************************/
+
     template <typename TestType,typename EvalType>
     struct LinearForm : public LinearWeakExpression<LinearForm<TestType,EvalType>>
     {
-        
+
         static_assert(TestType::rows==EvalType::rows,"YOU ARE CREATING A LinearForm BETWEEN EXPRESSIONS WITH DIFFERENT NUMBER OF ROWS");
-        
-        //    public:
-        
+
         typedef typename TestType::TrialFunctionType  TrialFunctionType;
         constexpr static int evalCols=EvalType::cols;
-        
-        
-        //    private:
+
         typedef LinearForm<TestType,EvalType> LinearFormType;
         typedef typename TypeTraits<TrialFunctionType>::ElementType ElementType;
         typedef typename TypeTraits<TrialFunctionType>::BaryType BaryType;
-        
+
         constexpr static int dim=TypeTraits< TrialFunctionType>::dim;
         constexpr static int dofPerNode=TypeTraits< TrialFunctionType>::dofPerNode;
         constexpr static int dofPerElement=TypeTraits< TrialFunctionType>::dofPerElement;
-        
-        ExpressionRef<TestExpression<TestType>> testExp;
-        ExpressionRef<EvalType> evalExp;
-        
-        /**********************************************************************/
-        LinearForm(const TestExpression<TestType>& test, const EvalType& eval) :
-        /* init list */ testExp(test),
-        /* init list */ evalExp(eval)
+
+        const std::shared_ptr<TestExpression<TestType>> testExp;
+        const std::shared_ptr<EvalType> evalExp;
+        LinearForm(std::shared_ptr<TestExpression<TestType>> x, std::shared_ptr<EvalType> y) :
+            testExp(std::move(x)), evalExp(std::move(y))
         {
-            
+            if(!testExp || !evalExp)
+            {
+                throw std::invalid_argument("Null FEM expression operand.");
+            }
         }
-        
-        /**********************************************************************/
-        LinearForm(TestExpression<TestType>&& test, const EvalType& eval) :
-        /* init list */ testExp(std::move(test)),
-        /* init list */ evalExp(eval)
-        {
-            
-        }
-        
-        /**********************************************************************/
-        LinearForm(const TestExpression<TestType>& test, EvalType&& eval) :
-        /* init list */ testExp(test),
-        /* init list */ evalExp(std::move(eval))
-        {
-            
-        }
-        
-        /**********************************************************************/
-        LinearForm(TestExpression<TestType>&& test, EvalType&& eval) :
-        /* init list */ testExp(std::move(test)),
-        /* init list */ evalExp(std::move(eval))
-        {
-            
-        }
-        
-        /**********************************************************************/
+
         Eigen::Matrix<double,dofPerElement,evalCols> operator()(const ElementType& ele,
                                                                 const BaryType& bary) const
         {
-            return testExp().sfm(ele,bary).transpose()*evalExp()(ele,bary);
+            return testExp->sfm(ele,bary).transpose()*(*evalExp)(ele,bary);
         }
-        
+
+        const auto& field() const
+        {
+            return testExp->field();
+        }
+
     };
-    
-    /**************************************************************************/
-    /**************************************************************************/
-    // Operators
-    template <typename T1,typename T2>
-    LinearForm<T1,T2> operator, (const TestExpression<T1>& testExp,
-                                 const   EvalFunction<T2>& evalFunc)
+
+    template<class T1,class T2, std::enable_if_t<std::is_base_of_v<EvalFunction<T2>,T2>,int> = 0>
+    auto operator,(const std::shared_ptr<TestExpression<T1>>& t,const std::shared_ptr<T2>& e)
     {
-        return LinearForm<T1,T2>(testExp,evalFunc.derived());
+        return std::make_shared<LinearForm<T1,T2>>(t,e);
     }
-    
-    template <typename T1,typename T2>
-    LinearForm<T1,T2> operator, (/**/ TestExpression<T1>&& testExp,
-                                 const  EvalFunction<T2>& evalFunc)
-    {
-        return LinearForm<T1,T2>(std::move(testExp),evalFunc.derived());
-    }
-    
-    template <typename T1,typename T2>
-    LinearForm<T1,T2> operator, (const TestExpression<T1>&  testExp,
-                                 /*   */ EvalFunction<T2>&& evalFunc)
-    {
-        return LinearForm<T1,T2>(testExp,std::move(evalFunc.derived()));
-    }
-    
-    template <typename T1,typename T2>
-    LinearForm<T1,T2> operator, (TestExpression<T1>&& testExp,
-                                 EvalFunction<T2>&& evalFunc)
-    {
-        return LinearForm<T1,T2>(std::move(testExp),std::move(evalFunc.derived()));
-    }
-    
+
+
 }
 #endif
-
-

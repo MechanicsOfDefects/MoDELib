@@ -1,148 +1,115 @@
-\documentclass[10pt]{report}
-\usepackage{graphicx}
-%\usepackage[ruled,vlined]{algorithm2e}
-\usepackage[]{algorithm2e}
-\usepackage{subcaption}
-%\usepackage{subfig}
-
-\usepackage{cancel}
-
-\graphicspath{{../Figures/}}		% path to graphic files
-\usepackage{fullpage}
-%\usepackage{fancyhdr}
-%\rhead{
-%\includegraphics[width=\textwidth]{header}
-%}
-%\lhead{
-%\includegraphics[width=\textwidth]{header}
-%}
-  \usepackage[dvipsnames]{xcolor}
-  \usepackage{tikz}
-\usepackage{verbatim}
-
-\usepackage{bbding} 
-
+\documentclass[10pt,letterpaper]{report}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.8in]{geometry}
+\usepackage{graphicx,subcaption,booktabs,longtable,array}
+\usepackage{amsmath,amssymb,amsthm,bm,cancel}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{tikz}
+\usepackage{verbatim,listings,microtype}
 \usepackage[most]{tcolorbox}
-\newtcblisting{commandshell}{colback=black,colupper=white,
-listing only,listing options={style=tcblatex,language=sh},
-every listing line={\textcolor{green}{\small\ttfamily\bfseries  \$ }}}
-
-
-\usepackage{bm}
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{amsthm} 
-%\usepackage{wrapfig} 
-%\usepackage[percent]{overpic}
-
-\usepackage{natbib} 
-\usepackage{lipsum}
-
-
-\usepackage[pagebackref]{hyperref}
-\hypersetup{
-   % pagebackref =true,
-    colorlinks,%
-    citecolor=blue,% 
-    filecolor=black,%
-    linkcolor=magenta,% 
-    urlcolor=black
-}
-
-  
-%\author{Giacomo Po}
-%\title{Field Equations of Discrete Dislocations}
-
-
-\newcommand{\dL}[0]{\, \text{d}L}
-\newcommand{\dA}[0]{\, \text{d}A}
-\newcommand{\dV}[0]{\, \text{d}V}
-
-\newcommand{\GP}[0]{G^\Delta}
-\newcommand{\hGP}[0]{\hat{G}^\Delta}
-
-\newcommand{\GH}[0]{G^L}
-\newcommand{\hGH}[0]{\hat{G}^L}
-
-\newcommand{\bPc}[0]{\beta^{P}}
-%\newcommand{\bPg}[0]{\beta^{P}}
-
-%\newcommand{\bEg}[0]{\beta}
-\newcommand{\bEc}[0]{\beta}
-
-\newcommand{\eEc}[0]{\varepsilon}
-\newtheorem{mytheorem}{Theorem}
-\newtheorem{mydefinition}{Definition}
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{natbib}
+\usepackage{fancyhdr}
+\usepackage{xurl}
+\usepackage{hyperref}
+\definecolor{manualblue}{HTML}{176B91}
+\hypersetup{colorlinks=true,linkcolor=manualblue,citecolor=manualblue,urlcolor=manualblue,
+ pdftitle={MoDELib: Architecture, Theory and User Guide},pdfauthor={Giacomo Po}}
+\graphicspath{{figures/}{./}}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}\fancyhf{}\fancyhead[L]{\small MoDELib}\fancyhead[R]{\small\nouppercase{\leftmark}}\fancyfoot[C]{\thepage}
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter. #1}{}}
+\emergencystretch=2em
+\setlength{\parskip}{0.35em}\setlength{\parindent}{0pt}
+\setcounter{tocdepth}{1}
+% Keep figures top-aligned on float-only pages as well.
+\makeatletter
+\setlength{\@fptop}{0pt}
+\makeatother
+\lstset{basicstyle=\small\ttfamily,breaklines=true,columns=fullflexible,keepspaces=true,
+ frame=single,rulecolor=\color{manualblue!35},backgroundcolor=\color{manualblue!3}}
+\newcommand{\code}[1]{\nolinkurl{#1}}
+\newcommand{\sourcefile}[1]{\par\smallskip{\footnotesize\textbf{Implementation:} \nolinkurl{#1}.}\par}
+\newcommand{\manualfigure}[3]{\begin{figure}[t]\centering\includegraphics[width=#2\textwidth]{#1}\caption{#3}\end{figure}}
+% Language symbols for paired code examples.
+\newcommand{\cppsymbol}{\begin{tikzpicture}[x=1mm,y=1mm,baseline=-1mm]
+\fill[manualblue] (0,1.5)--(0,4)--(4.5,5.5)--(9,4)--(9,1.5)--(4.5,0)--cycle;
+\node[anchor=center,text=white,font=\sffamily\bfseries\fontsize{7}{8}\selectfont,inner sep=0pt] at (4.5,2.75) {C++};
+\end{tikzpicture}}
+\newcommand{\pythonsymbol}{\begin{tikzpicture}[x=0.75mm,y=0.75mm,baseline=-1mm]
+\fill[manualblue,rounded corners=0.65mm] (1,4)--(1,6.5)--(5,6.5)--(5,3)--(2,3)--(2,1.5)--(0,1.5)--(0,4)--cycle;
+\fill[Goldenrod,rounded corners=0.65mm] (5.5,3)--(5.5,0.5)--(1.5,0.5)--(1.5,2.5)--(5,2.5)--(5,5.5)--(7,5.5)--(7,3)--cycle;
+\fill[white] (2,5.7) circle (0.25);\fill[white] (4.5,1.3) circle (0.25);
+\end{tikzpicture}}
+\newenvironment{draftnote}{\begin{tcolorbox}[colback=orange!5,colframe=orange!45!black,title=Status of the inherited derivation]}{\end{tcolorbox}}
+\newcommand{\dL}{\,\text{d}L}\newcommand{\dA}{\,\text{d}A}\newcommand{\dV}{\,\text{d}V}
+\newcommand{\GP}{G^\Delta}\newcommand{\hGP}{\hat{G}^\Delta}
+\newcommand{\GH}{G^L}\newcommand{\hGH}{\hat{G}^L}
+\newcommand{\bPc}{\beta^P}\newcommand{\bEc}{\beta}\newcommand{\eEc}{\varepsilon}
+\newtheorem{mytheorem}{Theorem}\newtheorem{mydefinition}{Definition}
 \begin{document}
-
-
+\begin{titlepage}
 \thispagestyle{empty}
-\begin{tikzpicture}[remember picture,overlay] 
-\def \Px{-3.5}
-\def \Py{-20}
-\def \Lx{1.2*\textwidth}
-\def \Ly{10}
-\node[opacity=1,inner sep=0pt] at (current page.center){\includegraphics[width=\paperwidth,height=\paperheight]{straight_lines}};
- \fill [black, opacity=0.7]
-       (\Px,\Py) -- (\Px,\Py+\Ly) -- (\Px+\Lx,\Py+\Ly)-- (\Px+\Lx,\Py) -- cycle;
-\node[anchor=north west] at (\Px+3.0,\Py+\Ly-1) {\Huge{\textcolor{white}{
-\textbf{MoDELib manual}}}};
-\node[anchor=north west] at (\Px+3.0,\Py+\Ly-2) {\Large{\textcolor{white}{
-???}}};
-%\node[anchor=north west] at (\Px+3.0,\Py+\Ly-2.8) {\Large{\textcolor{white}{
-%}}};
+\begin{tikzpicture}[remember picture,overlay]
+\node[inner sep=0pt] at (current page.center)
+ {\includegraphics[height=\paperheight]{cover1.png}};
+\fill[black,opacity=0.7]
+ ([yshift=5cm]current page.south west) rectangle
+ ([yshift=15cm]current page.south east);
+\node[anchor=north west,text=white,inner sep=0pt]
+ at ([xshift=0.8in,yshift=14cm]current page.south west)
+ {\Huge\bfseries MoDELib};
+\node[anchor=north west,text=white,inner sep=0pt]
+ at ([xshift=0.8in,yshift=13cm]current page.south west)
+ {\fontsize{22}{26}\selectfont Mechanics of Defects Evolution Library};
+\node[anchor=north west,text=white,inner sep=0pt,align=left]
+ at ([xshift=0.8in,yshift=11cm]current page.south west)
+ {\LARGE Architecture, Theory and User Guide};
+\node[anchor=north west,text=white,inner sep=0pt]
+ at ([xshift=0.8in,yshift=10cm]current page.south west)
+ {\large Code version 2.0.0 --- commit \texttt{eeaa727} + local changes};
+\draw[very thick,orange]
+ ([yshift=9cm]current page.south west) --
+ ([yshift=9cm]current page.south east);
+\node[anchor=north west,text=white,inner sep=0pt]
+ at ([xshift=0.8in,yshift=8cm]current page.south west)
+ {\Large 21 October 2026};
+\end{tikzpicture}
+\null
+\end{titlepage}
+\pagenumbering{roman}
+\input{tex/preface}
+\chapter*{How to use this manual}
+\addcontentsline{toc}{chapter}{How to use this manual}
+The manual follows the construction of a simulation: geometry and periodicity first, then materials and grains, finite elements, and finally the physics that share those services. Each architectural chapter explains responsibilities and data flow, introduces only the theory needed to understand them, and identifies the input files or source classes involved.
 
-\draw[very thick,orange]  (\Px,\Py+0.4*\Ly) --  (\Px+\Lx,\Py+0.4*\Ly);
+Part I describes the shared infrastructure. Part II introduces the multiphysics contract and the elastic-deformation and inclusion modules. Part III treats the architecture of discrete dislocation dynamics (DDD). Part IV collects the longer DDD derivations and mathematical notes as appendices. Cluster dynamics (CD) is deliberately placed last, in Appendix~\ref{chap:cd}; its current interfaces are described briefly while the model is being revised.
 
-\node[anchor=north west] at (\Px+3.0,\Py+\Ly-4) {\Huge{\textcolor{white}{
- ???}}};
-\draw[very thick,orange]  (\Px,\Py+0.4*\Ly) --  (\Px+\Lx,\Py+0.4*\Ly);
+The architecture chapters were checked against the repository working tree on 21 October 2026, including the in-progress \code{PolyhedralMesh} implementation. This is a snapshot, not a claim that those changes have been released. Source paths are relative to the repository root. Example input fragments modify copies of templates and are not complete input decks unless stated otherwise.
 
-
-\node[anchor=north west] at (\Px+3.0,\Py+\Ly-7) {\Huge{\textcolor{white}{
-Giacomo Po}}};
-\node[anchor=north west] at (\Px+3.0,\Py+\Ly-8) {\Large{\textcolor{white}{
-\today}}};
-%\node[anchor=north west] at (\Px+4.5,\Py+\Ly-7) {\large{\textcolor{white}{
-%10755 Massachusetts Ave}}};
-%\node[anchor=north west] at (\Px+4.5,\Py+\Ly-8) {\large{\textcolor{white}{
-%Los Angeles, CA}}};
- \end{tikzpicture}
-
-%\maketitle
-
-\chapter*{Preface}
-\chapter*{Acknowledgements}
+The retained DDD derivations are a research reference. Editorial reorganization does not constitute a mathematical validation of every inherited equation. Explicit status notes identify incomplete derivations; the original source files are retained in \code{manual_beta/archive/}. Schematics and analytical plots explain relationships, and are distinguished from numerical simulation output in their captions.
 \tableofcontents
-\input{tex/elasticTheory}
-\input{tex/MoDElib}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%
+\clearpage\pagenumbering{arabic}
+\part{Geometry, materials and finite elements}
+\input{tex/meshArchitecture}
+\input{tex/materialArchitecture}
+\input{tex/femArchitecture}
+\part{Multiphysics and shared field physics}
+\input{tex/multiphysicsArchitecture}
+\input{tex/userGuide}
+\input{tex/elasticDeformation}
+\input{tex/inclusions}
+\part{Discrete dislocation dynamics}
+\input{tex/dddArchitecture}
 \appendix
-\input{tex/math}
+\part{Appendices}
+\input{tex/elasticTheory}
+\input{tex/regularizedDislocations}
 \input{tex/straightDislocations}
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{tex/math}
+\input{tex/dddSupplement}
+\input{tex/clusterDynamics}
 \bibliographystyle{plainnat}
-\bibliography{references_GP,references_GP2,references_GP3,references_GP4,references_ML,references_NA,references_NG2,references_MM,references_tamer}
-
+\bibliography{manual_cited}
 \end{document}
-
-
-
-
-
-
-
-
-
-
-
-
-

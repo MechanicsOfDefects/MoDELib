@@ -17,34 +17,10 @@ namespace model::controls
         QWidget *body = nullptr;
 
       protected:
-        void showEvent(QShowEvent *event) override
-        {
-            if(isCheckable() && !body && layout())
-            {
-                body = new QWidget(this);
-                body->setLayout(layout());
-                auto *outer = new QVBoxLayout(this);
-                outer->setContentsMargins(0, 0, 0, 0);
-                outer->setSpacing(0);
-                outer->addWidget(body);
-                body->setVisible(isChecked());
-            }
-            QGroupBox::showEvent(event);
-        }
+        void showEvent(QShowEvent *event) override;
 
       public:
-        explicit GroupBox(const QString &title, QWidget *parent = nullptr) : QGroupBox(title, parent)
-        {
-            setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
-            connect(this, &QGroupBox::toggled, this, [this](bool checked)
-            {
-                if(body)
-                {
-                    body->setVisible(checked);
-                    updateGeometry();
-                }
-            });
-        }
+        explicit GroupBox(const QString &title, QWidget *parent = nullptr);
     };
 
     inline QGroupBox *box(const QString &title, QWidget *parent, const QString &description,
@@ -54,7 +30,7 @@ namespace model::controls
         group->setToolTip(description);
         group->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
         new QGridLayout(group);
-        if(toggle)
+        if (toggle)
         {
             // Preserve existing actor handlers and programmatic state changes;
             // the visible group checkbox is the single user-facing control.

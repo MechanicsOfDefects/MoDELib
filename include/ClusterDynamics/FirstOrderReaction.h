@@ -4,7 +4,7 @@
 
 #include <Eigen/Dense>
 #include <EvalFunction.h>
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <PolycrystallineMaterialBase.h>
 
 namespace model
@@ -24,17 +24,17 @@ struct FirstOrderReaction : public EvalFunction<FirstOrderReaction<MobileTrialFu
     const PolycrystallineMaterialBase& mat;
 
     typedef EvalExpression<ImmobileTrialFunctionType> ImmobileEvalFunctionType;
-    const ImmobileTrialFunctionType& sink;
-    const ImmobileEvalFunctionType sinke;
+    const std::shared_ptr<ImmobileTrialFunctionType> sink;
+    const std::shared_ptr<ImmobileEvalFunctionType> sinke;
 
     const Eigen::Matrix<double,rows,1> inFactors;
     const Eigen::Matrix<double,rows,1> outFactors;
 
-    FirstOrderReaction(const ImmobileTrialFunctionType& sink_in, const ClusterDynamicsParameters<3>& cdp_in, const PolycrystallineMaterialBase& mat_in) :    
+    FirstOrderReaction(const std::shared_ptr<ImmobileTrialFunctionType>& sink_in, const ClusterDynamicsParameters<3>& cdp_in, const PolycrystallineMaterialBase& mat_in) :
     /* init */ cdp(cdp_in),
     /* init */ mat(mat_in),
     /* init */ sink(sink_in),
-    /* init */ sinke(sink_in),
+    /* init */ sinke(eval(sink_in)),
     // /* init */ stress(stress_in),
     // /* init */ stresse(eval(stress_in)),
     /* init */ inFactors((1.0/cdp.msVector.abs()).matrix()),
@@ -177,7 +177,7 @@ struct FirstOrderReaction : public EvalFunction<FirstOrderReaction<MobileTrialFu
       *\returns the current stiffness C, which in general is a funciton of C0 and grad(u)
       */
         
-        const Eigen::Matrix<double,iSize,1> sinkvalue(sinke(ele,bary));
+        const Eigen::Matrix<double,iSize,1> sinkvalue((*sinke)(ele,bary));
         const Eigen::Matrix<double,iSize/2,1> loopsDensity((Eigen::Matrix<double,iSize/2,1>()<<2.0*M_PI*sinkvalue(0)*sinkvalue(4),  // Loop density c
                                                                         /*                        */ 2.0*M_PI*sinkvalue(1)*sinkvalue(5),  // Loop density a1
                                                                         /*                        */ 2.0*M_PI*sinkvalue(2)*sinkvalue(6),  // Loop density a2

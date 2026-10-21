@@ -219,7 +219,7 @@ struct PeriodicPlanePatch : public StaticID<PeriodicPlanePatch<dim>>
     static bool isRightHandedBoundary(const BoundingMeshSegments<dim>&, const Plane<dim>&);
     void addMeshIntersections(const BoundingMeshSegments<dim>&);
     const PeriodicPlaneEdgeContainerType& edges() const;
-    std::shared_ptr<PeriodicPlaneEdge<dim>> edgeOnFaces(const std::set<const PlanarMeshFace<dim>*>& faces) const;
+    std::shared_ptr<PeriodicPlaneEdge<dim>> edgeOnFaces(const std::set<const Polyhedron<dim,dim-1>*>& faces) const;
     int contains(const VectorLowerDim& test) const;
 };
 
@@ -304,9 +304,9 @@ public:
     template<typename T>
     std::vector<std::tuple<VectorLowerDim,VectorDim,std::pair<short int,short  int>,std::map<VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t ,const T* const>> polygonPatchIntersection(const std::vector<std::pair<VectorLowerDim,const T* const>>& polyPoints,const bool& intersectInternalNodes);
     template<typename T>
-    std::vector<std::tuple<VectorLowerDim,VectorDim,std::pair<short int,short  int>,std::map<VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t ,const T* const>> polygonPatchIntersection(const std::vector<std::pair<VectorDim,const T* const>>& polyPoints,const bool& intersectInternalNodes,std::set<const PlanarMeshFace<dim>*>& usedFaces);
+    std::vector<std::tuple<VectorLowerDim,VectorDim,std::pair<short int,short  int>,std::map<VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t ,const T* const>> polygonPatchIntersection(const std::vector<std::pair<VectorDim,const T* const>>& polyPoints,const bool& intersectInternalNodes,std::set<const Polyhedron<dim,dim-1>*>& usedFaces);
     template<typename T>
-    std::vector<std::tuple<VectorLowerDim,VectorDim,std::pair<short int,short  int>,std::map<VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t ,const T* const>> polygonPatchIntersection(const std::vector<std::pair<VectorLowerDim,const T* const>>& polyPoints,const bool& intersectInternalNodes,std::set<const PlanarMeshFace<dim>*>& usedFaces);
+    std::vector<std::tuple<VectorLowerDim,VectorDim,std::pair<short int,short  int>,std::map<VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t ,const T* const>> polygonPatchIntersection(const std::vector<std::pair<VectorLowerDim,const T* const>>& polyPoints,const bool& intersectInternalNodes,std::set<const Polyhedron<dim,dim-1>*>& usedFaces);
     
     std::pair<VectorDim,bool> findPatch(const VectorLowerDim&,const VectorDim&);
     std::vector<std::shared_ptr<PeriodicPlanePatch<dim>>> filledPatches(const std::vector<VectorDim>& patchShifts);
@@ -338,13 +338,13 @@ template<int dim>
 template<typename T>
 std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename PeriodicGlidePlane<dim>::VectorDim,std::pair<short int,short  int>,std::map<typename PeriodicGlidePlane<dim>::VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t, const T* const>> PeriodicGlidePlane<dim>::polygonPatchIntersection(const std::vector<std::pair<VectorDim,const T* const>>& polyPoints, const bool& intersectInternalNodes)
 {
-    std::set<const PlanarMeshFace<dim>*> usedFaces;
+    std::set<const Polyhedron<dim,dim-1>*> usedFaces;
     return polygonPatchIntersection(polyPoints,intersectInternalNodes,usedFaces);
 }
 
 template<int dim>
 template<typename T>
-std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename PeriodicGlidePlane<dim>::VectorDim,std::pair<short int,short  int>,std::map<typename PeriodicGlidePlane<dim>::VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t, const T* const>> PeriodicGlidePlane<dim>::polygonPatchIntersection(const std::vector<std::pair<VectorDim,const T* const>>& polyPoints, const bool& intersectInternalNodes,std::set<const PlanarMeshFace<dim>*>& usedFaces)
+std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename PeriodicGlidePlane<dim>::VectorDim,std::pair<short int,short  int>,std::map<typename PeriodicGlidePlane<dim>::VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t, const T* const>> PeriodicGlidePlane<dim>::polygonPatchIntersection(const std::vector<std::pair<VectorDim,const T* const>>& polyPoints, const bool& intersectInternalNodes,std::set<const Polyhedron<dim,dim-1>*>& usedFaces)
 {
     std::vector<std::pair<VectorLowerDim,const T* const>> lowerPolyPoints;
     for(const auto& point : polyPoints)
@@ -359,13 +359,13 @@ template<int dim>
 template<typename T>
 std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename PeriodicGlidePlane<dim>::VectorDim,std::pair<short int,short  int>,std::map<typename PeriodicGlidePlane<dim>::VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t, const T* const>> PeriodicGlidePlane<dim>::polygonPatchIntersection(const std::vector<std::pair<VectorLowerDim, const T* const>>& polyPoints, const bool& intersectInternalNodes)
 {
-    std::set<const PlanarMeshFace<dim>*> usedFaces;
+    std::set<const Polyhedron<dim,dim-1>*> usedFaces;
     return polygonPatchIntersection(polyPoints,intersectInternalNodes,usedFaces);
 }
 
 template<int dim>
 template<typename T>
-std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename PeriodicGlidePlane<dim>::VectorDim,std::pair<short int,short  int>,std::map<typename PeriodicGlidePlane<dim>::VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t, const T* const>> PeriodicGlidePlane<dim>::polygonPatchIntersection(const std::vector<std::pair<VectorLowerDim, const T* const>>& polyPoints, const bool& intersectInternalNodes,std::set<const PlanarMeshFace<dim>*>& usedFaces)
+std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename PeriodicGlidePlane<dim>::VectorDim,std::pair<short int,short  int>,std::map<typename PeriodicGlidePlane<dim>::VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>>,size_t, const T* const>> PeriodicGlidePlane<dim>::polygonPatchIntersection(const std::vector<std::pair<VectorLowerDim, const T* const>>& polyPoints, const bool& intersectInternalNodes,std::set<const Polyhedron<dim,dim-1>*>& usedFaces)
 {
     std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename PeriodicGlidePlane<dim>::VectorDim,std::pair<short int,short  int>, std::map<VectorDim,std::set<std::pair<short int,short  int>>,CompareVectorsByComponent<double,dim,float>> ,size_t,const T* const>> ppiPPedges; // 2dPos,shift,std::pair<edgeIDs>,LoopNodeType*
     // 2dPos,shift,std::pair<edgeIDs>,edgeMap,edgesStillRemaining,LoopNodeType*

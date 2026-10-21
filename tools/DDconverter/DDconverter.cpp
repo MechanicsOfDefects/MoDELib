@@ -8,7 +8,7 @@
 
 #include <string>
 #include <experimental/filesystem>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 
 using namespace model;
 
@@ -17,7 +17,7 @@ namespace fs = std::experimental::filesystem;
 
 int main(int argc, char** argv)
 {
-    const std::string path = "./evl";
+    const std::string path = "./config";
 
     const std::string subS1="evl_";
     const std::string subS2=".bin";
@@ -36,7 +36,7 @@ int main(int argc, char** argv)
         {
             const std::string stringID=p.path().string().substr(found1+subS1.length(),found2-(found1+subS1.length()));
             const size_t runID=std::stol(stringID);
-            DDconfigIO<3> converter;
+            DefectiveCrystalConfigIO<3> converter;
             converter.bin2txt(runID,writeSegments);
         }
     }

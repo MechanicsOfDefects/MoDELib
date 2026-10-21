@@ -1,0 +1,33 @@
+\section{Geometric periodicity}\label{sec:periodicity}
+\subsection{The translation lattice}
+Periodicity identifies points separated by integer combinations of active translation vectors. Let $\bm A=[\bm a_1\ \cdots\ \bm a_p]$ contain a basis of the periodic directions, with $0\le p\le3$. Equivalent points obey
+\begin{equation}
+\bm x' = \bm x+\bm A\bm n,\qquad \bm n\in\mathbb Z^p.
+\end{equation}
+Partial periodicity means $p<3$: unpaired external faces remain physical boundaries. The basis need not coincide with the Cartesian axes. \code{DefectiveCrystalBase} stores the basis and its dual
+\begin{equation}
+\bm A^*=\bm A(\bm A^T\bm A)^{-1},\qquad
+\bm\xi=(\bm A^*)^T(\bm x-\bm x_c),
+\end{equation}
+where $\bm x_c$ is the mesh bounding-box center. There is no $2\pi$ factor in this coordinate dual. For partial periodicity, $\bm\xi$ records only the coordinates along the periodic span.
+\manualfigure{periodicity}{0.98}{(a) An oblique translation lattice and equivalent points. (b) A two-dimensional polycrystal unit at the origin, composed of whole grains with a jagged outer boundary along grain boundaries. (c) Translations of this same jagged unit tile the plane without cutting grains at a lattice parallelogram. Opacity decreases with distance from the origin only for visual clarity; the polycrystal is schematic.}
+
+\subsection{Selecting and matching faces}
+The mesh constructor accepts a set of \code{periodicFaceIDs}. An empty set disables pairing; \code{-1} enables all valid discovered periodic directions. Explicit values select external planar face IDs. These are MoDELib face IDs, not automatically Gmsh physical surface tags. Face IDs are allocated during topology construction and must not be assumed portable between separately constructed meshes. In C++, inspect the current mesh and pass its selected IDs to \code{identifyParallelFaces}.
+
+\code{identifyParallelFaces} first discovers a valid full lattice and then selects the active lattice. A face pair must match under a translation, including its boundary simplex connectivity. Parallel normals alone are insufficient. Only pairs whose shifts are integer combinations of the selected lattice are activated. The mesh records both the planar-face relation and a \code{PeriodicSimplexPair} for each paired boundary simplex.
+
+A simplex pair stores the partner pointer, the shift with convention
+\begin{equation}
+\bm x_{\mathrm{partner}}=\bm x_{\mathrm{source}}+\bm s,
+\end{equation}
+and the permutation matching source vertices to partner vertices. The reverse relation must have the opposite shift and inverse permutation. Pairing is committed only after these checks succeed. This makes all subsequent users consume the same geometric correspondence.
+If pairing fails, check translated boundary nodes, triangulation and selected face IDs. Field constraints are described in Section~\ref{sec:periodicFEM}.
+\sourcefile{include/Mesh/PeriodicMeshFacePairing.h}
+\sourcefile{include/Mesh/PeriodicSimplexPair.h}
+\sourcefile{src/Mesh/SimplicialMesh.cpp}
+
+
+\subsection{Inspecting periodicity in Python}
+\code{mesh.periodicBasis()} exposes the basis with one column per active translation. Eigen-to-NumPy conversion can flatten the one-dimensional case; use \code{np.asarray(mesh.periodicBasis()).reshape(mesh.dim, -1)} when a uniform \code{(dim,p)} array is needed. \code{mesh.periodicSimplexPairs()} returns a dictionary keyed by the source boundary simplex's vertex-ID tuple. Each value is \code{(partner, shift, permutation)}: source vertex $i$ translated by \code{shift} matches partner vertex \code{permutation[i]}. On a polyhedral face, \code{periodicPartner} returns its paired face or \code{None}, and \code{periodicShift} gives the translation. These queries expose geometric identification; they do not impose field constraints. Select pairing with the constructor argument \code{periodicFaceIDs}, for example \code{periodicFaceIDs={-1}} for all valid directions.
+\sourcefile{tools/pyMoDELib/MeshBindingsImplementation.h}

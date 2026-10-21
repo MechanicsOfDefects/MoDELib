@@ -48,13 +48,13 @@ namespace model
         SpatialODESolver(const TrialFunctionType& trial, const IntegrationDomainType& dV, const bool& use_directSolver_in, const double& tol):
         /* init */use_directSolver(use_directSolver_in)
         /* init */,tolerance(tol)
-        /* init */,gSize(trial.gSize())
+        /* init */,gSize(trial->gSize())
         /* init */,lastError(0.0)
         /* init */,lastIterations(0)
         {                    
-            // const size_t gSize=trial.gSize();
+            // const size_t gSize=trial->gSize();
             const auto bwfAi((test(trial),trial)*dV);
-            std::vector<Eigen::Triplet<double> > globalTripletsAi(bwfAi.globalTriplets());
+            std::vector<Eigen::Triplet<double> > globalTripletsAi(bwfAi->globalTriplets());
             A.resize(gSize,gSize);
             A.setFromTriplets(globalTripletsAi.begin(),globalTripletsAi.end());
             
@@ -87,7 +87,7 @@ namespace model
             else
             {
                 iterativeSolver.setTolerance(tolerance);
-                // const size_t gSize=trial.gSize();
+                // const size_t gSize=trial->gSize();
                 Eigen::VectorXd g(Eigen::VectorXd::Zero(gSize));
                 assert(iterativeSolver.info()==Eigen::Success && "SOLVER  FAILED");                
                 Eigen::VectorXd x = iterativeSolver.solveWithGuess(b,g);

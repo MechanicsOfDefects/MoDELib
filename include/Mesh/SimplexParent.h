@@ -33,7 +33,7 @@ namespace model
         /**********************************************************************/
         SimplexParent(SimplicialMesh<dim>* const mesh,
                       const SimplexIDType& xID) :
-        /* init */ BaseArrayType(mesh->template observer<order>().faces(mesh,xID))
+        /* init */ BaseArrayType(mesh->template simplexFactory<order>().faces(xID))
         /* init */,b2p(get_b2p(mesh,xID))
         {
             
@@ -54,7 +54,7 @@ namespace model
             for (int v=0;v<SimplexTraits<dim,order>::nVertices;++v)
             {
                 const typename SimplexTraits<dim,0>::SimplexIDType vID(std::set<size_t>{xID[v]});
-                temp.col(v).template segment<dim>(0)=mesh->template observer<0>().simplex(vID).P0;
+                temp.col(v).template segment<dim>(0)=mesh->template simplexFactory<0>().getRef(vID).P0;
             }
             return temp;
         }
@@ -128,7 +128,7 @@ namespace model
 //            for (int v=0;v<SimplexTraits<dim,order>::nVertices;++v)
 //            {
 //                const typename SimplexTraits<dim,0>::SimplexIDType vID(std::set<size_t>{xID[v]});
-//                temp.col(v)=mesh->template observer<0>().simplex(vID).P0;
+//                temp.col(v)=mesh->template simplexFactory<0>().getRef(vID).P0;
 //            }
 //            return temp;
 //        }

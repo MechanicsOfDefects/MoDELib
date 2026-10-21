@@ -1,4 +1,5 @@
 /* This file is part of MoDELib, distributed under GNU GPL v2. */
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <SurfaceMeshActor.h>
 #include <GlidePlaneFactory.h>
 #include <QGridLayout>
@@ -24,7 +25,8 @@ namespace model
           clipCenterEdit(new QLineEdit(this)), clipNormalEdit(new QLineEdit("1 0 0", this)),
           clipStatus(new QLabel(this)), clipPositionSlider(new QSlider(Qt::Horizontal, this)),
           clipOffsetLabel(new QLabel("Offset: 0 b", this)),
-          excludeFaces(new controls::GroupBox("Exclude Faces", this)), polyData(vtkSmartPointer<vtkPolyData>::New()),
+          externalFaces(new controls::GroupBox("External Faces", this)),
+          internalFaces(new controls::GroupBox("Internal Faces", this)), polyData(vtkSmartPointer<vtkPolyData>::New()),
           clipPlane(vtkSmartPointer<vtkPlane>::New()), clipper(vtkSmartPointer<vtkClipPolyData>::New()),
           shadingMesh(vtkSmartPointer<vtkCleanPolyData>::New()),
           normals(vtkSmartPointer<vtkPolyDataNormals>::New()), mapper(vtkSmartPointer<vtkPolyDataMapper>::New()),
@@ -45,7 +47,7 @@ namespace model
                                   "the reference surface.");
         auto *layout = new QGridLayout(this);
         auto *surfaceBox = controls::box(
-            "Surface", this, "Show the displaced exterior surface, including sharp slip-step walls.", showSurface);
+            "Surface", this, "Show the displaced selected mesh faces, including sharp slip-step walls.", showSurface);
         auto *surfaceLayout = controls::grid(surfaceBox);
         layout->addWidget(surfaceBox, 0, 0);
         controls::field(surfaceLayout, 0, "Mesh area (b²)", meshSizeEdit,
@@ -124,34 +126,66 @@ namespace model
         connect(clipSurface, &QCheckBox::toggled, this, &SurfaceMeshActor::updateClipping);
         connect(clipCenterEdit, &QLineEdit::returnPressed, this, &SurfaceMeshActor::updateClipping);
         connect(clipNormalEdit, &QLineEdit::returnPressed, this, &SurfaceMeshActor::updateClipping);
-        excludeFaces->setObjectName("surfaceExcludeFaces");
-        excludeFaces->setCheckable(true);
-        excludeFaces->setChecked(false);
-        excludeFaces->setToolTip("Omit selected external mesh faces before triangulation. IDs match Mesh > Face IDs. Uncheck this group to restore all faces while retaining the selection.");
-        auto *exclusionLayout = new QGridLayout(excludeFaces);
-        for(const auto &region : crystal.ddBase.mesh.regions())
+        externalFaces->setObjectName("surfaceExternalFaces");
+        internalFaces->setObjectName("surfaceInternalFaces");
+        externalFaces->setCheckable(true);
+        internalFaces->setCheckable(true);
+        externalFaces->setChecked(false);
+        internalFaces->setChecked(false);
+        externalFaces->setToolTip("The first activation selects all external faces. Refine individual selections; disabling and re-enabling this group preserves them.");
+        internalFaces->setToolTip("The first activation selects all internal grain interfaces, once per face. Refine individual selections; disabling and re-enabling this group preserves them.");
+        auto* externalLayout=new QGridLayout(externalFaces);
+        auto* internalLayout=new QGridLayout(internalFaces);
+        for(const auto& region : crystal.ddBase.mesh.regions())
         {
-            for(const auto &face : region.second->faces())
+            for(const auto& face : region.second->faces())
             {
-                const size_t id = face.second->sID;
-                if(face.second->isExternal() && !faceExclusionChecks.count(id))
+                const size_t id=face.second->sID;
+                const bool external=face.second->isExternal();
+                auto& checks=external?externalFaceChecks:internalFaceChecks;
+                auto* group=external?externalFaces:internalFaces;
+                if(!checks.count(id))
                 {
-                    auto *check = new QCheckBox(QString("Face %1").arg(id), excludeFaces);
-                    check->setObjectName(QString("surfaceExcludeFace_%1").arg(id));
-                    check->setToolTip(QString("Exclude external face %1 and all of its boundary triangles and slip-step walls. This is the ID displayed in the Mesh tab.").arg(id));
-                    faceExclusionChecks.emplace(id, check);
+                    auto* check=new QCheckBox(QString("Face %1").arg(id),group);
+                    check->setObjectName(QString(external?"surfaceExternalFace_%1":"surfaceInternalFace_%1").arg(id));
+                    check->setChecked(false);
+                    check->setToolTip(QString("Include mesh face %1, its displacement field and slip-step walls. Face IDs use the mesh numbering.").arg(id));
+                    checks.emplace(id,check);
                 }
             }
         }
-        int faceIndex = 0;
-        for(const auto &entry : faceExclusionChecks)
+        const auto populate=[this](const auto& checks,QGridLayout* grid)
         {
-            exclusionLayout->addWidget(entry.second, faceIndex / 2, faceIndex % 2);
-            ++faceIndex;
-            connect(entry.second, &QCheckBox::toggled, this, &SurfaceMeshActor::rebuild);
-        }
-        surfaceLayout->addWidget(excludeFaces, 6, 0, 1, 2);
-        connect(excludeFaces, &QGroupBox::toggled, this, &SurfaceMeshActor::rebuild);
+            int index=0;
+            for(const auto& entry : checks)
+            {
+                grid->addWidget(entry.second,index/2,index%2);
+                ++index;
+                connect(entry.second,&QCheckBox::toggled,this,&SurfaceMeshActor::rebuild);
+            }
+        };
+        populate(externalFaceChecks,externalLayout);
+        populate(internalFaceChecks,internalLayout);
+        surfaceLayout->addWidget(externalFaces,6,0,1,2);
+        surfaceLayout->addWidget(internalFaces,7,0,1,2);
+        const auto connectFaceGroup=[this](auto* group,const auto* checks)
+        {
+            connect(group,&QGroupBox::toggled,this,[this,checks,firstEnable=true](bool enabled) mutable
+            {
+                if(enabled && firstEnable)
+                {
+                    for(const auto& entry : *checks)
+                    {
+                        const QSignalBlocker blocker(entry.second);
+                        entry.second->setChecked(true);
+                    }
+                    firstEnable=false;
+                }
+                rebuild();
+            });
+        };
+        connectFaceGroup(externalFaces,&externalFaceChecks);
+        connectFaceGroup(internalFaces,&internalFaceChecks);
         status->setWordWrap(true);
         layout->addWidget(status, 1, 0);
         layout->setRowStretch(2, 1);
@@ -364,19 +398,24 @@ namespace model
         status->setText(QString::fromStdString(error.what()));
     }
 
-    std::set<size_t> SurfaceMeshActor::excludedFaceIDs() const
+    std::set<size_t> SurfaceMeshActor::selectedFaceIDs() const
     {
         std::set<size_t> result;
-        if(excludeFaces->isChecked())
+        const auto append=[&](const auto* group,const auto& checks)
         {
-            for(const auto &entry : faceExclusionChecks)
+            if(group->isChecked())
             {
-                if(entry.second->isChecked())
+                for(const auto& entry : checks)
                 {
-                    result.insert(entry.first);
+                    if(entry.second->isChecked())
+                    {
+                        result.insert(entry.first);
+                    }
                 }
             }
-        }
+        };
+        append(externalFaces,externalFaceChecks);
+        append(internalFaces,internalFaceChecks);
         return result;
     }
 
@@ -390,7 +429,7 @@ namespace model
             {
                 throw std::invalid_argument("Enter a positive maximum triangle area in b²");
             }
-            auto replacement = SurfaceMeshGeometry::build(defectiveCrystal.ddBase.mesh, area, excludedFaceIDs());
+            auto replacement = SurfaceMeshGeometry::build(defectiveCrystal.ddBase.mesh, area, selectedFaceIDs());
             referenceGeometry = std::move(replacement);
             geometry = referenceGeometry;
             displacement.clear();
@@ -430,30 +469,30 @@ namespace model
                 {
                     throw std::invalid_argument("Enter a positive maximum triangle area in b²");
                 }
-                referenceGeometry = SurfaceMeshGeometry::build(defectiveCrystal.ddBase.mesh, area, excludedFaceIDs());
+                referenceGeometry = SurfaceMeshGeometry::build(defectiveCrystal.ddBase.mesh, area, selectedFaceIDs());
             }
             std::vector<SurfaceMeshGeometry::Trace> traces;
-            for(const auto &entry : defectiveCrystal.ddBase.glidePlaneFactory.glidePlanes())
+            if(defectiveCrystal.ddBase.dislocationDynamicsBase)
             {
-                const auto plane = entry.second.lock();
-                if(!plane)
+                for(const auto &entry : defectiveCrystal.ddBase.dislocationDynamics().glidePlaneFactory.glidePlanes())
                 {
-                    continue;
-                }
-                SurfaceMeshGeometry::Trace trace{plane->P, plane->unitNormal, {}};
-                for(const auto &segment : plane->meshIntersections)
-                {
-                    for(const auto *face : segment->faces)
+                    const auto plane = entry.second.lock();
+                    if(!plane)
                     {
-                        if(face->isExternal())
+                        continue;
+                    }
+                    SurfaceMeshGeometry::Trace trace{plane->P, plane->unitNormal, {}};
+                    for(const auto &segment : plane->meshIntersections)
+                    {
+                        for(const auto *face : segment->faces)
                         {
                             trace.faces.insert(face->simplices().begin(), face->simplices().end());
                         }
                     }
-                }
-                if(!trace.faces.empty())
-                {
-                    traces.push_back(std::move(trace));
+                    if(!trace.faces.empty())
+                    {
+                        traces.push_back(std::move(trace));
+                    }
                 }
             }
             geometry = referenceGeometry.split(traces);

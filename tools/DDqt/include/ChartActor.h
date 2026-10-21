@@ -43,7 +43,7 @@
 
 
 #include <TextFileParser.h>
-#include <DDtraitsIO.h>
+#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
 
 namespace model
 {
@@ -62,7 +62,7 @@ namespace model
         
     public:
         
-        const DDtraitsIO& traitsIO;
+        const DefectiveCrystalTraitsIO& traitsIO;
         QGridLayout* mainLayout;
         QCheckBox* showChart;
         QPushButton* chartUpdate;
@@ -92,7 +92,7 @@ namespace model
         vtkPlot* points;
         vtkPlot* currentPoints;
 
-        ChartActor(const DDtraitsIO& traitsIO_in,vtkSmartPointer<vtkGenericOpenGLRenderWindow>,vtkRenderer* const renderer_in);
+        ChartActor(const DefectiveCrystalTraitsIO& traitsIO_in,vtkSmartPointer<vtkGenericOpenGLRenderWindow>,vtkRenderer* const renderer_in);
         
         void updateConfiguration(const size_t& frameID);
 

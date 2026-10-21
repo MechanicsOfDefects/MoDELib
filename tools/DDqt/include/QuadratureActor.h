@@ -43,7 +43,7 @@
 
 #include <IDreader.h>
 //#include <PlanarPolygon.h>
-#include <DDauxIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 #include <MeshPlane.h>
 #include <Polycrystal.h>
 #include <GlidePlaneFactory.h>
@@ -103,8 +103,8 @@ namespace model
         
         public:
                         
-        QuadratureActor(vtkGenericOpenGLRenderWindow* const,vtkRenderer* const,const Polycrystal<3>& poly,const DDtraitsIO& traitsIO);
-        void updateConfiguration(const DDauxIO<3>& auxIO);
+        QuadratureActor(vtkGenericOpenGLRenderWindow* const,vtkRenderer* const,const Polycrystal<3>& poly,const DefectiveCrystalTraitsIO& traitsIO);
+        void updateConfiguration(const DefectiveCrystalAuxIO<3>& auxIO);
         
         
     };

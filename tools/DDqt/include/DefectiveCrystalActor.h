@@ -22,13 +22,14 @@
 #include <vtkRenderer.h>
 #include <vtkGenericOpenGLRenderWindow.h>
 
-#include <DislocationDynamicsBase.h>
+#include <DefectiveCrystal/DefectiveCrystalBase.h>
 //#include <ConfigurationFields.h>
-#include <DefectiveCrystal.h>
-#include <DDauxIO.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 #include <DDFieldWidget.h>
 #include <SurfaceMeshActor.h>
 #include <FrameCameraRotation.h>
+#include <PeriodicImagesWidget.h>
 #include <SimplicialMesh.h>
 #include <NetworkNodeActor.h>
 #include <NetworkLinkActor.h>
@@ -55,9 +56,9 @@ namespace model
     public:
         vtkGenericOpenGLRenderWindow* const renderWindow;
         QVTKOpenGLStereoWidget* const qvtkGLwidget;
-//        const DDtraitsIO& traitsIO;
+//        const DefectiveCrystalTraitsIO& traitsIO;
 //        SlipSystemTab::SlipSystemColorMapType slipSystemColorMap;
-        DislocationDynamicsBase<3>& ddBase;
+        DefectiveCrystalBase<3>& ddBase;
         DefectiveCrystal<3> defectiveCrystal;
         NetworkNodeActor* nodes;
         NetworkLinkActor* segments;
@@ -71,16 +72,18 @@ namespace model
         SlipSystemTab* slipSystemTab;
         
     private:
-        std::unique_ptr<DDconfigIO<3>> configuration;
-        std::unique_ptr<DDauxIO<3>> auxiliary;
+        std::unique_ptr<DefectiveCrystalConfigIO<3>> configuration;
+        std::unique_ptr<DefectiveCrystalAuxIO<3>> auxiliary;
         QTimer *const playbackTimer;
         bool playing = false;
         bool updatingFrame = false;
         void refreshFrame(size_t frameID);
         vtkRenderer *const renderer;
+        PeriodicImagesWidget* periodicImages;
         FrameCameraRotation frameRotation;
         Eigen::Vector3d rotationAxis = Eigen::Vector3d::UnitZ();
         double rotationDegreesPerFrame = 0.0;
+        double cameraAdvancePerFrame = 0.0;
         size_t loadedFrameID = 0;
         bool frameLoaded = false;
         bool readRotationSettings();
@@ -109,6 +112,7 @@ namespace model
         QLineEdit* frameIncrementEdit;
         QLineEdit* rotationAxisEdit;
         QLineEdit* rotationAngleEdit;
+        QLineEdit* cameraAdvanceEdit;
         QCheckBox* saveImage;
         QLabel* frameStatus;
         WrappingTabWidget* tabWidget;
@@ -116,14 +120,14 @@ namespace model
         DefectiveCrystalActor(vtkGenericOpenGLRenderWindow* const,
                     vtkRenderer* const ren,
                     QVTKOpenGLStereoWidget* const qvtkGLwidget_in,
-                    DislocationDynamicsBase<3>& ddBase_in);
+                    DefectiveCrystalBase<3>& ddBase_in);
         ~DefectiveCrystalActor() override;
         bool updateConfiguration(const size_t& frameID);
         void modify();
-        const DDconfigIO<3>& configIO() const;
-        DDconfigIO<3>& configIO();
-        const DDauxIO<3>& auxIO() const;
-        DDauxIO<3>& auxIO();
+        const DefectiveCrystalConfigIO<3>& configIO() const;
+        DefectiveCrystalConfigIO<3>& configIO();
+        const DefectiveCrystalAuxIO<3>& auxIO() const;
+        DefectiveCrystalAuxIO<3>& auxIO();
 
     };
     

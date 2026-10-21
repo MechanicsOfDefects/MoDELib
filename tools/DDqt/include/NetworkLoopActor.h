@@ -41,13 +41,12 @@
 #include <vtkPointData.h>
 #include <vtkLabeledDataMapper.h>
 #include <vtkFloatArray.h>
-#include <vtkTriangleFilter.h>
 #include <IDreader.h>
 //#include <PlanarPolygon.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 #include <PeriodicGlidePlaneFactory.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <SlipSystemTab.h>
 
 namespace model
@@ -94,7 +93,6 @@ namespace model
         vtkSmartPointer<vtkActor> loopActor;
 
         vtkSmartPointer<vtkPolyData> areaPolyData;
-        vtkSmartPointer<vtkTriangleFilter> areaTriangleFilter; // needed to handle non-convex area polygons
         vtkSmartPointer<vtkPolyDataMapper> areaMapper;
         vtkSmartPointer<vtkActor> areaActor;
         

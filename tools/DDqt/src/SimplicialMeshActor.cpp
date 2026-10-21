@@ -265,7 +265,7 @@ namespace model
             polydata->Allocate();
             
             size_t pointID(0);
-            for (const auto& node : mesh.observer<0>())
+            for (const auto& node : mesh.simplexFactory<0>().liveSimplices())
             {
                 if(node.second->isBoundarySimplex())
                 {
@@ -286,7 +286,7 @@ namespace model
             
             
             //            size_t connectivityID=0;
-            for (const auto& edge : mesh.observer<1>())
+            for (const auto& edge : mesh.simplexFactory<1>().liveSimplices())
             {
                 if(edge.second->isBoundarySimplex())
                 {
@@ -382,8 +382,28 @@ namespace model
                 const double faceOffset(1.0e-1);
                 size_t triPtID=0;
 
-                for(const auto& meshTriangle : mesh.observer<2>())
+                // A same-grain periodic seam is not a physical grain surface.
+                // Keep free surfaces and cross-grain periodic interfaces, together
+                // with the internal interfaces handled below.
+                std::set<const Simplex<3,2>*> sameGrainPeriodicTriangles;
+                for(const auto& region : mesh.regions())
+                {
+                    for(const auto& entry : region.second->faces())
+                    {
+                        const auto& face=*entry.second;
+                        const auto* partner=face.periodicFacePair.second;
+                        if(face.isExternal() && partner && face.regionIDs==partner->regionIDs)
+                        {
+                            sameGrainPeriodicTriangles.insert(face.simplices().begin(),face.simplices().end());
+                        }
+                    }
+                }
+                for(const auto& meshTriangle : mesh.simplexFactory<2>().liveSimplices())
                 {// Color triangles the grain they belong to. TO DO: triangles can be replaced by mesh faces
+                    if(sameGrainPeriodicTriangles.count(meshTriangle.second.get()))
+                    {
+                        continue;
+                    }
                     if(meshTriangle.second->isBoundarySimplex())
                     {
                         const Eigen::Matrix<double,3,3> vM(meshTriangle.second->vertexPositionMatrix());
@@ -450,7 +470,7 @@ namespace model
             gbActor->GetProperty()->SetColor(0.0,0.5,0.5);
             
             
-            std::set<std::pair<const PlanarMeshFace<3>*,const PlanarMeshFace<3>*>> periodicFaceSet;
+            std::set<std::pair<const Polyhedron<3,3-1>*,const Polyhedron<3,3-1>*>> periodicFaceSet;
             for(const auto& region : mesh.regions())
             {
                 for(const auto& face : region.second->faces())
@@ -687,7 +707,7 @@ namespace model
         /**************************************************************************/
         void SimplicialMeshActor::modifyPts()
         {
-            for (const auto& node : mesh.observer<0>())
+            for (const auto& node : mesh.simplexFactory<0>().liveSimplices())
             {
                 if(node.second->isBoundarySimplex())
                 {

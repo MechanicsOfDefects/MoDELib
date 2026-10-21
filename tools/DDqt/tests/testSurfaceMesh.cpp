@@ -1,7 +1,8 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <SurfaceMeshActor.h>
 #include <FrameCameraRotation.h>
 #include <vtkLightCollection.h>
-#include <DislocationLoopPatches.h>
+#include <DislocationDynamics/DislocationLoopPatches.h>
 #include <QApplication>
 #include <vtkCellData.h>
 #include <vtkProperty.h>
@@ -68,21 +69,41 @@ int main(int argc, char **argv)
             rotation.apply(camera, boxCenter, V::UnitY(), -0.5, 0);
             check(V(camera->GetFocalPoint()).isApprox(boxCenter), "Frame zero lost the box center");
         }
-        check(argc == 2, "Expected repository root");
+        {
+            auto camera = vtkSmartPointer<vtkCamera>::New();
+            camera->SetPosition(10,0,0);
+            camera->SetFocalPoint(0,0,0);
+            camera->SetViewUp(0,0,1);
+            camera->ParallelProjectionOn();
+            model::FrameCameraRotation motion;
+            motion.apply(camera,V::Zero(),V::UnitZ(),0,10,1);
+            check(V(camera->GetPosition()).norm()<1.e-10, "Camera did not reach center");
+            check(camera->GetDistance()>9.99 && !camera->GetParallelProjection(), "Fly-through collapsed view or retained parallel projection");
+            motion.apply(camera,V::Zero(),V::UnitZ(),0,15,1);
+            check(V(camera->GetPosition()).isApprox(V(-5,0,0)), "Camera did not pass through center");
+            motion.apply(camera,V::Zero(),V::UnitZ(),18,5,1);
+            motion.apply(camera,V::Zero(),V::UnitZ(),18,5,1);
+            check(V(camera->GetPosition()).isApprox(V(0,5,0)), "Combined rotation/travel or repeated frame incorrect");
+            motion.apply(camera,V::Zero(),V::UnitZ(),0,15,0);
+            check(V(camera->GetPosition()).isApprox(V(10,0,0)), "Disabling camera motion did not restore position");
+        }
+        check(argc == 2 || argc == 3, "Expected repository root and optional --without-dd");
+        const bool withDD=argc==2;
         const std::filesystem::path root(argv[1]);
         const auto dir =
             std::filesystem::temp_directory_path() /
             ("model-surface-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        for(const auto *name : {"inputFiles", "evl", "F"})
+        for(const auto *name : {"inputFiles", "config", "F"})
         {
             std::filesystem::create_directories(dir / name);
         }
         const auto input = dir / "inputFiles";
         std::filesystem::copy_file(root / "Library/Materials/W.txt", input / "W.txt");
+        std::filesystem::copy_file(root / "Library/DislocationDynamics/DD.txt", input / "DD.txt");
         std::filesystem::copy_file(root / "Library/Meshes/unitCube24.msh", input / "mesh.msh");
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
-            f << "physics=ElasticDeformation;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\n"
+            f << "physics=" << (withDD ? "ElasticDeformation DislocationDynamics" : "ElasticDeformation") << ";\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\n"
               << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\n";
             std::ofstream p(input / "polycrystal.txt");
             p << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\n"
@@ -94,7 +115,7 @@ int main(int argc, char **argv)
               << "stiffnessRatio=0 0 0 0 0 0;\n";
         }
         {
-            model::DislocationDynamicsBase<3> base(dir.string());
+            model::DefectiveCrystalBase<3> base(dir.string());
             const auto coarse = model::SurfaceMeshGeometry::build(base.mesh, 2500);
             const auto fine = model::SurfaceMeshGeometry::build(base.mesh, 625);
             std::set<size_t> allExternalIDs;
@@ -115,14 +136,16 @@ int main(int argc, char **argv)
                     }
                 }
             }
-            const auto excluded = model::SurfaceMeshGeometry::build(base.mesh, 2500, {firstFaceID});
+            auto selectedIDs=allExternalIDs;
+            selectedIDs.erase(firstFaceID);
+            const auto excluded = model::SurfaceMeshGeometry::build(base.mesh, 2500, selectedIDs);
             check(excluded.triangles.size() == coarse.triangles.size() - firstFaceSimplices.size(),
                   "Exclusion did not remove the Mesh-tab face's actual simplices");
             for(const auto *face : excluded.boundaryFaces)
             {
                 check(!firstFaceSimplices.count(face), "Excluded simplex remains in the surface");
             }
-            check(model::SurfaceMeshGeometry::build(base.mesh, 2500, allExternalIDs).triangles.empty(),
+            check(model::SurfaceMeshGeometry::build(base.mesh, 2500, {}).triangles.empty(),
                   "Excluding every face did not produce an empty surface");
             check(coarse.triangles.size() == 24 && fine.triangles.size() == 96, "Incorrect boundary refinement");
             // Nonaligned, aligned, and intersecting traces must produce true seams.
@@ -250,7 +273,7 @@ int main(int argc, char **argv)
                 check(rejected, "Invalid or excessive refinement accepted");
             }
             model::DefectiveCrystal<3> crystal(base);
-            model::DDconfigIO<3> config((dir / "evl").string());
+            model::DefectiveCrystalConfigIO<3> config((dir / "config").string());
             crystal.initializeConfiguration(config);
             auto window = vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New();
             window->SetReadyForRendering(false);
@@ -275,6 +298,7 @@ int main(int argc, char **argv)
                       "Shading controls did not update the material immediately");
                 check(surface.polyData->GetMTime() == meshTime, "Shading change rebuilt the surface");
                 surface.meshSizeEdit->setText("625");
+                surface.externalFaces->setChecked(true);
                 surface.updateConfiguration();
                 check(surface.polyData->GetNumberOfPoints() == 0, "Hidden surface computed eagerly");
                 // Cut polygons have separate vertex IDs, even away from a step.
@@ -442,11 +466,13 @@ int main(int argc, char **argv)
                 check(surface.actor->GetVisibility() && surface.polyData->GetNumberOfCells() == 24,
                       "Surface did not recover after correcting mesh input");
             }
+            if(withDD)
             {
-                auto plane = base.glidePlaneFactory.getFromKey(
+                auto plane = base.dislocationDynamics().glidePlaneFactory.getFromKey(
                     model::GlidePlaneKey<3>(V::Zero(), base.poly.grain(1)->reciprocalLatticeDirection(V(1, 1, 0))));
                 model::SurfaceMeshActor surface(window, renderer, crystal);
                 surface.meshSizeEdit->setText("625");
+                surface.externalFaces->setChecked(true);
                 surface.updateConfiguration();
                 surface.showSurface->setChecked(true);
                 check(surface.actor->GetVisibility(), "Factory trace extraction failed");
@@ -457,6 +483,7 @@ int main(int argc, char **argv)
                 check(surface.polyData->GetNumberOfPoints() == static_cast<vtkIdType>(fine.referencePoints.size()),
                       "Expired glide plane cuts survived frame update");
             }
+            if(withDD)
             {
 #ifdef _OPENMP
                 const int savedThreads = omp_get_max_threads();
@@ -466,10 +493,11 @@ int main(int argc, char **argv)
 #endif
                 // Enough samples to exercise the parallel branch, including
                 // one-sided samples where a live glide plane cuts the surface.
-                auto plane = base.glidePlaneFactory.getFromKey(
+                auto plane = base.dislocationDynamics().glidePlaneFactory.getFromKey(
                     model::GlidePlaneKey<3>(V::Zero(), base.poly.grain(1)->reciprocalLatticeDirection(V(1, 1, 0))));
                 model::SurfaceMeshActor surface(window, renderer, crystal);
                 surface.meshSizeEdit->setText("39.0625");
+                surface.externalFaces->setChecked(true);
                 surface.updateConfiguration();
                 surface.showSurface->setChecked(true);
                 check(surface.actor->GetVisibility() && surface.polyData->GetNumberOfPoints() >= 256,
@@ -505,12 +533,11 @@ int main(int argc, char **argv)
                 check(surface.actor->GetVisibility(), "Surface did not recover after worker failure");
                 surface.meshSizeEdit->setText("2500");
                 surface.rebuild();
-                auto *faceCheck = surface.findChild<QCheckBox*>(QString("surfaceExcludeFace_%1").arg(firstFaceID));
+                auto *faceCheck = surface.findChild<QCheckBox*>(QString("surfaceExternalFace_%1").arg(firstFaceID));
                 check(faceCheck != nullptr, "Missing external face selection");
-                faceCheck->setChecked(true);
-                check(surface.polyData->GetNumberOfCells() == static_cast<vtkIdType>(coarse.triangles.size()),
-                      "Disabled exclusions changed the mesh");
-                surface.excludeFaces->setChecked(true);
+                check(faceCheck->isChecked() && surface.externalFaces->isChecked() && !surface.internalFaces->isChecked(),
+                      "Incorrect default face selections");
+                faceCheck->setChecked(false);
                 check(surface.polyData->GetNumberOfCells() == static_cast<vtkIdType>(excluded.triangles.size()),
                       "Face checkbox did not rebuild the surface");
                 surface.updateConfiguration();
@@ -518,12 +545,18 @@ int main(int argc, char **argv)
                       "Frame update lost face exclusions");
                 for(const auto id : allExternalIDs)
                 {
-                    surface.findChild<QCheckBox*>(QString("surfaceExcludeFace_%1").arg(id))->setChecked(true);
+                    surface.findChild<QCheckBox*>(QString("surfaceExternalFace_%1").arg(id))->setChecked(false);
                 }
                 check(surface.polyData->GetNumberOfCells() == 0, "Selecting all faces left stale geometry");
-                surface.excludeFaces->setChecked(false);
-                check(faceCheck->isChecked() && surface.polyData->GetNumberOfCells() == static_cast<vtkIdType>(coarse.triangles.size()),
-                      "Disabling exclusions failed to restore the surface or retain the selection");
+                surface.externalFaces->setChecked(false);
+                surface.externalFaces->setChecked(true);
+                check(surface.polyData->GetNumberOfCells()==0,"External group lost the empty selection");
+                faceCheck->setChecked(true);
+                surface.externalFaces->setChecked(false);
+                check(surface.polyData->GetNumberOfCells()==0,"Disabled external group still renders faces");
+                surface.externalFaces->setChecked(true);
+                check(faceCheck->isChecked() && surface.polyData->GetNumberOfCells()==static_cast<vtkIdType>(firstFaceSimplices.size()),
+                      "External group did not restore the individual selection");
 #ifdef _OPENMP
                 omp_set_num_threads(savedThreads);
                 omp_set_dynamic(savedDynamic);

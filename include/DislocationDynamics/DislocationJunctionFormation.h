@@ -15,25 +15,25 @@
 #include <SegmentSegmentDistance.h>
 #include <SweepPlane.h>
 #include <TypeTraits.h>
-#include <StressStraight.h>
+#include <DislocationDynamics/StressStraight.h>
 
 #include <DislocationNetworkRemesh.h>
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
     
-    template <typename DislocationNetworkType>
+    template <int dim>
     class DislocationJunctionFormation
     {
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
-        typedef typename TypeTraits<DislocationNetworkType>::NetworkLinkType NetworkLinkType;
-        typedef typename TypeTraits<DislocationNetworkType>::NetworkNodeType NetworkNodeType;
-        typedef typename TypeTraits<DislocationNetworkType>::LoopNodeType LoopNodeType;
-        typedef typename TypeTraits<DislocationNetworkType>::LoopType LoopType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::NetworkLinkType NetworkLinkType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::NetworkNodeType NetworkNodeType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::LoopNodeType LoopNodeType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::LoopType LoopType;
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         typedef Eigen::Matrix<double,dim-1,1> VectorLowerDim;
         typedef typename NetworkLinkType::KeyType KeyType;
-        typedef std::tuple<KeyType,KeyType,SegmentSegmentDistance<dim>> IntersectionType;
+        typedef std::tuple<KeyType,KeyType,SegmentSegmentDistance<dim>,int> IntersectionType;
         typedef std::deque<IntersectionType> IntersectionTypeContainerType;
         
         void insertIntersection(std::deque<IntersectionTypeContainerType> &intersectionContainer,
@@ -41,7 +41,10 @@ namespace model
                                 const NetworkLinkType *const linkB,
                                 const SegmentSegmentDistance<dim> &ssd,
                                 const double &currentcCollisionTOL,
-                                const bool &bndJunction, const bool &gbndJunction);
+                                const bool &bndJunction, const bool &gbndJunction,const int event=0);
+        friend struct JunctionFormationTestAccess;
+        void findPairIntersections(std::deque<IntersectionTypeContainerType>& intersectionContainer,
+                                   const NetworkLinkType* linkA,const NetworkLinkType* linkB);
         void findIntersections(std::deque<IntersectionTypeContainerType>& intersectionContainer,
                                const size_t& nThreads);
         std::pair<std::shared_ptr<NetworkNodeType>, bool> junctionNode(const double &t,
@@ -52,7 +55,7 @@ namespace model
         
         void breakJunctions();
         
-        DislocationNetworkType& DN;
+        DislocationNetwork<dim>& DN;
         
     public:
                 
@@ -61,7 +64,7 @@ namespace model
         const int verboseJunctions;
         const double infiniteLineLength;
         
-        DislocationJunctionFormation(DislocationNetworkType& DN_in);
+        DislocationJunctionFormation(DislocationNetwork<dim>& DN_in);
         static void initFromFile(const std::string& fileName);
         void formJunctions(const double& dx);
     };

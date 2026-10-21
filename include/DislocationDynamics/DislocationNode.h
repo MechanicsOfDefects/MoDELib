@@ -43,7 +43,7 @@ namespace model
         typedef std::vector<VectorDim> VectorOfNormalsType;
         typedef GlidePlane<dim> GlidePlaneType;
         typedef std::set<const GlidePlaneType *> GlidePlaneContainerType;
-        typedef PlanarMeshFace<dim> PlanarMeshFaceType;
+        typedef Polyhedron<dim,dim-1> PlanarMeshFaceType;
         typedef std::set<const PlanarMeshFaceType *> PlanarMeshFaceContainerType;
         typedef Grain<dim> GrainType;
         typedef std::set<const GrainType*> GrainContainerType;
@@ -77,6 +77,7 @@ namespace model
         MeshLocation meshLocation() const;
         void set_V(const VectorDim& vNew,const bool& isClimbingStep);
         void projectVelocity(const bool& isClimbingStep);
+        VectorOfNormalsType physicalBoundaryNormals() const;
         VectorDim invariantDirectionOfMotion() const;
 //        const std::shared_ptr<NetworkNodeType>& virtualBoundaryNode() const;
         GlidePlaneContainerType glidePlanes() const;

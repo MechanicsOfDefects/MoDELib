@@ -8,13 +8,11 @@
 #ifndef _MODELMPIBASE_h_
 #define _MODELMPIBASE_h_
 
-#include <assert.h>
 #include <string>
-#include <mpi.h>
-#include <TerminalColors.h>
 
-namespace model {
-    
+namespace model
+{
+
     class ModelMPIbase
     {
 
@@ -23,71 +21,24 @@ namespace model {
         static int _mpiProcs;
         static std::string _processorName;
 
-        
-    public:
-        
+      public:
         /**********************************************************************/
-        ModelMPIbase(int argc, char* argv[])
-        {/*! Constructor 
-          */
-            initMPI(argc,argv);
-        }
-        
-        /**********************************************************************/
-        ModelMPIbase()
-        {
-            
-        }
-        
-        /**********************************************************************/
-        ~ModelMPIbase()
-        {/*! Destructor
-          */
-            MPI_Finalize();
-        }
-        
-        /**********************************************************************/
-        static void initMPI(int argc, char* argv[])
-        {
-            MPI_Initialized(&_mpiInitialized);
-            if (!_mpiInitialized)
-            {
-                MPI_Init(&argc,&argv);
+        ModelMPIbase(int argc, char *argv[]);
 
-                // Verify
-                MPI_Initialized(&_mpiInitialized);
-                assert(_mpiInitialized && "MPI not initialized.");
-                
-                
-                MPI_Comm_rank(MPI_COMM_WORLD,&_mpiRank);
-                MPI_Comm_size(MPI_COMM_WORLD,&_mpiProcs);
-                
-                int tempLen;
-                char tempName[MPI_MAX_PROCESSOR_NAME];
-                MPI_Get_processor_name(tempName, &tempLen);
-                _processorName=tempName;
-                
-                std::cout<<greenBoldColor<<"MPI process "<<_mpiRank<<" of "<<_mpiProcs
-                /*     */<<" (on node "<<_processorName<<"), mpiInitialized="<<_mpiInitialized<<defaultColor<<std::endl;
+        /**********************************************************************/
+        ModelMPIbase();
 
-                MPI_Barrier(MPI_COMM_WORLD);
+        /**********************************************************************/
+        ~ModelMPIbase();
 
-            }
-        }
-        
-        
-        static const int& mpiRank() {return _mpiRank;}
-        static const int& mpiProcs(){return _mpiProcs;}
-        static const int& mpiInitialized(){return _mpiInitialized;}
-        static const std::string& processorName(){return _processorName;}
-        
+        /**********************************************************************/
+        static void initMPI(int argc, char *argv[]);
+
+        static const int &mpiRank();
+        static const int &mpiProcs();
+        static const int &mpiInitialized();
+        static const std::string &processorName();
     };
-    
-    // static data
-    int ModelMPIbase::_mpiInitialized=0;
-    int ModelMPIbase::_mpiRank=0;
-    int ModelMPIbase::_mpiProcs=1;
-    std::string ModelMPIbase::_processorName="NO NAME ASSIGNED YET";
-    
-} // end namespace
+
+} // namespace model
 #endif

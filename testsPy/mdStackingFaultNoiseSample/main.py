@@ -221,7 +221,7 @@ def main() -> int:
 
     # setInputVariable(MDStackingFault_parameters['copy_to'], 'testNoiseSampling', str(1))
     simulationDir = os.path.abspath(".")
-    ddBase = pyMoDELib.DislocationDynamicsBase(simulationDir)
+    ddBase = pyMoDELib.DefectiveCrystalBase(simulationDir)
 
     matFile = "inputFiles/AlMg5.txt"
     absoluteTemp = 1

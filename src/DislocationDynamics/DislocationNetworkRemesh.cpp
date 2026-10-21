@@ -10,11 +10,13 @@
 
 #include <DislocationNetworkRemesh.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    DislocationNetworkRemesh<DislocationNetworkType>::DislocationNetworkRemesh(DislocationNetworkType& DN_in):
+    template <int dim>
+    DislocationNetworkRemesh<dim>::DislocationNetworkRemesh(DislocationNetwork<dim>& DN_in):
     /* init */ DN(DN_in)
     /* init */,Lmax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("Lmax",true))
     /* init */,Lmin(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("Lmin",true))
@@ -30,8 +32,8 @@ namespace model
     }
     
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::remesh(const long int &runID)
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::remesh(const long int &runID)
     { /*! Performs remeshByContraction and then remeshByExpansion.
        * This order guarantees that 2-vertex NetworkComponents are expanded.
        */
@@ -50,8 +52,8 @@ namespace model
         }
     }
 
-template <typename DislocationNetworkType>
-void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
+template <int dim>
+void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
 {
         std::cout << "        Remeshing network: removeCollapsedLoops... " << std::flush;
 //        std::cout<<"Removing collapsed via climb... " << std::flush;
@@ -59,7 +61,14 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
         std::deque<size_t> loopIDs;
         for(const auto& loop : DN.loops())
         {
-            if( (loop.second.lock()->isIsolated() && loop.second.lock()->rightHandedUnitNormalOld().dot(loop.second.lock()->rightHandedUnitNormal())<-FLT_EPSILON) || (loop.second.lock()->isIsolated() && loop.second.lock()->slippedArea()<absoluteAreaThreshold) )
+            const auto current=loop.second.lock();
+            const VectorDim area=current->currentAreaVector();
+            const double magnitude=area.norm();
+            // rightHandedUnitNormal still holds the last committed timestep.
+            // Do not call updateGeometry here: it would overwrite that history.
+            const bool flipped=magnitude>FLT_EPSILON &&
+                current->rightHandedUnitNormal().dot(area/magnitude)<-FLT_EPSILON;
+            if(current->isIsolated() && (flipped || magnitude<absoluteAreaThreshold))
             {
                 loopIDs.push_back(loop.second.lock()->sID);
             }
@@ -72,15 +81,104 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
         std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
     }
     
+    template <int dim>
+    size_t DislocationNetworkRemesh<dim>::simplifyPhysicalBoundaryChains()
+    {
+        using LoopNode=typename DislocationNetwork<dim>::LoopNodeType;
+        size_t removed=0;
+        bool changed=true;
+        while(changed)
+        {
+            changed=false;
+            std::vector<size_t> candidates;
+            for(const auto& entry : DN.networkNodes())
+            {
+                candidates.push_back(entry.first);
+            }
+            for(const size_t id : candidates)
+            {
+                const auto node=DN.networkNodes().get(id);
+                if(!node || node->neighbors().size()!=2 || node->loopNodes().empty())
+                {
+                    continue;
+                }
+                std::vector<std::shared_ptr<LoopNode>> representations;
+                std::set<size_t> loops;
+                std::pair<size_t,size_t> endpoints;
+                bool removable=true;
+                for(const auto* ln : node->loopNodes())
+                {
+                    const auto* prev=ln->prev.first;
+                    const auto* next=ln->next.first;
+                    const auto& edge=ln->periodicPlaneEdge.first;
+                    // Keep corners, seam crossings, and changes in loop incidence.
+                    // Every representation must traverse the same physical edge in
+                    // one patch and connect the same two network neighbors.
+                    if(!prev || !next || !edge || ln->periodicPlaneEdge.second ||
+                       !ln->isPhysicalBoundaryNode() || edge->meshIntersection->faces.size()!=1 ||
+                       ln->periodicPlanePatch()!=prev->periodicPlanePatch() ||
+                       ln->periodicPlanePatch()!=next->periodicPlanePatch() ||
+                       (prev->periodicPlaneEdge.first!=edge && prev->periodicPlaneEdge.second!=edge) ||
+                       (next->periodicPlaneEdge.first!=edge && next->periodicPlaneEdge.second!=edge) ||
+                       ln->loop()->loopLinks().size()<=3 || !loops.insert(ln->loop()->sID).second)
+                    {
+                        removable=false;
+                        break;
+                    }
+                    const auto pair=std::minmax(prev->networkNode->sID,next->networkNode->sID);
+                    const std::pair<size_t,size_t> current(pair.first,pair.second);
+                    if(current.first==current.second || current.first==id || current.second==id ||
+                       (!representations.empty() && endpoints!=current))
+                    {
+                        removable=false;
+                        break;
+                    }
+                    const VectorDim chord=next->get_P()-prev->get_P();
+                    const double length2=chord.squaredNorm();
+                    if(length2<=0.0)
+                    {
+                        removable=false;
+                        break;
+                    }
+                    const VectorDim offset=ln->get_P()-prev->get_P();
+                    const double t=offset.dot(chord)/length2;
+                    const double tolerance=1.e-10*std::max(1.0,std::sqrt(length2));
+                    if(t<=0.0 || t>=1.0 || (offset-t*chord).norm()>tolerance)
+                    {
+                        removable=false;
+                        break;
+                    }
+                    endpoints=current;
+                    representations.push_back(DN.loopNodes().get(ln->sID));
+                }
+                // Do not merge this chain into an existing, unrelated network edge.
+                if(!removable || DN.networkLinks().get(endpoints))
+                {
+                    continue;
+                }
+                // Hold all representations alive until every loop has been reconnected.
+                // The network link factory shares the replacement segment between them.
+                for(const auto& ln : representations)
+                {
+                    DN.removeLoopNode(ln);
+                }
+                ++removed;
+                changed=true;
+            }
+        }
+        return removed;
+    }
+
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::remeshByRemoval()
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::remeshByRemoval()
     {
         const auto t0 = std::chrono::system_clock::now();
         std::cout << "        Remeshing network: removing... " << std::flush;
+        simplifyPhysicalBoundaryChains();
         DN.danglingBoundaryLoopNodes.clear();
         
-        std::vector<std::shared_ptr<typename DislocationNetworkType::LoopNodeType>> tempLoopNodes;
+        std::vector<std::shared_ptr<typename DislocationNetwork<dim>::LoopNodeType>> tempLoopNodes;
         for (const auto &loopNode : DN.loopNodes())
         {
             tempLoopNodes.push_back(loopNode.second.lock());
@@ -91,7 +189,7 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
         //IF that happens the corresponding boundary node should be classified as a dangling loop node
         //Also believe that this is only required here as nothing else can change the configuration of the loops near the boundary
         size_t Nremoved = 0;
-        std::set<const typename DislocationNetworkType::LoopNodeType*> removedLoopNodes;
+        std::set<const typename DislocationNetwork<dim>::LoopNodeType*> removedLoopNodes;
 
         // std::deque<size_t> toBeRemoved;
         for (const auto &loopNode : DN.loopNodes())
@@ -233,8 +331,8 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
     }
     
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::remeshByExpansion()
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::remeshByExpansion()
     {
         const auto t0 = std::chrono::system_clock::now();
         std::cout << "        Remeshing network: expanding... " << std::flush;
@@ -294,13 +392,13 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
     }
     
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::contractBoundaryNodes() //This function contracts boundary nodes if they are at the same position and share atleast one same neightbors
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::contractBoundaryNodes() //This function contracts boundary nodes if they are at the same position and share atleast one same neightbors
     {
         std::cout << "Contracting BoundaryNodes... " << std::flush;
         const auto t0 = std::chrono::system_clock::now();
         
-        typedef std::pair<std::shared_ptr<typename DislocationNetworkType::NetworkNodeType>, std::shared_ptr<typename DislocationNetworkType::NetworkNodeType>> NetNodePairType;
+        typedef std::pair<std::shared_ptr<typename DislocationNetwork<dim>::NetworkNodeType>, std::shared_ptr<typename DislocationNetwork<dim>::NetworkNodeType>> NetNodePairType;
         typedef std::set<NetNodePairType> BndSetType;
         
         std::map<NetNodePairType, BndSetType> bndNodesContractionMap;
@@ -311,7 +409,7 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
             {
                 //                std::cout<<"NetNode is "<<netNode.second.lock()->tag()<<std::endl;
                 
-                std::set<std::shared_ptr<typename DislocationNetworkType::NetworkNodeType>> internalNodes; // used to be regular ptrs
+                std::set<std::shared_ptr<typename DislocationNetwork<dim>::NetworkNodeType>> internalNodes; // used to be regular ptrs
                 for (const auto &loopNode : netNode.second.lock()->loopNodes())
                 {
                     internalNodes.insert(loopNode->periodicPrev()->networkNode);
@@ -327,7 +425,7 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
                     
                     if (bndNodesContractionMap.find(key) == bndNodesContractionMap.end())
                     { // key not found
-                        std::map<std::set<const PlanarMeshFace<dim> *>, std::set<typename DislocationNetworkType::NetworkNodeType *>> bndNodeMap;
+                        std::map<std::set<const Polyhedron<dim,dim-1> *>, std::set<typename DislocationNetwork<dim>::NetworkNodeType *>> bndNodeMap;
                         
                         for (const auto &loopNode : (*internalNodes.begin())->loopNodes())
                         {
@@ -395,213 +493,141 @@ void DislocationNetworkRemesh<DislocationNetworkType>::removeCollapsedLoops()
     }
     
     /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::contract0chordSegments()
+    template <int dim>
+    bool DislocationNetworkRemesh<dim>::zeroChordCandidate(
+        const std::shared_ptr<typename TraitsType::NetworkLinkType>& link) const
+    {
+        if(!link || link->hasZeroBurgers())
+        {
+            return false;
+        }
+        bool physical=false;
+        for(const auto& node : {link->source,link->sink})
+        {
+            for(const auto* ln : node->loopNodes())
+            {
+                // Periodic subdivisions are rebuilt from loop topology, not
+                // independently contracted in RVE coordinates.
+                if(ln->isPeriodicSubdivision())
+                {
+                    return false;
+                }
+                physical=physical || ln->isPhysicalBoundaryNode();
+            }
+        }
+        const VectorDim chord=link->sink->get_P()-link->source->get_P();
+        if(chord.norm()<=FLT_EPSILON)
+        {
+            return true;
+        }
+        if(physical)
+        {
+            return false;
+        }
+        const auto sourcePlanes=link->source->glidePlanes();
+        const auto sinkPlanes=link->sink->glidePlanes();
+        return sourcePlanes.size()==dim-1 && sourcePlanes==sinkPlanes &&
+            chord.squaredNorm()+chord.dot(link->sink->get_V()-link->source->get_V())*
+                DN.ddBase.simulationParameters.dt<FLT_EPSILON;
+    }
+
+    template <int dim>
+    size_t DislocationNetworkRemesh<dim>::contractZeroChordCandidates(
+        const std::vector<std::pair<size_t,size_t>>& candidates)
+    {
+        size_t contracted=0;
+        for(const auto& key : candidates)
+        {
+            const auto link=DN.networkLinks().get(key);
+            // Earlier contractions can move endpoints and change confinement.
+            if(zeroChordCandidate(link))
+            {
+                // DN.contract owns the complete boundary reconciliation and
+                // shared-loop update. No per-occurrence boundary motion here.
+                contracted+=DN.contract(link->source,link->sink);
+            }
+        }
+        return contracted;
+    }
+
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::contract0chordSegments()
     {
         std::cout<<"        Contracting zero-chord segments... "<<std::flush;
-       const auto t0= std::chrono::system_clock::now();
-
-       std::set<std::pair<double,std::pair<size_t,size_t> > > toBeContracted; // order by increasing segment length
-
-       //            for (typename NetworkLinkContainerType::const_iterator linkIter=DN.linkBegin();linkIter!=DN.linkEnd();++linkIter)
-       for (const auto& linkIter : DN.networkLinks())
-       {
-           const auto link(linkIter.second.lock());
-           if(!linkIter.second.lock()->hasZeroBurgers())
-           {
-            //    if (!linkIter.second.lock()->source->isBoundaryNode() && !linkIter.second.lock()->sink->isBoundaryNode() && !linkIter.second.lock()->hasZeroBurgers())
-               if (!link->source->isBoundaryNode() && !link->sink->isBoundaryNode() )
-               {
-//                   VectorDim chord(linkIter.second.lock()->chord()); // this is sink->get_P() - source->get_P()
-//                   const double chordLength(chord.norm());
-
-                //    if (chordLength <= FLT_EPSILON && (linkIter.second.lock()->source->get_V() - linkIter.second.lock()->sink->get_V()).squaredNorm() < FLT_EPSILON)
-                //Removing the second condition is important (both the nodes may not have the same velocity due to complex network formation)
-                //If the two nodes are not connected to any other links then this may be true otherwise it is not
-                if (link->chordLength() <= FLT_EPSILON)
-                { // toBeContracted part
-                    toBeContracted.insert(std::make_pair(link->chordLength(), std::make_pair(link->source->sID, link->sink->sID)));
-                }
-                else
-                {
-                    const auto sourcePlanes(link->source->glidePlanes());
-                    const auto   sinkPlanes(link->sink->glidePlanes());
-
-                    if(sourcePlanes.size()==dim-1 && sourcePlanes==sinkPlanes)
-                    {
-                        if((link->chordLengthSquared()+link->chord().dot(link->sink->get_V() - link->source->get_V())* DN.ddBase.simulationParameters.dt)<FLT_EPSILON)
-                        {
-                            toBeContracted.insert(std::make_pair(link->chordLength(), std::make_pair(link->source->sID, link->sink->sID)));
-                        }
-                    }
-                    
-                    
-//                    const VectorDim velChange(linkIter.second.lock()->sink->get_V() - linkIter.second.lock()->source->get_V());
-//                    const double velChangeNorm(velChange.norm());
-//                    if (velChangeNorm > FLT_EPSILON)
-//                    {
-//                        const double dotPTemp((chord / chordLength).dot(velChange / velChangeNorm));
-//                        // std::cout<<"For "<<linkIter.second.lock()->tag()<<"dotP Temp is "<<dotPTemp<<"=>"<<((velChangeNorm * DN.simulationParameters.dt) >= chordLength)<<std::endl;
-//                        // if (fabs(dotPTemp + 1) < FLT_EPSILON)
-//                        if (dotPTemp  > FLT_EPSILON)
-//                        {
-//                            if ((velChangeNorm * DN.simulationParameters.dt) >= chordLength)
-//                            {
-//                                toBeContracted.insert(std::make_pair(chordLength, std::make_pair(linkIter.second.lock()->source->sID, linkIter.second.lock()->sink->sID)));
-//                            }
-//                        }
-//                    }
-                }
-               }
-           }
-       }
-
-       // Call Network::contract
-       unsigned int Ncontracted(0);
-       for (const auto& smallIter : toBeContracted)
-       {
-           const size_t i(smallIter.second.first);
-           const size_t j(smallIter.second.second);
-           const auto Lij(DN.networkLinks().get(std::make_pair(i,j)));
-
-           if (Lij)
-           {
-               std::set<size_t> bndLoopNodes;
-               for (const auto &loopN : Lij->source->loopNodes())
-               {
-                   for (const auto &bndNode : loopN->boundaryPrev())
-                   {
-                       bndLoopNodes.insert(bndNode->sID);
-                   }
-                   for (const auto &bndNode : loopN->boundaryNext())
-                   {
-                       bndLoopNodes.insert(bndNode->sID);
-                   }
-               }
-               for (const auto &loopN : Lij->sink->loopNodes())
-               {
-                   for (const auto &bndNode : loopN->boundaryPrev())
-                   {
-                       bndLoopNodes.insert(bndNode->sID);
-                   }
-                   for (const auto &bndNode : loopN->boundaryNext())
-                   {
-                       bndLoopNodes.insert(bndNode->sID);
-                   }
-               }
-               
-               std::cout<<"Contracting "<<Lij->tag()<<std::endl;
-               Ncontracted+=DN.contract(Lij->source,Lij->sink);
-
-               std::cout<<"Managing bnd nodes "<<std::endl;
-
-               for (const size_t &nodeID : bndLoopNodes)
-               {
-                   auto nodeIter(DN.loopNodes().find(nodeID));
-                   if (nodeIter != DN.loopNodes().end())
-                   {
-                       auto bndNode(nodeIter->second.lock());
-
-                       const auto pPrev(bndNode->periodicPrev());
-                       const auto pNext(bndNode->periodicNext());
-                       if (pPrev && pNext)
-                       {
-                           const auto pPrevLocal(bndNode->loop()->periodicGlidePlane->referencePlane->localPosition(pPrev->get_P()));
-                           const auto pNextLocal(bndNode->loop()->periodicGlidePlane->referencePlane->localPosition(pNext->get_P()));
-
-                           SegmentSegmentDistance<dim - 1> ssd1(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.first->source, *bndNode->periodicPlaneEdge.first->sink);
-                           // /*  Giacomo's Version
-                           if (ssd1.dMin < FLT_EPSILON)
-                           {
-                               if (bndNode->periodicPlaneEdge.second)
-                               {
-                                   SegmentSegmentDistance<dim - 1> ssd2(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.second->source, *bndNode->periodicPlaneEdge.second->sink);
-                                   const VectorLowerDim ssd1Pos(0.5 * (ssd1.x0 + ssd1.x1));
-                                   const VectorLowerDim ssd2Pos(0.5 * (ssd2.x0 + ssd2.x1));
-                               }
-                               bndNode->set_P(VectorLowerDim(0.5 * (ssd1.x0 + ssd1.x1)));
-                           }
-                           
-                           else
-                           {
-                               bndNode->set_P(bndNode->loop()->periodicGlidePlane->referencePlane->localPosition(bndNode->get_P()));
-                               DN.danglingBoundaryLoopNodes.insert(bndNode.get());
-                           }
-                       }
-                   }
-               }
-           }
-       }
-       std::cout<<"("<<Ncontracted<<" contracted)"<<std::flush;
-       std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
-
-       std::cout << "Updating Boundary Nodes after 0chord contraction" << std::endl;
-       if (DN.danglingBoundaryLoopNodes.size())
-       {
-           DN.updateBoundaryNodes();
-       }
+        const auto t0=std::chrono::system_clock::now();
+        std::set<std::pair<double,std::pair<size_t,size_t>>> ordered;
+        for(const auto& entry : DN.networkLinks())
+        {
+            const auto link=entry.second.lock();
+            if(zeroChordCandidate(link))
+            {
+                ordered.emplace((link->sink->get_P()-link->source->get_P()).norm(),link->key);
+            }
+        }
+        std::vector<std::pair<size_t,size_t>> candidates;
+        for(const auto& entry : ordered)
+        {
+            candidates.push_back(entry.second);
+        }
+        const auto contracted=contractZeroChordCandidates(candidates);
+        std::cout<<"("<<contracted<<" contracted)"<<magentaColor<<" ["
+                 <<std::chrono::duration<double>(std::chrono::system_clock::now()-t0).count()
+                 <<" sec]"<<defaultColor<<std::endl;
     }
-    
-    /**************************************************************************/
-    template <typename DislocationNetworkType>
-    void DislocationNetworkRemesh<DislocationNetworkType>::remove0AreaLoopAcrossBnd()
+
+    template <int dim>
+    void DislocationNetworkRemesh<dim>::remove0AreaLoopAcrossBnd()
     {
         std::cout << "        Removing zero-area loops across boundary... " << std::flush;
         const auto t0 = std::chrono::system_clock::now();
         size_t nRemoved(0);
 
-        //Snippet to remove zero area loops across boundary
-        if (DN.ddBase.isPeriodicDomain)
+        std::vector<size_t> loopToBeRemoved;
+        for(const auto& entry : DN.loops())
         {
-            std::vector<size_t> loopToBeRemoved;
-            for (const auto &weakLoop : DN.loops())
+            const auto loop=entry.second.lock();
+            if(loop->glidePlane && loop->currentAreaVector().norm()<FLT_EPSILON)
             {
-                const auto loop(weakLoop.second.lock());
-                if (loop->glidePlane)
+                size_t anchors=0;
+                size_t periodicSubdivisions=0;
+                for(const auto* link : loop->linkSequence())
                 {
-                    const double slippedArea(loop->slippedArea());
-                    if (slippedArea < FLT_EPSILON)
+                    if(link->source->isPeriodicSubdivision())
                     {
-                        std::vector<const typename DislocationNetworkType::LoopNodeType *> loopNodesPos;
-                        std::vector<const typename DislocationNetworkType::LoopNodeType *> bndNodesMap;
-                        for (const auto &loopLink : loop->linkSequence())
-                        {
-                            if (!loopLink->source->periodicPlaneEdge.first)
-                            {
-                                loopNodesPos.emplace_back(loopLink->source.get());
-                            }
-                            else
-                            {
-                                bndNodesMap.emplace_back(loopLink->source.get());
-                            }
-                        }
-                        if (loopNodesPos.size() < 3 && bndNodesMap.size()>0)
-                        {
-                            loopToBeRemoved.push_back(loop->sID);
-                        }
+                        ++periodicSubdivisions;
+                    }
+                    else
+                    {
+                        // Physical surfaces and grain boundaries are retained
+                        // contour vertices, including cross-grain periodic faces.
+                        ++anchors;
                     }
                 }
+                if(anchors<3 && periodicSubdivisions>0)
+                {
+                    loopToBeRemoved.push_back(loop->sID);
+                }
             }
-
-            //Remove the loop
-            for (const auto &loopID : loopToBeRemoved)
-            {
-                DN.deleteLoop(loopID);
-                nRemoved++;
-            }
+        }
+        // Remove only this loop's memberships. Other loops sharing network
+        // nodes and segments keep their topology and Burgers contributions.
+        for(const auto id : loopToBeRemoved)
+        {
+            DN.deleteLoop(id);
+            ++nRemoved;
         }
         std::cout << "(" << nRemoved << " Loops Removed)" << std::flush;
         std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
     }
     
 //    /**************************************************************************/
-//    template <typename DislocationNetworkType>
-//    double DislocationNetworkRemesh<DislocationNetworkType>::minMeshSize(const SimplicialMesh<dim> &mesh)
+//    template <int dim>
+//    double DislocationNetworkRemesh<dim>::minMeshSize(const SimplicialMesh<dim> &mesh)
 //    {
 //        return std::min(mesh.xMax(0) - mesh.xMin(0), std::min(mesh.xMax(1) - mesh.xMin(1), mesh.xMax(2) - mesh.xMin(2)));
 //    }
     
-    template class DislocationNetworkRemesh<DislocationNetwork<3>>;
+    template class DislocationNetworkRemesh<3>;
 
     
 } // namespace model

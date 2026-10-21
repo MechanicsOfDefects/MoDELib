@@ -10,13 +10,15 @@
 
 
 #include <MeshRegionBoundary.h>
+#include <PolyhedralMesh.h>
+#include <MeshModule.h>
 
 namespace model
 {
 
     template<int dim>
     void MeshRegionBoundary<dim>::buildSingleFace(const Simplex<dim,dim-1>* newStart,
-                                                  std::shared_ptr<PlanarMeshFace<dim>> newFace,
+                                                  std::shared_ptr<Polyhedron<dim,dim-1>> newFace,
                                                   std::set<const Simplex<dim,dim-1>*>& allSimplices)
     {
         allSimplices.erase(newStart);
@@ -54,13 +56,13 @@ namespace model
         std::set<const Simplex<dim,dim-1>*> allSimplices(simplices()); //copy simplices
         while(allSimplices.size())
         {
-            std::shared_ptr<PlanarMeshFace<dim>> newFace(new PlanarMeshFace<dim>(*allSimplices.begin()));
+            auto newFace = topology.createFace(*allSimplices.begin());
             buildSingleFace(*allSimplices.begin(),newFace,allSimplices);
         }
         
         while(allSimplices.size())
         {
-            std::shared_ptr<PlanarMeshFace<dim>> newFace(new PlanarMeshFace<dim>(*allSimplices.begin()));
+            auto newFace = topology.createFace(*allSimplices.begin());
             buildSingleFace(*allSimplices.begin(),newFace,allSimplices);
         }
         
@@ -75,7 +77,8 @@ namespace model
 
 
     template<int dim>
-    MeshRegionBoundary<dim>::MeshRegionBoundary(const std::pair<size_t,size_t>& rbndID) :
+    MeshRegionBoundary<dim>::MeshRegionBoundary(const std::pair<size_t,size_t>& rbndID, PolyhedralMesh<dim>& topologyIn) :
+    topology(topologyIn),
     /* init */ regionBndID(rbndID)
     {
     }
@@ -130,6 +133,8 @@ namespace model
 
 
 //    template struct MeshRegionBoundary<2>;
+    template struct MeshRegionBoundary<1>;
+    template struct MeshRegionBoundary<2>;
     template struct MeshRegionBoundary<3>;
 
 }	// close namespace

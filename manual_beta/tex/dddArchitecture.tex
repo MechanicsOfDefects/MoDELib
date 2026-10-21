@@ -1,0 +1,50 @@
+\chapter{Discrete dislocation dynamics: architecture}\label{chap:ddd}
+\section{State and responsibilities}
+\code{DislocationNetwork} implements the DDD microstructure. The generic loop-network layer represents oriented loops and their shared network nodes and links. A dislocation loop carries crystallographic and slip-surface information; a network segment represents a geometric line portion that may participate in several loops. Keeping these identities separate makes junctions and topology changes representable without losing the individual loop bookkeeping.
+
+The DDD base context supplies shared dislocation-specific services and parameters. Geometry and grains remain owned by the common crystal context. Glide planes connect lattice planes to grain geometry, and periodic glide planes extend that representation to translated patches. The nodal geometry, quadrature data, velocities and event operations then form the evolving network state.
+\sourcefile{include/DislocationDynamics/DislocationNetwork.h}
+\sourcefile{include/DislocationDynamics/DislocationDynamicsBase.h}
+\sourcefile{include/LoopNetwork/LoopNetwork.h}
+
+\section{Forces, velocities and updates}
+At a conceptual level the method evaluates stress, computes line forces, applies mobility laws, determines nodal velocities and advances the network. The Peach--Koehler force per unit length is
+\begin{equation}
+\bm f_{\mathrm{PK}}=(\bm\sigma\bm b)\times\bm\xi,
+\end{equation}
+where $\bm b$ is the Burgers vector and $\bm\xi$ the unit tangent. Local mobility converts force and character information into a velocity response. The selected glide or climb solver converts the local response into a consistent set of nodal velocities.
+
+\code{solve()} prepares and solves the active motion problem. \code{getDt()} supplies a DDD restriction through the time stepper. \code{updateConfiguration()} moves nodes and performs the network's discrete-event processing. Remeshing controls segment resolution; junctions and cross slip change topology or slip-plane assignment. These operations have different physical meanings and should not be conflated with the continuous motion step. Periodic boundary-node reconstruction must preserve the loop contour across translated patches.
+
+Climb couples to cluster-dynamics concentrations and has its own solver and re-solve behavior. The common \code{maxResolveSteps} mechanism allows additional coupling passes, but its iteration count is not proof of coupled convergence. Because CD is being revised, its detailed constitutive coupling is reserved for the final part of this manual.
+\sourcefile{src/DislocationDynamics/DislocationNetwork.cpp}
+
+\section{Periodic dislocation continuity and image fields}\label{sec:dddPeriodicity}
+DDD uses the same translation lattice for a different task: representing a loop as connected pieces on translated glide-plane patches. \code{PeriodicGlidePlane} manages those patches. Each \code{PeriodicPlaneEdge} has perimeter neighbors, a possible twin on an adjacent patch, and a translation change. A physical free surface is not a periodic patch crossing. Remeshing and node motion must preserve this distinction and the continuity of the underlying loop.
+
+Geometric identification and elastic-image summation are separate controls. \code{periodicImageSize} in \code{DefectiveCrystal.txt} supplies one image extent $m_k$ per active basis vector. The shared list contains shifts
+\begin{equation}
+\bm s=\sum_{k=1}^{p}n_k\bm a_k,\quad -|m_k|\le n_k\le|m_k|,
+\qquad N_{\mathrm{shifts}}=\prod_{k=1}^{p}(2|m_k|+1).
+\end{equation}
+Zero extents retain only the central image without disabling geometric periodicity. Nonzero extents increase the number of field evaluations; convergence of the chosen field observable must be checked separately. \code{EwaldLengthFactor} belongs to the DDD field formulation and does not select periodic faces.
+\sourcefile{src/DefectiveCrystal/DefectiveCrystalBase.cpp}
+\sourcefile{include/GlidePlanes/PeriodicGlidePlane.h}
+\sourcefile{include/DislocationDynamics/PeriodicVelocityConstraints.h}
+
+For a fully periodic cube, use an image-size vector with three entries. For a partially periodic domain, supply exactly one image extent per active basis column; a length mismatch raises an error. If a loop behaves incorrectly at a boundary, distinguish a physical endpoint from an artificial periodic subdivision. Relevant checks include \code{testPartialPeriodicRemesh.cpp} and \code{testPeriodicVelocityConstraints.cpp}.
+
+\section{DDD input and resolution}
+Copy \code{Library/DislocationDynamics/DD.txt} to \code{inputFiles/}. \code{glideSolverType} and \code{climbSolverType} choose motion solvers. \code{Lmin} and \code{Lmax} control remeshing scales; \code{quadPerLength} controls line quadrature density; \code{dxMax} is relevant to adaptive motion stepping. These are distinct discretization choices. Refining the volume FEM mesh does not automatically refine the dislocation network, nor does increasing periodic image counts resolve a long line segment.
+
+Use the material's mobility parameters with the intended crystal and enabled slip systems. To diagnose an unexpected response, first isolate the imposed load and mobility law, then inspect line geometry and topology, and only then assess multi-physics coupling. The tutorial in Chapter~\ref{runningMoDELib} provides a small starting workflow.
+
+\section{Guide to the retained theory}
+The following appendices keep the previous manual's equations with the physics that uses them:
+\begin{itemize}
+\item Elastic eigendistortion and loop fields: the continuum basis of stress and displacement evaluation, finite-domain superposition, solid angles and multipole expressions.
+\item Core regularization and straight segments: finite-core kernels and analytical line integration.
+\item Mathematical identities: surface transport, convolution and anisotropic Green tensors used by the DDD derivations.
+\item Supplementary notes: earlier distributional identities and the uniform loading derivation.
+\end{itemize}
+The purpose is to connect implementation choices to their theory without requiring a reader to begin with a long Green-function derivation. Some inherited passages remain incomplete or unverified and are explicitly marked. In particular, general anisotropic formulas do not establish that the active numerical kernel is anisotropic.

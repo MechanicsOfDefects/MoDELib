@@ -1,10 +1,10 @@
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <array>
 #include <filesystem>
 #include <sstream>
 #include <stdexcept>
 
-using Config = model::DDconfigIO<3>;
+using Config = model::DefectiveCrystalConfigIO<3>;
 void check(bool ok, const char *message)
 {
     if(!ok)
@@ -22,6 +22,8 @@ int main()
 {
     try
     {
+        Config defaultConfig;
+        check(defaultConfig.getTxtFilename(7) == "config/evl_7.txt", "Default configuration folder is wrong");
         const auto directory =
             std::filesystem::temp_directory_path() /
             ("model-ddconfig-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -105,7 +107,7 @@ int main()
         restored.readBin(1);
         check(text(restored) == empty, "Empty binary round trip failed");
         std::filesystem::remove_all(directory);
-        std::cout << "PASS DDconfig inclusion ordering, text/binary round trips, conversion, matrices, and clear\n";
+        std::cout << "PASS DefectiveCrystal configuration defaults, inclusion ordering, text/binary round trips, conversion, matrices, and clear\n";
         return 0;
     }
     catch(const std::exception &error)

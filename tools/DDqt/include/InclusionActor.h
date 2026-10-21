@@ -34,7 +34,7 @@
 #include <vtkRenderer.h>
 #include <vtkDataSetMapper.h>
 
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <InclusionMicrostructure.h>
 
 

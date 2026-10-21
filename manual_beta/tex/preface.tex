@@ -1,0 +1,15 @@
+\chapter*{Preface}
+\addcontentsline{toc}{chapter}{Preface}
+MoDELib---the Mechanics of Defects Evolution Library---provides a framework for modeling defects in crystalline materials and their interactions with mechanical and other physical fields. Understanding such simulations requires both a physical description of the problem and a clear account of how that description is represented in the code. Our aim with this manual is to bring these two perspectives together.
+
+We have organized the manual around the architecture of the library. It begins with the geometric foundations: simplicial and polyhedral meshes, their connectivity, and periodic identification. Materials and polycrystals then give this geometry its crystallographic meaning. The finite-element infrastructure supplies interpolation, weak forms, and field constraints, while the multiphysics architecture connects the individual physical models through shared data and a common simulation lifecycle.
+
+This order is intended to help readers build an understanding of the software before entering the details of a particular model. Theory is introduced where it explains an implementation choice or a physical assumption. Figures and short code examples connect the mathematical objects to their computational counterparts. The appendices collect longer dislocation-theory derivations and supporting identities, so that these remain available without interrupting the architectural discussion.
+
+The manual is also a working reference. Some interfaces continue to evolve, and the cluster-dynamics formulation is being revised. The code version identified on the cover therefore provides the context for the descriptions and examples presented here. As the library develops, we intend this document to preserve the connection between the governing equations, the design of the software, and the practical choices needed to construct and interpret a simulation.
+
+\vspace{1.2cm}
+\begin{flushright}
+\textit{Giacomo Po}\\[0.3em]
+21 October 2026
+\end{flushright}

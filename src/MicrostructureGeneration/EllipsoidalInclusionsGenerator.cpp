@@ -193,7 +193,7 @@ namespace model
         {
             // A connected ellipsoid whose center is inside remains inside unless
             // it reaches a boundary triangle. This also handles nonconvex meshes.
-            for(const auto &face : mg.ddBase.mesh.template observer<2>())
+            for(const auto &face : mg.ddBase.mesh.template simplexFactory<2>().liveSimplices())
             {
                 if(face.second->isBoundarySimplex())
                 {

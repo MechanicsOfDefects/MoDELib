@@ -8,31 +8,19 @@
 #ifndef model_StrUtilities_H_
 #define model_StrUtilities_H_
 
-//#include <filesystem>
+// #include <filesystem>
 #include <string>
-#include <algorithm> // Required for std::transform
-#include <cctype>    // Required for std::tolower
 
 namespace model
 {
 
     struct StrUtilities
     {
-      
-        static std::string removeSpaces(std::string key)
-        {
-            key.erase(std::remove_if(key.begin(), key.end(), [](unsigned char x) { return std::isspace(x); }), key.end());
-            return key;
-        }
-        
-        static std::string lowercase(std::string text)
-        {
-            std::transform(text.begin(), text.end(), text.begin(),
-                           [](unsigned char c){ return std::tolower(c); });
-            return text;
-        }
-        
+
+        static std::string removeSpaces(std::string key);
+
+        static std::string lowercase(std::string text);
     };
 
-}
+} // namespace model
 #endif

@@ -61,6 +61,7 @@ namespace model
 
     private:
         std::shared_ptr<NetworkLinkType> _networkLink;
+        bool attached=false;
         
 
     public:
@@ -86,18 +87,69 @@ namespace model
         /* init */,next(nullptr)
         {
             VerboseLoopLink(1,"Constructing LoopLink "<<tag()<<std::endl);
-            source->addLoopLink(this->p_derived());
-            sink->addLoopLink(this->p_derived());
-            loop->addLoopLink(this->p_derived());
-            if(_networkLink)
+            attachTopology();
+        }
+
+        void attachTopology()
+        {
+            if(attached)
             {
-                _networkLink->addLoopLink(this->p_derived());
+                return;
             }
+            bool sourceAdded=false,sinkAdded=false,loopAdded=false;
+            try
+            {
+                source->addLoopLink(this->p_derived());
+                sourceAdded=true;
+                sink->addLoopLink(this->p_derived());
+                sinkAdded=true;
+                loop->addLoopLink(this->p_derived());
+                loopAdded=true;
+                if(_networkLink)
+                {
+                    _networkLink->addLoopLink(this->p_derived());
+                }
+            }
+            catch(...)
+            {
+                // A failed constructor does not call ~LoopLink. Undo partial
+                // registration explicitly, including derived segment checks.
+                if(_networkLink && _networkLink->loopLinks().count(this->p_derived()))
+                {
+                    _networkLink->removeLoopLink(this->p_derived());
+                }
+                if(loopAdded)
+                {
+                    loop->removeLoopLink(this->p_derived());
+                }
+                if(sinkAdded)
+                {
+                    sink->removeLoopLink(this->p_derived());
+                }
+                if(sourceAdded)
+                {
+                    source->removeLoopLink(this->p_derived());
+                }
+                prev=nullptr;
+                next=nullptr;
+                throw;
+            }
+            attached=true;
         }
 
         /**********************************************************************/
         ~LoopLink()
-        {// call removeLoopLink in inverse order compared to addLoopLink
+        {
+            detachTopology();
+        }
+
+        void detachTopology()
+        {
+            if(!attached)
+            {
+                return;
+            }
+            // Inverse order of attachment, without destroying the link.
             VerboseLoopLink(1,"Destroying LoopLink "<<tag()<<std::endl);
             if(_networkLink)
             {
@@ -106,6 +158,9 @@ namespace model
             loop->removeLoopLink(this->p_derived());
             sink->removeLoopLink(this->p_derived());
             source->removeLoopLink(this->p_derived());
+            prev=nullptr;
+            next=nullptr;
+            attached=false;
         }
         
         const  std::shared_ptr<NetworkLinkType>& networkLink() const

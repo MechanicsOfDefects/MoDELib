@@ -8,6 +8,7 @@
 #ifndef model_PlanarLoopGenerator_cpp_
 #define model_PlanarLoopGenerator_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <numbers>
 #include <chrono>
 #include <random>
@@ -24,16 +25,16 @@
 #include <PolycrystallineMaterialBase.h>
 #include <LatticeModule.h>
 //#include <PlaneMeshIntersection.h>
-#include <DislocationNodeIO.h>
-#include <DislocationLoopIO.h>
-#include <DislocationLoopLinkIO.h>
-#include <DislocationLoopNodeIO.h>
-#include <DDconfigIO.h>
-#include <DDauxIO.h>
+#include <DislocationDynamics/DislocationNodeIO.h>
+#include <DislocationDynamics/DislocationLoopIO.h>
+#include <DislocationDynamics/DislocationLoopLinkIO.h>
+#include <DislocationDynamics/DislocationLoopNodeIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 
-#include <DislocationLinkingNumber.h>
+#include <DislocationDynamics/DislocationLinkingNumber.h>
 #include <TextFileParser.h>
-#include <DislocationInjector.h>
+#include <DislocationDynamics/DislocationInjector.h>
 #include <MeshBoundarySegment.h>
 //#include <ConfinedDislocationObject.h>
 #include <GlidePlaneModule.h>
@@ -82,7 +83,7 @@ namespace model
             
             const ReciprocalLatticeDirection<dim> r(grain->reciprocalLatticeDirection(n));
             GlidePlaneKey<3> glidePlaneKey(loopPoints[0], r);
-            std::shared_ptr<PeriodicGlidePlane<3>> glidePlane(mg.ddBase.periodicGlidePlaneFactory.get(glidePlaneKey));
+            std::shared_ptr<PeriodicGlidePlane<3>> glidePlane(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(glidePlaneKey));
 //            const GlidePlane<dim> glidePlane(loopPoints[0],r);
             for(const auto& point : loopPoints)
             {

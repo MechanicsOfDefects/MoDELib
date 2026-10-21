@@ -12,3 +12,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/PlanesIntersection.cpp
 		)
 
+
+target_sources(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/CatmullRomSplineSegment.cpp
+)

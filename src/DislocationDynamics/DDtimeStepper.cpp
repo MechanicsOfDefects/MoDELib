@@ -11,11 +11,13 @@
 #include <cfloat>
 #include <DDtimeStepper.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
 
-    template <typename DislocationNetworkType>
-    DDtimeStepper<DislocationNetworkType>::DDtimeStepper(const DislocationNetworkType& DN_in):
+    template <int dim>
+    DDtimeStepper<dim>::DDtimeStepper(const DislocationNetwork<dim>& DN_in):
     /* init */ DN(DN_in)
     /* init */,timeSteppingMethod(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("timeSteppingMethod", true))
     /* init */,dxMax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("dxMax", true))
@@ -26,8 +28,8 @@ namespace model
         }
     }
 
-    template <typename DislocationNetworkType>
-    double DDtimeStepper<DislocationNetworkType>::getDt(const double& vRef, const double& vFactor) const
+    template <int dim>
+    double DDtimeStepper<dim>::getDt(const double& vRef, const double& vFactor) const
     {
         if(timeSteppingMethod=="fixed" || timeSteppingMethod=="Fixed" || timeSteppingMethod=="FIXED")
         {
@@ -62,7 +64,7 @@ namespace model
         }
     }
 
-template struct DDtimeStepper<DislocationNetwork<3>>;
+template struct DDtimeStepper<3>;
 
 } // end namespace
 #endif

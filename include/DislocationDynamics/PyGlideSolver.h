@@ -30,17 +30,17 @@
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
     
-    template <typename DislocationNetworkType>
-    class PyGlideSolver : public DislocationGlideSolverBase<DislocationNetworkType>
+    template <int dim>
+    class PyGlideSolver : public DislocationGlideSolverBase<dim>
     {
-        typedef typename DislocationNetworkType::VectorDim   VectorDim;
-        typedef typename DislocationNetworkType::MatrixDim   MatrixDim;
-        typedef typename DislocationNetworkType::NetworkNodeType   NetworkNodeType;
-        typedef typename DislocationNetworkType::LoopNodeType   LoopNodeType;
-        typedef typename DislocationNetworkType::LoopType   LoopType;
+        typedef typename DislocationNetwork<dim>::VectorDim   VectorDim;
+        typedef typename DislocationNetwork<dim>::MatrixDim   MatrixDim;
+        typedef typename DislocationNetwork<dim>::NetworkNodeType   NetworkNodeType;
+        typedef typename DislocationNetwork<dim>::LoopNodeType   LoopNodeType;
+        typedef typename DislocationNetwork<dim>::LoopType   LoopType;
         constexpr static int NdofXnode=NetworkNodeType::NdofXnode;
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
 
         public:
         
@@ -51,9 +51,8 @@ namespace model
 #endif
 
         Eigen::MatrixXd updateUnconnectedNodePythonVelocity(const Eigen::MatrixXd& nodePythonVelocity, const std::map<size_t, size_t>& removedNodeIDmap) const;
-        Eigen::MatrixXd updateBoundaryNodePythonVelocity(const Eigen::MatrixXd& nodePythonVelocity, const std::map<size_t, size_t>& removedNodeIDmap) const;
 
-        PyGlideSolver(const DislocationNetworkType&);
+        PyGlideSolver(const DislocationNetwork<dim>&);
         Eigen::VectorXd getNodeVelocities() const override;
         
     };

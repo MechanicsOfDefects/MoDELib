@@ -1,6 +1,6 @@
-#include <EllipsoidalInclusion.h>
+#include <InclusionMicrostructure/EllipsoidalInclusion.h>
 #ifdef COMPARE_SUPPLIED_SPHERE
-#include <SphericalInclusion.h>
+#include <InclusionMicrostructure/SphericalInclusion.h>
 #endif
 #include <Eigen/Geometry>
 #include <cmath>

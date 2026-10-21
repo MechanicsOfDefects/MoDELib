@@ -42,6 +42,7 @@ OLD/
 header_symlinks/
 build/
 evl/
+config/
 __pycache__/
 
 # Output Files
@@ -86,3 +87,6 @@ build/
 
 # Test reports
 tests/**/reports/
+
+# Generated tutorial inputs
+/tutorials/**/inputFiles/

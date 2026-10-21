@@ -9,6 +9,8 @@
 #define model_ClusterDynamics_cpp_
 
 #ifdef _OPENMP
+#include <ClusterDynamics/ClusterDynamicsBase.h>
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <omp.h>
 #endif
 
@@ -55,7 +57,7 @@ namespace model
     //};
 
 template <int dim>
-typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<dim>::getUniformControllers(const DislocationDynamicsBase<dim>& ddBase,const ClusterDynamicsParameters<dim>& cdp)
+typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<dim>::getUniformControllers(const DefectiveCrystalBase<dim>& ddBase,const ClusterDynamicsParameters<dim>& cdp)
 {
     typedef typename UniformControllerType::MatrixVoigt MatrixVoigt;
     typedef typename UniformControllerType::VectorVoigt VectorVoigt;
@@ -87,31 +89,30 @@ typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<di
     template<int dim>
     ClusterDynamics<dim>::ClusterDynamics(MicrostructureContainerType& mc) :
     /* init */ MicrostructureBase<dim>("ClusterDynamics",mc)
-    /* init */,cdp(this->microstructures.ddBase)
+    /* init */,cdp(this->microstructures.ddBase.clusterDynamics())
 //    /* init */,ClusterDynamicsBase<dim>(this->microstructures.ddBase)
-    // /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("useClusterDynamicsFEM",true)) : false )
-    /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.fe? bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ClusterDynamics.txt").readScalar<int>("useClusterDynamicsFEM",true)) : false )
-//    /* init */,useClusterDynamicsFEM(bool(TextFileParser(this->microstructures.ddBase.simulationParameters.traitsIO.ddFile).readScalar<int>("useClusterDynamicsFEM",true)))
+    // /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.clusterDynamics().useClusterDynamicsFEM)
+    /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.clusterDynamics().useClusterDynamicsFEM)
+//    /* init */,useClusterDynamicsFEM(this->microstructures.ddBase.clusterDynamics().useClusterDynamicsFEM)
     /* init */,clusterDynamicsFEM(useClusterDynamicsFEM?  new ClusterDynamicsFEM<dim>(this->microstructures.ddBase,cdp) : nullptr)
     /* init */,uniformControllers(useClusterDynamicsFEM? UniformControllerContainerType() : getUniformControllers(this->microstructures.ddBase,this->cdp))
-//    /* init */,nodeListInternalExternal(this->microstructures.ddBase.isPeriodicDomain ? -1 : this->microstructures.ddBase.fe->template createNodeList<ExternalAndInternalBoundary>())
 //    /* init */,mobileClustersIncrement(this->microstructures.ddBase.fe->template trial<'d',mSize>())
 //    /* init */,dV(this->microstructures.ddBase.fe->template domain<EntireDomain,dVorder,GaussLegendre>())
 //    /* init */,mBWF((test(this->mobileGrad),-this->microstructures.ddBase.poly.Omega*this->mobileFlux)*dV)
 //    /* init */,dmBWF((test(grad(mobileClustersIncrement)),-this->microstructures.ddBase.poly.Omega*(FluxMatrix<dim>(this->cdp)*grad(mobileClustersIncrement)))*dV)
 //    /* init */,mSolver(true,FLT_EPSILON)
 ////    /* init */,mSolver(mBWF,true,FLT_EPSILON)
-//    /* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G))*dV).globalVector())
-    ///* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G.transpose().eval()))*dV).globalVector())
+//    /* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G))*dV)->globalVector())
+    ///* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G.transpose().eval()))*dV)->globalVector())
     {
-//        mobileClustersIncrement.setConstant(Eigen::Matrix<double,mSize,1>::Zero());    
+//        mobileClustersIncrement->setConstant(Eigen::Matrix<double,mSize,1>::Zero());
 //        std::cout<<cascadeGlobalProduction<<std::endl;
     }
 
     
 
     template<int dim>
-    void ClusterDynamics<dim>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
+    void ClusterDynamics<dim>::initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
     {
         this->lastUpdateTime=this->microstructures.ddBase.simulationParameters.totalTime;
         
@@ -129,32 +130,49 @@ template<int dim>
 void ClusterDynamics<dim>::applyBoundaryConditions()
 {
  
-    const auto& nodesInternalExternal(clusterDynamicsFEM->mobileClusters.fe().nodeList(clusterDynamicsFEM->nodeListInternalExternal));
-    
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for(size_t k=0;k<nodesInternalExternal.size();++k)
+    auto& fem=*clusterDynamicsFEM;
+    Eigen::VectorXd offset=Eigen::VectorXd::Zero(fem.mobileClusters->gSize());
+    std::map<size_t,double> prescribed;
+    std::set<size_t> periodicNodes;
+    for(const auto& pair : fem.mobileClusters->fe().periodicNodePairs())
     {
-        const auto& node(nodesInternalExternal[k]);
-        const auto outNormal(node->outNormal()); // used to compute traction
-        const MatrixDim sigma(this->microstructures.stress(node->P0,node,nullptr,nullptr));
-        const double normalTraction(outNormal.dot(sigma*outNormal));
-        const auto bndConcentration(cdp.boundaryMobileConcentration(sigma.trace(),normalTraction));
-        
-        VectorMSize otherConcentration(VectorMSize::Zero());
+        periodicNodes.insert(pair.source);
+        periodicNodes.insert(pair.sink);
+    }
+    for(const auto& node : fem.mobileClusters->fe().nodes())
+    {
+        const auto sink=fem.sinkNormals.find(node.gID);
+        // Nonlinear positivity checks require the known concentration throughout the domain.
+        if(!cdp.computeReactions && sink==fem.sinkNormals.end() && !periodicNodes.count(node.gID))
+        {
+            continue;
+        }
+        VectorMSize otherConcentration=VectorMSize::Zero();
         for(const auto& microstructure : this->microstructures)
         {
-            if(microstructure.get()!=static_cast<const MicrostructureBase<dim>* const>(this))
-            {// not the ClusterDynamics physics
-                otherConcentration += microstructure->mobileConcentration(node->P0,node,nullptr,nullptr);
+            if(microstructure.get()!=static_cast<const MicrostructureBase<dim>*>(this))
+            {
+                otherConcentration+=microstructure->mobileConcentration(node.P0,&node,nullptr,nullptr);
             }
         }
-        for(int k=0;k<mSize;++k)
+        offset.template segment<mSize>(mSize*node.gID)=-otherConcentration;
+        if(sink!=fem.sinkNormals.end())
         {
-            clusterDynamicsFEM->mobileClusters.dirichletConditions().at(mSize*node->gID+k) = bndConcentration(k) - otherConcentration(k);
+            const MatrixDim sigma=this->microstructures.stress(node.P0,&node,nullptr,nullptr);
+            double normalTraction=0.0;
+            for(const auto& normal : sink->second)
+            {
+                normalTraction+=normal.dot(sigma*normal)/double(sink->second.size());
+            }
+            const auto concentration=cdp.boundaryMobileConcentration(sigma.trace(),normalTraction);
+            for(int c=0;c<mSize;++c)
+            {
+                prescribed.emplace(mSize*node.gID+c,concentration(c)-otherConcentration(c));
+            }
         }
     }
+    fem.mobileClusters->setPeriodicNodalOffset(offset);
+    fem.mobileClusters->dirichletConditions()=std::move(prescribed);
 }
 
     template<int dim>
@@ -218,14 +236,14 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     }
 
     template<int dim>
-    void ClusterDynamics<dim>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
+    void ClusterDynamics<dim>::output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
     {
         if(clusterDynamicsFEM)
         {
-            const size_t nNodes(clusterDynamicsFEM->mobileClusters.fe().nodes().size());
+            const size_t nNodes(clusterDynamicsFEM->mobileClusters->fe().nodes().size());
             configIO.cdMatrix().resize(nNodes,mSize+iSize);
-            configIO.cdMatrix().block(0,0,nNodes,mSize)=clusterDynamicsFEM->mobileClusters.dofVector().reshaped(mSize,nNodes).transpose();
-            configIO.cdMatrix().block(0,mSize,nNodes,iSize)=clusterDynamicsFEM->immobileClusters.dofVector().reshaped(iSize,nNodes).transpose();
+            configIO.cdMatrix().block(0,0,nNodes,mSize)=clusterDynamicsFEM->mobileClusters->dofVector().reshaped(mSize,nNodes).transpose();
+            configIO.cdMatrix().block(0,mSize,nNodes,iSize)=clusterDynamicsFEM->immobileClusters->dofVector().reshaped(iSize,nNodes).transpose();
         }
         else
         {
@@ -296,17 +314,17 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
         {
             if(node)
             {
-                return eval(clusterDynamicsFEM->mobileClusters)(*node);
+                return (*eval(clusterDynamicsFEM->mobileClusters))(*node);
             }
             else
             {
                 if(ele)
                 {
-                    return eval(clusterDynamicsFEM->mobileClusters)(*ele,ele->simplex.pos2bary(x));
+                    return (*eval(clusterDynamicsFEM->mobileClusters))(*ele,ele->simplex.pos2bary(x));
                 }
                 else
                 {
-                    return eval(clusterDynamicsFEM->mobileClusters)(x,guess);
+                    return (*eval(clusterDynamicsFEM->mobileClusters))(x,guess);
                 }
             }
         }
@@ -317,17 +335,17 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     {
         if(node)
         {
-            return eval(clusterDynamicsFEM->immobileClusters)(*node);
+            return (*eval(clusterDynamicsFEM->immobileClusters))(*node);
         }
         else
         {
             if(ele)
             {
-                return eval(clusterDynamicsFEM->immobileClusters)(*ele,ele->simplex.pos2bary(x));
+                return (*eval(clusterDynamicsFEM->immobileClusters))(*ele,ele->simplex.pos2bary(x));
             }
             else
             {
-                return eval(clusterDynamicsFEM->immobileClusters)(x,guess);
+                return (*eval(clusterDynamicsFEM->immobileClusters))(x,guess);
             }
         }
     }
@@ -367,7 +385,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //     {
     //         const auto& ele(this->microstructures.ddBase.fe->elements().at(tet->xID));
     //         Eigen::Matrix<double,dim+1,1> bary(Eigen::Matrix<double,dim+1,1>::Constant(0.25));
-    //         const Eigen::Matrix<double,iSize,1> sinkValue(eval(clusterDynamicsFEM->immobileClusters)(ele,bary));
+    //         const Eigen::Matrix<double,iSize,1> sinkValue((*eval(clusterDynamicsFEM->immobileClusters))(ele,bary));
     //         // ADDED A CORRECTED SINK VALUE HERE -> SOME BARYCENTERS HAVE NEGATIVE VALUES, BUT NODES WERE NOT NEGATIVE
     //         Eigen::Matrix<double,iSize,1> correctedSinkValue(sinkValue);
     //         for(int dof=0;dof<iSize/2;dof++)
@@ -405,7 +423,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //             // for(const auto& ele : this->microstructures.ddBase.fe->elements())
     //             // {
     //             //     Eigen::Matrix<double,dim+1,1> bary(Eigen::Matrix<double,dim+1,1>::Constant(0.25));
-    //             //     const Eigen::Matrix<double,iSize,1> sinkValue(eval(clusterDynamicsFEM->immobileClusters)(ele.second,bary));
+    //             //     const Eigen::Matrix<double,iSize,1> sinkValue((*eval(clusterDynamicsFEM->immobileClusters))(ele.second,bary));
     //             //     const auto cI(sinkValue.template block<iSize/2,1>(iSize/2,0));
     //             //     if(cI(0)>0)
     //             //     {
@@ -417,7 +435,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //             for(const auto& ele : this->microstructures.ddBase.fe->elements())
     //             {
     //                 Eigen::Matrix<double,dim+1,1> bary(Eigen::Matrix<double,dim+1,1>::Constant(0.25));
-    //                 const Eigen::Matrix<double,iSize,1> sinkValue(eval(clusterDynamicsFEM->immobileClusters)(ele.second,bary));
+    //                 const Eigen::Matrix<double,iSize,1> sinkValue((*eval(clusterDynamicsFEM->immobileClusters))(ele.second,bary));
     //                 const auto cI(sinkValue.template block<iSize/2,1>(iSize/2,0));
     //                 const auto cT(cI*ele.second.simplex.vol0/cdp.omega);
     //                 CiMap.emplace(cT(k),&ele.second);
@@ -467,7 +485,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //                     {
     //                         const long int planeIndex(n.closestPlaneIndexOfPoint(tetCenter));
     //                         GlidePlaneKey<dim> glidePlaneKey(planeIndex,n);
-    //                         std::shared_ptr<PeriodicGlidePlane<dim>> periodicGlidePlane(this->microstructures.ddBase.periodicGlidePlaneFactory.get(glidePlaneKey)); 
+    //                         std::shared_ptr<PeriodicGlidePlane<dim>> periodicGlidePlane(this->microstructures.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(glidePlaneKey));
     //                         const VectorDim loopCenter(periodicGlidePlane->referencePlane->snapToPlane(tetCenter));
     //                         std::vector<VectorDim> pts;
     //                         if(radius > cdp.minimumLoopSize)
@@ -498,7 +516,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //                                 const int signedb(cdp.immobileSpeciesVector(k)/abs(cdp.immobileSpeciesVector(k))); //negative for vacancy, positive for interstitial loops
     //                                 const VectorDim loopBurgers((trBetaLoop * signedb > 0)? b : -b);
 
-    //                                 auto newLoop(DN->loops().create(loopBurgers, this->microstructures.ddBase.glidePlaneFactory.getFromKey(glidePlaneKey)));
+    //                                 auto newLoop(DN->loops().create(loopBurgers, this->microstructures.ddBase.dislocationDynamics().glidePlaneFactory.getFromKey(glidePlaneKey)));
     //                                 std::vector<std::shared_ptr<DislocationLoopNode<dim>>> loopNodes;
     //                                 for(const auto &pGlobal:pts)
     //                                 {
@@ -523,11 +541,11 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     //             }
     //         }
     //         // std::cout<<"Removing values for continuous immobile clusters"<<std::endl;
-    //         for(size_t nodeID=0; nodeID<clusterDynamicsFEM->immobileClusters.nodeSize(); nodeID++)
+    //         for(size_t nodeID=0; nodeID<clusterDynamicsFEM->immobileClusters->nodeSize(); nodeID++)
     //         {
     //             for(int dof=0; dof<iSize; dof++)
     //             {
-    //             //    clusterDynamicsFEM->immobileClusters.dofVector()(iSize*nodeID+dof)=1e-33;
+    //             //    clusterDynamicsFEM->immobileClusters->dofVector()(iSize*nodeID+dof)=1e-33;
     //             TrialBase<typename ClusterDynamicsFEM<dim>::ImmobileTrialType>::dofVector()(iSize*nodeID+dof)=1e-33;
     //             }
     //         }
@@ -551,7 +569,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
 //    diffusiveDisplacementRate=Eigen::VectorXd::Zero(this->diffusiveDisplacement.gSize());
 //    for(const auto& node: this->microstructures.ddBase.fe->nodes())
 //    {
-//        const Eigen::Matrix<double,dim*mSize,1> speciesFlux(eval(this->mobileFlux)(node));
+//        const Eigen::Matrix<double,dim*mSize,1> speciesFlux((*eval(this->mobileFlux))(node));
 //        Eigen::Matrix<double,dim,1> netFlux(Eigen::Matrix<double,dim,1>::Zero());
 //        for(int i=0; i<mSize; i++)
 //        {

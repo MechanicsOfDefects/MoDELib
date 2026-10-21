@@ -9,7 +9,7 @@ from modlibUtils import *
 #   cmake -S . -B build -DMODELIB_CD_MSIZE=1 -DMODELIB_CD_ISIZE=0
 
 # Create folder structure
-folders=['evl','F','inputFiles']
+folders=['config','F','inputFiles']
 for x in folders:
     if not os.path.exists(x):
         os.makedirs(x)

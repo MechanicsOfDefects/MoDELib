@@ -42,13 +42,13 @@
 #include <vtkPlot.h>
 #include <vtkLineSource.h>
 
-#include <DDtraitsIO.h>
+#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
 #include <SimplicialMesh.h>
 #include <MeshPlane.h>
 #include <TriangularMesh.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <Polycrystal.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <MeshLine.h>
 
 namespace model
@@ -158,7 +158,7 @@ namespace model
         vtkGenericOpenGLRenderWindow* const renWin;
         vtkRenderer* const renderer;
         const DefectiveCrystal<3>& defectiveCrystal;
-        std::shared_ptr<MeshPlane<3>> plane;
+        std::shared_ptr<Plane<3>> plane;
         
     public slots:
         void resetPlane();

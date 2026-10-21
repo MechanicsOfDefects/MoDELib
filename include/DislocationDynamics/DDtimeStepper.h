@@ -16,18 +16,19 @@
 
 namespace model
 {
+    template<int dim> class DislocationNetwork;
 	
-    template <typename DislocationNetworkType>
+    template <int dim>
     struct DDtimeStepper
     {
 //        static constexpr auto tag="vMax integrator";
-        const DislocationNetworkType& DN;
+        const DislocationNetwork<dim>& DN;
         const std::string timeSteppingMethod;
         const double dxMax;
 //        const double shearWaveSpeedFraction;
 //        const double dtMax;
         
-        DDtimeStepper(const DislocationNetworkType& DN_in);
+        DDtimeStepper(const DislocationNetwork<dim>& DN_in);
         double getDt(const double& vRef, const double& vFactor) const;
     };
 

@@ -8,6 +8,7 @@
 #ifndef model_MicrostructureGenerator_cpp_
 #define model_MicrostructureGenerator_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <fstream>
 #include <filesystem>
 
@@ -28,7 +29,7 @@
 #include <CrackMeshGenerator.h>
 #include <FrankLoopsGenerator.h>
 #include <PlanarLoopGenerator.h>
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <StrUtilities.h>
 #include <SutherlandHodgman.h>
 
@@ -40,9 +41,9 @@ std::shared_ptr<PeriodicPlanePatch<3>> PolyPoint::periodicPlanePatch() const
     return nullptr;
 }
 
-MicrostructureGenerator::MicrostructureGenerator(DislocationDynamicsBase<3>& ddBase_in) :
+MicrostructureGenerator::MicrostructureGenerator(DefectiveCrystalBase<3>& ddBase_in) :
 /* init*/ ddBase(ddBase_in)
-/* init*/,configIO(ddBase_in.simulationParameters.traitsIO.evlFolder)
+/* init*/,configIO(ddBase_in.simulationParameters.traitsIO.configFolder)
 /* init*/,auxIO(ddBase_in.simulationParameters.traitsIO.auxFolder)
 /* init*/,outputBinary(ddBase.simulationParameters.outputBinary)
 /* init*/,minSize(0.1*std::min(ddBase.mesh.xMax(0)-ddBase.mesh.xMin(0),std::min(ddBase.mesh.xMax(1)-ddBase.mesh.xMin(1),ddBase.mesh.xMax(2)-ddBase.mesh.xMin(2))))
@@ -76,51 +77,61 @@ MicrostructureGenerator::MicrostructureGenerator(DislocationDynamicsBase<3>& ddB
 
 void MicrostructureGenerator::addShearLoopDensity(const ShearLoopDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     ShearLoopGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addShearLoopIndividual(const ShearLoopIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     ShearLoopGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPeriodicDipoleDensity(const PeriodicDipoleDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PeriodicDipoleGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPeriodicDipoleIndividual(const PeriodicDipoleIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PeriodicDipoleGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPrismaticLoopDensity(const PrismaticLoopDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PrismaticLoopGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addPrismaticLoopIndividual(const PrismaticLoopIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PrismaticLoopGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addFrankLoopsDensity(const FrankLoopsDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     FrankLoopsGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addFrankLoopsIndividual(const FrankLoopsIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     FrankLoopsGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addStackingFaultTetrahedraDensity(const StackingFaultTetrahedraDensitySpecification& spec)
 {
+    ddBase.dislocationDynamics();
     StackingFaultTetrahedraGenerator gen(spec,*this);
 }
 
 void MicrostructureGenerator::addStackingFaultTetrahedraIndividual(const StackingFaultTetrahedraIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     StackingFaultTetrahedraGenerator gen(spec,*this);
 }
 
@@ -151,6 +162,7 @@ void MicrostructureGenerator::addPolyhedronInclusionIndividual(const PolyhedronI
 
 void MicrostructureGenerator::addPlanarLoopIndividual(const PlanarLoopIndividualSpecification& spec)
 {
+    ddBase.dislocationDynamics();
     PlanarLoopGenerator gen(spec,*this);
 }
 
@@ -357,27 +369,27 @@ void MicrostructureGenerator::readMicrostructureFile()
     }
 }
 
-const DDtraitsIO& MicrostructureGenerator::traits() const
+const DefectiveCrystalTraitsIO& MicrostructureGenerator::traits() const
 {
     return ddBase.simulationParameters.traitsIO;
 }
 
-const DDconfigIO<3>& MicrostructureGenerator::config() const
+const DefectiveCrystalConfigIO<3>& MicrostructureGenerator::config() const
 {
     return configIO;
 }
 
-const DDauxIO<3>& MicrostructureGenerator::aux() const
+const DefectiveCrystalAuxIO<3>& MicrostructureGenerator::aux() const
 {
     return auxIO;
 }
 
-DDconfigIO<3>& MicrostructureGenerator::config()
+DefectiveCrystalConfigIO<3>& MicrostructureGenerator::config()
 {
     return configIO;
 }
 
-DDauxIO<3>& MicrostructureGenerator::aux()
+DefectiveCrystalAuxIO<3>& MicrostructureGenerator::aux()
 {
     return auxIO;
 }
@@ -390,103 +402,63 @@ bool MicrostructureGenerator::insertJunctionLoop(const std::vector<VectorDimD>& 
                                                  const size_t& grainID,
                                                  const DislocationLoopIO<dim>::DislocationLoopType& loopType)
 {
-    const bool nodesInsideGrain(ddBase.isPeriodicDomain? true : allPointsInGrain(loopNodePos,grainID));
-    if(nodesInsideGrain)
+    ddBase.dislocationDynamics();
+    if(loopNodePos.size()<3)
     {
-        std::vector<PolyPoint> dummyPolyPoints;
-        std::vector<std::pair<VectorDimD, const PolyPoint *const>> loopNodePosTemp;
-        for(const auto& pos : loopNodePos)
-        {
-            dummyPolyPoints.push_back(PolyPoint());
-            loopNodePosTemp.emplace_back(pos, &dummyPolyPoints.back());
-        }
-        
-        const auto ppi(periodicPlane->polygonPatchIntersection(loopNodePosTemp,true));
-        const size_t loopID(insertLoop(b,unitNormal,P0,grainID,loopType));
-        std::vector<size_t> loopNodeIDs;
-        for(const auto &tup : ppi)
-        {
-            const VectorDimD loopNodePos(periodicPlane->referencePlane->globalPosition(std::get<0>(tup)));
-            const VectorDimD networkNodePos(loopNodePos+std::get<1>(tup));
-            const auto networkNodeIter(uniqueNetworkNodeMap.find(networkNodePos));
-            if(networkNodeIter==uniqueNetworkNodeMap.end())
-            {// no NetworkNode found at current position
-                uniqueNetworkNodeMap.emplace(networkNodePos,insertNetworkNode(networkNodePos)); // insert NetworkNode and store its ID
-            }
-            loopNodeIDs.push_back(insertLoopNode(loopID,loopNodePos,uniqueNetworkNodeMap.at(networkNodePos),std::get<1>(tup),std::get<2>(tup))); // insert LoopNode and store its ID
-        }
-        insertLoopLinks(loopID,loopNodeIDs);
-        return true;
+        return false;
     }
-    else
+    std::vector<PolyPoint> dummyPolyPoints(loopNodePos.size());
+    std::vector<std::pair<VectorDimD, const PolyPoint *const>> loopNodePosTemp;
+    for(size_t k=0;k<loopNodePos.size();++k)
     {
-        bool trimLoops(false);
-        if(trimLoops)
-        {// trim with glide plane and call recursively
-            std::cout<<"Nodes outside grain: trimming loop"<<grainID<<std::endl;
-            std::vector<Eigen::Matrix<double,dim-1,1>> localNodePos;
-            for(const auto& globalPos : loopNodePos)
-            {
-                localNodePos.push_back(periodicPlane->referencePlane->localPosition(globalPos));
-            }
-            
-            std::vector<Eigen::Matrix<double,dim-1,1>> localPlanePos;
-            for(const auto& seg : periodicPlane->referencePlane->meshIntersections)
-            {
-                localPlanePos.push_back(periodicPlane->referencePlane->localPosition(seg->P0));
-            }
-            
-            const auto trimmedLocalNodePos(SutherlandHodgman::clip(localNodePos,localPlanePos));
-            std::vector<VectorDimD> trimmedGlobalNodePos;
-            for(const auto& localPos : trimmedLocalNodePos)
-            {
-                trimmedGlobalNodePos.push_back(periodicPlane->referencePlane->globalPosition(localPos));
-            }
-            
-            const size_t loopID(insertLoop(b,unitNormal,P0,grainID,loopType));
-            std::vector<size_t> loopNodeIDs;
-            
-            const auto centralPatch(periodicPlane->patches().getFromKey(VectorDimD::Zero()));
-            
-            for(const auto& loopNodePos : trimmedGlobalNodePos)
-            {
-                const VectorDimD& networkNodePos(loopNodePos);
-                const auto networkNodeIter(uniqueNetworkNodeMap.find(networkNodePos));
-                if(networkNodeIter==uniqueNetworkNodeMap.end())
-                {// no NetworkNode found at current position
-                    uniqueNetworkNodeMap.emplace(networkNodePos,insertNetworkNode(networkNodePos)); // insert NetworkNode and store its ID
-                }
-                
-                std::pair<short int,short int> edgeIDs(std::make_pair(-1,-1));
-                
-                for(const auto& edge : centralPatch->edges())
-                {
-                    if(edge->meshIntersection->contains(loopNodePos))
-                    {
-                        if(edgeIDs.first==-1)
-                        {
-                            edgeIDs.first=edge->edgeID;
-                        }
-                        else
-                        {
-                            edgeIDs.second=edge->edgeID;
-                        }
-                    }
-                }
-                loopNodeIDs.push_back(insertLoopNode(loopID,loopNodePos,uniqueNetworkNodeMap.at(networkNodePos),VectorDimD::Zero(),edgeIDs)); // insert LoopNode and store its ID
-            }
-            insertLoopLinks(loopID,loopNodeIDs);
-            return true;
+        loopNodePosTemp.emplace_back(loopNodePos[k], &dummyPolyPoints[k]);
+    }
+    const auto ppi(periodicPlane->polygonPatchIntersection(loopNodePosTemp,true));
+    if(ppi.size()<3)
+    {
+        return false;
+    }
+    // The walk follows actual same-grain twins and clips physical interfaces.
+    // Require complete coverage of EACH original edge before committing IO;
+    // an area comparison alone can conceal missing pieces of a concave loop.
+    std::vector<double> retainedLength(loopNodePos.size(),0.0);
+    for(size_t k=0;k<ppi.size();++k)
+    {
+        const auto& provenance=std::get<6>(ppi[k]);
+        if(provenance.incomingOriginalSegment)
+        {
+            retainedLength.at(provenance.incomingOriginalSegment->sourceIndex)+=
+                (std::get<0>(ppi[k])-std::get<0>(ppi[(k+ppi.size()-1)%ppi.size()])).norm();
         }
-        else
+    }
+    for(size_t k=0;k<loopNodePos.size();++k)
+    {
+        const double length=(loopNodePos[(k+1)%loopNodePos.size()]-loopNodePos[k]).norm();
+        if(std::abs(retainedLength[k]-length)>1.e-8*std::max(1.0,length))
         {
             return false;
         }
     }
+    const size_t loopID(insertLoop(b,unitNormal,P0,grainID,loopType));
+    std::vector<size_t> loopNodeIDs;
+    for(const auto &tup : ppi)
+    {
+        const VectorDimD loopNodePos(periodicPlane->referencePlane->globalPosition(std::get<0>(tup)));
+        const VectorDimD networkNodePos(loopNodePos+std::get<1>(tup));
+        const auto networkNodeIter(uniqueNetworkNodeMap.find(networkNodePos));
+        if(networkNodeIter==uniqueNetworkNodeMap.end())
+        {// no NetworkNode found at current position
+            uniqueNetworkNodeMap.emplace(networkNodePos,insertNetworkNode(networkNodePos)); // insert NetworkNode and store its ID
+        }
+        loopNodeIDs.push_back(insertLoopNode(loopID,loopNodePos,uniqueNetworkNodeMap.at(networkNodePos),std::get<1>(tup),std::get<2>(tup))); // insert LoopNode and store its ID
+    }
+    insertLoopLinks(loopID,loopNodeIDs);
+    return true;
 }
 
 size_t MicrostructureGenerator::insertLoop(const VectorDimD& b,const VectorDimD& unitNormal,const VectorDimD& P0,const size_t& grainID,const DislocationLoopType& loopType)
 {
+    ddBase.dislocationDynamics();
     const size_t loopID(configIO.loops().size());
     configIO.loops().emplace_back(loopID, b,unitNormal,P0,grainID,loopType);
     return loopID;
@@ -494,6 +466,7 @@ size_t MicrostructureGenerator::insertLoop(const VectorDimD& b,const VectorDimD&
 
 size_t MicrostructureGenerator::insertLoopNode(const size_t& loopID,const VectorDimD& loopNodePos,const size_t& networkNodeID,const VectorDimD& loopNodeShift,const std::pair<short int,short int>& periodicEdgeIDs)
 {
+    ddBase.dislocationDynamics();
     const size_t loopNodeID(configIO.loopNodes().size());
     configIO.loopNodes().emplace_back(loopNodeID,loopID,loopNodePos,networkNodeID,loopNodeShift,periodicEdgeIDs);
     return loopNodeID;
@@ -501,6 +474,7 @@ size_t MicrostructureGenerator::insertLoopNode(const size_t& loopID,const Vector
 
 std::vector<size_t> MicrostructureGenerator::insertLoopLinks(const size_t& loopID,const std::vector<size_t>& loopNodeIDs)
 {
+    ddBase.dislocationDynamics();
     std::vector<size_t> temp;
     for(size_t k=0;k<loopNodeIDs.size();++k)
     {
@@ -517,6 +491,7 @@ std::vector<size_t> MicrostructureGenerator::insertLoopLinks(const size_t& loopI
 
 size_t MicrostructureGenerator::insertNetworkNode(const VectorDimD& networkNodePos)
 {
+    ddBase.dislocationDynamics();
     const size_t networkNodeID(configIO.nodes().size());
     configIO.nodes().emplace_back(networkNodeID,networkNodePos,Eigen::Matrix<double,1,3>::Zero(),Eigen::Array<double,1,ClusterDynamicsParameters<3>::mSize>::Zero(),1.0,0);
     return networkNodeID;
@@ -524,7 +499,7 @@ size_t MicrostructureGenerator::insertNetworkNode(const VectorDimD& networkNodeP
 
 namespace
 {
-    size_t nextInclusionID(const DDconfigIO<3>& config)
+    size_t nextInclusionID(const DefectiveCrystalConfigIO<3>& config)
     {
         size_t next=0;
         const auto scan=[&](const auto& inclusions)
@@ -605,6 +580,7 @@ size_t MicrostructureGenerator::insertInclusion(const std::map<size_t,Eigen::Vec
 
 bool MicrostructureGenerator::insertCrackMesh(const std::vector<VectorDimD>& nodes,const std::vector<VectorDimD>& burgers,const std::vector<VectorDimI>& triangles)
 {
+    ddBase.dislocationDynamics();
     bool success(false);
     if(allPointsInMesh(nodes))
     {
@@ -650,7 +626,7 @@ bool MicrostructureGenerator::allPointsInGrain(const std::vector<VectorDimD>& po
 
 bool MicrostructureGenerator::allPointsInMesh(const std::vector<VectorDimD>& points)
 {
-    auto guess(&ddBase.mesh.simplices().begin()->second);
+    const auto* guess=ddBase.mesh.simplices().begin()->second.get();
     bool temp=true;
     for(const auto& point : points)
     {

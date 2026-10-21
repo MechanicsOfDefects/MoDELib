@@ -12,12 +12,14 @@
 #include <Eigen/CholmodSupport>
 #endif
 
-#include <MicrostructureContainer.h>
-#include <ElasticDeformationFEM.h>
+#include <DefectiveCrystal/MicrostructureContainer.h>
+#include <ElasticDeformation/ElasticDeformationFEM.h>
 #include <IntegrationDomain.h>
 #include <GaussLegendre.h>
-#include <FEMfaceEvaluation.h>
-#include <UniformController.h>
+#include <DefectiveCrystal/UniformController.h>
+#include <WeakProblem.h>
+#include <GlobalRigidMotionPenalty.h>
+#include <FEMLoadController.h>
 
 namespace model
 {
@@ -33,34 +35,28 @@ namespace model
     typedef typename MicrostructureBase<dim>::MatrixDim MatrixDim;
     typedef typename MicrostructureBase<dim>::VectorDim VectorDim;
     typedef MicrostructureContainer<dim> MicrostructureContainerType;
-    static constexpr int imageTractionIntegrationOrder=3;
-    typedef IntegrationDomain<FiniteElementType,1,imageTractionIntegrationOrder,GaussLegendre> TractionIntegrationDomainType;
-    typedef IntegrationList<1,FEMfaceEvaluation<ElementType,dim,dim>> TractionIntegrationListType;
     typedef UniformController<SymmetricVoigtTraits<dim>::voigtSize> UniformControllerType;
     
-#ifdef CHOLMOD_H // SuiteSparse Cholmod module
-    typedef Eigen::CholmodSupernodalLLT<typename ElasticDeformationFEM<dim>::SparseMatrixType> SPDsolverType;
-#else
-    typedef Eigen::SimplicialLLT<typename ElasticDeformationFEM<dim>::SparseMatrixType> SPDsolverType;
-#endif
+    using DirectSolverType=Eigen::SparseLU<typename ElasticDeformationFEM<dim>::SparseMatrixType>;
+    using IterativeSolverType=Eigen::BiCGSTAB<typename ElasticDeformationFEM<dim>::SparseMatrixType>;
+    using WeakProblemType=WeakProblem<DirectSolverType,IterativeSolverType>;
 
-    
     const bool useElasticDeformationFEM;
     const std::unique_ptr<ElasticDeformationFEM<dim>> elasticDeformationFEM;
     const std::unique_ptr<UniformControllerType> uniformLoadController;
     const double inertiaReliefPenaltyFactor;
-    SPDsolverType directSolver;
-    TractionIntegrationDomainType ndA;
-    TractionIntegrationListType tractionList;
+    using FEMControllerType=FEMLoadController<typename ElasticDeformationFEM<dim>::TrialFunctionType>;
+    std::shared_ptr<FEMControllerType> femLoadController;
+    std::shared_ptr<WeakProblemType> weakProblemSolver;
     Eigen::VectorXd zDot;
     bool solverInitialized;
     
     ElasticDeformation(MicrostructureContainerType& mc);
-    void initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
+    void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
     void solve() override;
     void reSolve() override;
     double getDt() const override;
-    void output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
+    void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
     void updateConfiguration() override;
     MatrixDim averagePlasticDistortion() const override ;
     MatrixDim averagePlasticDistortionRate() const override;
@@ -71,6 +67,7 @@ namespace model
     VectorMSize mobileConcentration(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
     VectorISize immobileClusters(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
     void initializeSolver();
+    void updatePeriodicGradient();
 };
 }
 #endif

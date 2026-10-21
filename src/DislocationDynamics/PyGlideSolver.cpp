@@ -11,6 +11,7 @@
 #include <random>
 #include <filesystem>
 #include <PyGlideSolver.h>
+#include <ConstrainedVelocitySolve.h>
 #include <TerminalColors.h>
 #include <Eigen/StdVector>
 #include <vector>
@@ -156,19 +157,21 @@ void adjustMinValueToZero(std::list<std::list<int>>& connections)
 }
 
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
 
     #ifdef _MODEL_PYBIND11_ // COMPLIED WITH PYBIND11
 
-    template <typename DislocationNetworkType>
-    PyGlideSolver<DislocationNetworkType>::PyGlideSolver(const DislocationNetworkType& DN_in) :
-    /* init */ DislocationGlideSolverBase<DislocationNetworkType>(DN_in)
+    template <int dim>
+    PyGlideSolver<dim>::PyGlideSolver(const DislocationNetwork<dim>& DN_in) :
+    /* init */ DislocationGlideSolverBase<dim>(DN_in)
     /* init */,pyModuleName(this->DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/"+TextFileParser(this->DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("pyModuleName"))
     {
         std::filesystem::path pyModulePath(pyModuleName);
         std::string pyModuleDir(pyModulePath.parent_path());
-        std::string pyModuleFile(pyModulePath.filename());
+        std::string pyModuleFile(pyModulePath.extension()==".py" ? pyModulePath.stem().string() : pyModulePath.filename().string());
         std::cout<<greenBoldColor<<"Creating PyGlideSolver: dir= "<<pyModuleDir<<", file="<<pyModuleFile<<defaultColor<<std::endl;
         //pybind11::scoped_interpreter guard{};
         pybind11::module sys = pybind11::module::import("sys");
@@ -177,23 +180,8 @@ namespace model
         pyModule=pybind11::module::import(pyModuleFile.c_str());
     }
 
-    template <typename DislocationNetworkType>
-    Eigen::MatrixXd PyGlideSolver<DislocationNetworkType>::updateBoundaryNodePythonVelocity(const Eigen::MatrixXd& nodePythonVelocity, const std::map<size_t, size_t>& boundaryNodeIDmap) const
-    {
-        Eigen::MatrixXd updatedNodePythonVelocity = nodePythonVelocity;
-        for (const auto& pair : boundaryNodeIDmap)
-        {
-            int rowIndex = pair.second;
-            if (rowIndex < updatedNodePythonVelocity.rows())
-            {
-                updatedNodePythonVelocity.row(rowIndex) = Eigen::RowVectorXd::Zero(this->NdofXnode);
-            }
-        }
-        return updatedNodePythonVelocity;
-    }
-
-    template <typename DislocationNetworkType>
-    Eigen::MatrixXd PyGlideSolver<DislocationNetworkType>::updateUnconnectedNodePythonVelocity(const Eigen::MatrixXd& nodePythonVelocity, const std::map<size_t, size_t>& removedNodeIDmap) const
+    template <int dim>
+    Eigen::MatrixXd PyGlideSolver<dim>::updateUnconnectedNodePythonVelocity(const Eigen::MatrixXd& nodePythonVelocity, const std::map<size_t, size_t>& removedNodeIDmap) const
     {
         std::set<size_t> removedIndices;
         for (const auto& pair : removedNodeIDmap)
@@ -220,37 +208,35 @@ namespace model
     }
 
 
-    template <typename DislocationNetworkType>
-    Eigen::VectorXd PyGlideSolver<DislocationNetworkType>::getNodeVelocities() const
+    template <int dim>
+    Eigen::VectorXd PyGlideSolver<dim>::getNodeVelocities() const
     {
         const auto t0= std::chrono::system_clock::now();
         std::cout<<"PyGlideSolver solving " << "\n" << std::flush;
         
-//        auto configIO(this->DN.io().configIO()); //evl files
-//        const auto auxIO(this->DN.io().auxIO()); //DDaux files
-//        const auto Temperature(this->DN.ddBase.poly.T);
-//        configIO.finalize();
-//        const auto segmentMap(configIO.segments());
-//        
-        DDconfigIO<dim> configIO(".");
-        DDauxIO<dim> auxIO(".");
+        DefectiveCrystalConfigIO<dim> configIO(".");
+        DefectiveCrystalAuxIO<dim> auxIO(".");
         std::ofstream f_file;
         std::ofstream F_labels;
         this->DN.output(configIO,auxIO,f_file,F_labels);
+        // Solver input is independent of optional diagnostic output.
+        auxIO.quadraturePoints().clear();
+        for(const auto& entry : this->DN.networkLinks())
+        {
+            for(const auto& point : entry.second.lock()->quadraturePoints())
+            {
+                auxIO.quadraturePoints().emplace_back(point);
+            }
+        }
         const auto Temperature(this->DN.ddBase.poly.T);
         configIO.finalize();
         const auto segmentMap(configIO.segments());
 
         std::map<size_t, DislocationNodeIO<3>> nodeMap;
-        std::map<size_t, size_t> boundaryNodeMap;
         int k(0);
         for (const auto &node : configIO.nodes())
         {
             nodeMap.emplace(node.sID, node);
-            if (node.meshLocation==1)
-            {
-                boundaryNodeMap.emplace(node.sID, k);
-            }
             k++;
         }
 
@@ -371,12 +357,16 @@ namespace model
 
         }
 
+        if(nodePythonVelocity.rows()!=nodeSize || nodePythonVelocity.cols()!=dim || !nodePythonVelocity.allFinite())
+        {
+            throw std::runtime_error("Python glide model returned invalid nodal velocities.");
+        }
         Eigen::MatrixXd updatedVelo = updateUnconnectedNodePythonVelocity(nodePythonVelocity, nodesToRemove);
-        Eigen::MatrixXd updatedVelocity = updateBoundaryNodePythonVelocity(updatedVelo, boundaryNodeMap);
+        Eigen::MatrixXd updatedVelocity = updatedVelo;
         updatedVelocity /= 3.228757859764734e01; //Convert to Velocities
         
 //        pybind11::print(pyModule.attr("PIGNN")().attr("MLmobility")(positionNodes,stressNodes,burgersNodes,connections,Temperature).template cast<Eigen::MatrixXd>());
-//        const std::string directory = "/Users/matthewmaron/Documents/MoDELib2-ML/tutorials/DislocationDynamics/periodicDomains/uniformLoadControllerML_500K/evl/";
+//        const std::string directory = "/Users/matthewmaron/Documents/MoDELib2-ML/tutorials/DislocationDynamics/periodicDomains/uniformLoadControllerML_500K/config/";
 //        const std::string base = "MLData_";
 //        const std::string extension = ".txt";
 //        const double runid(this->DN.ddBase.simulationParameters.runID);
@@ -397,29 +387,29 @@ namespace model
 //        
         std::cout<<magentaColor<<std::setprecision(3)<<std::scientific<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]."<<defaultColor<<std::endl;
        
-        return updatedVelocity.reshaped<Eigen::RowMajor>();
+        return compatiblePredictedVelocities<dim>(this->DN,updatedVelocity.reshaped<Eigen::RowMajor>());
         
     }
 
     #else // COMPLIED WITHOUT PYBIND11
 
-    template <typename DislocationNetworkType>
-    PyGlideSolver<DislocationNetworkType>::PyGlideSolver(const DislocationNetworkType& DN_in) :
-    /* init */ DislocationGlideSolverBase<DislocationNetworkType>(DN_in)
+    template <int dim>
+    PyGlideSolver<dim>::PyGlideSolver(const DislocationNetwork<dim>& DN_in) :
+    /* init */ DislocationGlideSolverBase<dim>(DN_in)
     {
         std::cout<<greenBoldColor<<"Creating PyGlideSolver"<<defaultColor<<std::endl;
         throw std::runtime_error("PyGlideSolver must be compiled with pybind11");
     }
 
-    template <typename DislocationNetworkType>
-    Eigen::VectorXd PyGlideSolver<DislocationNetworkType>::getNodeVelocities() const
+    template <int dim>
+    Eigen::VectorXd PyGlideSolver<dim>::getNodeVelocities() const
     {
         return Eigen::VectorXd();
     }
     #endif
 
 
-    template class PyGlideSolver<DislocationNetwork<3>>;
+    template class PyGlideSolver<3>;
     
 }
 #endif

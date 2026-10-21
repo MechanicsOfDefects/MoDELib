@@ -14,12 +14,14 @@
 #include <GalerkinClimbSolver.h>
 #include <TextFileParser.h>
 
+#include <DislocationNetwork.h>
+
 namespace model
 {
 
-    template <typename DislocationNetworkType>
-    DislocationClimbSolverBase<DislocationNetworkType>::DislocationClimbSolverBase(const DislocationNetworkType& DN,const ClusterDynamics<dim>* const CD_in) :
-    /* init */ DislocationVelocitySolverBase<DislocationNetworkType>(DN)
+    template <int dim>
+    DislocationClimbSolverBase<dim>::DislocationClimbSolverBase(const DislocationNetwork<dim>& DN,const ClusterDynamics<dim>* const CD_in) :
+    /* init */ DislocationVelocitySolverBase<dim>(DN)
     /* init */,glideEquilibriumRate(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("glideEquilibriumRate",true))
     /* init */,CD(CD_in)
     /* init */,vClimbRef(getVclimbRef())
@@ -30,20 +32,20 @@ namespace model
         }
     }
 
-    template <typename DislocationNetworkType>
-    const typename DislocationClimbSolverBase<DislocationNetworkType>::ScalarVelocitiesContainerType& DislocationClimbSolverBase<DislocationNetworkType>::scalarVelocities() const
+    template <int dim>
+    const typename DislocationClimbSolverBase<dim>::ScalarVelocitiesContainerType& DislocationClimbSolverBase<dim>::scalarVelocities() const
     {
         return *this;
     }
 
-    template <typename DislocationNetworkType>
-    typename DislocationClimbSolverBase<DislocationNetworkType>::ScalarVelocitiesContainerType& DislocationClimbSolverBase<DislocationNetworkType>::scalarVelocities()
+    template <int dim>
+    typename DislocationClimbSolverBase<dim>::ScalarVelocitiesContainerType& DislocationClimbSolverBase<dim>::scalarVelocities()
     {
         return *this;
     }
 
-    template <typename DislocationNetworkType>
-    double DislocationClimbSolverBase<DislocationNetworkType>::getVclimbRef() const
+    template <int dim>
+    double DislocationClimbSolverBase<dim>::getVclimbRef() const
     {
         double vRef(0.0);
         const auto eqC(CD->cdp.equilibriumMobileConcentration(0.0));
@@ -58,8 +60,8 @@ namespace model
         return  vRef;
     }
 
-    template <typename DislocationNetworkType>
-    std::shared_ptr<DislocationClimbSolverBase<DislocationNetworkType>> DislocationClimbSolverFactory<DislocationNetworkType>::getClimbSolver(const DislocationNetworkType& DN,const std::string& solverType)
+    template <int dim>
+    std::shared_ptr<DislocationClimbSolverBase<dim>> DislocationClimbSolverFactory<dim>::getClimbSolver(const DislocationNetwork<dim>& DN,const std::string& solverType)
     {
         const auto CD(DN.microstructures.template getUniqueTypedMicrostructure<ClusterDynamics<dim>>());
         if(CD)
@@ -67,7 +69,7 @@ namespace model
             if(solverType=="Galerkin" || solverType=="galerkin")
             {
                 
-                return std::shared_ptr<DislocationClimbSolverBase<DislocationNetworkType>>(new GalerkinClimbSolver<DislocationNetworkType>(DN,CD.get()));
+                return std::shared_ptr<DislocationClimbSolverBase<dim>>(new GalerkinClimbSolver<dim>(DN,CD.get()));
             }
             else
             {
@@ -82,8 +84,8 @@ namespace model
         }
     }
 
-    template struct DislocationClimbSolverBase<DislocationNetwork<3>>;
-    template struct DislocationClimbSolverFactory<DislocationNetwork<3>>;
+    template struct DislocationClimbSolverBase<3>;
+    template struct DislocationClimbSolverFactory<3>;
 
 }
 #endif

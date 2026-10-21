@@ -9,7 +9,7 @@
 #define model_InclusionMicrostructure_cpp_
 
 #include <InclusionMicrostructure.h>
-#include <EllipsoidalInclusion.h>
+#include <InclusionMicrostructure/EllipsoidalInclusion.h>
 #include <limits>
 
 namespace model
@@ -22,7 +22,7 @@ namespace model
     }
 
     template<int dim>
-    void InclusionMicrostructure<dim>::initializeConfiguration(const DDconfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
+    void InclusionMicrostructure<dim>::initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
     {
         this->lastUpdateTime=this->ddBase.simulationParameters.totalTime;
         
@@ -202,7 +202,7 @@ void InclusionMicrostructure<dim>::reSolve()
     }
 
     template<int dim>
-    void InclusionMicrostructure<dim>::output(DDconfigIO<dim>& configIO,DDauxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
+    void InclusionMicrostructure<dim>::output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const
     {
         for(const auto& node : this->polyhedronInclusionNodes())
         {

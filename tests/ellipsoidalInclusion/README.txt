@@ -3,8 +3,8 @@ Ellipsoidal inclusion tests
 These programs use the implementation, base class, and spherical inclusion
 from this repository. No mock headers or copied implementation are used.
 The production files are:
-  include/DislocationDynamicsBase/EllipsoidalInclusion.h
-  src/DislocationDynamicsBase/EllipsoidalInclusion.cpp
+  include/InclusionMicrostructure/EllipsoidalInclusion.h
+  src/InclusionMicrostructure/EllipsoidalInclusion.cpp
 
 Focused build from the MoDELib2 root:
   cmake -S tests/ellipsoidalInclusion -B build/ellipsoidalInclusion \
@@ -46,7 +46,7 @@ Production constructor:
                       quadratureTolerance=1e-3, quadratureMaxDepth=30)
 Columns of axes are mutually orthogonal semiaxis vectors, not unit vectors.
 Scope: 3D, equal isotropic inclusion/matrix moduli, infinite matrix, uniform
-symmetric eigenstrain. DDconfigIO supports text and binary records; inclusion
+symmetric eigenstrain. DefectiveCrystalConfigIO supports text and binary records; inclusion
 individual generation and simulation initialization are connected; DDqt visualization is connected. Stress uses cached interior values and adaptive
 Gauss-Kronrod exterior integrals with safeguarded Newton for the lower bound.
 
@@ -65,7 +65,7 @@ As with spherical records, supply elastic constants and the second-phase
 pointer when reconstructing the physical inclusion. Quadrature settings are
 not serialized.
 
-DDconfigIO provides const and mutable ellipsoidalInclusions() accessors.
+DefectiveCrystalConfigIO provides const and mutable ellipsoidalInclusions() accessors.
 Both text and binary formats store the ellipsoidal count immediately after
 spherical inclusions and before polyhedral inclusions; record blocks use the
 same order. clear(), print(), and bin2txt() include the new records.
@@ -157,7 +157,7 @@ Ellipsoids, polyhedra, and spherical density use crystalEigenDistortion;
 individual spheres use crystalEigenDistortions, one row per sphere.
 Each tensor is converted to C2G * crystalEigenDistortion * C2G.transpose()
 before insertion. Spheres use their center grain; polyhedra require all boundary
-vertices in one grain, matching the simulation loader. DDconfigIO stores global
+vertices in one grain, matching the simulation loader. DefectiveCrystalConfigIO stores global
 tensors and restart loading does not rotate them again. Old input/property names
 must be updated; no ambiguous global-frame aliases are provided.
 

@@ -28,3 +28,5 @@ target_sources(DDqtActors PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/../include/SlipSystemTab.h
 	${CMAKE_CURRENT_SOURCE_DIR}/SlipSystemTab.cpp
 	)
+
+target_sources(DDqtActors PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/DDqtControls.cpp)

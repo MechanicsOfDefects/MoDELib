@@ -11,6 +11,7 @@
 
 #include <DislocationDynamicsModule.h>
 #include <MeshedDislocationLoop.h>
+#include <CrossSlipBranch.h>
 
 
 #ifndef NDEBUG
@@ -67,6 +68,9 @@ namespace model
                         const std::shared_ptr<GlidePlaneType>& glidePlane_in);
         ~DislocationLoop();
         std::shared_ptr<LoopType> clone() const;
+        // Read current contour geometry without advancing timestep history.
+        VectorDim currentAreaVector() const;
+        double currentAreaRate() const;
         const double& slippedArea() const;
         const double& slippedAreaRate() const;
         const VectorDim& rightHandedUnitNormal() const;
@@ -83,7 +87,7 @@ namespace model
         const std::shared_ptr<SlipSystem>&  slipSystem() const;
         bool isVirtualBoundaryLoop() const;
         double solidAngle(const VectorDim& x) const;
-        void crossSlipBranches(std::deque<std::pair<std::deque<std::shared_ptr<LoopNodeType>>,int>>& csNodes) const;
+        void crossSlipBranches(std::deque<CrossSlipBranch<_dim>>& csNodes,const double dt=-1.0) const;
         const DislocationLoopPatches<_dim>& patches() const;
         std::vector<MeshedDislocationLoop> meshed(const double& meshSize,const double& localMeshSize) const;
         static void initFromFile(const std::string&);

@@ -13,7 +13,7 @@
 #include <set>
 #include <Eigen/Dense>
 #include <FiniteLineSegment.h>
-#include <PlanarMeshFace.h>
+#include <Polyhedron.h>
 #include <LineLineIntersection.h>
 #include <PlanePlaneIntersection.h>
 
@@ -29,8 +29,8 @@ namespace model
     public:
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         typedef FiniteLineSegment<dim> FiniteLineSegmentType;
-        typedef PlanarMeshFace<dim> PlanarMeshFaceType;
-        typedef std::set<const PlanarMeshFace<dim>*> FaceContainerType;
+        typedef Polyhedron<dim,dim-1> PlanarMeshFaceType;
+        typedef std::set<const Polyhedron<dim,dim-1>*> FaceContainerType;
         
     private:
         
@@ -70,19 +70,11 @@ namespace model
         
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         typedef Eigen::Matrix<double,dim,dim> MatrixDim;
-        typedef std::set<Eigen::Matrix<double,dim,1>,CompareVectorsByComponent<double,dim,float> > UniquePointContainer;
         typedef MeshBoundarySegment<dim> MeshBoundarySegmentType;
         typedef typename MeshBoundarySegmentType::FaceContainerType FaceContainerType;
         typedef std::vector<std::shared_ptr<MeshBoundarySegment<dim>>> MeshBoundarySegmentContainerType;
         
-        void emplace_unique(const VectorDim& P0,const VectorDim& P1,const PlanarMeshFace<dim>* const face);
-        void computeFaceIntersections(const Plane<dim>& plane,
-                                      const std::shared_ptr<PlanarMeshFace<dim>>& face);
-        
-        void sortIntersections(const Plane<dim>& plane);
         BoundingMeshSegments();
-        BoundingMeshSegments(const SimplicialMesh<dim>& mesh,
-                             const Plane<dim>& plane);
         BoundingMeshSegments(const SimplicialMesh<dim>& mesh,
                              const size_t& rID,
                              const Plane<dim>& plane);

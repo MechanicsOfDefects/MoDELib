@@ -1,5 +1,5 @@
 #include <EllipsoidalInclusionIndividualSpecification.h>
-#include <EllipsoidalInclusion.h>
+#include <InclusionMicrostructure/EllipsoidalInclusion.h>
 #include <filesystem>
 #include <chrono>
 #include <fstream>

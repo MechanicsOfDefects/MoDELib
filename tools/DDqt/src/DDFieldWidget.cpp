@@ -26,8 +26,11 @@
 #include <vtkFloatArray.h>
 #include <vtkAxis.h>
 #include <DDFieldWidget.h>
+#include <ClusterDynamics/ClusterDynamicsBase.h>
 
 #include <DDqtControls.h>
+#include <PlaneSectionMesh.h>
+#include <QMessageBox>
 
 namespace model
 {
@@ -216,9 +219,18 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
     }
     fieldComboBox->insertItem(6+3,"tr(stress)");
     fieldComboBox->insertItem(7+3,"stress_VM");
-    for(int k=0;k<ClusterDynamicsParameters<3>::mSize;++k)
+    if(defectiveCrystal.ddBase.clusterDynamicsBase)
     {
-        fieldComboBox->insertItem(8+3+k,"v");
+        const auto& mobileSpecies=defectiveCrystal.ddBase.clusterDynamics().msVector;
+        for(Eigen::Index k=0;k<mobileSpecies.size();++k)
+        {
+            const int species=static_cast<int>(mobileSpecies(k));
+            const int size=std::abs(species);
+            const QString defect=species<0 ? "v" : "i";
+            const QString label=species==-1 ? "c_v" :
+                "c_"+(size==1 ? QString() : QString::number(size))+defect;
+            fieldComboBox->insertItem(11+static_cast<int>(k),label);
+        }
     }
     
     for(const auto& mstruct : defectiveCrystal.microstructures())
@@ -648,7 +660,7 @@ void DDPlaneField::resetPlane()
     
     double meshSize;
     std::stringstream ssM(meshSizeEdit->text().toStdString());
-    if(ssM >> meshSize)
+    if((ssM >> meshSize) && std::isfinite(meshSize) && meshSize>0.0)
     {
         meshSizeEdit->setStyleSheet("background-color: white");
         
@@ -664,59 +676,62 @@ void DDPlaneField::resetPlane()
             {
                 normalEdit->setStyleSheet("background-color: white");
                 const double nNorm(N.norm());
-                if(nNorm>FLT_EPSILON)
+                if(P.allFinite() && N.allFinite() && nNorm>FLT_EPSILON)
                 {
-                    plane.reset(new MeshPlane<3>(defectiveCrystal.ddBase.mesh,P,N));
-                    std::deque<Eigen::Matrix<double,2,1>> boundaryPts;
-                    std::deque<Eigen::Matrix<double,2,1>> internalPts;
-                    for(const auto& bndLine : plane->meshIntersections)
+                    try
                     {
-                        boundaryPts.push_back(plane->localPosition(bndLine->P0));
-                        
-                    }
-                    this->reMesh(boundaryPts,internalPts,meshSize,"pazq");
-                    
-                    dataPnts().clear();
-                    vtkSmartPointer<vtkPoints> meshPts(vtkSmartPointer<vtkPoints>::New());
-                    for(const auto& point2d : this->vertices())
-                    {
-                        const auto point3d(plane->globalPosition(point2d));
-                        meshPts->InsertNextPoint(point3d(0),point3d(1),point3d(2));
-                        const ElementType* ele(nullptr);
-                        if(defectiveCrystal.ddBase.fe)
+                        const auto newPlane=std::make_shared<Plane<3>>(P,N);
+                        const auto newMesh=planeSectionMesh(defectiveCrystal.ddBase.mesh,*newPlane,meshSize);
+                        std::deque<FieldDataPnt> newData;
+                        vtkSmartPointer<vtkPoints> meshPts(vtkSmartPointer<vtkPoints>::New());
+                        for(const auto& point2d : newMesh.vertices())
                         {
-                            const auto searchPair(defectiveCrystal.ddBase.mesh.search(point3d));
-                            if(searchPair.first)
+                            const auto point3d(newPlane->globalPosition(point2d));
+                            meshPts->InsertNextPoint(point3d(0),point3d(1),point3d(2));
+                            const ElementType* ele(nullptr);
+                            if(defectiveCrystal.ddBase.fe)
                             {
-                                ele=&defectiveCrystal.ddBase.fe->elements().at(searchPair.second->xID);
+                                const auto searchPair(defectiveCrystal.ddBase.mesh.search(point3d));
+                                if(searchPair.first)
+                                {
+                                    ele=&defectiveCrystal.ddBase.fe->elements().at(searchPair.second->xID);
+                                }
                             }
+                            newData.emplace_back(defectiveCrystal,point3d,ele);
                         }
-                        dataPnts().emplace_back(defectiveCrystal,point3d,ele);
+
+                        vtkSmartPointer<vtkCellArray> meshTriangles(vtkSmartPointer<vtkCellArray>::New());
+                        vtkSmartPointer<vtkUnsignedCharArray> meshColors(vtkSmartPointer<vtkUnsignedCharArray>::New());
+                        meshColors->SetNumberOfComponents(3);
+                        for(const auto& tri : newMesh.triangles())
+                        {
+                            vtkSmartPointer<vtkTriangle> triangle = vtkSmartPointer<vtkTriangle>::New();
+                            triangle->GetPointIds()->SetId (0,tri(0));
+                            triangle->GetPointIds()->SetId (1,tri(1));
+                            triangle->GetPointIds()->SetId (2,tri(2));
+                            meshTriangles->InsertNextCell ( triangle );
+                            const auto triColor(Eigen::Matrix<int,1,3>::Random()*255);
+                            meshColors->InsertNextTuple3(triColor(0),triColor(1),triColor(2)); // use this to assig color to each vertex
+                        }
+
+                        plane=newPlane;
+                        vertices()=newMesh.vertices();
+                        triangles()=newMesh.triangles();
+                        dataPnts().swap(newData);
+                        meshPolydata->SetPoints ( meshPts );
+                        meshPolydata->SetPolys ( meshTriangles );
+                        meshPolydata->GetCellData()->SetScalars(meshColors);
+                        meshPolydata->Modified();
+                        meshMapper->SetScalarModeToUseCellData();
+                        if(renWin->GetReadyForRendering())
+                        {
+                            renWin->Render();
+                        }
                     }
-                    
-                    vtkSmartPointer<vtkCellArray> meshTriangles(vtkSmartPointer<vtkCellArray>::New());
-                    vtkSmartPointer<vtkUnsignedCharArray> meshColors(vtkSmartPointer<vtkUnsignedCharArray>::New());
-                    meshColors->SetNumberOfComponents(3);
-                    for(const auto& tri : this->triangles())
+                    catch(const std::exception& error)
                     {
-                        vtkSmartPointer<vtkTriangle> triangle = vtkSmartPointer<vtkTriangle>::New();
-                        triangle->GetPointIds()->SetId (0,tri(0));
-                        triangle->GetPointIds()->SetId (1,tri(1));
-                        triangle->GetPointIds()->SetId (2,tri(2));
-                        meshTriangles->InsertNextCell ( triangle );
-                        const auto triColor(Eigen::Matrix<int,1,3>::Random()*255);
-                        meshColors->InsertNextTuple3(triColor(0),triColor(1),triColor(2)); // use this to assig color to each vertex
+                        QMessageBox::warning(this,tr("Field plane"),QString::fromUtf8(error.what()));
                     }
-                    
-                    meshPolydata->SetPoints ( meshPts );
-                    meshPolydata->SetPolys ( meshTriangles );
-                    meshPolydata->GetCellData()->SetScalars(meshColors);
-                    meshPolydata->Modified();
-                    meshMapper->SetScalarModeToUseCellData();
-                    if(renWin->GetReadyForRendering())
-                {
-                    renWin->Render();
-                }
                 }
                 else
                 {

@@ -1,7 +1,11 @@
-\chapter{Regularization of singular fields}
-%\subsubsection{Stress field}
+\chapter{DDD: regularization of singular fields}
+\begin{draftnote}
+These finite-core expressions were previously outside the compiled manual. They are retained as working theory; the index notation and equivalence of the component and dyadic forms still require a dedicated mathematical review. The inherited Levi--Civita notation is standardized to $\epsilon_{ijk}$.
+\end{draftnote}
+The regularized distance is $R_a=\sqrt{\bm R\cdot\bm R+a^2}$. The plot below illustrates the smoothing of this distance.
+\section{Stress kernel}
 \begin{equation}
-\sigma^\text{ns}_{ij}(\bm F)=\frac{\mu b_n}{8\pi}\int_\mathcal{S} \left[R_{a,mpp}\left(\in_{jmn}\xi_i+\in_{imn}\xi_j\right)+\frac{2}{1-\nu}\in_{kmn}\left(R_{a,ijm}-\delta_{ij}R_{a,ppm}\right)\xi_k\right]dl^s
+\sigma^\text{ns}_{ij}(\bm F)=\frac{\mu b_n}{8\pi}\int_\mathcal{S} \left[R_{a,mpp}\left(\epsilon_{jmn}\xi_i+\epsilon_{imn}\xi_j\right)+\frac{2}{1-\nu}\epsilon_{kmn}\left(R_{a,ijm}-\delta_{ij}R_{a,ppm}\right)\xi_k\right]dl^s
 \end{equation}
 where $\bm R=\bm F-\bm S$ is the vector connecting the source point to the field point and $\xi=\frac{d\bm S}{dl^s}$ s the unit tangent along the source dislocation. 
 
@@ -11,7 +15,10 @@ R_{,ijk}=-\frac{\delta_{ij}R_k+\delta_{jk}R_i+\delta_{ki}R_j}{R_a^3}+\frac{3R_iR
 \end{equation}
 we find
 \begin{equation}
-\sigma_{ij}(\bm F)=\frac{\mu b_n}{4\pi}\int_\mathcal{S} \left[-\left(1+\frac{3a^2}{2R_a^2}\right)\frac{R_m}{R_a^3}\left(\in_{jmn}\xi_i+\in_{imn}\xi_j\right)+\frac{1}{1-\nu}\in_{kmn}\left(\frac{\delta_{ij}\left(1+\frac{3a^2}{R_a^2}\right)R_m-\delta_{jm}R_i-\delta_{mi}R_j}{R_a^3}+\frac{3R_iR_jR_m}{R_a^5}\right)\xi_k\right]dl^s
+\begin{split}
+\sigma_{ij}(\bm F)=\frac{\mu b_n}{4\pi}\int_\mathcal{S} &\left[-\left(1+\frac{3a^2}{2R_a^2}\right)\frac{R_m}{R_a^3}\left(\epsilon_{jmn}\xi_i+\epsilon_{imn}\xi_j\right)\right.
+\\ &\left.+\frac{1}{1-\nu}\epsilon_{kmn}\left(\frac{\delta_{ij}\left(1+\frac{3a^2}{R_a^2}\right)R_m-\delta_{jm}R_i-\delta_{mi}R_j}{R_a^3}+\frac{3R_iR_jR_m}{R_a^5}\right)\xi_k\right]dl^s
+\end{split}
 \end{equation}
 In dyadic form
 \begin{align}
@@ -20,4 +27,4 @@ In dyadic form
 %
 &\left.+[(\tilde{\bm R}\times\bm b)\cdot\hat{\bm \xi}]\left[\left(1+\frac{3a^2}{R_a^2}\right)\bm I+3\tilde{\bm R}\otimes \tilde {\bm R}\right]\right\}
 \end{align}
-where $\tilde{\bm R}=\bm R/R_a$
+where $\tilde{\bm R}=\bm R/R_a$\manualfigure{regularized_distance}{0.8}{Analytical distance kernel $R_a=\sqrt{x^2+a^2}$ for two core radii. This illustrates the smoothing operation, not the full dislocation stress or a simulated core structure.}

@@ -10,6 +10,7 @@
 
 #include <DislocationNode.h>
 #include <PlanesIntersection.h>
+#include <OneSidedMotion.h>
 
 namespace model
 {
@@ -122,76 +123,66 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
 
     
     template <int dim>
+    typename DislocationNode<dim>::VectorOfNormalsType DislocationNode<dim>::physicalBoundaryNormals() const
+    {
+        VectorOfNormalsType normals;
+        for(const auto* ln : this->loopNodes())
+        {
+            if(!ln->periodicPlanePatch())
+            {
+                continue;
+            }
+            const int grain=ln->periodicPlanePatch()->glidePlane->grain.grainID;
+            for(const auto& edge : {ln->periodicPlaneEdge.first,ln->periodicPlaneEdge.second})
+            {
+                if(!edge)
+                {
+                    continue;
+                }
+                for(const auto* face : edge->meshIntersection->faces)
+                {
+                    if(!face->periodicFacePair.second || face->regionIDs!=face->periodicFacePair.second->regionIDs)
+                    {
+                        const VectorDim normal=face->outNormal(grain);
+                        bool duplicate=false;
+                        for(const auto& existing : normals)
+                        {
+                            duplicate|=(normal-existing).norm()<1.e-12;
+                        }
+                        if(!duplicate && normal.squaredNorm()>0.0)
+                        {
+                            normals.push_back(normal);
+                        }
+                    }
+                }
+            }
+        }
+        return normals;
+    }
+
+    template <int dim>
     void DislocationNode<dim>::projectVelocity(const bool& isClimbingStep)
     {
-        
-        VectorOfNormalsType temp;
-//        temp.push_back(VectorDim::UnitZ());
-
-        
-        for(const auto& loopNode : this->loopNodes())
+        VectorOfNormalsType equalities;
+        for(const auto* ln : this->loopNodes())
         {
-            const auto& loop(loopNode->loop());
-            if(loop)
+            if(ln->loop()->glidePlane)
             {
-                if(loop->glidePlane)
-                {
-                    temp.push_back(loop->glidePlane->unitNormal);
-                }
-                if(!isClimbingStep && loop->loopType==DislocationLoopIO<dim>::SESSILELOOP)
-                {
-                    velocity.setZero();
-                    break;
-                }
-//                if(loop->loopType==DislocationLoopIO<dim>::GLISSILELOOP)
-//                {
-//                    if(loop->glidePlane)
-//                    {
-//                        temp.push_back(loop->glidePlane->unitNormal);
-//                    }
-//                }
-//                else if(loop->loopType==DislocationLoopIO<dim>::SESSILELOOP)
-//                {
-//                    velocity.setZero();
-//                    break;
-//                }
+                equalities.push_back(ln->loop()->glidePlane->unitNormal);
             }
-//            else
-//            {
-//                assert(false && "no loop in node");
-//            }
-
+            if(!isClimbingStep && ln->loop()->loopType==DislocationLoopIO<dim>::SESSILELOOP)
+            {
+                velocity.setZero();
+                return;
+            }
         }
-        
-//        if(velocity.squaredNorm()>FLT_EPSILON)
-//        {
-            
-            
-            if(!this->network().ddBase.isPeriodicDomain)
-            {// Use boundary planes to confine velocity in case of non-periodic simulation
-                
-                for(const auto& face : this->meshFaces())
-                {
-                    temp.push_back(face->asPlane().unitNormal);
-                }
-            }
-            
-            for(int r=0;r<this->network().nodalVelocityConstraints.rows();++r)
-            {
-                temp.push_back(this->network().nodalVelocityConstraints.row(r));
-            }
-            
-
-            GramSchmidt::orthoNormalize(temp);
-            
-            for(const auto& vec : temp)
-            {
-                velocity-=velocity.dot(vec)*vec;
-            }
-            
-//        }
+        for(int r=0;r<this->network().nodalVelocityConstraints.rows();++r)
+        {
+            equalities.push_back(this->network().nodalVelocityConstraints.row(r));
+        }
+        velocity=oneSidedMotion<dim>(velocity,equalities,physicalBoundaryNormals());
     }
-    
+
     template <int dim>
     void DislocationNode<dim>::set_V(const VectorDim& vNew,const bool& isClimbingStep)
     {
@@ -266,21 +257,49 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
     template <int dim>
     bool DislocationNode<dim>::trySet_P(const typename DislocationNode<dim>::VectorDim& newP)
     {
-        VerboseDislocationNode(1, " Try  Setting P for Network Node " << this->tag()<<" to"<<newP.transpose()<< std::endl;);
-        const VectorDim snappedPosition(snapToGlidePlanesinPeriodic(newP));
-        VerboseDislocationNode(2, " snappedPosition= " << snappedPosition.transpose()<< std::endl;);
-        std::pair<bool, const Simplex<dim,dim>*> temp(this->network().ddBase.mesh.searchRegionWithGuess(newP,p_Simplex));
-        if((this->get_P()-snappedPosition).norm()>FLT_EPSILON && (this->network().ddBase.isPeriodicDomain || temp.first))
+        auto& network=this->network();
+        VectorDim displacement=snapToGlidePlanesinPeriodic(newP)-this->get_P();
+        VectorOfNormalsType normals;
+        for(const auto* plane : glidePlanes())
         {
-            for (auto &loopNode : this->loopNodes())
+            normals.push_back(plane->unitNormal);
+        }
+        for(int r=0;r<network.nodalVelocityConstraints.rows();++r)
+        {
+            normals.push_back(network.nodalVelocityConstraints.row(r));
+        }
+        displacement=oneSidedMotion<dim>(displacement,normals,physicalBoundaryNormals());
+        const bool immediate=!network.trialNodeMotion;
+        std::vector<std::pair<std::shared_ptr<LoopNodeType>,typename LoopNodeType::SplineNodeType>> saved;
+        for(const auto* node : this->loopNodes())
+        {
+            saved.emplace_back(network.loopNodes().get(node->sID),static_cast<const typename LoopNodeType::SplineNodeType&>(*node));
+        }
+        network.trialNodeMotion=true;
+        try
+        {
+            for(const auto& entry : saved)
             {
-                loopNode->set_P(loopNode->periodicPlanePatch() ? snappedPosition - loopNode->periodicPlanePatch()->shift : snappedPosition);
+                entry.first->set_P(VectorDim(entry.second.get_P()+displacement));
+            }
+            if(immediate)
+            {
+                network.updateBoundaryNodes();
+                network.trialNodeMotion=false;
             }
         }
-
+        catch(...)
+        {
+            for(const auto& entry : saved)
+            {
+                static_cast<typename LoopNodeType::SplineNodeType&>(*entry.first)=entry.second;
+            }
+            network.trialNodeMotion=!immediate;
+            throw;
+        }
         return true;
     }
-    
+
     template <int dim>
     bool DislocationNode<dim>::set_P(const typename DislocationNode<dim>::VectorDim& newP)
     {
@@ -288,9 +307,9 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
 
         if((SplineNodeType::get_P()-newP).norm()>FLT_EPSILON)   //Check with the base classs
         {
+            const auto simplex=get_includingSimplex(newP,p_Simplex);
             SplineNodeType::set_P(newP);
-            // this->updateConfinement(this->get_P());
-            p_Simplex=get_includingSimplex(this->get_P(),p_Simplex); // update including simplex
+            p_Simplex=simplex;
             
         }
         
@@ -329,31 +348,18 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
     
     template <int dim>
     typename DislocationNode<dim>::MeshLocation DislocationNode<dim>::meshLocation() const
-    {/*!\returns the position of *this relative to the bonudary:
-      * 1 = inside mesh
-      * 2 = on mesh boundary
-      */
-        MeshLocation temp = MeshLocation::outsideMesh;
-
-//        if(!isVirtualBoundaryNode())
-//        {
-            if(isBoundaryNode())
-            {
-                temp=MeshLocation::onMeshBoundary;
-            }
-            else
-            {
-                if(isGrainBoundaryNode())
-                {
-                    temp=MeshLocation::onRegionBoundary;
-                }
-                else
-                {
-                    temp=MeshLocation::insideMesh;
-                }
-            }
-//        }
-        return temp;
+    {
+        // A periodic grain interface is both an outer mesh boundary and a GB.
+        // Give its physical GB classification priority in serialized/display data.
+        if(isGrainBoundaryNode())
+        {
+            return MeshLocation::onRegionBoundary;
+        }
+        if(isBoundaryNode())
+        {
+            return MeshLocation::onMeshBoundary;
+        }
+        return MeshLocation::insideMesh;
     }
     
 //    template <int dim>
@@ -420,7 +426,19 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
     template <int dim>
     bool DislocationNode<dim>::isGrainBoundaryNode() const
     {
-        return this->isOnInternalBoundary();
+        for(const auto* face : meshFaces())
+        {
+            if(face->regionIDs.first!=face->regionIDs.second)
+            {
+                return true;
+            }
+            const auto* partner=face->periodicFacePair.second;
+            if(partner && face->regionIDs!=partner->regionIDs)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     template <int dim>
@@ -445,7 +463,8 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
         {
             if (ln->periodicPlaneEdge.first)
             {
-                temp = ln->periodicPlaneEdge.first->meshIntersection->faces;
+                const auto& faces=ln->periodicPlaneEdge.first->meshIntersection->faces;
+                temp.insert(faces.begin(),faces.end());
             }
             if (ln->periodicPlaneEdge.second)
             {

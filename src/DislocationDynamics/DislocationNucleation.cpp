@@ -19,7 +19,7 @@
 //#include <FCClattice.h>
 //#include <Grain.h>
 //#include <TerminalColors.h>
-//#include <DDtraitsIO.h>
+//#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
 
 namespace model
 {
@@ -41,8 +41,8 @@ void DislocationNucleation<dim>::bulkNucleate(const int& bulkNucleationModel)
             MicrostructureGenerator mg(DN.ddBase);
             for(const auto& simplex : DN.ddBase.mesh.simplices())
             {
-                const auto c(simplex.second.center());
-                const auto grainID(simplex.second.region->regionID);
+                const auto c(simplex.second->center());
+                const auto grainID(simplex.second->region->regionID);
                 const auto& grain(DN.ddBase.poly.grain(grainID));
                 const auto sigma(DN.microstructures.stress(c,nullptr,nullptr,nullptr));
                 std::map<float,std::shared_ptr<SlipSystem>> rssMap;

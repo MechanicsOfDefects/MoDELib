@@ -17,6 +17,7 @@
 #include <QGridLayout>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QSlider>
 
 #include <vtkGenericOpenGLRenderWindow.h>
 #include <vtkVersion.h>
@@ -37,10 +38,10 @@
 #include <vtkFloatArray.h>
 #include <IDreader.h>
 //#include <PlanarPolygon.h>
-#include <DDconfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
 #include <MeshPlane.h>
 //#include <ConfigurationFields.h>
-#include <DefectiveCrystal.h>
+#include <DefectiveCrystal/DefectiveCrystal.h>
 #include <SlipSystemTab.h>
 
 
@@ -66,7 +67,9 @@ namespace model
         QCheckBox* showLinks;
         QSlider* sliderLinksRadius;
 
-        QCheckBox* showZeroLinks;
+        QSlider* sliderNormalOpacity;
+        QSlider* sliderZeroOpacity;
+        QSlider* sliderBoundaryOpacity;
         QComboBox* linksColorBox;
 
 //        double tubeRadius;

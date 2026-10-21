@@ -10,6 +10,7 @@
 #define model_CrossSlipModels_H
 
 #include <deque>
+#include <CrossSlipBranch.h>
 #include <map>
 #include <tuple>
 
@@ -21,51 +22,52 @@
 #include <FCClattice.h>
 #include <Grain.h>
 #include <TerminalColors.h>
-#include <DDtraitsIO.h>
+#include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
 
 namespace model
 {
-    template <typename DislocationNetworkType>
+    template<int dim> class DislocationNetwork;
+    template <int dim>
     struct BaseCrossSlipModel
     {
-        typedef TypeTraits<DislocationNetworkType> TraitsType;
-        static constexpr int dim=TraitsType::dim;
+        typedef TypeTraits<DislocationNetwork<dim>> TraitsType;
         typedef typename TraitsType::NetworkLinkType NetworkLinkType;
         typedef typename TraitsType::NetworkNodeType NetworkNodeType;
         typedef std::tuple<std::shared_ptr<NetworkNodeType>,std::shared_ptr<NetworkNodeType>,size_t,size_t> CrossSlipTupleType;
         typedef std::deque<CrossSlipTupleType> CrossSlipContainerType;
         
         
-        BaseCrossSlipModel(const DDtraitsIO& traitsIO);
+        BaseCrossSlipModel(const DefectiveCrystalTraitsIO& traitsIO);
         virtual ~BaseCrossSlipModel() = default;
 
         virtual void addToCrossSlip(const NetworkLinkType& link,CrossSlipContainerType& crossSlipDeq) = 0;
         virtual std::pair<bool,std::pair<int,int>> isCrossSlipLink(const NetworkLinkType& link) = 0;
-        std::pair<bool,int> isBaseCrossSlipLink(const NetworkLinkType& link) const;
+        std::pair<bool,int> isBaseCrossSlipLink(const NetworkLinkType& link, const bool enforceRemeshLength=true) const;
+        virtual bool isThermal() const { return false; }
+        virtual std::optional<ThermalCrossSlipEvent> sampleBranch(const std::vector<const NetworkLinkType*>&,const double) { return std::nullopt; }
         
         const double crossSlipDeg;
         const double sinCrossSlip;
     };
 
-    template <typename DislocationNetworkType>
-    struct AthermalCrossSlipModel : public BaseCrossSlipModel<DislocationNetworkType>
+    template <int dim>
+    struct AthermalCrossSlipModel : public BaseCrossSlipModel<dim>
     {
-        typedef TypeTraits<DislocationNetworkType> TraitsType;
-        static constexpr int dim=TraitsType::dim;
+        typedef TypeTraits<DislocationNetwork<dim>> TraitsType;
         typedef typename TraitsType::NetworkLinkType NetworkLinkType;
         typedef typename TraitsType::NetworkNodeType NetworkNodeType;
         typedef std::tuple<std::shared_ptr<NetworkNodeType>,std::shared_ptr<NetworkNodeType>,size_t,size_t> CrossSlipTupleType;
         typedef std::deque<CrossSlipTupleType> CrossSlipContainerType;
         
-        AthermalCrossSlipModel(const DDtraitsIO& traitsIO);
+        AthermalCrossSlipModel(const DefectiveCrystalTraitsIO& traitsIO);
         void addToCrossSlip(const NetworkLinkType& link,CrossSlipContainerType& crossSlipDeq) override;
         std::pair<bool,std::pair<int,int>> isCrossSlipLink(const NetworkLinkType& link) override;
     };
 
-//    template <typename DislocationNetworkType>   //For FCC lattice the same is BCC
-//    struct EscaigCrossSlipModelFCC : public BaseCrossSlipModel<DislocationNetworkType>
+//    template <int dim>   //For FCC lattice the same is BCC
+//    struct EscaigCrossSlipModelFCC : public BaseCrossSlipModel<dim>
 //    {
-//        typedef TypeTraits<DislocationNetworkType> TraitsType;
+//        typedef TypeTraits<DislocationNetwork<dim>> TraitsType;
 //        static constexpr int dim=TraitsType::dim;
 //        typedef typename TraitsType::NetworkLinkType NetworkLinkType;
 //        typedef typename TraitsType::NetworkNodeType NetworkNodeType;
@@ -85,7 +87,7 @@ namespace model
 //        const double Tau_3;
 //
 //       
-//        EscaigCrossSlipModelFCC(const PolycrystallineMaterialBase& material,const DDtraitsIO& traitsIO);
+//        EscaigCrossSlipModelFCC(const PolycrystallineMaterialBase& material,const DefectiveCrystalTraitsIO& traitsIO);
 //        double crossSlipRateKernel(const int& k,const NetworkLinkType& link,const SlipSystem& css,
 //                                   const double& w,
 //                                   const double& L,
@@ -96,11 +98,10 @@ namespace model
 //        std::pair<bool,std::pair<int,int>> isCrossSlipLink(const NetworkLinkType& link) override;
 //    };
 
-    template <typename DislocationNetworkType>
-    struct EscaigCrossSlipModelHEX : public BaseCrossSlipModel<DislocationNetworkType>
+    template <int dim>
+    struct EscaigCrossSlipModelHEX : public BaseCrossSlipModel<dim>
     {
-        typedef TypeTraits<DislocationNetworkType> TraitsType;
-        static constexpr int dim=TraitsType::dim;
+        typedef TypeTraits<DislocationNetwork<dim>> TraitsType;
         typedef typename TraitsType::NetworkLinkType NetworkLinkType;
         typedef typename TraitsType::NetworkNodeType NetworkNodeType;
         typedef std::tuple<std::shared_ptr<NetworkNodeType>,std::shared_ptr<NetworkNodeType>,size_t,size_t> CrossSlipTupleType;
@@ -124,7 +125,11 @@ namespace model
         const double csp2bVsc;
         const double csp2bVec;
         
-        EscaigCrossSlipModelHEX(const PolycrystallineMaterialBase& material,const DDtraitsIO& traitsIO);
+        EscaigCrossSlipModelHEX(const PolycrystallineMaterialBase& material,const DefectiveCrystalTraitsIO& traitsIO);
+        bool isThermal() const override { return true; }
+        std::optional<ThermalCrossSlipEvent> sampleBranch(const std::vector<const NetworkLinkType*>& links,const double dt) override;
+        std::map<int,double> targetRates(const NetworkLinkType& link) const;
+        double nucleationLength(const NetworkLinkType& link) const;
         double crossSlipRateKernel(const int& k,const NetworkLinkType& link,const SlipSystem& css,
                                    const double& w,
                                    const double& L,

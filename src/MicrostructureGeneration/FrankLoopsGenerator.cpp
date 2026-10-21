@@ -8,6 +8,7 @@
 #ifndef model_FrankLoopsGenerator_cpp_
 #define model_FrankLoopsGenerator_cpp_
 
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <numbers>
 #include <chrono>
 #include <random>
@@ -24,16 +25,16 @@
 #include <PolycrystallineMaterialBase.h>
 #include <LatticeModule.h>
 //#include <PlaneMeshIntersection.h>
-#include <DislocationNodeIO.h>
-#include <DislocationLoopIO.h>
-#include <DislocationLoopLinkIO.h>
-#include <DislocationLoopNodeIO.h>
-#include <DDconfigIO.h>
-#include <DDauxIO.h>
+#include <DislocationDynamics/DislocationNodeIO.h>
+#include <DislocationDynamics/DislocationLoopIO.h>
+#include <DislocationDynamics/DislocationLoopLinkIO.h>
+#include <DislocationDynamics/DislocationLoopNodeIO.h>
+#include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
+#include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 
-#include <DislocationLinkingNumber.h>
+#include <DislocationDynamics/DislocationLinkingNumber.h>
 #include <TextFileParser.h>
-#include <DislocationInjector.h>
+#include <DislocationDynamics/DislocationInjector.h>
 #include <MeshBoundarySegment.h>
 #include <GlidePlaneModule.h>
 #include <MeshModule.h>
@@ -162,7 +163,7 @@ FrankLoopsGenerator::FrankLoopsGenerator(const FrankLoopsIndividualSpecification
             
             const long int planeIndex(planeBase.closestPlaneIndexOfPoint(center));
             GlidePlaneKey<3> glidePlaneKey(planeIndex, planeBase);
-            std::shared_ptr<PeriodicGlidePlane<3>> glidePlane(mg.ddBase.periodicGlidePlaneFactory.get(glidePlaneKey));
+            std::shared_ptr<PeriodicGlidePlane<3>> glidePlane(mg.ddBase.dislocationDynamics().periodicGlidePlaneFactory.get(glidePlaneKey));
             const VectorDimD P0(glidePlane->referencePlane->snapToPlane(center));
             
             std::vector<VectorDimD> loopNodePos;

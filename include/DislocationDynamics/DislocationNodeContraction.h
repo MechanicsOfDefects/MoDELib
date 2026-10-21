@@ -14,26 +14,28 @@
 
 namespace model
 {
-    template <typename DislocationNetworkType>
+    template<int dim> class DislocationNetwork;
+    template <int dim>
     class DislocationNodeContraction
     {
-        static constexpr int dim=TypeTraits<DislocationNetworkType>::dim;
-        typedef typename TypeTraits<DislocationNetworkType>::NetworkNodeType NetworkNodeType;
+        typedef typename TypeTraits<DislocationNetwork<dim>>::NetworkNodeType NetworkNodeType;
         typedef Eigen::Matrix<double,dim,1> VectorDim;
         
         std::vector<std::set<std::shared_ptr<NetworkNodeType>>> contractBoundary(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
-        bool contractSecondAndVirtual(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
-        bool contractYoungest(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
-        bool contractToPosition(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const VectorDim& X, const double& maxRange);
+        bool contractSecondAndVirtual(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary);
+        bool contractYoungest(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary);
+        bool contractToPosition(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const VectorDim& X, const double& maxRange,const bool reconcileBoundary);
 
-        DislocationNetworkType& DN;
+        bool canReach(const std::shared_ptr<NetworkNodeType>& node,const VectorDim& target) const;
+        bool commitContraction(std::shared_ptr<NetworkNodeType> a,std::shared_ptr<NetworkNodeType> b,const VectorDim& target,const bool reconcileBoundary);
+        DislocationNetwork<dim>& DN;
 
     public:
         
         const int verboseNodeContraction;
 
-        DislocationNodeContraction(DislocationNetworkType& DN_in);
-        bool contract(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB);
+        DislocationNodeContraction(DislocationNetwork<dim>& DN_in);
+        bool contract(std::shared_ptr<NetworkNodeType> nA,std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary=true);
     };
 }
 #endif

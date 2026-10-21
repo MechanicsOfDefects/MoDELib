@@ -14,6 +14,9 @@
 #include <FiniteLineSegment.h>
 
 #include <MeshModule.h>
+#include <PolyhedralMesh.h>
+#include <limits>
+#include <algorithm>
 
 namespace model
 {
@@ -84,302 +87,224 @@ typename MeshBoundarySegment<dim>::VectorDim MeshBoundarySegment<dim>::regionBou
     {
     }
 
-    /**********************************************************************/
-    template <int dim>
-    void BoundingMeshSegments<dim>::emplace_unique(const VectorDim& P0,const VectorDim& P1,const PlanarMeshFace<dim>* const face)
+    namespace
     {
-        if((P0-P1).norm()>FLT_EPSILON)
-        {// ignore degenerate segments
-            int merged(0);
-            for(auto& seg : *this)
+        using SectionKey=std::pair<int,std::vector<size_t>>;
+        template<int dim>
+        BoundingMeshSegments<dim> grainSection(const Polyhedron<dim,dim>& region,const Plane<dim>& plane)
+        {
+            using Vector=Eigen::Matrix<double,dim,1>;
+            using Faces=typename MeshBoundarySegment<dim>::FaceContainerType;
+            using Arc=std::pair<SectionKey,SectionKey>;
+            std::map<std::vector<size_t>,double> distances;
+            std::map<SectionKey,Vector> points;
+            std::map<Arc,Faces> arcs;
+            double scale=plane.P.norm();
+            for(const auto& f : region.children)
             {
-                if(   ((seg->P0-P0).norm()<FLT_EPSILON && (seg->P1-P1).norm()<FLT_EPSILON)
-                   || ((seg->P0-P1).norm()<FLT_EPSILON && (seg->P1-P0).norm()<FLT_EPSILON)
-                   )
-                {// coincident segments on different faces, need to merge faces
-                    FaceContainerType mergedFaces(seg->faces);
-                    mergedFaces.insert(face);
-                    seg.reset(new MeshBoundarySegment<dim>(P0,P1,mergedFaces));
-                    merged++;
-                }
-            }
-            if (merged)
-            {// P0->P1 was found to be not unique. Swap vectors
-                if(merged!=1)
+                for(const auto& incidence : f.second->perimeter)
                 {
-                    throw std::runtime_error("MORE THAN ONE SEGMENTS FOUND ON LINE P0 P1");
+                    scale=std::max(scale,incidence.source()->position.norm());
                 }
             }
-            else
-            {// P0->P1 was found to be unique, add it
-                this->emplace_back(new MeshBoundarySegment<dim>(P0,P1,face));
-            }
-        }
-    }
-
-    template <int dim>
-    void BoundingMeshSegments<dim>::computeFaceIntersections(const Plane<dim>& plane,
-                                                             const std::shared_ptr<PlanarMeshFace<dim>>& face)
-    {
-        PlanePlaneIntersection<dim> ppi(plane,face->asPlane());
-        
-        if(ppi.type==PlanePlaneIntersection<dim>::INCIDENT)
-        {// plane and mesh-face are incident
-            
-            UniquePointContainer roots;
-            for(size_t k=0;k<face->convexHull().size();++k)
+            const double tolerance=std::max(double(FLT_EPSILON),64*std::numeric_limits<double>::epsilon()*scale);
+            auto distance=[&](const std::shared_ptr<Polyhedron<dim,0>>& vertex)
             {
-                
-                // Pick face boundary segment
-                const size_t k1(k==face->convexHull().size()-1? 0 : k+1);
-                const VectorDim& P0(face->convexHull()[k]->P0);
-                const VectorDim& P1(face->convexHull()[k1]->P0);
-                const double segLength((P1-P0).norm());
-                const VectorDim D0((P1-P0)/segLength);
-                // Compute intersection between boundary segment and line of intersection of the two planes
-                LineLineIntersection<dim> lli(P0,D0,ppi.P,ppi.d);
-                if(lli.type==LineLineIntersection<dim>::INCIDENT)
+                auto found=distances.find(vertex->key);
+                if(found==distances.end())
                 {
-                    const double u0((lli.x0-P0).dot(D0));
-                    if(u0>0.0-FLT_EPSILON && u0<segLength+FLT_EPSILON)
-                    {// intersection within segment
-                        roots.insert(lli.x0);
-                    }
-                }
-                else if(lli.type==LineLineIntersection<dim>::COINCIDENT)
-                {// a coincident line was found, which means that the glide planes intersec on a boundary face
-                    if(plane.contains(P0) && plane.contains(P1))
+                    double value=(vertex->position-plane.P).dot(plane.unitNormal);
+                    if(std::abs(value)<=tolerance)
                     {
-                        roots.insert(P0);
-                        roots.insert(P1);
+                        value=0;
                     }
+                    found=distances.emplace(vertex->key,value).first;
+                }
+                return found->second;
+            };
+            std::set<size_t> coincidentFaces;
+            for(const auto& f : region.children)
+            {
+                bool coincident=true;
+                for(const auto& incidence : f.second->perimeter)
+                {
+                    coincident=coincident && distance(incidence.source())==0;
+                }
+                if(coincident)
+                {
+                    coincidentFaces.insert(f.first);
                 }
             }
-            
-            switch (roots.size())
+            auto addArc=[&](SectionKey a,SectionKey b,const Polyhedron<dim,dim-1>* face)
             {
-                case 0:
-                {// no intersaction between plane and face
-                    break;
-                }
-                    
-                case 1:
-                {// single-point intersection, not a valid boundary segment, so don't consider it
-                    break;
-                }
-                    
-                case 2:
-                {// an intersection segment
-                    const VectorDim& P0(*roots.begin());
-                    const VectorDim& P1(*roots.rbegin());
-                    emplace_unique(P0,P1,face.get());
-                    break;
-                }
-                    
-                default:
+                if(a==b)
                 {
-                    std::cout<<"FAILED TO FIND A BOUNDARY PERIMETER FOR PLANE"<<std::endl;
-                    std::cout<<"plane.P="<<std::setprecision(15)<<std::scientific<<plane.P.transpose()<<std::endl;
-                    std::cout<<"plane.unitNormal="<<std::setprecision(15)<<std::scientific<<plane.unitNormal.transpose()<<std::endl;
-                    std::cout<<"IN INTERSECTING PLANE AND FACE"<<std::endl;
-                    std::cout<<face->sID<<", n="<<std::setprecision(15)<<std::scientific<<face->outNormal()<<std::endl;
-                    std::cout<<"ROOTS ARE"<<std::endl;
-                    for(const auto& root : roots)
+                    return;
+                }
+                if(b<a)
+                {
+                    std::swap(a,b);
+                }
+                arcs[{a,b}].insert(face);
+            };
+            for(const auto& f : region.children)
+            {
+                const auto& face=*f.second;
+                std::set<SectionKey> roots;
+                bool containsEdge=false;
+                for(const auto& incidence : face.perimeter)
+                {
+                    const auto source=incidence.source();
+                    const auto sink=incidence.sink();
+                    const double d0=distance(source);
+                    const double d1=distance(sink);
+                    const SectionKey v0{0,source->key};
+                    const SectionKey v1{0,sink->key};
+                    if(d0==0)
                     {
-                        std::cout<<std::setprecision(15)<<std::scientific<<root.transpose()<<std::endl;
+                        points.emplace(v0,source->position);
+                        roots.insert(v0);
                     }
-                    throw std::runtime_error("FAILED TO FIND A BOUNDARY PERIMETER FOR PLANE");
-                    break;
-                }
-            }
-            
-        }
-        else if (ppi.type==PlanePlaneIntersection<dim>::COINCIDENT)
-        {
-            for(size_t k=0;k<face->convexHull().size();++k)
-            {
-                //std::cout<<"I'm here A8"<<std::endl;
-                
-                const size_t k1(k==face->convexHull().size()-1? 0 : k+1);
-                const VectorDim& P0(face->convexHull()[k]->P0);
-                const VectorDim& P1(face->convexHull()[k1]->P0);
-                emplace_unique(P0,P1,face.get());
-            }
-        }
-    }
-
-    /**********************************************************************/
-    template <int dim>
-    BoundingMeshSegments<dim>::BoundingMeshSegments()
-    {
-        
-    }
-
-    template <int dim>
-    void BoundingMeshSegments<dim>::sortIntersections(const Plane<dim>& plane)
-    {
-        
-        // Compute convex hull and its center
-        ConvexHull<2,std::shared_ptr<MeshBoundarySegment<dim>>> finalHull;
-        for(const auto& pt : *this)
-        {
-            const auto x(plane.localPosition(0.5*(pt->P0+pt->P1)));
-            finalHull.emplace(std::array<double,2>{x[0],x[1]},&pt);
-            // THE PROBLEM HERE IS THAT IF COINCIDENT POINTS FROM DIFFERENCE FACES EXIST, THEN ONLY ONE OF THEM IS KEPT. E.G. A PLANE CUTTING AT THE INTERSECTION OF TWO FACES. IF WE HAD UNIQUE FACE EDGES WITH POINTERS TO THE ADJECENT FACES WE COULD SOLVE THIS
-        }
-        double xC(0.0);
-        double yC(0.0);
-        const auto hullPts=finalHull.getPoints();
-        for(const auto& hP : hullPts)
-        {
-            xC+=hP[0];
-            yC+=hP[1];
-        }
-        xC/=hullPts.size();
-        yC/=hullPts.size();
-        
-        // Sort boundary with angle from center
-        std::map<double,std::shared_ptr<MeshBoundarySegment<dim>>> segMap;
-        for(const auto& seg : *this)
-        {
-            const auto x(plane.localPosition(0.5*(seg->P0+seg->P1)));
-            const double dx(x(0)-xC);
-            const double dy(x(1)-yC);
-            const double angle(atan2(dy,dx));
-            segMap.emplace(angle,seg);
-        }
-        
-        BoundingMeshSegments<dim> sortedTemp;
-        for(auto seg=segMap.begin();seg!=segMap.end();++seg)
-        {
-            //            const auto& seg(*hullPts[k].t);
-            if(seg==segMap.begin())
-            {
-                auto seg1(seg);
-                seg1++;
-                
-                if((seg->second->P1-seg1->second->P0).norm()<FLT_EPSILON || (seg->second->P1-seg1->second->P1).norm()<FLT_EPSILON)
-                {// first segment is oriented in the right direction
-                    sortedTemp.push_back(seg->second);
-                }
-                else
-                {
-                    sortedTemp.emplace_back(new MeshBoundarySegment<dim>(seg->second->P1,seg->second->P0,seg->second->faces));
-                }
-            }
-            else
-            {
-                if((sortedTemp.back()->P1-seg->second->P0).norm()<FLT_EPSILON)
-                {
-                    sortedTemp.push_back(seg->second);
-                }
-                else if((sortedTemp.back()->P1-seg->second->P1).norm()<FLT_EPSILON)
-                {
-                    sortedTemp.emplace_back(new MeshBoundarySegment<dim>(seg->second->P1,seg->second->P0,seg->second->faces));
-                }
-                else
-                {
-                    std::cout<<(sortedTemp.back()->P1-seg->second->P0).norm()<<std::endl;
-                    std::cout<<(sortedTemp.back()->P1-seg->second->P1).norm()<<std::endl;
-                    for(const auto& pair : segMap)
+                    if(d0==0 && d1==0)
                     {
-                        const auto& segTemp(pair.second);
-                        
-                        std::cout<<segTemp->P0.transpose()<<" "<<segTemp->P1.transpose()<<std::endl;
+                        points.emplace(v1,sink->position);
+                        containsEdge=true;
+                        const auto other=incidence.otherFace(region.key).face.lock();
+                        // An edge internal to coplanar face patches is not part
+                        // of the perimeter of the grain section.
+                        if(!(coincidentFaces.count(f.first) && coincidentFaces.count(other->key)))
+                        {
+                            addArc(v0,v1,&face);
+                        }
                     }
-                    throw std::runtime_error("DISCONNECTED FACE BOUNDARY");
+                    else if((d0<0 && d1>0) || (d0>0 && d1<0))
+                    {
+                        const SectionKey key{1,incidence.edge->key};
+                        // Shared edge identity gives a single computed position.
+                        if(!points.count(key))
+                        {
+                            points.emplace(key,source->position+(d0/(d0-d1))*(sink->position-source->position));
+                        }
+                        roots.insert(key);
+                    }
+                }
+                if(!containsEdge)
+                {
+                    if(roots.size()==2)
+                    {
+                        addArc(*roots.begin(),*roots.rbegin(),&face);
+                    }
+                    else if(roots.size()>2)
+                    {
+                        throw std::runtime_error("Grain section requires convex faces: more than two crossings");
+                    }
                 }
             }
-        }
-        
-        
-        //        BoundingMeshSegments<dim> sortedTemp;
-        //        for(size_t k=0;k<hullPts.size();++k)
-        //        {
-        //            const auto& seg(*hullPts[k].t);
-        //            if(k==0)
-        //            {
-        //                const auto& seg1(*hullPts[1].t);
-        //
-        //                if((seg->P1-seg1->P0).norm()<FLT_EPSILON || (seg->P1-seg1->P1).norm()<FLT_EPSILON)
-        //                {// first segment is oriented in the right direction
-        //                    sortedTemp.push_back(seg);
-        //                }
-        //                else
-        //                {
-        //                    sortedTemp.emplace_back(new MeshBoundarySegment<dim>(seg->P1,seg->P0,seg->faces));
-        //                }
-        //            }
-        //            else
-        //            {
-        //                if((sortedTemp.back()->P1-seg->P0).norm()<FLT_EPSILON)
-        //                {
-        //                    sortedTemp.push_back(seg);
-        //                }
-        //                else if((sortedTemp.back()->P1-seg->P1).norm()<FLT_EPSILON)
-        //                {
-        //                    sortedTemp.emplace_back(new MeshBoundarySegment<dim>(seg->P1,seg->P0,seg->faces));
-        //                }
-        //                else
-        //                {
-        //                    std::cout<<(sortedTemp.back()->P1-seg->P0).norm()<<std::endl;
-        //                    std::cout<<(sortedTemp.back()->P1-seg->P1).norm()<<std::endl;
-        //                    for(size_t k=0;k<hullPts.size();++k)
-        //                    {
-        //                        const auto& segTemp(*hullPts[k].t);
-        //
-        //                        std::cout<<segTemp->P0.transpose()<<" "<<segTemp->P1.transpose()<<std::endl;
-        //                    }
-        //                }
-        //            }
-        //        }
-        
-        
-        if(sortedTemp.size())
-        {
-            if((sortedTemp.back()->P1-sortedTemp.front()->P0).norm()>FLT_EPSILON)
+            BoundingMeshSegments<dim> result;
+            if(arcs.empty())
             {
-                throw std::runtime_error("BoundingMeshSegments:: OPEN FACE BOUNDARY");
+                return result;
             }
+            std::map<SectionKey,std::vector<SectionKey>> adjacency;
+            for(const auto& arc : arcs)
+            {
+                adjacency[arc.first.first].push_back(arc.first.second);
+                adjacency[arc.first.second].push_back(arc.first.first);
+            }
+            // A tangent edge is a degenerate section, not an open polygon.
+            if(arcs.size()==1)
+            {
+                return result;
+            }
+            for(const auto& entry : adjacency)
+            {
+                if(entry.second.size()!=2)
+                {
+                    // A chain of collinear on-plane edges can also be tangent.
+                    const Vector base=points.at(arcs.begin()->first.first);
+                    const Vector direction=points.at(arcs.begin()->first.second)-base;
+                    bool collinear=true;
+                    for(const auto& node : adjacency)
+                    {
+                        collinear=collinear && direction.cross(points.at(node.first)-base).norm()<=tolerance*direction.norm();
+                    }
+                    if(collinear)
+                    {
+                        return result;
+                    }
+                    throw std::runtime_error("Grain section has a non-manifold intersection vertex");
+                }
+            }
+            const SectionKey start=adjacency.begin()->first;
+            SectionKey current=start;
+            SectionKey previous;
+            std::set<Arc> visited;
+            do
+            {
+                const auto& neighbors=adjacency.at(current);
+                const SectionKey next=neighbors[0]==previous ? neighbors[1] : neighbors[0];
+                const Arc arc=std::minmax(current,next);
+                if(!visited.insert(arc).second)
+                {
+                    throw std::runtime_error("Grain section repeats an arc before closure");
+                }
+                result.emplace_back(std::make_shared<MeshBoundarySegment<dim>>(points.at(current),points.at(next),arcs.at(arc)));
+                previous=current;
+                current=next;
+            } while(current!=start);
+            if(visited.size()!=arcs.size())
+            {
+                throw std::runtime_error("Grain section has multiple contours; convex grain required");
+            }
+            Vector area=Vector::Zero();
+            const Vector origin=result.front()->P0;
+            for(const auto& segment : result)
+            {
+                area+=(segment->P0-origin).cross(segment->P1-origin);
+            }
+            if(area.dot(plane.unitNormal)<0)
+            {
+                std::reverse(result.begin(),result.end());
+                for(auto& segment : result)
+                {
+                    segment=std::make_shared<MeshBoundarySegment<dim>>(segment->P1,segment->P0,segment->faces);
+                }
+            }
+            // Remove only subdivision points on the same straight supported arc.
+            // Connectivity above, never endpoint proximity, determines the walk.
+            bool merged=true;
+            while(merged && result.size()>2)
+            {
+                merged=false;
+                for(size_t k=0;k<result.size();++k)
+                {
+                    const size_t next=(k+1)%result.size();
+                    const auto a=result[k];
+                    const auto b=result[next];
+                    const Vector u=a->P1-a->P0;
+                    const Vector v=b->P1-b->P0;
+                    if(a->faces==b->faces && u.dot(v)>0 && u.cross(v).norm()<=tolerance*(u.norm()+v.norm()))
+                    {
+                        result[k]=std::make_shared<MeshBoundarySegment<dim>>(a->P0,b->P1,a->faces);
+                        result.erase(result.begin()+next);
+                        merged=true;
+                        break;
+                    }
+                }
+            }
+            return result;
         }
-        
-        if(sortedTemp.size()!=this->size())
-        {
-            throw std::runtime_error("BoundingMeshSegments:: sortedTemp.size()!=this->size()");
-        }
-        
-        this->swap(sortedTemp);
     }
 
-    /**********************************************************************/
-    template <int dim>
+    template<int dim>
+    BoundingMeshSegments<dim>::BoundingMeshSegments() = default;
+
+    template<int dim>
     BoundingMeshSegments<dim>::BoundingMeshSegments(const SimplicialMesh<dim>& mesh,
-                                                    const Plane<dim>& plane)
+                                                    const size_t& regionID,const Plane<dim>& plane)
     {
-        for(const auto& region : mesh.regions())
-        {
-            for(const auto& face : region.second->faces())
-            {
-                if(face.second->isExternal())
-                {
-                    computeFaceIntersections(plane,face.second);
-                }
-            }
-        }
-        sortIntersections(plane);
-    }
-
-    /**********************************************************************/
-    template <int dim>
-    BoundingMeshSegments<dim>::BoundingMeshSegments(const SimplicialMesh<dim>& mesh,
-                                                    const size_t& rID,
-                                                    const Plane<dim>& plane)
-    {
-        for(const auto& face : mesh.region(rID)->faces())
-        {
-            computeFaceIntersections(plane,face.second);
-        }
-        sortIntersections(plane);
+        const auto section=grainSection<dim>(mesh.polyhedralMesh().region(regionID),plane);
+        this->assign(section.begin(),section.end());
     }
 
     /**********************************************************************/

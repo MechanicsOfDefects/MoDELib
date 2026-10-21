@@ -35,8 +35,6 @@ Simplex<dim,0>::Simplex(SimplicialMesh<dim>* const m,
   *
   * Constructur performs the following operations:
   */
-    //! -1 Adds this to the SimplexObserver
-    this->observer().insertSimplex(*this);
 }
 
 
@@ -44,7 +42,6 @@ template<short int dim>
 Simplex<dim,0>::~Simplex()
 {/*!
   */
-    this->observer().removeSimplex(*this);
 }
 
 
@@ -81,14 +78,7 @@ Simplex<dim,order>::Simplex(SimplicialMesh<dim>* const m,
   *
   * Constructur performs the following operations:
   */
-    //! -1 inserts *this into the SimplexObserver
-    this->observer().insertSimplex(*this);
     
-    //! -2 inserts this into children Simplices
-    for (int k=0;k<nFaces;++k)
-    {
-        this->child(k).addToParents(this);
-    }
     
     vol0=SimplexVolume<dim,order>::volume(this->vertexPositionMatrix());
 }
@@ -98,14 +88,7 @@ template<short int dim, short int order>
 Simplex<dim,order>::~Simplex()
 {/*! Destructor performs the following operations:
   */
-    //! -1 removes this in SimplexObserver
-    this->observer().removeSimplex(*this);
     
-    //! -2 remove this fomr children parentContainers
-    for (int k=0;k<nFaces;++k)
-    {
-        this->child(k).removeFromParents(this);
-    }
 }
 
 //
@@ -187,9 +170,9 @@ std::set<const Simplex<dim,order>*> Simplex<dim,order>::spouses() const
     {
         for(const auto& parent : child->parents())
         {
-            if(parent.second!=this)
+            if(parent.second.get()!=this)
             {
-                temp.insert(parent.second);
+                temp.insert(parent.second.get());
             }
         }
     }
@@ -209,7 +192,7 @@ std::set<const Simplex<dim,order>*> Simplex<dim,order>::boundaryNeighbors() cons
             {
                 if(parent.second->isBoundarySimplex())
                 {
-                    temp.insert(parent.second);
+                    temp.insert(parent.second.get());
                 }
             }
         }
@@ -230,7 +213,7 @@ std::set<const Simplex<dim,order>*> Simplex<dim,order>::regionBoundaryNeighbors(
             {
                 if(parent.second->isRegionBoundarySimplex())
                 {
-                    temp.insert(parent.second);
+                    temp.insert(parent.second.get());
                 }
             }
         }
@@ -286,12 +269,7 @@ Simplex<dim,dim>::Simplex(SimplicialMesh<dim>* const m,
 {/*!
   */
     
-    this->observer().insertSimplex(*this);
     
-    for (int k=0;k<nFaces;++k)
-    {
-        this->child(k).addToParents(this);
-    }
     
     region->simplices().emplace(this);
     
@@ -303,14 +281,7 @@ Simplex<dim,dim>::~Simplex()
 {/*! Destructor performs the following operations:
   */
     
-    //! -1 removes this in SimplexObserver
-    this->observer().removeSimplex(*this);
     
-    //! -2 remove this fomr children parentContainers
-    for (int k=0;k<nFaces;++k)
-    {
-        this->child(k).removeFromParents(this);
-    }
     
     region->simplices().erase(this);
     
@@ -493,6 +464,11 @@ std::set<size_t> Simplex<dim,dim>::regionIDs() const
     return temp;
 }
 
+template class Simplex<1,0>;
+template class Simplex<1,1>;
+template class Simplex<2,0>;
+template class Simplex<2,1>;
+template class Simplex<2,2>;
 template class Simplex<3,0>;
 template class Simplex<3,1>;
 template class Simplex<3,2>;

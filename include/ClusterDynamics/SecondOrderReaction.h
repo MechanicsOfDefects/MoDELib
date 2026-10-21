@@ -8,15 +8,15 @@
 #ifndef model_SecondOrderReaction_H_
 #define model_SecondOrderReaction_H_
 
-//#include <MicrostructureContainer.h>
-//#include <ClusterDynamicsParameters.h>
-//#include <ClusterDynamicsBase.h>
+//#include <DefectiveCrystal/MicrostructureContainer.h>
+//#include <ClusterDynamics/ClusterDynamicsParameters.h>
+//#include <ClusterDynamics/ClusterDynamicsBase.h>
 //#include <SimpleNullSpaceSolver.h>
 //#include <FixedDirichletSolver.h>
-//#include <UniformController.h>
+//#include <DefectiveCrystal/UniformController.h>
 #include <Eigen/Dense>
 #include <EvalFunction.h>
-#include <ClusterDynamicsParameters.h>
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 
 namespace model
 {
@@ -35,16 +35,16 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
     
 //    typedef TrialFunction<'c',4,FiniteElementType> TrialFunctionType;
     typedef EvalExpression<TrialFunctionType> EvalFunctionType;
-    const TrialFunctionType& c;       // concentration field
-    const EvalFunctionType ce;
+    const std::shared_ptr<TrialFunctionType> c;       // concentration field
+    const std::shared_ptr<EvalFunctionType> ce;
     const Eigen::Matrix<double,rows,1> inFactors;
     const Eigen::Matrix<double,rows,1> outFactors;
     
     /**********************************************************************/
-    SecondOrderReaction(const TrialFunctionType& c_in, const ClusterDynamicsParameters<dim>& cdp_in) :
+    SecondOrderReaction(const std::shared_ptr<TrialFunctionType>& c_in, const ClusterDynamicsParameters<dim>& cdp_in) :
     /* init */ cdp(cdp_in),
     /* init */ c(c_in),
-    /* init */ ce(c_in),
+    /* init */ ce(eval(c_in)),
     /* init */ inFactors((1.0/cdp.msVector.abs()).matrix()),
     /* init */ outFactors(cdp.msVector.abs().matrix())
     {
@@ -113,7 +113,7 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
         
         // Assume R2_abg=R2_agb
         // dot(c_a) = 1/2*R2_abg*cb*cg -> t_a*dot(c_a) = 1/2*t_a*(R2_abg*d(cb)*cg+R2_abg*cb*d(cg)) = t_a*(R2_abg*cg)*d(cb)
-        const Eigen::Matrix<double,rows,1> cvalue(inFactors.asDiagonal()*ce(ele,bary));
+        const Eigen::Matrix<double,rows,1> cvalue(inFactors.asDiagonal()*(*ce)(ele,bary));
 //        std::vector<Eigen::Matrix<double,rows,cols>> R2V(buildR2(cvalue));
         
         Eigen::Matrix<double,rows,cols> temp(Eigen::Matrix<double,rows,cols>::Zero());

@@ -14,7 +14,7 @@
 #include <vector>
 #include <Eigen/Dense>
 #include <SimplicialMesh.h>
-#include <PlanarMeshFace.h>
+#include <Polyhedron.h>
 #include <FiniteLineSegment.h>
 #include <StaticID.h>
 #include <PlaneSegmentIntersection.h>

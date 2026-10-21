@@ -8,6 +8,7 @@
 #ifndef model_Constatnt_H_
 #define model_Constatnt_H_
 
+#include <memory>
 #include <utility> // for std::move
 
 #include <Eigen/Dense>
@@ -40,14 +41,14 @@ namespace model
     
     // Operators
     template <int rows, int cols>
-    Constant<Eigen::Matrix<double,rows,cols>,rows,cols> make_constant(const Eigen::Matrix<double,rows,cols>& c)
+    auto make_constant(const Eigen::Matrix<double,rows,cols>& c)
     {
-        return Constant<Eigen::Matrix<double,rows,cols>,rows,cols>(c);
+        return std::make_shared<Constant<Eigen::Matrix<double,rows,cols>,rows,cols>>(c);
     }
 
-    static inline Constant<double,1,1> make_constant(const double& c)
+    static inline auto make_constant(const double& c)
     {
-        return Constant<double,1,1>(c);
+        return std::make_shared<Constant<double,1,1>>(c);
     }
      
 }	// close namespace

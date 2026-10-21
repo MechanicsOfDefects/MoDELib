@@ -19,6 +19,8 @@
 #include <PlanesIntersection.h>
 #include <DislocationNetwork.h>
 #include <DislocationNodeContraction.h>
+#include <OneSidedMotion.h>
+#include <PeriodicContourTopology.h>
 
 #ifndef NDEBUG
 #define VerboseNodeContraction(N,x) if(verboseNodeContraction>=N){std::cout<<x;}
@@ -29,331 +31,300 @@
 namespace model
 {
 
-    template <typename DislocationNetworkType>
-    DislocationNodeContraction<DislocationNetworkType>::DislocationNodeContraction(DislocationNetworkType& DN_in) :
+    template <int dim>
+    DislocationNodeContraction<dim>::DislocationNodeContraction(DislocationNetwork<dim>& DN_in) :
     /* init */ DN(DN_in)
     /* init */,verboseNodeContraction(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseNodeContraction",true))
     {
         
     }
 
-    template <typename DislocationNetworkType>
-    std::vector<std::set<std::shared_ptr<typename DislocationNodeContraction<DislocationNetworkType>::NetworkNodeType>>> DislocationNodeContraction<DislocationNetworkType>::contractBoundary(std::shared_ptr<NetworkNodeType> nA,
+    template <int dim>
+    std::vector<std::set<std::shared_ptr<typename DislocationNodeContraction<dim>::NetworkNodeType>>> DislocationNodeContraction<dim>::contractBoundary(std::shared_ptr<NetworkNodeType> nA,
                                                                                                                                                                   std::shared_ptr<NetworkNodeType> nB)
     {
-        std::vector<std::set<std::shared_ptr<NetworkNodeType>>> bndNodesToContract;
-        
-        //See if you want to implement contract network node based on sIDs .. this will greatly help with contracting younger nodes in contract boundary nodes
-        
-        if (DN.ddBase.isPeriodicDomain)
+        using NodeSet=std::set<std::shared_ptr<NetworkNodeType>>;
+        std::vector<NodeSet> groups;
+        const auto collect=[&](const auto& chainA,const auto& chainB)
         {
-            VerboseNodeContraction(1,"Populating boundary nodes to be contracted"<<std::endl;);
-            
-            for (const auto &nALN : nA->loopNodes())
+            for(const auto* a : chainA)
             {
-                const auto nApPrev(nALN->periodicPrev());
-                const auto nApNext(nALN->periodicNext());
-                for (const auto &nBLN : nB->loopNodes())
+                for(const auto* b : chainB)
                 {
-                    const auto nBpPrev(nBLN->periodicPrev());
-                    const auto nBpNext(nBLN->periodicNext());
-                    if ((nApPrev && nApNext) && (nBpPrev && nBpNext))
+                    // Only coincident subdivisions of the same periodic branch
+                    // may be shared. Physical faces terminate these chains.
+                    if(a->isPeriodicSubdivision() && b->isPeriodicSubdivision() &&
+                       a->networkNode!=b->networkNode &&
+                       a->networkNode->meshFaces()==b->networkNode->meshFaces() &&
+                       (a->networkNode->get_P()-b->networkNode->get_P()).norm()<FLT_EPSILON)
                     {
-                        if (nApPrev->networkNode==nBpPrev->networkNode)
+                        NodeSet merged{a->networkNode,b->networkNode};
+                        for(auto it=groups.begin();it!=groups.end();)
                         {
-                            VerboseNodeContraction(1,"Case a"<<std::endl;);
-                            // std::cout<<"Prev networkNOde "<<nApPrev->networkNode->tag()<<std::endl;
-                            // std::cout<<" bnd next prev size "<<nALN->boundaryPrev().size()<<" "<<nBLN->boundaryPrev().size()<<std::endl;
-                            //bnd prev needs to be contracted
-                            for (const auto& bndPrevA : nALN->boundaryPrev())
+                            bool overlaps=false;
+                            for(const auto& node : *it)
                             {
-                                for (const auto& bndPrevB : nBLN->boundaryPrev())
+                                if(merged.count(node))
                                 {
-                                    // std::cout<<" bndPrevA->networkNode->tag()=>bndPrevB->networkNode->tag() "<<bndPrevA->networkNode->tag()
-                                    // <<bndPrevB->networkNode->tag()<<std::endl;
-                                    
-                                    // if (bndPrevA->networkNode->isMovableTo(bndPrevB->networkNode->get_P()))
-                                    if (bndPrevA->networkNode->meshFaces()==bndPrevB->networkNode->meshFaces() &&
-                                        (bndPrevA->networkNode->get_P()-bndPrevB->networkNode->get_P()).norm()<FLT_EPSILON)
-                                    {
-                                        const auto minNode(std::min(bndPrevA->networkNode->sID,bndPrevB->networkNode->sID)==bndPrevA->networkNode->sID?
-                                                           bndPrevA->networkNode : bndPrevB->networkNode);
-                                        const auto maxNode(std::max(bndPrevA->networkNode->sID,bndPrevB->networkNode->sID)==bndPrevA->networkNode->sID?
-                                                           bndPrevA->networkNode : bndPrevB->networkNode);
-                                        //search in the container if the nodes are already present.. if yes place in that location
-                                        bool nodeAlreadyPresentInSet(false);
-                                        if (bndNodesToContract.size()==0)
-                                        {
-                                            std::set<std::shared_ptr<NetworkNodeType>> nodeSet;
-                                            nodeSet.insert(minNode);
-                                            nodeSet.insert(maxNode);
-                                            bndNodesToContract.push_back(nodeSet);
-                                        }
-                                        for (auto& setIter : bndNodesToContract)
-                                        {
-                                            if (setIter.find(minNode)!=setIter.end() || setIter.find(maxNode)!=setIter.end())
-                                            {
-                                                setIter.insert(minNode);
-                                                setIter.insert(maxNode);
-                                                nodeAlreadyPresentInSet=true;
-                                                break;
-                                            }
-                                        }
-                                        if (!nodeAlreadyPresentInSet)
-                                        {
-                                            std::set<std::shared_ptr<NetworkNodeType>> nodeSet;
-                                            nodeSet.insert(minNode);
-                                            nodeSet.insert(maxNode);
-                                            bndNodesToContract.push_back(nodeSet);
-                                        }
-                                    }
+                                    overlaps=true;
+                                    break;
                                 }
+                            }
+                            if(overlaps)
+                            {
+                                merged.insert(it->begin(),it->end());
+                                it=groups.erase(it);
+                            }
+                            else
+                            {
+                                ++it;
                             }
                         }
-                        if (nApNext->networkNode==nBpNext->networkNode)
+                        groups.push_back(std::move(merged));
+                    }
+                }
+            }
+        };
+        for(const auto* a : nA->loopNodes())
+        {
+            if(a->periodicPlaneEdge.first)
+            {
+                continue;
+            }
+            for(const auto* b : nB->loopNodes())
+            {
+                if(b->periodicPlaneEdge.first)
+                {
+                    continue;
+                }
+                const auto ap=a->periodicPrev();
+                const auto an=a->periodicNext();
+                const auto bp=b->periodicPrev();
+                const auto bn=b->periodicNext();
+                if(ap && bp && ap->networkNode==bp->networkNode)
+                {
+                    collect(a->boundaryPrev(),b->boundaryPrev());
+                }
+                if(an && bn && an->networkNode==bn->networkNode)
+                {
+                    collect(a->boundaryNext(),b->boundaryNext());
+                }
+                if(ap && bn && ap->networkNode==bn->networkNode)
+                {
+                    collect(a->boundaryPrev(),b->boundaryNext());
+                }
+                if(an && bp && an->networkNode==bp->networkNode)
+                {
+                    collect(a->boundaryNext(),b->boundaryPrev());
+                }
+            }
+        }
+        return groups;
+    }
+
+    template <int dim>
+    bool DislocationNodeContraction<dim>::canReach(const std::shared_ptr<NetworkNodeType>& node,const VectorDim& target) const
+    {
+        if(!target.allFinite() || !node->isMovableTo(target))
+        {
+            return false;
+        }
+        const VectorDim requested=target-node->get_P();
+        typename NetworkNodeType::VectorOfNormalsType normals;
+        for(const auto* plane : node->glidePlanes())
+        {
+            normals.push_back(plane->unitNormal);
+        }
+        for(int row=0;row<DN.nodalVelocityConstraints.rows();++row)
+        {
+            normals.push_back(DN.nodalVelocityConstraints.row(row));
+        }
+        const VectorDim actual=oneSidedMotion<dim>(requested,normals,node->physicalBoundaryNormals());
+        if((actual-requested).norm()>FLT_EPSILON)
+        {
+            return false;
+        }
+        for(const auto* ln : node->loopNodes())
+        {
+            if(ln->periodicPlaneEdge.first && requested.norm()>FLT_EPSILON)
+            {
+                return false;
+            }
+            // Keep each representation in its current convex host-grain patch.
+            // Contraction must not silently trim away one of its endpoints.
+            if(!DN.ddBase.mesh.searchRegion(ln->loop()->grain.grainID,target).first)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    template <int dim>
+    bool DislocationNodeContraction<dim>::commitContraction(std::shared_ptr<NetworkNodeType> a,
+        std::shared_ptr<NetworkNodeType> b,const VectorDim& target,const bool reconcileBoundary)
+    {
+        if(!a || !b || a==b || a->loopNodes().empty() || b->loopNodes().empty() ||
+           !b->isContractableTo(a) || !canReach(a,target) || !canReach(b,target))
+        {
+            return false;
+        }
+        // All ordinary rejection paths are above this point. Commit the exact
+        // common point without running boundary reconciliation between moves.
+        using LoopNodeType=typename DislocationNetwork<dim>::LoopNodeType;
+        using NodePtr=std::shared_ptr<LoopNodeType>;
+        struct Subdivision
+        {
+            NodePtr node,source,sink;
+            double parameter;
+        };
+        std::vector<Subdivision> subdivisions;
+        std::set<size_t> visitedLoops;
+        const double tolerance=1.e-8*(DN.ddBase.mesh.xMax()-DN.ddBase.mesh.xMin()).norm();
+        for(const auto& endpoint : {a,b})
+        {
+            for(const auto* occurrence : endpoint->loopNodes())
+            {
+                const auto loop=occurrence->loop();
+                if(!visitedLoops.insert(loop->sID).second)
+                {
+                    continue;
+                }
+                std::vector<NodePtr> nodes;
+                for(const auto* link : loop->linkSequence())
+                {
+                    nodes.push_back(link->source);
+                }
+                retainPeriodicContourBends(nodes,tolerance);
+                std::vector<size_t> anchors;
+                for(size_t i=0;i<nodes.size();++i)
+                {
+                    if(!nodes[i]->isPeriodicSubdivision())
+                    {
+                        anchors.push_back(i);
+                    }
+                }
+                for(size_t k=0;k<anchors.size();++k)
+                {
+                    const size_t begin=anchors[k];
+                    const size_t end=anchors[(k+1)%anchors.size()];
+                    const VectorDim chord=nodes[end]->get_P()-nodes[begin]->get_P();
+                    std::vector<Subdivision> edgeSubdivisions;
+                    bool straight=true;
+                    double previous=0;
+                    const double length=chord.norm();
+                    for(size_t i=(begin+1)%nodes.size();i!=end;i=(i+1)%nodes.size())
+                    {
+                        const VectorDim offset=nodes[i]->get_P()-nodes[begin]->get_P();
+                        const double parameter=chord.squaredNorm()>0 ? offset.dot(chord)/chord.squaredNorm() : 0;
+                        if((offset-parameter*chord).norm()>tolerance ||
+                           (parameter-previous)*length < -tolerance || (parameter-1)*length>tolerance)
                         {
-                            VerboseNodeContraction(1,"Case b"<<std::endl;);
-                            
-                            //bnd next needs to be contracted
-                            for (const auto &bndNextA : nALN->boundaryNext())
-                            {
-                                for (const auto &bndNextB : nBLN->boundaryNext())
-                                {
-                                    if (bndNextA->networkNode->meshFaces()==bndNextB->networkNode->meshFaces() &&
-                                        (bndNextA->networkNode->get_P()-bndNextB->networkNode->get_P()).norm()<FLT_EPSILON)
-                                    {
-                                        const auto minNode (std::min(bndNextA->networkNode->sID,bndNextB->networkNode->sID)==bndNextA->networkNode->sID?
-                                                            bndNextA->networkNode : bndNextB->networkNode);
-                                        const auto maxNode (std::max(bndNextA->networkNode->sID,bndNextB->networkNode->sID)==bndNextA->networkNode->sID?
-                                                            bndNextA->networkNode : bndNextB->networkNode);
-                                        //search in the container if the nodes are already present.. if yes place in that location
-                                        bool nodeAlreadyPresentInSet(false);
-                                        if (bndNodesToContract.size()==0)
-                                        {
-                                            std::set<std::shared_ptr<NetworkNodeType>> nodeSet;
-                                            nodeSet.insert(minNode);
-                                            nodeSet.insert(maxNode);
-                                            bndNodesToContract.push_back(nodeSet);
-                                        }
-                                        for (auto& setIter : bndNodesToContract)
-                                        {
-                                            if (setIter.find(minNode)!=setIter.end() || setIter.find(maxNode)!=setIter.end())
-                                            {
-                                                setIter.insert(minNode);
-                                                setIter.insert(maxNode);
-                                                nodeAlreadyPresentInSet=true;
-                                                break;
-                                            }
-                                        }
-                                        if (!nodeAlreadyPresentInSet)
-                                        {
-                                            std::set<std::shared_ptr<NetworkNodeType>> nodeSet;
-                                            nodeSet.insert(minNode);
-                                            nodeSet.insert(maxNode);
-                                            bndNodesToContract.push_back(nodeSet);
-                                        }
-                                        // bndNodesToContract.insert(std::make_pair(minNode,maxNode));
-                                    }
-                                }
-                            }
+                            straight=false;
                         }
-                        if (nApPrev->networkNode==nBpNext->networkNode)
+                        previous=parameter;
+                        edgeSubdivisions.push_back({nodes[i],nodes[begin],nodes[end],parameter});
+                    }
+                    if(straight)
+                    {
+                        subdivisions.insert(subdivisions.end(),edgeSubdivisions.begin(),edgeSubdivisions.end());
+                    }
+                    else
+                    {
+                        // Local near-collinearity is not enough for a long
+                        // chain: retain it if the complete path is not straight.
+                        for(const auto& subdivision : edgeSubdivisions)
                         {
-                            VerboseNodeContraction(1,"Case c"<<std::endl;);
-                            
-                            //bnd prev of A needs to be contracted to bndNext of B
-                            for (const auto &bndPrevA : nALN->boundaryPrev())
-                            {
-                                for (const auto &bndNextB : nBLN->boundaryNext())
-                                {
-                                    if (bndPrevA->networkNode->meshFaces()==bndNextB->networkNode->meshFaces() &&
-                                        (bndPrevA->networkNode->get_P()-bndNextB->networkNode->get_P()).norm()<FLT_EPSILON)
-                                    {
-                                        const auto minNode(std::min(bndPrevA->networkNode->sID,bndNextB->networkNode->sID)==bndPrevA->networkNode->sID?
-                                                           bndPrevA->networkNode : bndNextB->networkNode);
-                                        const auto maxNode(std::max(bndPrevA->networkNode->sID,bndNextB->networkNode->sID)==bndPrevA->networkNode->sID?
-                                                           bndPrevA->networkNode : bndNextB->networkNode);
-                                        //search in the container if the nodes are already present.. if yes place in that location
-                                        bool nodeAlreadyPresentInSet(false);
-                                        if (bndNodesToContract.size()==0)
-                                        {
-                                            std::set<std::shared_ptr<NetworkNodeType>> nodeSet;
-                                            nodeSet.insert(minNode);
-                                            nodeSet.insert(maxNode);
-                                            bndNodesToContract.push_back(nodeSet);
-                                        }
-                                        for (auto& setIter : bndNodesToContract)
-                                        {
-                                            if (setIter.find(minNode)!=setIter.end() || setIter.find(maxNode)!=setIter.end())
-                                            {
-                                                setIter.insert(minNode);
-                                                setIter.insert(maxNode);
-                                                nodeAlreadyPresentInSet=true;
-                                            }
-                                        }
-                                        if (!nodeAlreadyPresentInSet)
-                                        {
-                                            std::set<std::shared_ptr<NetworkNodeType>> nodeSet;
-                                            nodeSet.insert(minNode);
-                                            nodeSet.insert(maxNode);
-                                            bndNodesToContract.push_back(nodeSet);
-                                        }
-                                        // bndNodesToContract.insert(std::make_pair(minNode,maxNode));
-                                    }
-                                }
-                            }
-                        }
-                        if (nApNext->networkNode==nBpPrev->networkNode)
-                        {
-                            VerboseNodeContraction(1,"Case d"<<std::endl;);
-                            
-                            //bnd next of A needs to be contracted to bndPrev of B
-                            for (const auto &bndNextA : nALN->boundaryNext())
-                            {
-                                for (const auto &bndPrevB : nBLN->boundaryPrev())
-                                {
-                                    if (bndNextA->networkNode->meshFaces()==bndPrevB->networkNode->meshFaces() &&
-                                        (bndNextA->networkNode->get_P()-bndPrevB->networkNode->get_P()).norm()<FLT_EPSILON)
-                                    {
-                                        const auto minNode(std::min(bndNextA->networkNode->sID,bndPrevB->networkNode->sID)==bndNextA->networkNode->sID?
-                                                           bndNextA->networkNode : bndPrevB->networkNode);
-                                        const auto maxNode(std::max(bndNextA->networkNode->sID,bndPrevB->networkNode->sID)==bndNextA->networkNode->sID?
-                                                           bndNextA->networkNode : bndPrevB->networkNode);
-                                        //search in the container if the nodes are already present.. if yes place in that location
-                                        bool nodeAlreadyPresentInSet(false);
-                                        if (bndNodesToContract.size()==0)
-                                        {
-                                            std::set<std::shared_ptr<NetworkNodeType>> nodeSet;
-                                            nodeSet.insert(minNode);
-                                            nodeSet.insert(maxNode);
-                                            bndNodesToContract.push_back(nodeSet);
-                                        }
-                                        for (auto& setIter : bndNodesToContract)
-                                        {
-                                            if (setIter.find(minNode)!=setIter.end() || setIter.find(maxNode)!=setIter.end())
-                                            {
-                                                setIter.insert(minNode);
-                                                setIter.insert(maxNode);
-                                                nodeAlreadyPresentInSet=true;
-                                            }
-                                        }
-                                        if (!nodeAlreadyPresentInSet)
-                                        {
-                                            std::set<std::shared_ptr<NetworkNodeType>> nodeSet;
-                                            nodeSet.insert(minNode);
-                                            nodeSet.insert(maxNode);
-                                            bndNodesToContract.push_back(nodeSet);
-                                        }
-                                        // bndNodesToContract.insert(std::make_pair(minNode,maxNode));
-                                    }
-                                }
-                            }
+                            subdivision.node->periodicContourVertex=true;
                         }
                     }
                 }
             }
         }
-        return bndNodesToContract;
-        
-    }
-
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::contractSecondAndVirtual(std::shared_ptr<NetworkNodeType> nA,
-                                                                                      std::shared_ptr<NetworkNodeType> nB)
-    {
-        
-        if ((nB->get_P()-nA->get_P()).squaredNorm()>FLT_EPSILON)
+        for(const auto& node : {a,b})
         {
-            // std::cout<<"Na and Nb are "<<nA->tag()<<"=>"<<nB->tag()<<std::endl;
-            assert(nB->isMovableTo(nA->get_P()));
-            bool movedB(nB->trySet_P(nA->get_P()));
-            if(!movedB)
+            for(auto* ln : node->loopNodes())
             {
-                throw std::runtime_error("Node B could not be moved to position.");
+                const VectorDim shift=ln->periodicPlanePatch() ? ln->periodicPlanePatch()->shift : VectorDim::Zero();
+                static_cast<typename LoopNodeType::SplineNodeType&>(*ln).set_P(target-shift);
             }
-            //                assert(movedB);
+            node->set_P(target);
         }
-        //            switch (DN.simulationParameters.simulationType)
-        //            {
-        //                case DefectiveCrystalParameters::FINITE_FEM:
-        //                {
-        //                    if(nB->virtualBoundaryNode())
-        //                    {
-        //                        assert(nA->virtualBoundaryNode());
-        //                        DN.contractNetworkNodes(nA->virtualBoundaryNode(),nB->virtualBoundaryNode());
-        //                    }
-        //                    break;
-        //                }
-        //
-        ////                case DefectiveCrystalParameters::PERIODIC:
-        ////                {
-        ////                 // FINISH HERE
-        ////                    break;
-        ////                }
-        //            }
-        
-        auto bndNodesToContract(contractBoundary(nA,nB));
-        
-        bool tempContract(DN.contractNetworkNodes(nA,nB));  //First contract the internal nodes then the boundary (Essential for cutLoop)
-        //Now contract the boundary nodes
-        for (const auto& vecIter : bndNodesToContract)
+        // Transport only proven straight-edge subdivisions using their old
+        // segment ancestry, before cutLoop changes the contour connectivity.
+        // These are trial loop coordinates; boundary reconciliation recreates
+        // the actual seam intersections and commits their network positions.
+        for(const auto& subdivision : subdivisions)
         {
-            for (const auto &setIter : vecIter)
+            const VectorDim position=(1-subdivision.parameter)*subdivision.source->get_P()+
+                subdivision.parameter*subdivision.sink->get_P();
+            static_cast<typename LoopNodeType::SplineNodeType&>(*subdivision.node).set_P(position);
+        }
+        subdivisions.clear();
+        const auto groups=contractBoundary(a,b);
+        if(!DN.contractNetworkNodes(a,b))
+        {
+            throw std::logic_error("Validated node contraction unexpectedly rejected.");
+        }
+        for(const auto& group : groups)
+        {
+            const auto survivor=*std::min_element(group.begin(),group.end(),[](const auto& x,const auto& y)
             {
-                if (setIter!= *vecIter.begin())
+                return x->sID<y->sID;
+            });
+            for(const auto& node : group)
+            {
+                if(node!=survivor && !node->loopNodes().empty() && !survivor->loopNodes().empty())
                 {
-                    VerboseNodeContraction(1, "Contracting Boundary"<<(*vecIter.begin())->sID<<", "<<setIter->sID << std::endl;);
-                    DN.contractNetworkNodes(*vecIter.begin(),setIter);
+                    DN.contractNetworkNodes(survivor,node);
                 }
             }
         }
-        return tempContract;
+        if(reconcileBoundary)
+        {
+            DN.updateBoundaryNodes();
+        }
+        return true;
     }
 
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::contractYoungest(std::shared_ptr<NetworkNodeType> nA,
-                                                                              std::shared_ptr<NetworkNodeType> nB)
+    template <int dim>
+    bool DislocationNodeContraction<dim>::contractSecondAndVirtual(std::shared_ptr<NetworkNodeType> nA,
+        std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary)
     {
-        return nA->sID<nB->sID? contractSecondAndVirtual(nA,nB) : contractSecondAndVirtual(nB,nA);
+        return commitContraction(nA,nB,nA->get_P(),reconcileBoundary);
+    }
+
+    template <int dim>
+    bool DislocationNodeContraction<dim>::contractYoungest(std::shared_ptr<NetworkNodeType> nA,
+                                                                              std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary)
+    {
+        return nA->sID<nB->sID? contractSecondAndVirtual(nA,nB,reconcileBoundary) : contractSecondAndVirtual(nB,nA,reconcileBoundary);
         
     }
 
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::contractToPosition(std::shared_ptr<NetworkNodeType> nA,
+    template <int dim>
+    bool DislocationNodeContraction<dim>::contractToPosition(std::shared_ptr<NetworkNodeType> nA,
                                                                                 std::shared_ptr<NetworkNodeType> nB,
                                                                                 const VectorDim& X,
-                                                                                const double& maxRange)
+                                                                                const double& maxRange,const bool reconcileBoundary)
     {
         
-        bool movedA=false;
-        bool movedB=false;
-        
-        if(   nA->isMovableTo(X)
-           && nB->isMovableTo(X)
-           && (nA->get_P()-X).norm()+(nB->get_P()-X).norm()<maxRange)
+        if((nA->get_P()-X).norm()+(nB->get_P()-X).norm()>=maxRange)
         {
-            // std::cout<<" Before motion positions are "<<nA->get_P().transpose()<<"=>"<<nB->get_P().transpose()<<std::endl;
-            movedA=nA->trySet_P(X);
-            movedB=nB->trySet_P(X);
-            // std::cout<<" After motion positions are "<<nA->get_P().transpose()<<"=>"<<nB->get_P().transpose()<<std::endl;
-            // std::cout<<" X is "<<X.transpose()<<std::endl;
-            // movedA=nA->set_P(X);
-            // movedB=nB->set_P(X);
-            VerboseNodeContraction(2,"contractToPosition"<<std::endl;);
-            VerboseNodeContraction(2,"movedA="<<movedA<<std::endl;);
-            VerboseNodeContraction(2,"movedB="<<movedB<<std::endl;);
-            assert(movedA && movedB && "COULD NOT MOVE NODES");
+            return false;
         }
-        
-        return (movedA && movedB)? contractYoungest(nA,nB) : false;
+        return nA->sID<nB->sID ? commitContraction(nA,nB,X,reconcileBoundary) : commitContraction(nB,nA,X,reconcileBoundary);
     }
 
 
-
-    template <typename DislocationNetworkType>
-    bool DislocationNodeContraction<DislocationNetworkType>::contract(std::shared_ptr<NetworkNodeType> nA,
-                                                                      std::shared_ptr<NetworkNodeType> nB)
+    template <int dim>
+    bool DislocationNodeContraction<dim>::contract(std::shared_ptr<NetworkNodeType> nA,
+                                                                      std::shared_ptr<NetworkNodeType> nB,const bool reconcileBoundary)
     {
+        if(!nA || !nB || nA==nB || nA->loopNodes().empty() || nB->loopNodes().empty())
+        {
+            return false;
+        }
         VerboseNodeContraction(1, "DislocationNodeContraction::contract " << nA->sID << " " << nB->sID << std::endl;);
         if (   !nA->isBoundaryNode()
             && !nA->isGrainBoundaryNode()
@@ -362,23 +333,23 @@ namespace model
             ) //Added for avoiding node contraction with boundary node
         {
             
-            const bool nAisMovable = nA->isMovableTo(nB->get_P());
-            const bool nBisMovable = nB->isMovableTo(nA->get_P());
+            const bool nAisMovable = canReach(nA,nB->get_P());
+            const bool nBisMovable = canReach(nB,nA->get_P());
             
             if (nAisMovable && nBisMovable)
             {
                 VerboseNodeContraction(1, "DislocationNodeContraction case 1a" << std::endl;);
-                return contractYoungest(nA, nB);
+                return contractYoungest(nA, nB,reconcileBoundary);
             }
             else if (nAisMovable && !nBisMovable)
             {
                 VerboseNodeContraction(1, "DislocationNodeContraction case 1b" << std::endl;);
-                return contractSecondAndVirtual(nB, nA);
+                return contractSecondAndVirtual(nB, nA,reconcileBoundary);
             }
             else if (!nAisMovable && nBisMovable)
             {
                 VerboseNodeContraction(1, "DislocationNodeContraction case 1c" << std::endl;);
-                return contractSecondAndVirtual(nA, nB);
+                return contractSecondAndVirtual(nA, nB,reconcileBoundary);
             }
             else
             {// nA and nB cannot be moved to each other. The calculation of a third point is necessary
@@ -407,7 +378,7 @@ namespace model
                 if(snapped.first)
                 {
                     const double maxRange = 4.0 * (nA->get_P() - nB->get_P()).norm();
-                    return contractToPosition(nA,nB,snapped.second,maxRange);
+                    return contractToPosition(nA,nB,snapped.second,maxRange,reconcileBoundary);
                 }
                 else
                 {
@@ -417,10 +388,10 @@ namespace model
         }
         else
         {
-            if ((nA->get_P() - nB->get_P()).squaredNorm() < FLT_EPSILON)
+            if ((nA->get_P() - nB->get_P()).norm() <= FLT_EPSILON)
             {
                 VerboseNodeContraction(1, "DislocationNodeContraction case 2a" << std::endl;);
-                return contractYoungest(nA, nB);
+                return contractYoungest(nA, nB,reconcileBoundary);
             }
             else
             {
@@ -430,7 +401,7 @@ namespace model
         }
     }
 
-template class DislocationNodeContraction<DislocationNetwork<3>>;
+template class DislocationNodeContraction<3>;
 }
 #endif
 
