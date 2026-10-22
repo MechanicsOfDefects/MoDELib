@@ -11,7 +11,7 @@ sys.path.insert(0, sys.argv[1])
 import pyMoDELib as model
 
 
-def box_mesh(path, dim):
+def box_mesh(path, dim, split=False):
     vertices = list(itertools.product((0, 1), repeat=dim))
     indices = {point: k + 1 for k, point in enumerate(vertices)}
     cells = []
@@ -22,13 +22,28 @@ def box_mesh(path, dim):
             point[axis] = 1
             cell.append(indices[tuple(point)])
         cells.append(cell)
+    if split:
+        # Two translated copies share a facet, with distinct region IDs.
+        original_count = len(cells)
+        for cell in list(cells):
+            translated = []
+            for vertex_id in cell:
+                point = list(vertices[vertex_id - 1])
+                point[0] += 1
+                point = tuple(point)
+                if point not in indices:
+                    indices[point] = len(vertices) + 1
+                    vertices.append(point)
+                translated.append(indices[point])
+            cells.append(translated)
     lines = ["$MeshFormat", "2.2 0 8", "$EndMeshFormat", "$Nodes", str(len(vertices))]
     for point, index in indices.items():
         xyz = list(point) + [0] * (3 - dim)
         lines.append(f"{index} " + " ".join(map(str, xyz)))
     lines += ["$EndNodes", "$Elements", str(len(cells))]
     for index, cell in enumerate(cells, 1):
-        lines.append(f"{index} { {1: 1, 2: 2, 3: 4}[dim]} 2 1 1 " + " ".join(map(str, cell)))
+        region = 2 if split and index > original_count else 1
+        lines.append(f"{index} { {1: 1, 2: 2, 3: 4}[dim]} 2 1 {region} " + " ".join(map(str, cell)))
     path.write_text("\n".join(lines + ["$EndElements", ""]))
 
 
@@ -36,6 +51,7 @@ def check(dim, path):
     Mesh = getattr(model, f"SimplicialMesh{dim}")
     mesh = Mesh(str(path), periodicFaceIDs={-1})
     assert Mesh.dim == dim
+    assert Mesh().search(np.zeros(dim)) is None
     np.testing.assert_allclose(mesh.volume(), 1.)
     assert mesh.periodicBasis().shape == (dim, dim)
     topology = mesh.polyhedralMesh()
@@ -76,9 +92,10 @@ def check(dim, path):
     physical = Mesh(str(path))
     assert physical.periodicBasis().shape == (dim, 0)
     assert not physical.periodicSimplexPairs()
-    faces = topology.cells(dim - 1)
+    faces = physical.polyhedralMesh().cells(dim - 1)
     selected = next(iter(faces))
-    partial = Mesh(str(path), periodicFaceIDs={selected})
+    partial = physical
+    partial.identifyParallelFaces({selected})
     assert partial.periodicBasis().shape == (dim, 1)
     reader = getattr(model, f"SimplexReader{dim}")()
     reader.read(str(path))
@@ -120,6 +137,17 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-mesh-") as directory:
         box_mesh(path, dim)
         check(dim, path)
         lifetime(dim, path)
+        box_mesh(path, dim, split=True)
+        mesh = getattr(model, f"SimplicialMesh{dim}")(str(path))
+        assert len(mesh.regions()) == 2
+        boundary = mesh.regionBoundaries()[(1, 2)]
+        assert isinstance(boundary, getattr(model, f"MeshRegionBoundary{dim}"))
+        assert len(boundary.faces()) == 1
+        for face in boundary.faces().values():
+            assert not face.isExternal()
+            assert set(face.parents) == {1, 2}
+            assert mesh.region(1).faces()[face.key] is mesh.region(2).faces()[face.key]
+        assert boundary.simplices()
 assert model.SimplicialMesh is model.SimplicialMesh3
 assert model.Polyhedron2 is model.Polyhedron32
 print("PASS: Python mesh dimensions 1–3, all orders, periodicity, connectivity, ownership")
