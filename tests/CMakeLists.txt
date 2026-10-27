@@ -418,3 +418,19 @@ if(MODELIB_CD_MSIZE STREQUAL "4" AND MODELIB_CD_ISIZE STREQUAL "8")
     add_test(NAME periodicClimbSolver COMMAND testPeriodicClimbSolver "${PROJECT_SOURCE_DIR}")
     set_tests_properties(periodicClimbSolver PROPERTIES LABELS "integration" TIMEOUT 120)
 endif()
+
+add_executable(testBoxTree testBoxTree.cpp)
+target_link_libraries(testBoxTree PRIVATE MoDELib)
+add_test(NAME boxTree COMMAND testBoxTree)
+set_tests_properties(boxTree PROPERTIES LABELS "numerical" TIMEOUT 60)
+
+if(TARGET testBoxTreeActor)
+    add_test(NAME boxTreeActor COMMAND testBoxTreeActor "${PROJECT_SOURCE_DIR}")
+    set_tests_properties(boxTreeActor PROPERTIES LABELS "integration"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
+endif()
+
+add_executable(testPlaneBoxIntersection testPlaneBoxIntersection.cpp)
+target_link_libraries(testPlaneBoxIntersection PRIVATE MoDELib)
+add_test(NAME planeBoxIntersection COMMAND testPlaneBoxIntersection)
+set_tests_properties(planeBoxIntersection PROPERTIES LABELS "numerical" TIMEOUT 60)

@@ -1,0 +1,249 @@
+\chapter{Closed slip-patch multipoles: proposed field solver}
+\label{chap:loopAreaMultipoles}
+
+This chapter derives a proposed hierarchical representation of dislocation sources. It is a mathematical design, not a description of an implemented FMM or GPU backend. Its defining choice is to partition the oriented slipped surfaces into spatial boxes and retain the complete closed boundary of every patch. The line moments, translation operators, and consistency checks below follow from this choice. All fields use the same elastic kernel and core regularization; physical boundary corrections remain a separate part of the boundary-value problem.
+
+\section{Oriented patches and exact source preservation}
+Let $\mathcal S_\lambda$ be a planar oriented slipped surface with constant Burgers vector $\bm b^\lambda$, unit normal $\bm n^\lambda$, and oriented boundary $\mathcal L_\lambda=\partial\mathcal S_\lambda$. Orientation is fixed by Stokes' theorem. Following Eq.~\eqref{dislocation_distortion_classical}, the plastic distortion is
+\begin{equation}
+ \beta^P_{ij}(\bm x)=-\sum_\lambda b_i^\lambda
+ \int_{\mathcal S_\lambda}n_j^\lambda\delta(\bm x-\bm y)\,dA_y.
+ \label{eq:patchPlasticDistortion}
+\end{equation}
+Partition space into boxes with disjoint interiors, and define $\mathcal S_{\lambda B}=\mathcal S_\lambda\cap B$. A patch may have several connected components or holes; all oriented boundary contours must be retained. Self-overlapping surfaces require signed multiplicity, rather than an unsigned polygon union. Coplanar pieces lying exactly on a box face require a unique ownership rule.
+
+Every $\partial\mathcal S_{\lambda B}$ contains physical line pieces and artificial edges on box faces. Neighboring patches have the same Burgers vector and opposite orientations along their common edge. Thus, as oriented chains,
+\begin{equation}
+ \sum_B\partial\mathcal S_{\lambda B}=\partial\mathcal S_\lambda.
+ \label{eq:patchBoundaryCancellation}
+\end{equation}
+Consequently the sum of their exact line fields equals the original loop field. Artificial edges are source bookkeeping, not network segments: they carry no independent mobility, collision, or junction dynamics. Shared physical junction segments are recovered by the oriented sum of the participating loops' Burgers vectors.
+
+\section{Surface moments and their relation to line moments}
+For a box center $\bm c$, write $\bm q=\bm y-\bm c$. A multi-index $\boldsymbol\nu=(\nu_1,\nu_2,\nu_3)$ has $|\boldsymbol\nu|=\nu_1+\nu_2+\nu_3$, $\boldsymbol\nu!=\nu_1!\nu_2!\nu_3!$, and $\bm q^{\boldsymbol\nu}=\prod_a q_a^{\nu_a}$. Define the unnormalized surface moments
+\begin{equation}
+ A_{ik}^{\boldsymbol\nu}(B;\bm c)
+ =\sum_\lambda b_i^\lambda\int_{\mathcal S_{\lambda B}}
+ n_k^\lambda\bm q^{\boldsymbol\nu}\,dA.
+ \label{eq:patchAreaMoments}
+\end{equation}
+The minus sign in Eq.~\eqref{eq:patchPlasticDistortion} means that the corresponding plastic-distortion moments are $-A_{ik}^{\boldsymbol\nu}$. In particular, $-A_{ik}^{\boldsymbol0}/V$ is the volume-averaged plastic distortion of the represented surface portions in volume $V$. The moments $A^{\boldsymbol\nu}$ have units of length$^{|\boldsymbol\nu|+3}$.
+
+Define line-source moments of the complete patch contours by
+\begin{equation}
+ M_{ij}^{\boldsymbol\nu}(B;\bm c)
+ =\sum_\lambda b_i^\lambda\oint_{\partial\mathcal S_{\lambda B}}
+ \bm q^{\boldsymbol\nu}\,dy_j.
+ \label{eq:patchLineMoments}
+\end{equation}
+Stokes' theorem, in the form
+$\oint f\,dy_j=\int\epsilon_{k\ell j}n_k\partial_{y_\ell}f\,dA$,
+gives the exact conversion
+\begin{equation}
+ \boxed{M_{ij}^{\boldsymbol\nu}
+ =\sum_{k,\ell}\epsilon_{k\ell j}\nu_\ell
+ A_{ik}^{\boldsymbol\nu-\bm e_\ell}.}
+ \label{eq:areaToLineMoments}
+\end{equation}
+Terms with $\nu_\ell=0$ are omitted. Therefore
+\begin{align}
+ M_{ij}^{\boldsymbol0}&=0,\label{eq:closedPatchZeroMoment}\\
+ M_{ij}^{\bm e_a}&=\epsilon_{kaj}A_{ik}^{\boldsymbol0},\\
+ M_{ij}^{\bm e_a+\bm e_b}
+ &=\epsilon_{kaj}A_{ik}^{\bm e_b}+\epsilon_{kbj}A_{ik}^{\bm e_a}.
+\end{align}
+Closure cancels the zeroth \emph{line} moment, not the leading surface moment. The first line moment encodes the oriented slipped area. This distinction is essential when comparing expansion orders. Surface moments through degree $P-1$ determine line moments through degree $P$.
+
+\section{Stress expansion and validity}
+Write the translation-invariant line stress kernel as $K_{abij}$, so that
+\begin{equation}
+ \sigma_{ab}^{B}(\bm x)=\sum_\lambda b_i^\lambda
+ \oint_{\partial\mathcal S_{\lambda B}}K_{abij}(\bm x-\bm y)\,dy_j.
+\end{equation}
+For a target sufficiently separated from the full patch support, Taylor expansion about $\bm c$ yields
+\begin{equation}
+ \sigma_{ab}^{B}(\bm x)\simeq
+ \sum_{1\le|\boldsymbol\nu|\le P}
+ \frac{(-1)^{|\boldsymbol\nu|}}{\boldsymbol\nu!}
+ \partial^{\boldsymbol\nu}K_{abij}(\bm x-\bm c)
+ M_{ij}^{\boldsymbol\nu}(B;\bm c).
+ \label{eq:patchStressExpansion}
+\end{equation}
+The omitted degree-zero term vanishes identically. The equivalent surface representation is
+\begin{equation}
+ \sigma_{ab}^{B}(\bm x)
+ =-\sum_\lambda b_i^\lambda\int_{\mathcal S_{\lambda B}}
+ \epsilon_{k\ell j}n_k^\lambda
+ \partial_{x_\ell}K_{abij}(\bm x-\bm y)\,dA_y.
+ \label{eq:patchSurfaceStress}
+\end{equation}
+For the classical infinite-medium stress kernel, the line kernel decays as $r^{-2}$ and its first derivative as $r^{-3}$. A bounded closed patch therefore starts with an area-dependent $r^{-3}$ contribution. The convergence criterion must use the support of the entire patch, including its artificial closure, and the analytic properties of the chosen regularized kernel. A small or vanishing leading coefficient is not itself an error bound.
+
+Nearby interactions must use the same decomposition as Eq.~\eqref{eq:patchStressExpansion}: direct closed-contour evaluation, the equivalent surface formulation, or a demonstrably equivalent cancellation scheme. Mixing far closed-patch expansions with near physical segments alone generally drops artificial-edge contributions. Coincident artificial edges should be cancelled algebraically where possible; singular classical expressions must not be evaluated separately at their common edge. Finite-order far expansions introduce truncation error even though the underlying source cancellation is exact.
+
+\section{Exact moments of planar polygons}
+Triangulate an oriented patch, respecting holes and signed multiplicity. A signed triangle fan is also sufficient for moment integration, even for a concave polygon, provided orientations and multiplicities are preserved. For each triangle with vertices $\bm y_0,\bm y_1,\bm y_2$, let
+\begin{equation}
+ \bm a_T=\tfrac12(\bm y_1-\bm y_0)\times(\bm y_2-\bm y_0),
+ \qquad \bm q_r=\bm y_r-\bm c.
+\end{equation}
+Its first three surface moments are
+\begin{align}
+ A_{ik}^{\boldsymbol0}(T)&=b_i(a_T)_k,\\
+ A_{ik}^{\bm e_a}(T)&=\frac{b_i(a_T)_k}{3}\sum_{r=0}^2(q_r)_a,\\
+ A_{ik}^{\bm e_a+\bm e_b}(T)
+ &=\frac{b_i(a_T)_k}{12}
+ \left[\left(\sum_r(q_r)_a\right)\left(\sum_s(q_s)_b\right)
+ +\sum_r(q_r)_a(q_r)_b\right].
+ \label{eq:triangleSecondMoment}
+\end{align}
+Higher moments follow by expanding $\bm q=\sum_{r=0}^2\lambda_r\bm q_r$ and using the exact barycentric identity
+\begin{equation}
+ \int_T\lambda_0^{m_0}\lambda_1^{m_1}\lambda_2^{m_2}\,dA
+ =2|T|\frac{m_0!m_1!m_2!}{(m_0+m_1+m_2+2)!}.
+\end{equation}
+Summing triangle contributions gives polygon moments without dependence on the discretization of straight polygon edges. Nearly cancelling signed contributions still require suitable floating-point accumulation and geometric tolerances.
+
+\section{Changing centers and combining child boxes}
+Let child $C$ have center $\bm c_C$, parent $B$ have center $\bm c_B$, and $\bm d_C=\bm c_C-\bm c_B$. Since
+$\bm y-\bm c_B=(\bm y-\bm c_C)+\bm d_C$, the multi-index binomial theorem gives
+\begin{equation}
+ \boxed{A_{ik}^{\boldsymbol\nu}(B;\bm c_B)
+ =\sum_{C\subset B}\ \sum_{\boldsymbol\mu\le\boldsymbol\nu}
+ {\boldsymbol\nu\choose\boldsymbol\mu}
+ \bm d_C^{\boldsymbol\nu-\boldsymbol\mu}
+ A_{ik}^{\boldsymbol\mu}(C;\bm c_C).}
+ \label{eq:patchM2M}
+\end{equation}
+Here ${\boldsymbol\nu\choose\boldsymbol\mu}=\prod_a{\nu_a\choose\mu_a}$ and the child patches partition the parent's surface with signed multiplicity. For the lowest orders,
+\begin{align}
+ A^{\boldsymbol0}_B&=\sum_C A^{\boldsymbol0}_C,\\
+ A^{\bm e_a}_B&=\sum_C\left(A^{\bm e_a}_C+(d_C)_aA^{\boldsymbol0}_C\right),\\
+ A^{\bm e_a+\bm e_b}_B
+ &=\sum_C\left(A^{\bm e_a+\bm e_b}_C
+ +(d_C)_aA^{\bm e_b}_C+(d_C)_bA^{\bm e_a}_C
+ +(d_C)_a(d_C)_bA^{\boldsymbol0}_C\right).
+\end{align}
+The suppressed indices $i,k$ are unchanged. The same binomial translation holds for line moments $M$. Applying Eq.~\eqref{eq:areaToLineMoments} before or after aggregation gives the same result: Stokes' theorem and translation commute, and interior edges cancel by Eq.~\eqref{eq:patchBoundaryCancellation}. Translation of retained polynomial moments is exact; it introduces no additional expansion truncation.
+
+For example, a rectangle $[-L_x/2,L_x/2]\times[-L_y/2,L_y/2]$ in the $xy$ plane has
+\begin{equation}
+ A_{iz}^{\boldsymbol0}=b_iL_xL_y,\qquad
+ A_{iz}^{\bm e_x}=A_{iz}^{\bm e_y}=0,\qquad
+ M_{iy}^{\bm e_x}=b_iL_xL_y,\quad M_{ix}^{\bm e_y}=-b_iL_xL_y.
+\end{equation}
+Splitting at $x=0$ creates an oppositely oriented edge in each child. Those edges cancel, and translating the child moments to the origin reproduces these values, including the nonzero area moment and zero zeroth line moment.
+
+\section{Elastic energy from the same moments}
+\label{sec:patchMultipoleEnergy}
+The field solver must provide elastic energy as well as stress. Zero mean stress does not imply zero energy: a self-equilibrated field can store positive elastic energy. For a classical linear elastic body in equilibrium without body forces,
+\begin{align}
+ E_{\mathrm{el}}&=\frac12\int_V\sigma_{ij}\beta^e_{ij}\,dV
+ =\frac12\int_{\partial V}u_i t_i\,dS
+ -\frac12\int_V\sigma_{ij}\beta^P_{ij}\,dV.
+ \label{eq:patchEnergyWork}
+\end{align}
+This follows by substituting $\beta^e_{ij}=u_{i,j}-\beta^P_{ij}$ and integrating by parts. For traction-free boundaries, the surface-work term vanishes. With the manual's negative surface convention for $\beta^P$, the remaining term is formally
+\begin{equation}
+ E_{\mathrm{el}}=\frac12\sum_\lambda b_i^\lambda
+ \int_{\mathcal S_\lambda}\sigma_{ij}n_j^\lambda\,dA.
+ \label{eq:patchSurfaceEnergy}
+\end{equation}
+Classical dislocation self-energy is singular. Equation~\eqref{eq:patchSurfaceEnergy} must therefore be interpreted through a consistent core model, not as an instruction to sample an unregularized self-stress on its own line. For a gradient-elasticity model, any additional gradient-energy terms and generalized boundary work must also be retained. The regularized stress kernel and the energy kernel must be derived from the same energy functional.
+
+\subsection{Reciprocal pair energy and box expansions}
+For the homogeneous infinite-medium contribution, denote the corresponding Blin line-energy kernel by $H_{ij k\ell}(\bm r)$, with reciprocity
+\begin{equation}
+ H_{ij k\ell}(\bm r)=H_{k\ell ij}(-\bm r).
+\end{equation}
+Indices $i,k$ contract Burgers vectors and $j,\ell$ contract oriented line elements. Let $d\Lambda^A_{ij}=\sum_\lambda b_i^\lambda\,dy_j$ denote the weighted contour measure of all closed patches in box $A$. Define the mutual energy, without a factor of one half, as
+\begin{equation}
+ U_{AB}=\int_{\partial\mathcal S_A}\int_{\partial\mathcal S_B}
+ H_{ij k\ell}(\bm y-\bm z)\,d\Lambda^A_{ij}(\bm y)
+ \,d\Lambda^B_{k\ell}(\bm z)=U_{BA}.
+ \label{eq:patchMutualEnergy}
+\end{equation}
+The integrals over $\partial\mathcal S_A$ and $\partial\mathcal S_B$ abbreviate sums over all oriented patch contours, with their Burgers weights. This is the same source decomposition used for stress; it does not introduce separate dynamical loops.
+
+For well-separated boxes write $\bm R=\bm c_A-\bm c_B$, $\bm q=\bm y-\bm c_A$ and $\bm s=\bm z-\bm c_B$. Expanding $H(\bm R+\bm q-\bm s)$ gives
+\begin{equation}
+ U_{AB}\simeq
+ \sum_{\substack{|\boldsymbol\mu|\ge1,\ |\boldsymbol\nu|\ge1\\
+ |\boldsymbol\mu|+|\boldsymbol\nu|\le Q}}
+ \frac{(-1)^{|\boldsymbol\nu|}}{\boldsymbol\mu!\,\boldsymbol\nu!}
+ M_{ij}^{\boldsymbol\mu}(A;\bm c_A)
+ \partial^{\boldsymbol\mu+\boldsymbol\nu}H_{ij k\ell}(\bm R)
+ M_{k\ell}^{\boldsymbol\nu}(B;\bm c_B).
+ \label{eq:patchEnergyExpansion}
+\end{equation}
+Here $Q\ge2$ is the total Taylor degree; the stored moment degree must cover every retained term. This symmetric total-degree truncation is distinct from the single-source stress order $P$ in Eq.~\eqref{eq:patchStressExpansion}. Neither box has a degree-zero line moment. The leading interaction is therefore dipole--dipole:
+\begin{equation}
+ U_{AB}^{(2)}=-M_{ij}^{\bm e_a}(A)\,
+ H_{ij k\ell,ab}(\bm R)\,M_{k\ell}^{\bm e_b}(B).
+\end{equation}
+All required line moments come from Eq.~\eqref{eq:areaToLineMoments}; no independent energy-specific source cache is needed. For a classical line-energy kernel scaling as $r^{-1}$, this leading loop-pair interaction scales as $r^{-3}$. The coefficient can have either sign even though the complete elastic energy is nonnegative for a stable elastic model.
+
+\subsection{Counting, self-energy and artificial boundaries}
+For a finite source collection with a finite, consistent core energy,
+\begin{equation}
+ E_{\mathrm{int}}=\frac12\sum_{A,B}U_{AB}
+ =\sum_{A<B}U_{AB}+\frac12\sum_A U_{AA}.
+ \label{eq:patchEnergyCounting}
+\end{equation}
+Near pairs and self terms require direct regularized evaluation or an equivalent local calculation, not a far-field expansion. Artificial closure edges cancel at the level of the total source measure. Because energy is quadratic, this cancellation requires \emph{both} self terms and cross terms. Summing isolated patch self-energies while omitting their mutual interactions would assign spurious energy to the internal box boundaries. In a singular formulation, separate divergent artificial-edge energies cannot be computed and then subtracted numerically; cancel the source measures first or use a consistent nonsingular formulation.
+
+For periodic sources, energy per unit cell has the schematic form
+\begin{equation}
+ E_{\mathrm{cell}}=\frac12\sum_{A,B\text{ in cell}}
+ \sum_{\bm t\in\mathcal T}U(A,B+\bm t),
+ \label{eq:patchPeriodicEnergy}
+\end{equation}
+where $\mathcal T$ contains only active lattice translations. The central-cell self contribution is included with the chosen core treatment. If an algorithm removes it during evaluation, it must restore the prescribed self energy separately. Explicit nearby replicas and the periodic far operator must not overlap. The lattice-sum convention, any macroscopic energy term, and the zero-mean internal-stress condition must agree with the stress calculation. Finite-domain FEM corrections and applied-load work are additional contributions, not automatically included in the infinite-medium line kernel.
+
+\subsection{Energy--force consistency and GPU reduction}
+A reciprocal cell-pair interaction can be evaluated once and reduced to a scalar energy. GPU kernels may store one energy per accepted unordered pair, followed by a parallel reduction, avoiding a global atomic update for every interaction. Local/self terms can use separate batches. The same cached source moments and periodic translation data serve the stress and energy calculations.
+
+For a conservative internal elastic model, generalized nodal forces satisfy
+\begin{equation}
+ \bm F_a^{\mathrm{int}}=-\frac{\partial E_{\mathrm{int}}}{\partial\bm x_a}.
+\end{equation}
+The derivative includes the dependence of clipped-patch moments on physical node positions. A stress approximation and an independently truncated energy approximation need not satisfy this identity exactly. If exact discrete consistency is required, derive both from one reciprocal approximate energy, accounting for derivatives of its moments and any geometry-dependent acceptance rules. Changes of interaction lists can introduce small jumps unless the approximation is designed to avoid them. A separate line-tension or core term must have its own energy and must not duplicate energy already included in the chosen kernel.
+
+Verification must compare direct regularized energy with multipole energy, check $U_{AB}=U_{BA}$, and verify invariance under subdivision of a fixed slipped surface. Finite-difference variations of physical nodes should agree with conservative forces at increasing expansion accuracy, including motion across box faces. Also test periodic image relabeling, self-term accounting, and CPU/GPU reductions. Zero volume-average stress and positive stored energy should coexist in a traction-free internal-source test.
+
+\section{Cache refresh and parallel evaluation}
+Before force evaluation, refresh a conservative set of loop--box contributions using the current geometry. Include current and previous perimeter boxes and any boxes crossed between refreshes; an interior box crossed completely during a step must not retain its old state. A newly created loop needs initialization over its slipped area, while deletion removes all its cached contributions. If topology changes prevent a reliable local comparison, rebuild the affected loop's contributions. Boxes whose signed surface intersection is unchanged retain their moments.
+
+Replace each changed contribution and update ancestors using Eq.~\eqref{eq:patchM2M}. Recomputing a parent from its children can limit accumulated roundoff compared with repeatedly adding small differences. Aggregated moments are invariant under a repartition of identical oriented slipped surfaces with the same Burgers vectors. This does not imply invariance under arbitrary junction or cross-slip events.
+
+An initial GPU implementation can keep clipping and topology on the CPU and transfer flat arrays of moments, box geometry, quadrature targets, and interaction lists. Groups of nearby targets share source-box lists and reuse moment data. Direct and far-field kernels produce target stresses, followed by force integration per physical network segment and a nodal gather. Artificial patch edges never enter network topology. Unchanged source moments may stay on the device, but moving targets still require field evaluation and valid interaction lists.
+
+\section{Periodic replicas and the average-stress condition}
+For active vectors $\bm v_1,\ldots,\bm v_p$, replicas are indexed by
+$\bm t=\sum_{a=1}^p n_a\bm v_a$, $n_a\in\mathbb Z$. A source patch translated together with its expansion center has identical moment coefficients. Nearby replicas can therefore reuse one tree with explicit image translations. The tree's enclosing box need not coincide with a primitive periodic cell or with the non-convex physical boundary.
+
+In a periodic FMM design, sufficiently distant replicas supply a smooth root local expansion of the form
+\begin{equation}
+ L_{\mathrm{root}}^{\mathrm{per}}=T_{\mathrm{per}}M_{\mathrm{root}}.
+\end{equation}
+The operator depends on the kernel, lattice, expansion order, explicit-neighbor exclusion, and macroscopic convention. It must be derived and validated for the dislocation kernel; it is not supplied by the moment identities above. Its local expansion is propagated down the tree. Only active periodic directions enter the replica lattice. Periodic seam closures must cancel with their translated partners, with every source counted once.
+
+The average-stress constraint follows from equilibrium, not from numerical truncation. With no body forces, $\partial_k\sigma_{ik}=0$ and
+\begin{equation}
+ \partial_k(x_j\sigma_{ik})=\sigma_{ij},\qquad
+ \boxed{\langle\sigma_{ij}\rangle_V
+ =\frac1V\int_{\partial V}x_jt_i\,dS,\quad t_i=\sigma_{ik}n_k.}
+ \label{eq:patchAverageStress}
+\end{equation}
+Thus the stress of the complete traction-free body has zero volume average for any internal source. Closed-loop representation supplies physically consistent dislocation sources; artificial cut segments must not be treated as independent defects. A periodic internal-field operator intended to represent the macroscopically unloaded problem must respect its zero-mean stress condition. Periodic cell faces are identification surfaces, not automatically traction-free physical surfaces. For a finite or partially periodic body, the infinite-medium field and the boundary correction must together satisfy the actual external boundary conditions; neither contribution individually has to have zero average over that finite body. Applied loading and its mean stress remain separate from the unloaded internal-field convention.
+
+\section{Verification before implementation}
+The following checks distinguish exact source identities from numerical approximation:
+\begin{enumerate}
+ \item For a closed polygon, verify $M^{\boldsymbol0}=0$ and compare direct polynomial line integration with Eq.~\eqref{eq:areaToLineMoments} through the retained order.
+ \item Split a polygon across boxes, including oblique planes, corners, disconnected pieces and signed contours. Compare direct parent moments with translated child sums. Refine straight edges without changing the moments.
+ \item Compare the sum of exact closed-patch fields with the original loop field. Check cancellation of artificial edges before assessing far-field truncation error.
+ \item Compare direct stresses with Eq.~\eqref{eq:patchStressExpansion} while varying distance and order. Use absolute as well as relative errors near field zeros.
+ \item Compare incremental cache refresh with a full rebuild after motion, remeshing, loop creation/deletion and topology changes, including a boundary crossing an entire box between refreshes.
+ \item Check periodic image relabeling, one/two/three active directions, and the mean-stress condition of the intended boundary-value problem. Check CPU/GPU agreement with fixed geometry and tolerances appropriate to floating-point reduction order.
+\end{enumerate}

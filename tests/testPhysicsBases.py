@@ -56,9 +56,11 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
     del generator
 
     configure("DislocationDynamics", 200 / math.sqrt(3))
+    (inputs / "DD.txt").write_text("fmmTreeDepth=2;\n")
     base = model.DefectiveCrystalBase(str(folder))
     dd = base.dislocationDynamicsBase
     assert dd is base.dislocationDynamics()
+    assert dd.fmmTreeDepth == 2
     plane = dd.glidePlane(np.zeros(3), np.array([0., 0., 1.]), 1)
     periodic = dd.periodicGlidePlane(np.zeros(3), np.array([0., 0., 1.]), 1)
     assert dd.glidePlaneCount() >= 1

@@ -100,7 +100,8 @@ namespace model
     /* init */,poly(*polyOwner)
     /* init */,fe(simulationParameters.useFEM ? new FiniteElement<ElementType>(meshOwner) : nullptr)
     /* init */,activePhysics(parsePhysics(simulationParameters.physics))
-    /* init */,dislocationDynamicsBase(hasPhysics("DislocationDynamics") ? std::make_shared<DislocationDynamicsBase<dim>>(meshOwner,polyOwner,periodicLatticeBasis,simulationParameters.traitsIO.dcFile) : nullptr)
+    /* init */,dislocationDynamicsBase(hasPhysics("DislocationDynamics") ? std::make_shared<DislocationDynamicsBase<dim>>(meshOwner,polyOwner,periodicLatticeBasis,simulationParameters.traitsIO.dcFile,
+        simulationParameters.traitsIO.inputFilesFolder+"/DD.txt") : nullptr)
     /* init */,clusterDynamicsBase(hasPhysics("ClusterDynamics") ? std::make_shared<ClusterDynamicsBase<dim>>(*this) : nullptr)
     /* init */,elasticDeformationBase(hasPhysics("ElasticDeformation") ? std::make_shared<ElasticDeformationBase<dim>>(*this) : nullptr)
     {

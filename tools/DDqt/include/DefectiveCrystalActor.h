@@ -28,6 +28,7 @@
 #include <DefectiveCrystal/DefectiveCrystalAuxIO.h>
 #include <DDFieldWidget.h>
 #include <SurfaceMeshActor.h>
+#include <BoxTreeActor.h>
 #include <FrameCameraRotation.h>
 #include <PeriodicImagesWidget.h>
 #include <SimplicialMesh.h>
@@ -69,6 +70,7 @@ namespace model
         ChartActor* chartActor;
         DDFieldWidget* ddField;
         SurfaceMeshActor* surfaceMesh;
+        BoxTreeActor* boxes;
         SlipSystemTab* slipSystemTab;
         
     private:

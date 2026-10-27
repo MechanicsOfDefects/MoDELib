@@ -213,6 +213,8 @@ int main(int argc, char **argv)
             window->AddRenderer(renderer);
             auto *viewer = new model::DefectiveCrystalActor(window, renderer, nullptr, base);
             QPointer<model::DefectiveCrystalActor> guardedViewer(viewer);
+            check(viewer->boxes && !viewer->boxes->findChild<QGroupBox*>("boxTreeGroup")->isEnabled(),
+                  "Boxes tab should be unavailable in an ED-only tutorial");
             checkDataSetMapperInputs(renderer);
             check(viewer->updateConfiguration(0), "Initial frame load failed");
             checkDataSetMapperInputs(renderer);

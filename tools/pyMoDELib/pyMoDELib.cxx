@@ -358,6 +358,7 @@ PYBIND11_MODULE(pyMoDELib,m)
     ;
     py::class_<DislocationDynamicsBase<3>,std::shared_ptr<DislocationDynamicsBase<3>>>(m,"DislocationDynamicsBase")
         .def_readonly("EwaldLength", &DislocationDynamicsBase<3>::EwaldLength)
+        .def_readonly("fmmTreeDepth", &DislocationDynamicsBase<3>::fmmTreeDepth)
         .def("glidePlane", [](DislocationDynamicsBase<3>& base, const Eigen::Vector3d& point,
                               const Eigen::Vector3d& normal, size_t grainID)
         {

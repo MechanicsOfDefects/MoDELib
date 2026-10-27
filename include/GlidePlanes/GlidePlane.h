@@ -9,6 +9,8 @@
 #define model_GLIDEPLANE_H
 
 #include <deque>
+#include <mutex>
+#include <FMM/PlaneBoxIntersection.h>
 #include <chrono>
 #include <memory>
 #include <map>
@@ -55,6 +57,16 @@ namespace model
         const Grain<dim>& grain;
         const GlidePlaneKeyType key;
 
+      private:
+        using TreeOwner = std::weak_ptr<const BoxTree<dim>>;
+        mutable std::mutex boxCutMutex;
+        mutable std::map<TreeOwner, std::map<unsigned, std::shared_ptr<const PlaneBoxIntersection<dim>>>,
+                         std::owner_less<TreeOwner>> boxCuts;
+      public:
+        using BoxCutPtr = std::shared_ptr<const PlaneBoxIntersection<dim>>;
+        // Thread-safe cache lookup/build; tree rebuilds must not race readers.
+        BoxCutPtr boxIntersection(
+            const std::shared_ptr<const BoxTree<dim>>&, unsigned level) const;
         /**********************************************************************/
         GlidePlane(const GlidePlaneFactoryType* const gpF,
                    const GlidePlaneKeyType& key_in) ;

@@ -72,6 +72,41 @@ int GlidePlane<dim>::planeBaseID() const
 }
 
 
+template<int dim>
+typename GlidePlane<dim>::BoxCutPtr GlidePlane<dim>::boxIntersection(
+    const std::shared_ptr<const BoxTree<dim>>& tree, unsigned level) const
+{
+    if(!tree)
+    {
+        throw std::invalid_argument("GlidePlane box intersection requires a tree");
+    }
+    const std::lock_guard<std::mutex> lock(boxCutMutex);
+    for(auto it = boxCuts.begin(); it != boxCuts.end();)
+    {
+        if(it->first.expired())
+        {
+            it = boxCuts.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    auto& levels = boxCuts[TreeOwner(tree)];
+    if(!levels.empty() && levels.begin()->second->revision() != tree->revision())
+    {
+        levels.clear();
+    }
+    const auto found = levels.find(level);
+    if(found != levels.end())
+    {
+        return found->second;
+    }
+    const auto cut = std::make_shared<const PlaneBoxIntersection<dim>>(*tree, level, this->P, this->unitNormal);
+    levels.emplace(level, cut);
+    return cut;
+}
+
 template struct GlidePlane<3>;
 }
 #endif

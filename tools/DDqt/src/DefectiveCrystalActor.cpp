@@ -1,3 +1,4 @@
+#include <DislocationDynamics/DislocationDynamicsBase.h>
 /* This file is part of MODEL, the Mechanics Of Defect Evolution Library.
  *
  * Copyright (C) 2011 by Giacomo Po <gpo@ucla.edu>.
@@ -49,6 +50,23 @@ namespace model
         /* init */,chartActor(new ChartActor(ddBase.simulationParameters.traitsIO,renderWindow,ren))
         /* init */,ddField(new DDFieldWidget(renderWindow,ren,defectiveCrystal))
         /* init */,surfaceMesh(new SurfaceMeshActor(renderWindow,ren,defectiveCrystal))
+        /* init */,boxes(new BoxTreeActor(renderWindow,ren,ddBase.dislocationDynamicsBase ?
+            ddBase.dislocationDynamicsBase->boxTree : nullptr,
+            [base = ddBase.dislocationDynamicsBase]()
+            {
+                std::vector<std::shared_ptr<GlidePlane<3>>> planes;
+                if(base)
+                {
+                    for(const auto& [key, weakPlane] : base->glidePlaneFactory.glidePlanes())
+                    {
+                        if(const auto plane = weakPlane.lock())
+                        {
+                            planes.push_back(plane);
+                        }
+                    }
+                }
+                return planes;
+            }))
         /* init */,slipSystemTab(new SlipSystemTab(defectiveCrystal))
         /* init */,configuration(std::make_unique<DefectiveCrystalConfigIO<3>>(ddBase.simulationParameters.traitsIO.configFolder))
         /* init */,auxiliary(std::make_unique<DefectiveCrystalAuxIO<3>>(ddBase.simulationParameters.traitsIO.auxFolder))
@@ -78,6 +96,7 @@ namespace model
             tabWidget->addTab(chartActor, tr(std::string("Chart").c_str()));
             tabWidget->addTab(ddField, tr(std::string("Fields").c_str()));
             tabWidget->addTab(surfaceMesh, tr("SurfaceMesh"));
+            tabWidget->addTab(boxes, tr("Boxes"));
             tabWidget->addTab(slipSystemTab, tr(std::string("SlipSystems").c_str()));
 
             saveImage->setText("save PNG");
@@ -339,6 +358,7 @@ namespace model
             loops->updateConfiguration(slipSystemTab->slipSystemColorMap);
             inclusions->updateConfiguration();
             surfaceMesh->updateConfiguration();
+            boxes->updateConfiguration();
             glidePlanes->updateConfiguration();
             quadrature->updateConfiguration(auxIO());
             chartActor->updateConfiguration(frameID);
