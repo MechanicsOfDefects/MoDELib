@@ -147,7 +147,11 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
                 const auto& edges=periodicPatch->edges();
                 // Old snapshots can have a small loop/network position mismatch.
                 // Use that recorded discrepancy as the reconstruction uncertainty.
-                const double tolerance=FLT_EPSILON+(position-netNode->get_P()).norm();
+                // Match updateBoundaryNodes' geometric tolerance: a valid
+                // committed boundary node must remain loadable from its snapshot.
+                const double tolerance=std::max(double(FLT_EPSILON),
+                    1.e-8*(ddBase.mesh.xMax()-ddBase.mesh.xMin()).norm())
+                    +(position-netNode->get_P()).norm();
                 const auto matches=[&](int index)
                 {
                     return index>=0 && size_t(index)<edges.size() && edges[index]->meshIntersection->distanceTo(position)<=tolerance;
@@ -177,7 +181,15 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
                     const size_t expected=node.edgeIDs.second>=0 ? 2 : 1;
                     if(candidates.size()!=expected)
                     {
-                        throw std::runtime_error("Cannot recover saved boundary incidences for loop node "+std::to_string(node.sID));
+                        std::ostringstream detail;
+                        detail<<"Cannot recover saved boundary incidences for loop node "<<node.sID
+                              <<"; expected="<<expected<<", found="<<candidates.size()
+                              <<", tolerance="<<tolerance<<", distances=";
+                        for(const auto& edge : edges)
+                        {
+                            detail<<edge->meshIntersection->distanceTo(position)<<" ";
+                        }
+                        throw std::runtime_error(detail.str());
                     }
                     periodicPatchEdge.first=candidates.front();
                     if(expected==2)

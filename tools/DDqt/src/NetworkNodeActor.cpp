@@ -10,6 +10,9 @@
 #define model_NetworkNodeActor_cpp_
 
 #include <iostream>
+#include <algorithm>
+#include <cmath>
+#include <QDoubleValidator>
 #include <deque>
 #include <string>
 
@@ -47,7 +50,7 @@ namespace model
     
         
         /**********************************************************************/
-        NetworkNodeActor::NetworkNodeActor(vtkGenericOpenGLRenderWindow* const renWin,vtkRenderer* const renderer) :
+        NetworkNodeActor::NetworkNodeActor(vtkGenericOpenGLRenderWindow* const renWin,vtkRenderer* const renderer, double boxDiagonal) :
         /* init */ renderWindow(renWin)
         /* init */,mainLayout(new QGridLayout(this))
         /* init */,showNodes(new QCheckBox(this))
@@ -56,7 +59,9 @@ namespace model
         /* init */,showSpecificNodeLabel(new QCheckBox(this))
         /* init */,showSpecificNodeLabelEdit(new QLineEdit("0"))
         /* init */,showVelocities(new QCheckBox(this))
+        /* init */,manualVelocityScale(new QCheckBox(this))
         /* init */,velocityScaleEdit(new QLineEdit("1"))
+        /* init */,simulationBoxDiagonal(boxDiagonal)
         /* init */,nodePolyData(vtkSmartPointer<vtkPolyData>::New())
         /* init */,nodeGlyphs(vtkSmartPointer<vtkGlyph3D>::New())
         /* init */,nodeMapper(vtkSmartPointer<vtkPolyDataMapper>::New())
@@ -99,6 +104,8 @@ namespace model
             showVelocities->setChecked(false);
             velocityActor->SetVisibility(false);
             velocityScaleEdit->setEnabled(false);
+            manualVelocityScale->setChecked(false);
+            velocityScaleEdit->setValidator(new QDoubleValidator(0.0, 1.0e300, 16, velocityScaleEdit));
 
             auto *nodesBox = controls::box("Nodes", this, "Show or hide network-node markers.", showNodes);
             controls::field(controls::grid(nodesBox), 0, "Radius", sliderNodeRadius,
@@ -110,7 +117,9 @@ namespace model
                             "Enter space-separated node IDs. Press Enter to update the labels.");
             auto *velocityBox =
                 controls::box("Velocities", this, "Show velocity arrows at network nodes.", showVelocities);
-            controls::field(controls::grid(velocityBox), 0, "Scale", velocityScaleEdit,
+            controls::field(controls::grid(velocityBox), 0, "Manual scaling", manualVelocityScale,
+                            "Unchecked: rescale every frame so the fastest arrow is 5% of the simulation-box diagonal. Checked: use the entered scale across frames.");
+            controls::field(controls::grid(velocityBox), 1, "Scale", velocityScaleEdit,
                             "Multiply each velocity vector by this display scale. Press Enter to apply.");
             mainLayout->addWidget(nodesBox, 0, 0);
             mainLayout->addWidget(labelsBox, 1, 0);
@@ -123,6 +132,7 @@ namespace model
             connect(showNodeLabels,SIGNAL(stateChanged(int)), this, SLOT(modify()));
             connect(showVelocities,SIGNAL(stateChanged(int)), this, SLOT(modify()));
             connect(velocityScaleEdit,SIGNAL(returnPressed()), this, SLOT(modify()));
+            connect(manualVelocityScale,SIGNAL(stateChanged(int)), this, SLOT(modify()));
             connect(showSpecificNodeLabel,SIGNAL(stateChanged(int)), this, SLOT(modify()));
             connect(showSpecificNodeLabelEdit,SIGNAL(returnPressed()), this, SLOT(modify()));
             connect(sliderNodeRadius,SIGNAL(valueChanged(int)), this, SLOT(modify()));
@@ -226,6 +236,7 @@ namespace model
 //                std::cout<<sn<<std::endl;
 //            }
 
+            double maximumSpeed=0.0;
             for(const auto& node : configIO.nodes())
             {
                     if(singleNodes.find(node.sID)!=singleNodes.end())
@@ -239,6 +250,7 @@ namespace model
                 nodePoints->InsertNextPoint(node.P.data());
                 nodeLabels->InsertNextTuple1(node.sID);
                 velocityVectors->InsertNextTuple(node.V.data()); // arrow vector
+                maximumSpeed=std::max(maximumSpeed,node.V.stableNorm());
                 // Old outputs contain geometric-only labels. Prefer the current
                 // network classification, reconstructed with the active face pairs.
                 int location=node.meshLocation;
@@ -279,10 +291,40 @@ namespace model
             velocityPolyData->SetPoints(nodePoints);
             velocityPolyData->GetPointData()->SetVectors(velocityVectors);
             velocityPolyData->Modified();
+            automaticVelocityScale=1.0;
+            if(nodePoints->GetNumberOfPoints()>0 && maximumSpeed>0.0)
+            {
+                const double scale=0.05*simulationBoxDiagonal/maximumSpeed;
+                if(std::isfinite(scale))
+                {
+                    automaticVelocityScale=scale;
+                }
+            }
+            updateVelocityScale();
             std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
         }
         
         /**********************************************************************/
+        void NetworkNodeActor::updateVelocityScale()
+        {
+            velocityScaleEdit->setEnabled(showVelocities->isChecked() && manualVelocityScale->isChecked());
+            double scale=automaticVelocityScale;
+            if(manualVelocityScale->isChecked())
+            {
+                bool valid=false;
+                const double manualScale=velocityScaleEdit->text().toDouble(&valid);
+                if(valid && std::isfinite(manualScale) && manualScale>=0.0)
+                {
+                    scale=manualScale;
+                }
+            }
+            else
+            {
+                velocityScaleEdit->setText(QString::number(automaticVelocityScale,'g',17));
+            }
+            velocityGlyphs->SetScaleFactor(scale);
+        }
+
         void NetworkNodeActor::modify()
         {
             
@@ -292,9 +334,7 @@ namespace model
             labelActor->SetVisibility(showNodeLabels->isChecked());
             specificNodeLabelActor->SetVisibility(showSpecificNodeLabel->isChecked());
             velocityActor->SetVisibility(showVelocities->isChecked());
-            velocityScaleEdit->setEnabled(showVelocities->isChecked());
-            const double vScaling(std::atof(velocityScaleEdit->text() .toStdString().c_str()));
-            velocityGlyphs->SetScaleFactor(vScaling);
+            updateVelocityScale();
 
 //                velocityActor->SetScale(vScaling);
 //            nodeGlyphs->SetScaleFactor(2.0*this->tubeRadius*1.2);

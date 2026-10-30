@@ -412,7 +412,18 @@ namespace model
                     direct.compute(solverA);
                     if(direct.info()!=Eigen::Success)
                     {
-                        throw std::runtime_error("WeakProblem direct factorization failed; check constraints and null modes.");
+                        if constexpr(requires { direct.printUmfpackStatus(); direct.umfpackControl(); })
+                        {
+                            if(direct.info()==Eigen::NumericalIssue)
+                            {
+                                const double verbosity=direct.umfpackControl()(0);
+                                direct.umfpackControl()(0)=2.0;
+                                direct.printUmfpackStatus();
+                                direct.printUmfpackInfo();
+                                direct.umfpackControl()(0)=verbosity;
+                            }
+                        }
+                        throw std::runtime_error("WeakProblem direct factorization failed; check constraints, null modes, and available memory.");
                     }
                 }
                 else

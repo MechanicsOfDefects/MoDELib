@@ -254,7 +254,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             sinkTargets.push_back(&node);
         }
     }
-    std::vector<VectorMSize> sinkValues(sinkTargets.size());
+    std::vector<MatrixDim> sinkStresses(sinkTargets.size());
     std::vector<std::exception_ptr> sinkFailures(sinkTargets.size());
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static) if(!sinkTargets.empty())
@@ -264,14 +264,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
         try
         {
             const auto& node=*sinkTargets[row];
-            const auto& normals=fem.sinkNormals.at(node.gID);
-            const MatrixDim sigma=this->microstructures.stress(node.P0,&node,nullptr,nullptr);
-            double normalTraction=0.0;
-            for(const auto& normal : normals)
-            {
-                normalTraction+=normal.dot(sigma*normal)/double(normals.size());
-            }
-            sinkValues[row]=cdp.boundaryMobileConcentration(sigma.trace(),normalTraction);
+            sinkStresses[row]=this->microstructures.stress(node.P0,&node,nullptr,nullptr);
         }
         catch(...)
         {
@@ -285,9 +278,29 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             std::rethrow_exception(failure);
         }
     }
+    std::map<size_t,std::vector<size_t>> sinkClasses;
     for(size_t row=0;row<sinkTargets.size();++row)
     {
-        solvedQuantitySinkConcentrations[sinkTargets[row]->gID]=sinkValues[row];
+        sinkClasses[fem.mobileClusters->fe().periodicRepresentative(sinkTargets[row]->gID)].push_back(row);
+    }
+    for(const auto& entry : sinkClasses)
+    {
+        MatrixDim sigma=MatrixDim::Zero();
+        for(const size_t row : entry.second)
+        {
+            sigma+=sinkStresses[row]/double(entry.second.size());
+        }
+        const auto& normals=fem.sinkNormals.at(sinkTargets[entry.second.front()]->gID);
+        double normalTraction=0.0;
+        for(const auto& normal : normals)
+        {
+            normalTraction+=normal.dot(sigma*normal)/double(normals.size());
+        }
+        const VectorMSize concentration=cdp.boundaryMobileConcentration(sigma.trace(),normalTraction);
+        for(const size_t row : entry.second)
+        {
+            solvedQuantitySinkConcentrations[sinkTargets[row]->gID]=concentration;
+        }
     }
     for(const auto& node : fem.mobileClusters->fe().nodes())
     {

@@ -286,7 +286,7 @@ namespace model
 
                 return deltaArea / loopArea < relAreaTh;
             }
-            else if (loopArea > FLT_EPSILON && loopAreaRate<-FLT_EPSILON)
+            else if (loopArea > FLT_EPSILON && loopAreaRate < 0.0)
             {
                 VerboseDislocationLoopNode(2, "  DislocationLoopNode " << this->tag() << " removable (small loop)" << std::endl;);
                 return true;

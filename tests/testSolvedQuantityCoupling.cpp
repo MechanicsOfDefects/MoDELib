@@ -6,14 +6,14 @@
 #include <ElasticDeformation.h>
 #include <DefectiveCrystal/DefectiveCrystal.h>
 
-// Isolate periodic coupling from the finite-image DD stress approximation.
+// Exercise periodic sinks with an intentionally nonperiodic source stress.
 // Line-tension-driven climb and the actual DD concentration kernels remain active.
 struct PeriodicReferenceStressNetwork : DislocationNetwork<3>
 {
     using DislocationNetwork<3>::DislocationNetwork;
-    MatrixDim stress(const VectorDim&,const NodeType* const,const ElementType* const,const SimplexDim* const) const override
+    MatrixDim stress(const VectorDim& point,const NodeType* const,const ElementType* const,const SimplexDim* const) const override
     {
-        return MatrixDim::Zero();
+        return (1.e-8*point(0))*MatrixDim::Identity();
     }
 };
 
@@ -115,6 +115,36 @@ int main(int argc,char** argv)
                 }
             }
             require(coupled,"DD-CD cycle was not detected");
+            // Each periodic sink class receives one value, even though source
+            // stresses differ at its copies. The total concentration, not the
+            // FEM correction alone, must agree at those copies.
+            const auto& sinkFEM=*cd->clusterDynamicsFEM;
+            std::map<size_t,std::vector<size_t>> sinkClasses;
+            for(const auto& sink : sinkFEM.sinkNormals)
+            {
+                sinkClasses[base.fe->periodicRepresentative(sink.first)].push_back(sink.first);
+            }
+            for(const auto& entry : sinkClasses)
+            {
+                Eigen::Matrix3d meanStress=Eigen::Matrix3d::Zero();
+                for(const size_t id : entry.second)
+                {
+                    const auto& node=base.fe->node(id);
+                    meanStress+=owner->stress(node.P0,&node,nullptr,nullptr)/double(entry.second.size());
+                }
+                const auto& normals=sinkFEM.sinkNormals.at(entry.second.front());
+                double traction=0.0;
+                for(const auto& normal : normals)
+                {
+                    traction+=normal.dot(meanStress*normal)/double(normals.size());
+                }
+                const auto expected=cd->cdp.boundaryMobileConcentration(meanStress.trace(),traction).matrix().transpose().eval();
+                for(const size_t id : entry.second)
+                {
+                    require((cd->solvedQuantitySinkConcentrations.at(id)-expected).norm()<1.e-12*std::max(1.e-50,expected.norm()),"Periodic sink stress averaging mismatch");
+                }
+            }
+
 #ifdef _OPENMP
             const int previousThreads=omp_get_max_threads();
             omp_set_num_threads(1);

@@ -40,7 +40,7 @@ namespace model
         /* init */,ddBase(ddBase_in)
 //        /* init */,configFields(ddBase,*this)
         /* init */,defectiveCrystal(ddBase)
-        /* init */,nodes(new NetworkNodeActor(renWin,ren))
+        /* init */,nodes(new NetworkNodeActor(renWin,ren,(ddBase.mesh.xMax()-ddBase.mesh.xMin()).norm()))
         /* init */,segments(new NetworkLinkActor(renWin,ren,defectiveCrystal))
         /* init */,loops(new NetworkLoopActor(renWin,ren,defectiveCrystal))
         /* init */,inclusions(new InclusionActor(renWin,ren,defectiveCrystal))

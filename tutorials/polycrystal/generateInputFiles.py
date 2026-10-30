@@ -13,6 +13,7 @@ args.output_dir.mkdir(parents=True, exist_ok=True)
 os.chdir(args.output_dir.resolve())
 sys.path.insert(0, str(repository / "python"))
 from modlibUtils import *
+from countGrains import countGrains
 
 
 # Create folder structure
@@ -77,6 +78,8 @@ setInputVector('inputFiles/'+elasticDeformatinoFile, 'stiffnessRatio',
 # Create polycrystal.txt using local material file
 meshFile='poly30_periodicXYZ.msh';
 meshFileTemplate=str(repository)+'/Library/Meshes/'+meshFile;
+numberOfGrains = countGrains(meshFileTemplate)
+print(f'Mesh contains {numberOfGrains} grains')
 print("\033[1;32mCreating  polycrystalFile\033[0m")
 shutil.copy2(meshFileTemplate,'inputFiles/'+meshFile)
 pf=PolyCrystalFile(materialFile);
@@ -88,7 +91,7 @@ pf.grain1globalX3 = np.array([0.0, 0.0, 1.0])
 pf.boxScaling=np.array([1e-6,1e-6,1e-6])/b_SI # scale of each mesh coordinate in Burgers vector units
 pf.X0=np.array([0,0,0]) # Mesh nodes X are mapped to x=F*(X-X0)
 pf.periodicFaceIDs=np.array([-1])
-# Explicit example orientations for all 30 grains. These rational rotations
+# Explicit example orientations for all grains detected in the mesh. These rational rotations
 # are chosen for lattice-compatible periodic translations; they do not use the
 # random orientations stored in the source mesh's ElsetOrientations section.
 rx = np.array([[1., 0., 0.], [0., 0.8, -0.6], [0., 0.6, 0.8]])
@@ -102,12 +105,15 @@ elementaryRotations = [rx, rx.T, ry, ry.T, rz, rz.T]
 for first in elementaryRotations:
     for second in elementaryRotations:
         orientation = first @ second
-        if len(grainOrientations)<30 and not any(
+        if not any(
                 np.allclose(orientation, existing, rtol=0, atol=1e-12)
                 for existing in grainOrientations):
             grainOrientations.append(orientation)
-if len(grainOrientations)!=30:
-    raise ValueError('Expected 30 distinct grain orientations')
+# Reuse this finite lattice-compatible orientation pool for larger meshes.
+# The first 30 orientations are unchanged from the original tutorial.
+orientationPool = grainOrientations
+grainOrientations = [orientationPool[index % len(orientationPool)]
+                     for index in range(numberOfGrains)]
 # Products have denominators up to 25. Round the axial BCC repeat counts
 # to multiples of 25 so all grain orientations admit the periodic translations.
 pf.compute()

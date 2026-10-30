@@ -65,7 +65,11 @@ namespace model
         QCheckBox* showSpecificNodeLabel;
         QLineEdit* showSpecificNodeLabelEdit;
         QCheckBox* showVelocities;
+        QCheckBox* manualVelocityScale;
         QLineEdit* velocityScaleEdit;
+        const double simulationBoxDiagonal;
+        double automaticVelocityScale=1.0;
+        void updateVelocityScale();
 
         
         public:
@@ -91,7 +95,7 @@ namespace model
 //        size_t singleNodeID;
         unsigned char nodeClr[4][3];
         
-        NetworkNodeActor(vtkGenericOpenGLRenderWindow* const,vtkRenderer* const);
+        NetworkNodeActor(vtkGenericOpenGLRenderWindow* const,vtkRenderer* const, double boxDiagonal);
         void updateConfiguration(const DefectiveCrystalConfigIO<3>& configIO, const DislocationNetwork<3>* network=nullptr);
         
         

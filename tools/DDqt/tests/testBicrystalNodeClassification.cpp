@@ -64,10 +64,10 @@ int main(int argc,char** argv)
         window->SetReadyForRendering(false);
         auto renderer=vtkSmartPointer<vtkRenderer>::New();
         window->AddRenderer(renderer);
-        model::NetworkNodeActor actor(window,renderer);
         for(int frame : {430,500})
         {
             model::DefectiveCrystalBase<3> base(folder.string());
+            model::NetworkNodeActor actor(window,renderer,(base.mesh.xMax()-base.mesh.xMin()).norm());
             model::DefectiveCrystal<3> crystal(base);
             auto& network=*crystal.getUniqueTypedMicrostructure<model::DislocationNetwork<3>>();
             model::DefectiveCrystalConfigIO<3> saved(folder.string());
