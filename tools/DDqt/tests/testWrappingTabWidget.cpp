@@ -2,6 +2,12 @@
 #include <DDqtControls.h>
 #include <QLineEdit>
 #include <QApplication>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QSpinBox>
+#include <QComboBox>
+#include <QSlider>
+#include <QWheelEvent>
 #include <set>
 #include <stdexcept>
 #include <iostream>
@@ -11,6 +17,50 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     try
     {
+        model::controls::WheelGuard guard;
+        app.installEventFilter(&guard);
+        QScrollArea scroll;
+        auto* body=new QWidget;
+        body->setMinimumSize(200,2000);
+        auto* spin=new QSpinBox(body);
+        spin->setValue(10);
+        auto* combo=new QComboBox(body);
+        combo->addItems({"one","two","three"});
+        combo->setCurrentIndex(1);
+        auto* slider=new QSlider(Qt::Horizontal,body);
+        slider->setValue(30);
+        scroll.setWidget(body);
+        scroll.resize(300,300);
+        scroll.show();
+        app.processEvents();
+        for(QWidget* control:std::vector<QWidget*>{spin,spin->findChild<QLineEdit*>(),combo,slider})
+        {
+            for(bool focused:{false,true})
+            {
+                scroll.verticalScrollBar()->setValue(200);
+                if(focused)
+                {
+                    control->setFocus();
+                }
+                else
+                {
+                    control->clearFocus();
+                }
+                const auto global=control->mapToGlobal(QPoint(5,5));
+                QWheelEvent event(QPointF(5,5),global,QPoint(),QPoint(0,-120),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
+                QApplication::sendEvent(control,&event);
+                if(spin->value()!=10 || combo->currentIndex()!=1 || slider->value()!=30
+                   || scroll.verticalScrollBar()->value()<=200)
+                {
+                    throw std::runtime_error("Wheel edited a control or failed to scroll the panel");
+                }
+            }
+        }
+        spin->stepUp();
+        if(spin->value()!=11)
+        {
+            throw std::runtime_error("Explicit numeric editing was disabled");
+        }
         QWidget panel;
         QCheckBox visibility(&panel);
         auto *group = model::controls::box("Test", &panel, "Group help", &visibility);

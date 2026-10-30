@@ -13,6 +13,7 @@
 #include <QtWidgets/QApplication>
 #include <QVTKOpenGLNativeWidget.h>
 #include <DDqtMainWindow.h>
+#include <DDqtControls.h>
 
 
 int main(int argc, char *argv[])
@@ -22,6 +23,8 @@ int main(int argc, char *argv[])
 #endif
     QSurfaceFormat::setDefaultFormat(QVTKOpenGLNativeWidget::defaultFormat()); // needed to ensure appropriate OpenGL context is created for VTK rendering.
     QApplication a(argc, argv);
+    model::controls::WheelGuard wheelGuard;
+    a.installEventFilter(&wheelGuard);
     model::DDqtMainWindow window;
     window.show();
     return a.exec();

@@ -461,3 +461,10 @@ target_compile_definitions(testWeakProblemSolverFallback PRIVATE MODELIB_TEST_EI
 target_link_libraries(testWeakProblemSolverFallback PRIVATE MoDELib)
 add_test(NAME weakProblemSolverFallback COMMAND testWeakProblemSolverFallback)
 set_tests_properties(weakProblemSolverFallback PROPERTIES LABELS "numerical" TIMEOUT 30)
+
+if(TARGET testFluxStreamlineTrace)
+    add_test(NAME fluxStreamlineTrace COMMAND testFluxStreamlineTrace "${PROJECT_SOURCE_DIR}")
+    set_tests_properties(fluxStreamlineTrace PROPERTIES LABELS "numerical" TIMEOUT 60)
+    add_test(NAME fluxStreamlinesActor COMMAND testFluxStreamlinesActor "${PROJECT_SOURCE_DIR}")
+    set_tests_properties(fluxStreamlinesActor PROPERTIES LABELS "integration" TIMEOUT 120 ENVIRONMENT "QT_QPA_PLATFORM=offscreen;OMP_NUM_THREADS=2")
+endif()

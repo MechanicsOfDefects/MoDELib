@@ -173,6 +173,8 @@ namespace model
         void plotField(const int& valID,const std::vector<QCheckBox*>& microstructuresCheck,const vtkSmartPointer<vtkLookupTable>& lut);
     };
 
+    class FluxStreamlinesActor;
+
     struct DDFieldWidget : public QWidget
     {
         
@@ -191,6 +193,7 @@ namespace model
         QGroupBox* linesGroupBox;
 
 
+        FluxStreamlinesActor* fluxStreamlines;
         QPushButton* computeButton;
         QComboBox* fieldComboBox;
         

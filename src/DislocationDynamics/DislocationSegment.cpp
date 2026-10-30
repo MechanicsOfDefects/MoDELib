@@ -682,6 +682,101 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
         return temp;
     }
 
+    template <int dim>
+    typename DislocationSegment<dim>::MobileClusterFluxSource DislocationSegment<dim>::mobileClusterFluxSource(
+        const ClusterDynamicsParameters<dim>& icp,int k) const
+    {
+        if(k<0 || k>=mSize)
+        {
+            throw std::out_of_range("Mobile species index");
+        }
+        MobileClusterFluxSource result;
+        if(this->grains().size()!=1 || this->chordLength()<=FLT_EPSILON)
+        {
+            return result;
+        }
+        const auto grainID=(*this->grains().begin())->grainID;
+        const auto& inverse=icp.invD.at(grainID);
+        const auto& determinant=icp.detD.at(grainID);
+        const VectorDim bCrossT=burgers().cross(this->unitDirection());
+        Eigen::Array<double,mSize,1> bias(Eigen::Array<double,mSize,1>::Ones());
+        if(this->loopLinks().size()==1)
+        {
+            const auto loop=(*this->loopLinks().begin())->loop;
+            const double sign=loop->burgers().dot(loop->rightHandedUnitNormal());
+            if(sign>FLT_EPSILON)
+            {
+                bias=icp.discreteDislocationBias.row(0);
+            }
+            else if(sign<-FLT_EPSILON)
+            {
+                bias=icp.discreteDislocationBias.row(1);
+            }
+        }
+        result.source=this->source->get_P();
+        result.d=this->chord().template cast<long double>();
+        result.inv=inverse[k].template cast<long double>();
+        result.a=result.d.dot(result.inv*result.d);
+        result.core=DislocationFieldBase<dim>::a2/std::cbrt(static_cast<long double>(determinant(k)));
+        result.qA=bCrossT.dot(this->source->climbDirection())*this->source->climbVelocityScalar(k);
+        result.qB=bCrossT.dot(this->sink->climbDirection())*this->sink->climbVelocityScalar(k);
+        result.factor=this->chordLength()/(4.0L*M_PI*std::sqrt(static_cast<long double>(determinant(k)))*bias(k)*icp.omega);
+        return result;
+    }
+
+    template <int dim>
+    typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::MobileClusterFluxSource::evaluate(
+        const VectorDim& x,const std::vector<VectorDim>& shifts) const
+    {
+        VectorDim flux=VectorDim::Zero();
+        if(qA==0 && qB==0)
+        {
+            return flux;
+        }
+        // Same endpoint kernel as direct evaluation; all source data is immutable.
+        for(const auto& shift:shifts)
+        {
+            const WideVector r=(x+shift-source).template cast<long double>();
+            const long double u0=d.dot(inv*r)/a;
+            const WideVector perpendicular=r-u0*d;
+            const long double h2=(perpendicular.dot(inv*perpendicular)+core)/a;
+            const long double h=std::sqrt(h2);
+            const long double t0=-u0;
+            const long double t1=1-u0;
+            const long double R0=std::hypot(t0,h);
+            const long double R1=std::hypot(t1,h);
+            long double j0;
+            if(t0*t1>0)
+            {
+                j0=(t1+t0)/(R0*R1*(t1*R0+t0*R1));
+            }
+            else
+            {
+                j0=(t1/R1-t0/R0)/h2;
+            }
+            const long double j1=(t1+t0)/((R1+R0)*R0*R1);
+            const long double j2=std::asinh(t1/h)-std::asinh(t0/h)-h2*j0;
+            const long double delta=qB-qA;
+            const long double center=qA+delta*u0;
+            const WideVector integral=(perpendicular*(center*j0+delta*j1)
+                                      -d*(center*j1+delta*j2))/(a*std::sqrt(a));
+            flux+=(factor*integral).template cast<double>();
+        }
+        return flux;
+    }
+
+    template <int dim>
+    typename DislocationSegment<dim>::ClusterFluxType DislocationSegment<dim>::mobileClusterFlux(
+        const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const
+    {
+        ClusterFluxType flux=ClusterFluxType::Zero();
+        for(int k=0;k<mSize;++k)
+        {
+            flux.col(k)=mobileClusterFluxSource(icp,k).evaluate(x,this->network().ddBase.periodicShifts);
+        }
+        return flux;
+    }
+
 //    template <int dim>
 //    const typename DislocationSegment<dim>::MatrixDim DislocationSegment<dim>::I=DislocationSegment<dim>::MatrixDim::Identity();
     

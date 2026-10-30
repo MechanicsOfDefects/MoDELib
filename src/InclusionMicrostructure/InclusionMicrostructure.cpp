@@ -275,6 +275,12 @@ namespace model
     }
 
     template<int dim>
+    typename InclusionMicrostructure<dim>::MobileClusterFluxType InclusionMicrostructure<dim>::mobileClusterFlux(const VectorDim&,const NodeType* const,const ElementType* const,const SimplexDim* const) const
+    {
+        return MobileClusterFluxType::Zero();
+    }
+
+    template<int dim>
     typename InclusionMicrostructure<dim>::VectorMSize InclusionMicrostructure<dim>::mobileConcentration(const VectorDim&,const NodeType* const,const ElementType* const,const SimplexDim* const) const
     {
         return VectorMSize::Zero();

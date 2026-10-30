@@ -440,6 +440,12 @@ void ElasticDeformation<dim>::solveDisplacementRate()
     }
 
     template<int dim>
+    typename ElasticDeformation<dim>::MobileClusterFluxType ElasticDeformation<dim>::mobileClusterFlux(const VectorDim&,const NodeType* const,const ElementType* const,const SimplexDim* const) const
+    {
+        return MobileClusterFluxType::Zero();
+    }
+
+    template<int dim>
     typename ElasticDeformation<dim>::VectorMSize ElasticDeformation<dim>::mobileConcentration(const VectorDim&,const NodeType* const,const ElementType* const,const SimplexDim* const) const
     {
         return VectorMSize::Zero();

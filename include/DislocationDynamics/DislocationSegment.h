@@ -65,6 +65,7 @@ namespace model
         static constexpr int mSize=ClusterDynamicsParameters<dim>::mSize;
         typedef Eigen::Matrix<double,mSize,2>   ConcentrationMatrixType;
         typedef Eigen::Matrix<double,mSize,1>   ConcentrationVectorType;
+        typedef Eigen::Matrix<double,dim,mSize> ClusterFluxType;
 
 //        std::map<size_t,
 //        /*    */ std::pair<VectorNcoeff,VectorDim>,
@@ -128,6 +129,21 @@ namespace model
         
         ConcentrationMatrixType concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const;
         ConcentrationVectorType clusterConcentration(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const;
+        // Value snapshot for repeated evaluation at fixed geometry and climb rates.
+        // Owns its data; it must be rebuilt after motion or a new climb solve.
+        struct MobileClusterFluxSource
+        {
+            using WideVector=Eigen::Matrix<long double,dim,1>;
+            VectorDim source=VectorDim::Zero();
+            WideVector d=WideVector::Zero();
+            Eigen::Matrix<long double,dim,dim> inv=Eigen::Matrix<long double,dim,dim>::Zero();
+            long double a=0,core=0,qA=0,qB=0,factor=0;
+            VectorDim evaluate(const VectorDim& x,const std::vector<VectorDim>& shifts) const;
+        };
+        MobileClusterFluxSource mobileClusterFluxSource(const ClusterDynamicsParameters<dim>& icp,int species) const;
+
+        // Species number flux: column k is -D_k grad(c_k)/omega, including periodic images.
+        ClusterFluxType mobileClusterFlux(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const;
 
         
     };

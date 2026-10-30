@@ -572,6 +572,26 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
         return MatrixDim::Zero();
     }
 
+    template<int dim>
+    typename DislocationNetwork<dim>::MobileClusterFluxType DislocationNetwork<dim>::mobileClusterFlux(const VectorDim& x,const NodeType* const node,const ElementType* const ele,const SimplexDim* const guess) const
+    {
+        MobileClusterFluxType flux=MobileClusterFluxType::Zero();
+        if(climbSolver)
+        {
+            const auto grains=this->pointGrains(x,node,ele,guess);
+            for(const auto& entry:this->networkLinks())
+            {
+                const auto segment=entry.second.lock();
+                if(segment && !segment->hasZeroBurgers() && segment->grains().size()==1
+                   && grains.count(*segment->grains().begin()))
+                {
+                    flux+=segment->mobileClusterFlux(x,climbSolver->CD->cdp);
+                }
+            }
+        }
+        return flux;
+    }
+
     template <int dim>
     typename DislocationNetwork<dim>::VectorMSize DislocationNetwork<dim>::mobileConcentration(const VectorDim& x, const NodeType* const node, const ElementType* const ele,const SimplexDim* const guess) const
     {

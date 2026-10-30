@@ -10,6 +10,15 @@
 
 namespace model::controls
 {
+    // Application-wide filter: the wheel scrolls panels, never edits controls.
+    class WheelGuard : public QObject
+    {
+      protected:
+        bool eventFilter(QObject* watched,QEvent* event) override;
+      public:
+        explicit WheelGuard(QObject* parent=nullptr) : QObject(parent) {}
+    };
+
     // Keep the contents in one widget so collapsing preserves each child's own
     // visibility, enabled state, and nested group selection.
     class GroupBox : public QGroupBox

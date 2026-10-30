@@ -565,6 +565,50 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     }
 
     template<int dim>
+    typename ClusterDynamics<dim>::MobileClusterFluxType ClusterDynamics<dim>::mobileClusterFlux(const VectorDim& x,const NodeType* const node,const ElementType* const ele,const SimplexDim* const guess) const
+    {
+        MobileClusterFluxType flux=MobileClusterFluxType::Zero();
+        if(!uniformControllers.empty())
+        {
+            const auto grains=this->pointGrains(x,node,ele,guess);
+            for(const auto* grain:grains)
+            {
+                const auto gradient=uniformControllers.at(grain->grainID)->grad(
+                    this->microstructures.ddBase.simulationParameters.totalTime).eval();
+                for(int k=0;k<mSize;++k)
+                {
+                    flux.col(k)-=cdp.D.at(grain->grainID)[k]*gradient.template segment<dim>(dim*k)/cdp.omega;
+                }
+            }
+            if(!grains.empty())
+            {
+                flux/=grains.size();
+            }
+            return flux;
+        }
+        const auto expression=eval(clusterDynamicsFEM->mobileFlux);
+        Eigen::Matrix<double,dim*mSize,1> values;
+        if(node)
+        {
+            // Match FEM nodal evaluation: average incident element values.
+            values=(*expression)(*node);
+        }
+        else if(ele)
+        {
+            values=(*expression)(*ele,ele->simplex.pos2bary(x));
+        }
+        else
+        {
+            values=(*expression)(x,guess);
+        }
+        for(int k=0;k<mSize;++k)
+        {
+            flux.col(k)=values.template segment<dim>(dim*k);
+        }
+        return flux;
+    }
+
+    template<int dim>
     typename ClusterDynamics<dim>::VectorMSize ClusterDynamics<dim>::mobileConcentration(const VectorDim& x,const NodeType* const node,const ElementType* const ele,const SimplexDim* const guess) const
     {
         if(uniformControllers.size())

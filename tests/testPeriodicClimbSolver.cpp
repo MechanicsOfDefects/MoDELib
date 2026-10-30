@@ -1,10 +1,108 @@
 #include "ClusterPeriodicFixture.h"
 
+// Compare endpoint flux with both the concentration derivative and direct
+// integration of the differentiated kernel, including unequal endpoint rates.
+void checkSegmentFlux(DislocationNetwork<3>& network,const ClusterDynamicsParameters<3>& cdp)
+{
+    for(const auto& entry:network.networkLinks())
+    {
+        const auto segment=entry.second.lock();
+        if(segment->grains().size()!=1 || segment->chordLength()<1.e-6)
+        {
+            continue;
+        }
+        const Eigen::Vector3d bct=segment->burgers().cross(segment->unitDirection());
+        if(std::abs(bct.dot(segment->source->climbDirection()))<1.e-8)
+        {
+            continue;
+        }
+        const auto oldA=segment->source->climbVelocityScalar;
+        const auto oldB=segment->sink->climbVelocityScalar;
+        segment->source->climbVelocityScalar.setConstant(0.7);
+        segment->sink->climbVelocityScalar.setConstant(-0.2);
+        const auto grain=(*segment->grains().begin())->grainID;
+        const Eigen::Vector3d tangent=segment->unitDirection();
+        const Eigen::Vector3d normal=tangent.unitOrthogonal();
+        for(const auto& coordinates:std::vector<Eigen::Vector2d>{{0.4,2.0},{0.0,0.0},{0.5,0.0},{-1.0,0.01},{100.0,2.0}})
+        {
+            const Eigen::Vector3d x=segment->source->get_P()+coordinates.x()*segment->chord()+coordinates.y()*normal;
+            const auto flux=segment->mobileClusterFlux(x,cdp);
+            require(flux.allFinite(),"Nonfinite analytical segment flux");
+            Eigen::Matrix<double,3,DislocationSegment<3>::mSize> gradient;
+            const double step=1.e-4;
+            for(int axis=0;axis<3;++axis)
+            {
+                const Eigen::Vector3d h=step*Eigen::Vector3d::Unit(axis);
+                gradient.row(axis)=((segment->clusterConcentration(x+h,cdp)-segment->clusterConcentration(x-h,cdp))/(2*step)).transpose();
+            }
+            for(int k=0;k<DislocationSegment<3>::mSize;++k)
+            {
+                const Eigen::Vector3d fd=-cdp.D.at(grain)[k]*gradient.col(k)/cdp.omega;
+                // The existing logarithmic concentration formula loses precision
+                // far beyond an endpoint; use direct kernel integration there.
+                if(coordinates.x()<2)
+                {
+                    require((fd-flux.col(k)).norm()<2.e-4*std::max(fd.norm(),flux.col(k).norm()),
+                            "Analytical segment flux disagrees with concentration derivative");
+                }
+                double bias=1;
+                if(segment->loopLinks().size()==1)
+                {
+                    const auto loop=(*segment->loopLinks().begin())->loop;
+                    const double sign=loop->burgers().dot(loop->rightHandedUnitNormal());
+                    if(std::abs(sign)>FLT_EPSILON)
+                    {
+                        bias=cdp.discreteDislocationBias(sign>0?0:1,k);
+                    }
+                }
+                Eigen::Vector3d reference=Eigen::Vector3d::Zero();
+                const auto& inv=cdp.invD.at(grain)[k];
+                const double det=cdp.detD.at(grain)(k);
+                const double core=DislocationFieldBase<3>::a2/std::cbrt(det);
+                const double qA=0.7*bct.dot(segment->source->climbDirection());
+                const double qB=-0.2*bct.dot(segment->sink->climbDirection());
+                const int steps=4096;
+                for(const auto& shift:network.ddBase.periodicShifts)
+                {
+                    for(int i=0;i<=steps;++i)
+                    {
+                        const double u=double(i)/steps;
+                        const Eigen::Vector3d r=x+shift-segment->source->get_P()-u*segment->chord();
+                        const double Q=r.dot(inv*r)+core;
+                        const double weight=(i==0 || i==steps)?1:(i%2?4:2);
+                        reference+=weight*((1-u)*qA+u*qB)*r/(Q*std::sqrt(Q));
+                    }
+                }
+                reference*=segment->chordLength()/(3*steps*4*M_PI*std::sqrt(det)*bias*cdp.omega);
+                require((reference-flux.col(k)).norm()<1.e-7*std::max(reference.norm(),flux.col(k).norm()),
+                        "Analytical segment flux disagrees with integrated kernel");
+            }
+        }
+        const auto snapshot=segment->mobileClusterFluxSource(cdp,0);
+        const Eigen::Vector3d probe=segment->source->get_P()+2*normal;
+        const Eigen::Vector3d saved=snapshot.evaluate(probe,network.ddBase.periodicShifts);
+        require((saved-segment->mobileClusterFlux(probe,cdp).col(0)).norm()==0,"Snapshot differs from direct flux");
+        segment->source->climbVelocityScalar.setZero();
+        segment->sink->climbVelocityScalar.setZero();
+        require(segment->mobileClusterFlux(Eigen::Vector3d::Zero(),cdp).isZero(0),"Stationary segment has nonzero flux");
+        require((snapshot.evaluate(probe,network.ddBase.periodicShifts)-saved).norm()==0,"Flux snapshot changed with live source rates");
+        require(segment->mobileClusterFluxSource(cdp,0).evaluate(probe,network.ddBase.periodicShifts).isZero(0),"Rebuilt snapshot retained old rates");
+        segment->source->climbVelocityScalar=oldA;
+        segment->sink->climbVelocityScalar=oldB;
+        return;
+    }
+    throw std::runtime_error("No active segment for flux regression");
+}
+
 void climb(const fs::path &root, int rank)
 {
     const auto folder = fixture(root, rank, 0, false);
     auto dc = read(folder / "inputFiles/DefectiveCrystal.txt");
     parameter(dc, "physics", "ClusterDynamics DislocationDynamics");
+    if(rank>0)
+    {
+        parameter(dc,"periodicImageSize",rank==1?"1":"1 0 0");
+    }
     std::ofstream(folder / "inputFiles/DefectiveCrystal.txt") << dc;
     fs::copy_file(root / "Library/DislocationDynamics/DD.txt", folder / "inputFiles/DD.txt");
     DefectiveCrystalBase<3> base(folder.string());
@@ -55,6 +153,7 @@ void climb(const fs::path &root, int rank)
     require(quadrature > 0, "Climb regression has no active quadrature points");
     require(bool(network.climbSolver), "Climb solver not enabled");
     network.climbSolver->computeClimbScalarVelocities(true);
+    checkSegmentFlux(network,cd->cdp);
     const auto velocity = network.climbSolver->getNodeVelocities();
     require(velocity.allFinite() && velocity.norm() > 0, "Climb drive produced no finite motion");
     size_t relations = 0;
@@ -154,6 +253,7 @@ std::map<int,double> mixedAnnealing(const fs::path& root,int selection)
         }
     }
     network.climbSolver->computeClimbScalarVelocities(true);
+    checkSegmentFlux(network,cd->cdp);
     const Eigen::VectorXd velocity=network.climbSolver->getNodeVelocities();
     std::map<int,double> means;
     std::map<int,int> counts;

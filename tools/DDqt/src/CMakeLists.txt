@@ -35,3 +35,5 @@ target_sources(DDqtActors PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/BoxTreeActor.h
     ${CMAKE_CURRENT_SOURCE_DIR}/BoxTreeActor.cpp
 )
+
+target_sources(DDqtActors PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/FluxStreamlinesActor.cpp ${CMAKE_CURRENT_SOURCE_DIR}/FluxStreamlineTrace.cpp)

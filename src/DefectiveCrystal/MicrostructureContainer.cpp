@@ -191,6 +191,17 @@ namespace model
     }
 
     template<int dim>
+    typename MicrostructureContainer<dim>::MobileClusterFluxType MicrostructureContainer<dim>::mobileClusterFlux(const VectorDim& x,const NodeType* const node,const ElementType* const ele,const SimplexDim* const guess) const
+    {
+        MobileClusterFluxType flux=MobileClusterFluxType::Zero();
+        for(const auto& physics:microstructures())
+        {
+            flux+=physics->mobileClusterFlux(x,node,ele,guess);
+        }
+        return flux;
+    }
+
+    template<int dim>
     typename MicrostructureContainer<dim>::VectorMSize MicrostructureContainer<dim>::mobileConcentration(const VectorDim& x, const NodeType* const node, const ElementType* const ele,const SimplexDim* const guess) const
     {
         VectorMSize temp(VectorMSize::Zero());

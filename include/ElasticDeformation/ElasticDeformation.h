@@ -31,6 +31,7 @@ namespace model
     typedef typename MicrostructureBase<dim>::SimplexDim SimplexDim;
     typedef typename MicrostructureBase<dim>::NodeType NodeType;
     typedef typename MicrostructureBase<dim>::VectorMSize VectorMSize;
+        typedef typename MicrostructureBase<dim>::MobileClusterFluxType MobileClusterFluxType;
     typedef typename MicrostructureBase<dim>::VectorISize VectorISize;
     typedef typename MicrostructureBase<dim>::MatrixDim MatrixDim;
     typedef typename MicrostructureBase<dim>::VectorDim VectorDim;
@@ -68,6 +69,7 @@ namespace model
     MatrixDim averageStress() const override;
     VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
     VectorMSize mobileConcentration(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
+        MobileClusterFluxType mobileClusterFlux(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
     VectorISize immobileClusters(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
     void initializeSolver();
     void updatePeriodicGradient();

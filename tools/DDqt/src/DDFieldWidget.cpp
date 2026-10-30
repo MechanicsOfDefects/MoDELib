@@ -26,6 +26,7 @@
 #include <vtkFloatArray.h>
 #include <vtkAxis.h>
 #include <DDFieldWidget.h>
+#include <FluxStreamlinesActor.h>
 #include <ClusterDynamics/ClusterDynamicsBase.h>
 
 #include <DDqtControls.h>
@@ -284,7 +285,9 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
     mainLayout->addWidget(physicsBox, 4, 0);
     mainLayout->addWidget(customScaleBox, 5, 0);
     mainLayout->addWidget(scaleBarBox, 6, 0);
-    mainLayout->setRowStretch(7, 1);
+    fluxStreamlines=new FluxStreamlinesActor(renWin,renderer,defectiveCrystal);
+    mainLayout->addWidget(fluxStreamlines,7,0);
+    mainLayout->setRowStretch(8, 1);
     this->setLayout(mainLayout);
     
     
@@ -303,6 +306,7 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
 
 void DDFieldWidget::compute()
 {
+    fluxStreamlines->invalidate();
     if(groupBox)
     {
         if(groupBox->layout())

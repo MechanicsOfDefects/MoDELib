@@ -39,6 +39,8 @@ namespace model
         typedef Eigen::Matrix<double,dim,dim> MatrixDim;
         typedef Eigen::Matrix<double,dim,1>   VectorDim;
         typedef Eigen::Matrix<double,mSize,1> VectorMSize;
+        // Column k is the number flux of mobile species k.
+        typedef Eigen::Matrix<double,dim,mSize> MobileClusterFluxType;
         typedef Eigen::Matrix<double,iSize,1> VectorISize;
 
         MicrostructureBase(const std::string& tag_in,MicrostructureContainer<dim>& m_in);
@@ -66,6 +68,7 @@ namespace model
         virtual MatrixDim averageStress() const = 0;
         virtual VectorDim inelasticDisplacementRate(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const = 0;
         virtual VectorMSize mobileConcentration(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const = 0;
+        virtual MobileClusterFluxType mobileClusterFlux(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const = 0;
         virtual VectorISize immobileClusters(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const = 0;
 
         Eigen::Matrix<double,Eigen::Dynamic,dim> displacement(Eigen::Ref<const Eigen::Matrix<double,Eigen::Dynamic,dim>>) const;
