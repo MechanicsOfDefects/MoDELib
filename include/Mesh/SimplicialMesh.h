@@ -80,6 +80,12 @@ namespace model
         typedef Eigen::Matrix<double,dim,Eigen::Dynamic> PeriodicBasisType;
         
         SimplicialMesh();
+        // Factories and simplices retain pointers to this owner. In particular,
+        // expose noncopyability directly to binding-library type traits.
+        SimplicialMesh(const SimplicialMesh&) = delete;
+        SimplicialMesh& operator=(const SimplicialMesh&) = delete;
+        SimplicialMesh(SimplicialMesh&&) = delete;
+        SimplicialMesh& operator=(SimplicialMesh&&) = delete;
         
         SimplicialMesh(const std::string& meshFileName,const Eigen::Matrix<double,dim,dim>& A,const Eigen::Matrix<double,dim,1>& x0,const std::set<int>&);
         

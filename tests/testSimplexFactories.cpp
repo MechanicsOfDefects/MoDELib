@@ -1,6 +1,17 @@
 #include <SimplicialMesh.h>
 #include <iostream>
 #include <stdexcept>
+#include <type_traits>
+
+// Binding libraries must reject copying without instantiating tuple internals.
+template<int dim> constexpr bool fixedMeshOwnership=
+    !std::is_copy_constructible_v<model::SimplicialMesh<dim>> &&
+    !std::is_move_constructible_v<model::SimplicialMesh<dim>> &&
+    !std::is_copy_assignable_v<model::SimplicialMesh<dim>> &&
+    !std::is_move_assignable_v<model::SimplicialMesh<dim>> &&
+    !std::is_copy_constructible_v<model::SimplexFactories<dim>> &&
+    !std::is_move_constructible_v<model::SimplexFactories<dim>>;
+static_assert(fixedMeshOwnership<1> && fixedMeshOwnership<2> && fixedMeshOwnership<3>);
 
 namespace
 {

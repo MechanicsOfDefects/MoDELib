@@ -100,6 +100,11 @@ namespace model
         typename SimplexFactoryTuple<dim, std::make_index_sequence<dim + 1>>::Type factories;
 
       public:
+        SimplexFactories(const SimplexFactories&) = delete;
+        SimplexFactories& operator=(const SimplexFactories&) = delete;
+        SimplexFactories(SimplexFactories&&) = delete;
+        SimplexFactories& operator=(SimplexFactories&&) = delete;
+
         explicit SimplexFactories(SimplicialMesh<dim> *owner)
         {
             std::apply([owner](auto &...factory) { ((factory.mesh = owner), ...); }, factories);
