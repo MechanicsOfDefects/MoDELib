@@ -8,7 +8,7 @@
 
 using namespace model;
 using Sparse=Eigen::SparseMatrix<double>;
-using Direct=Eigen::SparseLU<Sparse>;
+using Direct=DefaultWeakProblemDirectSolver<Sparse>;
 using Iterative=Eigen::BiCGSTAB<Sparse>;
 using Mesh=SimplicialMesh<3>;
 

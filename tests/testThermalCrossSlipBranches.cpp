@@ -53,7 +53,7 @@ int main(int argc,char** argv)
             require(pos!=std::string::npos,"Missing cross-slip setting");
             text.replace(pos,17,"crossSlipModel=2;");
             std::ofstream(input/"DD.txt")<<text;
-            std::ofstream(input/"DefectiveCrystal.txt")<<"physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=;\nEwaldLengthFactor=0;\n";
+            std::ofstream(input/"DefectiveCrystal.txt")<<"physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=;\nEwaldLengthFactor=0;\n";
         }
         const double box=3671.9477120460206;
         std::vector<double> referenceLocations;

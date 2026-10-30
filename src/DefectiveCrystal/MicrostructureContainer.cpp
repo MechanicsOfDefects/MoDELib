@@ -51,28 +51,40 @@ namespace model
     }
 
     template <int dim>
-    void MicrostructureContainer<dim>::solve()
+    void MicrostructureContainer<dim>::finalizeSolvedQuantities()
     {
-        for(auto& pair : microstructures())
+        solvedQuantities.clear();
+        TextFileParser input(ddBase.simulationParameters.traitsIO.dcFile);
+        if(!input.readStringVector("solvedQuantityMaxIterations").empty())
         {
-            const auto t0= std::chrono::system_clock::now();
-            std::cout<<"Solving "<<pair->tag<<":"<<std::flush;
-            pair->solve();
-            std::cout<<greenColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+            const int count=input.readScalar<int>("solvedQuantityMaxIterations",true);
+            if(count<=0)
+            {
+                throw std::runtime_error("solvedQuantityMaxIterations must be positive.");
+            }
+            solvedQuantities.options.maxIterations=count;
         }
+        if(!input.readStringVector("solvedQuantityRelativeTolerance").empty())
+        {
+            solvedQuantities.options.relativeTolerance=input.readScalar<double>("solvedQuantityRelativeTolerance",true);
+        }
+        if(!input.readStringVector("solvedQuantityRelaxation").empty())
+        {
+            solvedQuantities.options.relaxation=input.readScalar<double>("solvedQuantityRelaxation",true);
+        }
+        for(const auto& physics : microstructures())
+        {
+            physics->registerSolvedQuantities(solvedQuantities);
+        }
+        solvedQuantities.finalize();
     }
 
     template <int dim>
-    void MicrostructureContainer<dim>::reSolve()
+    void MicrostructureContainer<dim>::solve()
     {
-        for(auto& pair : microstructures())
-        {
-            const auto t0= std::chrono::system_clock::now();
-            std::cout<<"re-Solving "<<pair->tag<<":"<<std::flush;
-            pair->reSolve();
-            std::cout<<greenColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
-        }
+        solvedQuantities.solve(ddBase.simulationParameters.totalTime);
     }
+
 
     template <int dim>
     double MicrostructureContainer<dim>::getDt() const

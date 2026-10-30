@@ -78,7 +78,7 @@ int main(int argc,char** argv)
             const int rank=corner? 3 : (scenario==3? 2 : 1);
             {
                 std::ofstream f(input/"DefectiveCrystal.txt");
-                f<<"physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=";
+                f<<"physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=";
                 for(int k=0;k<rank;++k)
                 {
                     f<<"0 ";

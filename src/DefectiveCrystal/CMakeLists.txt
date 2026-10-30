@@ -1,4 +1,5 @@
 target_sources(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/SolvedQuantityRegistry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DefectiveCrystal.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DefectiveCrystalBase.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DefectiveCrystalParameters.cpp

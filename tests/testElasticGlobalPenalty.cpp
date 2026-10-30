@@ -1,3 +1,4 @@
+#include <atomic>
 #include <FiniteElement.h>
 #include <WeakProblem.h>
 #include <GlobalRigidMotionPenalty.h>
@@ -142,6 +143,13 @@ void exercise(const std::filesystem::path& root,int rank)
 struct UniformSource : ElasticDeformation<3>
 {
     Eigen::Matrix3d plastic=Eigen::Matrix3d::Zero();
+    mutable std::atomic<size_t> stressEvaluations{0};
+    MatrixDim stress(const VectorDim& x,const NodeType* const node,const ElementType* const element,const SimplexDim* const guess) const override
+    {
+        ++stressEvaluations;
+        return ElasticDeformation<3>::stress(x,node,element,guess);
+    }
+
     using ElasticDeformation<3>::ElasticDeformation;
     Eigen::Matrix3d averagePlasticDistortion() const override
     {
@@ -216,7 +224,7 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
     };
     {
         std::ofstream dc(input/"DefectiveCrystal.txt");
-        dc<<"physics=ElasticDeformation;\nuseFEM=1;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=";
+        dc<<"physics=ElasticDeformation;\nfmmTreeDepth=0;\nuseFEM=1;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=";
         for(int i=0;i<rank;++i)
         {
             dc<<"0 ";
@@ -289,6 +297,12 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
             container.microstructures().push_back(source);
             writeLoading(true,alpha,stress0,stressRate);
         }
+        auto source=container.getUniqueTypedMicrostructure<UniformSource>();
+        size_t surfaceEvaluations=0;
+        for(const auto& entry : base.fe->elements())
+        {
+            surfaceEvaluations+=12*entry.second.boundaryFaces().size();
+        }
         size_t count=0;
         for(double time : {7.0,12.0,12.0})
         {
@@ -297,7 +311,12 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
             {
                 sourceBase->simulationParameters.totalTime=time;
             }
+            const size_t previousEvaluations=source ? source->stressEvaluations.load() : 0;
             physics.solve();
+            if(source)
+            {
+                require(source->stressEvaluations-previousEvaluations==surfaceEvaluations,"ED source stress was not evaluated exclusively on external faces");
+            }
             for(const auto& bc : u->dirichletConditions())
             {
                 require(std::abs(u->dofVector()(bc.first)-bc.second)<1.e-9,"Mixed elastic controller moved a pinned node");
@@ -412,6 +431,13 @@ int main(int argc,char** argv)
         }
         physicsIntegration(argv[1],1,true,2);
         physicsIntegration(argv[1],2,true,2,true);
+        for(int rank=0;rank<=3;++rank)
+        {
+            for(int mode=0;mode<3;++mode)
+            {
+                physicsIntegration(argv[1],rank,false,mode,true);
+            }
+        }
         physicsIntegration(argv[1],1,true,2,false,true);
         for(int rank=0;rank<=2;++rank)
         {

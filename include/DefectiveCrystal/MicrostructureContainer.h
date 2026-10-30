@@ -38,8 +38,9 @@ namespace model
         const BaseContainerType& microstructures() const;
         BaseContainerType& microstructures();
         void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
+        SolvedQuantityRegistry solvedQuantities;
+        void finalizeSolvedQuantities();
         void solve() override;
-        void reSolve() override;
         double getDt() const override;
         void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
         void updateConfiguration() override;

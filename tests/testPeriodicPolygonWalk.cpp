@@ -347,7 +347,7 @@ int main(int argc,char** argv)
             const bool periodic=rank>0;
             {
                 std::ofstream f(input/"DefectiveCrystal.txt");
-                f<<"physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nEwaldLengthFactor=0;\n";
+                f<<"physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nEwaldLengthFactor=0;\n";
                 f<<"periodicImageSize="<<(rank==3 ? "0 0 0" : "0")<<";\n";
                 std::ofstream p(input/"polycrystal.txt");
                 const double length=200/std::sqrt(3.0);
@@ -507,7 +507,7 @@ int main(int argc,char** argv)
         }
         {
             std::ofstream f(input/"DefectiveCrystal.txt");
-            f<<"physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
+            f<<"physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
         }
         {
             model::DefectiveCrystalBase<3> base(folder.string());

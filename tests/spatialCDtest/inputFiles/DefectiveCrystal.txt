@@ -10,3 +10,5 @@ periodicImageSize= 0 0 0; # number of images for each periodic shift vector
 EwaldLengthFactor=0;
 outputFrequency=1;
 outputBinary=0;
+
+fmmTreeDepth=0; # explicit shared geometry depth for this benchmark

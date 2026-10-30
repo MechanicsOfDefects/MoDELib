@@ -22,7 +22,10 @@ shutil.copy2(DCfileTemplate,'inputFiles/'+DCfile)
 setInputVariable('inputFiles/'+DCfile,'physics','DislocationDynamics ClusterDynamics ElasticDeformation')
 setInputVariable('inputFiles/'+DCfile,'useFEM','1')
 setInputVariable('inputFiles/'+DCfile,'Nsteps','2000')  # number of simulation steps
-setInputVariable('inputFiles/'+DCfile,'maxResolveSteps','2')  # number of simulation steps
+# Converge DD climb and CD concentration at fixed time and geometry.
+setInputVariable('inputFiles/'+DCfile,'solvedQuantityMaxIterations','100')
+setInputVariable('inputFiles/'+DCfile,'solvedQuantityRelativeTolerance','1e-3')
+setInputVariable('inputFiles/'+DCfile,'solvedQuantityRelaxation','1.0')
 setInputVariable('inputFiles/'+DCfile,'dtMax','1e35')
 setInputVariable('inputFiles/'+DCfile,'outputFrequency','1')  # output frequency
 

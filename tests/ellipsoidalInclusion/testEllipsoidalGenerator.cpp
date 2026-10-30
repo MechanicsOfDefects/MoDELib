@@ -33,7 +33,7 @@ int main(int argc, char **argv)
         std::filesystem::copy_file(root / "Library/Meshes/unitCube24.msh", input / "mesh.msh");
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
-            f << "physics=InclusionMicrostructure;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary="
+            f << "physics=InclusionMicrostructure;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary="
                  "0;\nstartAtTimeStep=0;\n";
         }
         {

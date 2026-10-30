@@ -41,7 +41,7 @@ namespace model
         depthEdit->setText(tree ? QString::number(tree->depth()) : QString("—"));
         controls::field(grid, 0, "Tree depth", depthEdit,
             "Uniform subdivisions of the mesh bounding box: level 0 is one box; each level splits every box into eight. "
-            "Configured by fmmTreeDepth in inputFiles/DD.txt. Change the input and reload the simulation to change the tree depth.");
+            "Configured by fmmTreeDepth in inputFiles/DefectiveCrystal.txt. Change the input and reload the simulation to change the tree depth.");
         levelEdit = new QSpinBox(group);
         levelEdit->setObjectName("boxTreeLevel");
         levelEdit->setRange(0, tree ? tree->depth() : 0);
@@ -100,7 +100,7 @@ namespace model
         if(!tree)
         {
             group->setEnabled(false);
-            status->setText("Box topology is available when DislocationDynamics is enabled.");
+            status->setText("Box topology requires an FMM context.");
         }
         else
         {

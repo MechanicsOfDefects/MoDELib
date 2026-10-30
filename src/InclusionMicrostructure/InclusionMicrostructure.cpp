@@ -183,11 +183,6 @@ namespace model
 
     }
 
-template<int dim>
-void InclusionMicrostructure<dim>::reSolve()
-{
-
-}
 
     template<int dim>
     void InclusionMicrostructure<dim>::updateConfiguration()

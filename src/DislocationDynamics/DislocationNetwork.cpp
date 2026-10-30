@@ -674,6 +674,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
             glideStepsSinceLastClimb++;
         }
         updateGeometry();
+        solvedQuantityClimbStep.reset();
     }
 
     template <int dim>
@@ -694,6 +695,10 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
     template <int dim>
     bool DislocationNetwork<dim>::isClimbStep() const
     {
+        if(solvedQuantityClimbStep)
+        {
+            return *solvedQuantityClimbStep;
+        }
         if(glideSolver)
         {
             return climbSolver?  (glideStepsSinceLastClimb && averagePlasticDistortionRate().norm()<climbSolver->glideEquilibriumRate): false;
@@ -711,147 +716,148 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
         }
     }
 
-template <int dim>
-void DislocationNetwork<dim>::reSolve()
+template<int dim>
+Eigen::VectorXd DislocationNetwork<dim>::solvedQuantityState() const
 {
-    
-    const bool isClimbingStep(isClimbStep());
-    if(isClimbingStep)
+    constexpr int m=MicrostructureBase<dim>::mSize;
+    Eigen::VectorXd result((m+dim)*this->networkNodes().size());
+    size_t k=0;
+    for(const auto& entry : this->networkNodes())
     {
-        std::cout<<" climbStep"<<std::flush;
+        const auto node=entry.second.lock();
+        result.template segment<m>((m+dim)*k)=node->climbVelocityScalar.transpose();
+        result.template segment<dim>((m+dim)*k+m)=node->get_V();
+        ++k;
     }
-    else
-    {
-        std::cout<<" glideStep"<<std::flush;
-    }
-    double maxVelocity = 0.0;
-    for (const auto &nodeIter : this->networkNodes())
-    {
-        const double vNorm(nodeIter.second.lock()->get_V().norm());
-        if (vNorm > maxVelocity)
-        {
-            maxVelocity = vNorm;
-        }
-    }
-    
-#ifdef _OPENMP
-    const size_t nThreads = omp_get_max_threads();
-#else
-    const size_t nThreads = 1;
-#endif
-    
-    //! -1 Compute the interaction StressField between dislocation particles
-    std::map<int, int> velocityBinMap{{1,0}};
-    for (const auto &binVal : subcyclingBins)
-    {
-        velocityBinMap.emplace(binVal, 0);
-    }
-    
-    
-    std::cout <<" ,updating updateForcesAndVelocities (" << nThreads << " threads) " << std::flush;
-#ifdef _OPENMP
-    {
-        // Topology is fixed during field evaluation. Preserve container order
-        // and shared ownership, but make OpenMP's indexed access constant-time.
-        // Release the snapshot before any subsequent topology changes.
-        std::vector<std::shared_ptr<NetworkLinkType>> fieldLinks;
-        fieldLinks.reserve(this->networkLinks().size());
-        for(const auto& entry : this->networkLinks())
-        {
-            fieldLinks.push_back(entry.second.lock());
-        }
-#pragma omp parallel for
-        for (size_t k = 0; k < fieldLinks.size(); ++k)
-        {
-            const auto& link=fieldLinks[k];
-            const int velGroup((subcyclingBins.size() && !isClimbingStep) ? link->velocityGroup(maxVelocity, subcyclingBins) : 1);
+    return result;
+}
 
-            if ((ddBase.simulationParameters.runID % velGroup) == 0)
+template<int dim>
+void DislocationNetwork<dim>::restoreSolvedQuantityState(const Eigen::VectorXd& state)
+{
+    constexpr int m=MicrostructureBase<dim>::mSize;
+    if(state.size()!=Eigen::Index((m+dim)*this->networkNodes().size()))
+    {
+        throw std::runtime_error("Network topology changed inside a coupled solve.");
+    }
+    if(climbSolver)
+    {
+        climbSolver->scalarVelocities().resize(this->networkNodes().size());
+    }
+    size_t k=0;
+    for(const auto& entry : this->networkNodes())
+    {
+        const auto node=entry.second.lock();
+        node->climbVelocityScalar=state.template segment<m>((m+dim)*k).transpose();
+        if(climbSolver)
+        {
+            climbSolver->scalarVelocities()[k]=node->climbVelocityScalar;
+        }
+        // Saved and relaxed velocities already satisfy the convex nodal constraints.
+        // Restoring an iterate must not advance velocity history.
+        node->velocity=state.template segment<dim>((m+dim)*k+m);
+        ++k;
+    }
+    for(const auto& entry : this->loops())
+    {
+        entry.second.lock()->updateRates();
+    }
+}
+
+template<int dim>
+void DislocationNetwork<dim>::solveCoupledClimb(bool first)
+{
+    if(first || !isClimbStep())
+    {
+        solve();
+        return;
+    }
+    // Geometry and all stress providers are fixed for this group's lifetime.
+    // Only the CD concentration driving climb needs refreshing.
+    for(const auto& entry : this->networkLinks())
+    {
+        const auto link=entry.second.lock();
+        for(auto& qp : link->quadraturePoints())
+        {
+            qp.cCD.setZero();
+            for(const auto& physics : this->microstructures)
             {
-                for(auto& qp : link->quadraturePoints())
+                if(physics.get()!=static_cast<MicrostructureBase<dim>*>(this))
                 {
-                    qp.updateForcesAndVelocities(*link,isClimbingStep);
+                    qp.cCD+=physics->mobileConcentration(qp.r,nullptr,nullptr,link->source->includingSimplex());
                 }
             }
-            //            else
-            //            {
-            //                link->assembleGlide(false);
-            //            }
         }
     }
-
-#else
-    for (auto &linkIter : this->networkLinks())
+    climbSolver->computeClimbScalarVelocities(false);
+    size_t k=0;
+    for(const auto& entry : this->networkNodes())
     {
-        const auto link=linkIter.second.lock();
-        const int velGroup(subcyclingBins.size() ? linkIter.second.lock()->velocityGroup(maxVelocity, subcyclingBins) : 1);
-        
-        if ((ddBase.simulationParameters.runID % velGroup) == 0)
-        {
-            for(auto& qp : link->quadraturePoints())
-            {
-                qp.updateForcesAndVelocities(*link,isClimbingStep);
-            }
-        }
-        //            else
-        //            {
-        //                linkIter.second.lock()->assembleGlide(false);
-        //            }
+        entry.second.lock()->climbVelocityScalar=climbSolver->scalarVelocities()[k++];
     }
-#endif
-    
-    Eigen::VectorXd X(Eigen::VectorXd::Zero(0));
-    if(isClimbingStep)
+    const Eigen::VectorXd velocities=climbSolver->getNodeVelocities();
+    k=0;
+    for(const auto& entry : this->networkNodes())
     {
-        climbSolver->computeClimbScalarVelocities(false);
-        size_t k=0;
-        for (auto& networkNode : this->networkNodes())
-        {
-            networkNode.second.lock()->climbVelocityScalar=climbSolver->scalarVelocities()[k];
-            ++k;
-        }
-        X=climbSolver->getNodeVelocities();
+        const auto node=entry.second.lock();
+        const VectorDim oldHistory=node->vOld;
+        node->set_V(velocities.template segment<dim>(dim*k++),true);
+        node->vOld=oldHistory;
     }
-    else
+    for(const auto& entry : this->loops())
     {
-        if(glideSolver)
-        {
-            size_t k=0;
-            for (auto& networkNode : this->networkNodes())
-            {
-                networkNode.second.lock()->climbVelocityScalar.setZero();
-                ++k;
-            }
-            X=glideSolver->getNodeVelocities();
-        }
+        entry.second.lock()->updateRates();
     }
-    if(int(NdofXnode*this->networkNodes().size())==X.size())
-    {
-        size_t k=0;
-        for (auto& networkNode : this->networkNodes())
-        {
-            networkNode.second.lock()->set_V(X.segment(NdofXnode*k,NdofXnode),isClimbingStep); // double cast to remove some numerical noise
-            ++k;
-        }
-    }
-    else
-    {
-        std::cout<<"NdofXnode*this->networkNodes().size()="<<NdofXnode*this->networkNodes().size()<<std::endl;
-        std::cout<<"vSolver->getNodeVelocities().size()="<<X.size()<<std::endl;
-        throw std::runtime_error("vSolver returned wrong velocity vector size.");
-    }
-    
-    VerboseDislocationNetwork(2,"DislocationNetwork::updateRates"<<std::endl;);
-    for(auto& loop : this->loops())
-    {// copmute slipped areas and right-handed normal // TODO: PARALLELIZE THIS LOOP
-        loop.second.lock()->updateRates();
-    }
-    // updatePlasticDistortionRateFromAreas();
-    VerboseDislocationNetwork(3,"DislocationNetwork::updateRates DONE"<<std::endl;);
-    
-//    storeSingleGlideStepDiscreteEvents(ddBase.simulationParameters.runID);
-    
 }
+
+template<int dim>
+void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& registry)
+{
+    SolvedQuantityContribution stress;
+    stress.provider=this->tag;
+    stress.name="Stress";
+    stress.quantities={"Stress"};
+    stress.update=[](const SolvedQuantityContext&)
+    {
+        // The segment stress evaluator reads the current geometry directly.
+    };
+    registry.add(std::move(stress));
+    SolvedQuantityContribution velocity;
+    velocity.provider=this->tag;
+    velocity.name="Velocity";
+    velocity.quantities={"Velocity","MobileConcentration"};
+    velocity.dependencies={{"Stress","",false,{}},{"MobileConcentration","",false,[this]()
+    {
+        solvedQuantityClimbStep.reset();
+        solvedQuantityClimbStep=isClimbStep();
+        return *solvedQuantityClimbStep;
+    }}};
+    velocity.update=[this](const SolvedQuantityContext& context)
+    {
+        solveCoupledClimb(context.iteration==0);
+    };
+    velocity.state=[this]()
+    {
+        return solvedQuantityState();
+    };
+    velocity.restore=[this](const Eigen::VectorXd& state)
+    {
+        restoreSolvedQuantityState(state);
+    };
+    TextFileParser input(ddBase.simulationParameters.traitsIO.dcFile);
+    const double absolute=input.readStringVector("solvedQuantityVelocityAbsoluteTolerance").empty()? 1.e-24 :
+        input.readScalar<double>("solvedQuantityVelocityAbsoluteTolerance",true);
+    if(!std::isfinite(absolute) || absolute<=0.0)
+    {
+        throw std::runtime_error("solvedQuantityVelocityAbsoluteTolerance must be finite and positive.");
+    }
+    velocity.absoluteTolerance=[this,absolute]() -> Eigen::VectorXd
+    {
+        return Eigen::VectorXd::Constant(solvedQuantityState().size(),absolute);
+    };
+    registry.add(std::move(velocity));
+}
+
 
     template <int dim>
     void DislocationNetwork<dim>::solve()

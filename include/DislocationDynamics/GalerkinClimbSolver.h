@@ -18,6 +18,7 @@
 #endif
 
 #include <vector>
+#include <CoupledClimbSolve.h>
 
 #include <DislocationDynamicsModule.h>
 #include <DislocationClimbSolverFactory.h>
@@ -44,7 +45,8 @@ namespace model
         typedef std::deque<Eigen::Triplet<double> > TripletContainerType;
         
         std::vector<Eigen::VectorXd> Fc;
-        std::vector<Eigen::VectorXd> KKc;
+        std::vector<std::unique_ptr<CoupledClimbSolve>> coupledSolvers;
+        size_t cachedNodeCount=0;
 
         ForceVectorMatrixType clusterForceVector(const NetworkLinkType& networkLink) const;
         ForceVectorMatrixType clusterForceKernel(const int& k,const NetworkLinkType& networkLink) const;

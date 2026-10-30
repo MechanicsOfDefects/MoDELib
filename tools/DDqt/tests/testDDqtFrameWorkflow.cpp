@@ -180,7 +180,7 @@ int main(int argc, char **argv)
         std::filesystem::copy_file(root / "Library/Meshes/unitCube24.msh", input / "mesh.msh");
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
-            f << "physics=ElasticDeformation;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\n"
+            f << "physics=ElasticDeformation;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\n"
               << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\n";
             std::ofstream p(input / "polycrystal.txt");
             p << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\n"
@@ -213,8 +213,8 @@ int main(int argc, char **argv)
             window->AddRenderer(renderer);
             auto *viewer = new model::DefectiveCrystalActor(window, renderer, nullptr, base);
             QPointer<model::DefectiveCrystalActor> guardedViewer(viewer);
-            check(viewer->boxes && !viewer->boxes->findChild<QGroupBox*>("boxTreeGroup")->isEnabled(),
-                  "Boxes tab should be unavailable in an ED-only tutorial");
+            check(viewer->boxes && viewer->boxes->findChild<QGroupBox*>("boxTreeGroup")->isEnabled(),
+                  "Shared FMM boxes should be available in an ED-only tutorial");
             checkDataSetMapperInputs(renderer);
             check(viewer->updateConfiguration(0), "Initial frame load failed");
             checkDataSetMapperInputs(renderer);

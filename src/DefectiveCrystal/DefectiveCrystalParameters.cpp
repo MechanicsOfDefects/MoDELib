@@ -86,7 +86,7 @@ namespace model
 //        /* init */,useInclusions(TextFileParser(traitsIO.dcFile).readScalar<int>("useInclusions",true))
         /* init */,physics(TextFileParser(traitsIO.dcFile).readString("physics",true))
         /* init */,Nsteps(TextFileParser(traitsIO.dcFile).readScalar<size_t>("Nsteps",true))
-        /* init */,maxResolveSteps(TextFileParser(traitsIO.dcFile).readScalar<int>("maxResolveSteps",true))
+        /* init */,maxResolveSteps(0) // Deprecated: coupled quantities now converge locally.
 //        /* init */,useSubCycling(TextFileParser(traitsIO.dcFile).readScalar<int>("useSubCycling",true))
 //        /* init */,subcyclingBins(getSubCyclingSet(TextFileParser(traitsIO.dcFile).readArray<int>("subcyclingBins",true)))
 //        /* init */,use_stochasticForce(TextFileParser(traitsIO.dcFile).readScalar<int>("use_stochasticForce",true))

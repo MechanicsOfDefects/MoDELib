@@ -3,10 +3,6 @@
 
 
 ######################################
-# LOOP-FMM GEOMETRY (no force kernels yet)
-fmmTreeDepth=2; # uniform box-tree depth, integer 0..5; 0 gives one root box
-
-######################################
 # TIME STEPPING
 timeSteppingMethod=adaptive; # can be "fixed" or "adaptive". dt=dtMax if timeIntegrationMethod=fixed. dt=min(dxMax/vMax,dtMax) if timeIntegrationMethod=adaptive
 dxMax=10; # max nodal displacement in adaptive stepping

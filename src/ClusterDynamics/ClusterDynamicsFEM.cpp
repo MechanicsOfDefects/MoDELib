@@ -341,7 +341,7 @@ template struct InvDscaling<3>;
                 auto mass=(test(immobileRateTrial),immobileRateTrial)*dV;
                 WeakProblemOptions options;
                 options.useDirectSolver=false;
-                iSolver=weakProblem<Eigen::SparseLU<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>(mass,rhs,options);
+                iSolver=weakProblem<DefaultWeakProblemDirectSolver<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>(mass,rhs,options);
             }
             else
             {
@@ -426,12 +426,12 @@ template struct InvDscaling<3>;
         mobileLoad=std::make_shared<Load<MobileTrialType>>(Load<MobileTrialType>{mobileClusters,cascadeGlobalProduction});
         reactionLoad=std::make_shared<Load<MobileIncrementTrialType>>(Load<MobileIncrementTrialType>{mobileClustersIncrement,Eigen::VectorXd::Zero(mobileClusters->gSize())});
         reactionMatrix=std::make_shared<MatrixForm<MobileIncrementTrialType>>(MatrixForm<MobileIncrementTrialType>{mobileClustersIncrement,diffusionTriplets});
-        mSolver=weakProblem<Eigen::SparseLU<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>(mBWF,mobileLoad);
+        mSolver=weakProblem<DefaultWeakProblemDirectSolver<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>(mBWF,mobileLoad);
         WeakProblemOptions reactionOptions;
         // Preserve iterative reaction solves on surface/GB-bounded domains.
         // Closed domains may need an indefinite conservation-constrained solve.
         reactionOptions.useDirectSolver=sinkNormals.empty();
-        rSolver=weakProblem<Eigen::SparseLU<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>(reactionMatrix,reactionLoad,reactionOptions);
+        rSolver=weakProblem<DefaultWeakProblemDirectSolver<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>(reactionMatrix,reactionLoad,reactionOptions);
         meanRows=Eigen::MatrixXd::Zero(mSize,mobileClusters->gSize());
         for(int c=0;c<mSize;++c)
         {

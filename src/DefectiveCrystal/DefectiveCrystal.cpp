@@ -98,7 +98,7 @@ namespace model
 //            this->emplace_back(new ElasticDeformationType(*this));
 //        }
 
-//        std::cout<<"Defective Crystal Done Constructor"<<std::endl;
+        this->finalizeSolvedQuantities();
     }
 
     template <int _dim>
@@ -114,10 +114,6 @@ namespace model
         /*                    */<< ", time="<<this->ddBase.simulationParameters.totalTime<<defaultColor<<std::endl;
         
         this->solve();
-        for(int r=0;r<this->ddBase.simulationParameters.maxResolveSteps;++r)
-        {
-            this->reSolve();
-        }
         this->ddBase.simulationParameters.dt=this->getDt();
                 
         if (!(this->ddBase.simulationParameters.runID%this->ddBase.simulationParameters.outputFrequency))

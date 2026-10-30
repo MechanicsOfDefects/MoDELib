@@ -3,7 +3,7 @@
  */
 #ifndef model_WeakProblem_H_
 #define model_WeakProblem_H_
-#include <Eigen/Sparse>
+#include <WeakProblemSolvers.h>
 #include <Eigen/SVD>
 #include <LowRankBilinear.h>
 #include <algorithm>
@@ -633,7 +633,7 @@ namespace model
         }
     };
 
-    template<class DirectSolverType=Eigen::SparseLU<Eigen::SparseMatrix<double>>,
+    template<class DirectSolverType=DefaultWeakProblemDirectSolver<Eigen::SparseMatrix<double>>,
              class IterativeSolverType=Eigen::BiCGSTAB<Eigen::SparseMatrix<double>>,
              class BWF,class LWF>
     auto weakProblem(std::shared_ptr<BWF> bwf,std::shared_ptr<LWF> lwf,WeakProblemOptions options={})

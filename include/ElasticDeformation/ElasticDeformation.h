@@ -37,7 +37,7 @@ namespace model
     typedef MicrostructureContainer<dim> MicrostructureContainerType;
     typedef UniformController<SymmetricVoigtTraits<dim>::voigtSize> UniformControllerType;
     
-    using DirectSolverType=Eigen::SparseLU<typename ElasticDeformationFEM<dim>::SparseMatrixType>;
+    using DirectSolverType=DefaultWeakProblemDirectSolver<typename ElasticDeformationFEM<dim>::SparseMatrixType>;
     using IterativeSolverType=Eigen::BiCGSTAB<typename ElasticDeformationFEM<dim>::SparseMatrixType>;
     using WeakProblemType=WeakProblem<DirectSolverType,IterativeSolverType>;
 
@@ -47,14 +47,17 @@ namespace model
     const double inertiaReliefPenaltyFactor;
     using FEMControllerType=FEMLoadController<typename ElasticDeformationFEM<dim>::TrialFunctionType>;
     std::shared_ptr<FEMControllerType> femLoadController;
+    std::shared_ptr<GlobalRigidMotionPenalty<typename ElasticDeformationFEM<dim>::TrialFunctionType>> rigidMotionPenalty;
     std::shared_ptr<WeakProblemType> weakProblemSolver;
     Eigen::VectorXd zDot;
     bool solverInitialized;
     
     ElasticDeformation(MicrostructureContainerType& mc);
     void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
+    void registerSolvedQuantities(SolvedQuantityRegistry&) override;
+    void solveStress();
     void solve() override;
-    void reSolve() override;
+    void solveDisplacementRate();
     double getDt() const override;
     void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
     void updateConfiguration() override;

@@ -8,6 +8,7 @@
 #ifndef model_MicrostructureBase_H_
 #define model_MicrostructureBase_H_
 
+#include <DefectiveCrystal/SolvedQuantityRegistry.h>
 #include <vector>
 #include <fstream>
 #include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
@@ -53,8 +54,8 @@ namespace model
 
 
         virtual void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) = 0;
+        virtual void registerSolvedQuantities(SolvedQuantityRegistry&);
         virtual void solve() = 0;
-        virtual void reSolve() = 0;
         virtual double getDt() const = 0;
         virtual void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const = 0;
         virtual void updateConfiguration() = 0;

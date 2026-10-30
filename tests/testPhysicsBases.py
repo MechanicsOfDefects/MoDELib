@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
 
     def configure(physics, length):
         (inputs / "DefectiveCrystal.txt").write_text(
-            f"physics={physics};\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
+            f"physics={physics};\nfmmTreeDepth=2;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
             "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\n"
             "periodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n")
         (inputs / "polycrystal.txt").write_text(
@@ -37,6 +37,7 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
     default_config = model.DefectiveCrystalConfigIO()
     custom_config = model.DefectiveCrystalConfigIO(str(folder / "custom"))
     base = model.DefectiveCrystalBase(str(folder))
+    assert base.fmmContext.fmmTreeDepth == 2
     assert base.dislocationDynamicsBase is None
     assert base.clusterDynamicsBase is None
     assert base.elasticDeformationBase is base.elasticDeformation()
@@ -56,17 +57,20 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
     del generator
 
     configure("DislocationDynamics", 200 / math.sqrt(3))
-    (inputs / "DD.txt").write_text("fmmTreeDepth=2;\n")
     base = model.DefectiveCrystalBase(str(folder))
     dd = base.dislocationDynamicsBase
     assert dd is base.dislocationDynamics()
-    assert dd.fmmTreeDepth == 2
+    context = base.fmmContext
+    assert context.fmmTreeDepth == 2 and context.treeDepth == 2
+    assert context.boxCount(2) == 64
+    assert not hasattr(dd, "fmmTreeDepth")
     plane = dd.glidePlane(np.zeros(3), np.array([0., 0., 1.]), 1)
     periodic = dd.periodicGlidePlane(np.zeros(3), np.array([0., 0., 1.]), 1)
     assert dd.glidePlaneCount() >= 1
     assert dd.periodicGlidePlaneCount() == 1
     del base
     gc.collect()
+    assert context.boxCount(2) == 64
     assert np.isfinite(dd.EwaldLength)
     assert plane.planeBaseID() == periodic.referencePlane.planeBaseID()
     del dd
@@ -82,6 +86,7 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
     base = model.DefectiveCrystalBase(str(folder))
     cd = base.clusterDynamicsBase
     assert cd is base.clusterDynamics()
+    assert base.fmmContext.fmmTreeDepth == 2
     assert base.dislocationDynamicsBase is None
     del base
     gc.collect()

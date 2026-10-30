@@ -4,9 +4,18 @@ physics=none; # physics to simulate, separated by spaces: DislocationDynamics Cl
 useFEM=1; # enables/disables FEM throughout MoDELib
 Nsteps=10;		# total number of simulation steps
 dtMax=1e35; # max dt in b/cs
-maxResolveSteps=0;
+# Coupled quantities converge locally; maxResolveSteps is obsolete.
+maxResolveSteps=0; # Deprecated compatibility key, ignored by the solver.
+solvedQuantityMaxIterations=100;
+solvedQuantityRelativeTolerance=1.e-3;
+solvedQuantityRelaxation=1.0;
+solvedQuantityVelocityAbsoluteTolerance=1.e-24; # velocity units cs
+solvedQuantityConcentrationAbsoluteFraction=1.e-10; # fraction of species equilibrium concentration
 startAtTimeStep = -1;  # time step for restart. -1 means last available step in file F/F_0.txt
 periodicImageSize= 0 0 0; # number of images for each periodic shift vector
 EwaldLengthFactor=0;
 outputFrequency=1;
 outputBinary=0;
+
+# SHARED FMM GEOMETRY (no force kernels yet)
+fmmTreeDepth=2; # required uniform tree depth, integer 0..5; 0 gives one root box

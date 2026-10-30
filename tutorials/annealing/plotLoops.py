@@ -87,6 +87,8 @@ for string_s in unique_strings:
                 s=5, alpha=0.6)
 
 plt.legend(loc="upper right", markerscale=2)
+axs.set_xlabel('time [hours]')
+axs.set_ylabel('radii [nm]')
 fig.savefig("loopRadii.pdf", bbox_inches='tight', format='pdf')
 
 #fig, axs = plt.subplots(1,1)

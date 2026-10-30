@@ -12,6 +12,7 @@
 #ifndef model_DefectiveCrystalBase_H_
 #define model_DefectiveCrystalBase_H_
 
+#include <FMM/FMMContext.h>
 #include <string>
 #include <memory>
 #include <vector>
@@ -54,6 +55,7 @@ namespace model
         const Polycrystal<dim>& poly;
         std::shared_ptr<FiniteElement<ElementType>> fe;
         const std::vector<std::string> activePhysics;
+        const std::shared_ptr<FMMContext<dim>> fmmContext;
         const std::shared_ptr<DislocationDynamicsBase<dim>> dislocationDynamicsBase;
         const std::shared_ptr<ClusterDynamicsBase<dim>> clusterDynamicsBase;
         const std::shared_ptr<ElasticDeformationBase<dim>> elasticDeformationBase;

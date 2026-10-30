@@ -18,6 +18,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationNodeContraction.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationQuadraturePoint.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationClimbSolverFactory.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/CoupledClimbSolve.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/GalerkinClimbSolver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationVelocitySolverBase.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationNucleation.cpp

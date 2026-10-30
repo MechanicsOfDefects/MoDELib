@@ -117,12 +117,11 @@ int main(int argc, char** argv)
         std::filesystem::copy_file(root / "Library/Materials/W.txt", input / "W.txt");
         std::filesystem::copy_file(root / "Library/Meshes/unitCube24.msh", input / "mesh.msh");
         std::ofstream(input / "DefectiveCrystal.txt")
-            << "physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
+            << "physics=DislocationDynamics;\nfmmTreeDepth=2;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
             << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
         std::ofstream(input / "polycrystal.txt")
             << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\n"
             << "F=100 0 0 0 100 0 0 0 100;\nX0=0 0 0;\nperiodicFaceIDs=;\n";
-        std::ofstream(input / "DD.txt") << "fmmTreeDepth=2;\n";
         {
             model::DefectiveCrystalBase<3> base(folder.string());
             auto& dd = base.dislocationDynamics();
@@ -131,7 +130,7 @@ int main(int argc, char** argv)
                 (base.mesh.xMin() + base.mesh.xMax()) * .5,
                 grain->reciprocalLatticeDirection(Eigen::Vector3d::UnitZ())));
             std::vector<std::shared_ptr<model::GlidePlane<3>>> planes{plane};
-            model::BoxTreeActor actor(window, renderer, dd.boxTree, [&planes]() { return planes; });
+            model::BoxTreeActor actor(window, renderer, base.fmmContext->boxTree, [&planes]() { return planes; });
             actor.findChild<QGroupBox*>("boxTreeGroup")->setChecked(true);
             auto* cuts = actor.findChild<QCheckBox*>("boxTreeCuts");
             auto* selector = actor.findChild<QComboBox*>("boxTreePlane");
@@ -139,16 +138,16 @@ int main(int argc, char** argv)
             require(selector->count() == 1 && actor.cutData()->GetNumberOfPolys() == 0,
                     "Plane cuts should be opt-in");
             cuts->setChecked(true);
-            const auto expected = plane->boxIntersection(dd.boxTree, 2);
+            const auto expected = plane->boxIntersection(base.fmmContext->boxTree, 2);
             require(actor.cutData()->GetNumberOfPolys() > 0 &&
                     size_t(actor.cutData()->GetNumberOfPolys()) == expected->polygons().size(),
                     "Viewer did not display the cached plane polygons");
             const auto modified = actor.cutData()->GetMTime();
             actor.updateConfiguration();
             require(actor.cutData()->GetMTime() == modified, "Frame update rebuilt unchanged plane cuts");
-            const auto revision = dd.boxTree->revision();
+            const auto revision = base.fmmContext->boxTree->revision();
             level->setValue(0);
-            require(actor.cutData()->GetNumberOfPolys() == 1 && dd.boxTree->revision() == revision,
+            require(actor.cutData()->GetNumberOfPolys() == 1 && base.fmmContext->boxTree->revision() == revision,
                     "Display level did not select existing cut level");
             planes.clear();
             plane.reset();

@@ -30,7 +30,7 @@ int main(int argc,char** argv)
         std::filesystem::copy_file(root / "Library/Meshes/bicrystal_48.msh", input / "mesh.msh");
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
-            f << "physics=ElasticDeformation;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\n"
+            f << "physics=ElasticDeformation;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\n"
               << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\n";
             std::ofstream p(input / "polycrystal.txt");
             p << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\n"

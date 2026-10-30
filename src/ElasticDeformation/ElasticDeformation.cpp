@@ -14,6 +14,8 @@
 #endif
 
 #include <ElasticDeformation.h>
+#include <array>
+#include <exception>
 
 namespace model
 {
@@ -87,8 +89,8 @@ namespace model
     {
         auto settings=getUniformEDcontroller(this->microstructures.ddBase);
         femLoadController=std::make_shared<FEMControllerType>(elasticDeformationFEM->u,*settings);
-        auto penalty=std::make_shared<GlobalRigidMotionPenalty<typename ElasticDeformationFEM<dim>::TrialFunctionType>>(elasticDeformationFEM->u,inertiaReliefPenaltyFactor,true);
-        auto total=elasticDeformationFEM->bWF+penalty+femLoadController;
+        rigidMotionPenalty=std::make_shared<GlobalRigidMotionPenalty<typename ElasticDeformationFEM<dim>::TrialFunctionType>>(elasticDeformationFEM->u,inertiaReliefPenaltyFactor,true);
+        auto total=elasticDeformationFEM->bWF+rigidMotionPenalty+femLoadController;
         auto rhs=femLoadController->rightHandSide(Eigen::VectorXd::Zero(elasticDeformationFEM->u->gSize()),0.0,FEMControllerType::Vector6::Zero());
         weakProblemSolver=weakProblem<DirectSolverType,IterativeSolverType>(total,rhs);
         weakProblemSolver->setAffineModes(femLoadController->affineModes());
@@ -129,7 +131,7 @@ namespace model
     }
 
 template<int dim>
-void ElasticDeformation<dim>::reSolve()
+void ElasticDeformation<dim>::solveDisplacementRate()
 {
     if(uniformLoadController)
     {
@@ -150,6 +152,38 @@ void ElasticDeformation<dim>::reSolve()
     template<int dim>
     void ElasticDeformation<dim>::solve()
     {
+        solveStress();
+        solveDisplacementRate();
+    }
+
+    template<int dim>
+    void ElasticDeformation<dim>::registerSolvedQuantities(SolvedQuantityRegistry& registry)
+    {
+        SolvedQuantityContribution stress;
+        stress.provider=this->tag;
+        stress.name="Stress";
+        stress.quantities={"Stress"};
+        stress.dependencies={{"Stress","",false,{}}};
+        stress.update=[this](const SolvedQuantityContext&)
+        {
+            solveStress();
+        };
+        registry.add(std::move(stress));
+        SolvedQuantityContribution rate;
+        rate.provider=this->tag;
+        rate.name="DisplacementRate";
+        rate.quantities={"ElasticDisplacementRate"};
+        rate.dependencies={{"Stress",this->tag,true,{}},{"Velocity","",false,{}},{"MobileConcentration","",false,{}},{"ImmobileRates","",false,{}}};
+        rate.update=[this](const SolvedQuantityContext&)
+        {
+            solveDisplacementRate();
+        };
+        registry.add(std::move(rate));
+    }
+
+    template<int dim>
+    void ElasticDeformation<dim>::solveStress()
+    {
         if(uniformLoadController)
         {
             const MatrixDim apd(this->microstructures.averagePlasticDistortion());
@@ -167,33 +201,98 @@ void ElasticDeformation<dim>::reSolve()
             const auto& base=this->microstructures.ddBase;
             Eigen::VectorXd source=Eigen::VectorXd::Zero(elasticDeformationFEM->u->gSize());
             typename FEMControllerType::Vector6 otherStress=FEMControllerType::Vector6::Zero();
-            using Q=Quadrature<dim,4,GaussLegendre>;
-            // Volume virtual work includes both physical-face tractions and the
-            // work conjugate to free periodic jumps; face-only loading misses the latter.
+            using Q=Quadrature<dim-1,12,GaussLegendre>;
+            MatrixDim stressMoment=MatrixDim::Zero();
+            // For equilibrated source stresses, integration by parts replaces
+            // volume virtual work by external traction work. Keep both periodic
+            // faces: their affine work survives the periodic constraint reduction.
+            // Internal grain faces cancel and are deliberately excluded.
+            struct SurfaceResult
+            {
+                const ElementType* element;
+                int face;
+                std::array<VectorDim,Q::quadratureOrder> tractionWeights;
+                std::exception_ptr failure;
+            };
+            std::vector<SurfaceResult> surfaces;
             for(const auto& entry : base.fe->elements())
             {
-                const auto& e=entry.second;
+                for(const int face : entry.second.boundaryFaces())
+                {
+                    surfaces.push_back({&entry.second,face,{},{}});
+                }
+            }
+            // Geometry and physics stay fixed. Each worker owns one face buffer;
+            // no worker writes the shared nodal load or stress moment.
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+            for(std::ptrdiff_t index=0;index<static_cast<std::ptrdiff_t>(surfaces.size());++index)
+            {
+                auto& result=surfaces[index];
+                try
+                {
+                    const auto& e=*result.element;
+                    for(size_t k=0;k<Q::quadratureOrder;++k)
+                    {
+                        const auto faceBary=BarycentricTraits<dim-1>::x2l(Q::abscissa(k));
+                        const auto bary=BarycentricTraits<dim>::face2domainBary(faceBary,result.face);
+                        const VectorDim position=e.position(bary);
+                        MatrixDim stress=MatrixDim::Zero();
+                        for(const auto& physics : this->microstructures)
+                        {
+                            if(physics.get()!=static_cast<const MicrostructureBase<dim>*>(this))
+                            {
+                                stress+=physics->stress(position,nullptr,&e,nullptr);
+                            }
+                        }
+                        result.tractionWeights[k]=Q::weight(k)*stress*e.jGN(bary,result.face);
+                    }
+                }
+                catch(...)
+                {
+                    result.failure=std::current_exception();
+                }
+            }
+            for(const auto& result : surfaces)
+            {
+                if(result.failure)
+                {
+                    std::rethrow_exception(result.failure);
+                }
+            }
+            // Preserve the original face/quadrature summation order regardless
+            // of thread count, including contributions at shared FEM nodes.
+            for(const auto& result : surfaces)
+            {
+                const auto& e=*result.element;
                 for(size_t k=0;k<Q::quadratureOrder;++k)
                 {
-                    const auto bary=BarycentricTraits<dim>::x2l(Q::abscissa(k));
-                    MatrixDim stress=MatrixDim::Zero();
-                    for(const auto& physics : this->microstructures)
-                    {
-                        if(physics.get()!=static_cast<const MicrostructureBase<dim>*>(this))
-                        {
-                            stress+=physics->stress(e.position(bary),nullptr,&e,nullptr);
-                        }
-                    }
-                    const auto voigt=base.voigtTraits.m2v(stress,false);
-                    const double weight=e.absJ(bary)*Q::weight(k);
-                    otherStress+=weight/base.mesh.volume()*voigt;
-                    const auto local=(-weight*elasticDeformationFEM->u->sfmDef(e,bary).transpose()*voigt).eval();
+                    const auto faceBary=BarycentricTraits<dim-1>::x2l(Q::abscissa(k));
+                    const auto bary=BarycentricTraits<dim>::face2domainBary(faceBary,result.face);
+                    const VectorDim position=e.position(bary);
+                    const auto& tractionWeight=result.tractionWeights[k];
+                    stressMoment.noalias()+=tractionWeight*position.transpose();
+                    const auto local=(-elasticDeformationFEM->u->sfm(e,bary).transpose()*tractionWeight).eval();
                     for(int node=0;node<ElementType::nodesPerElement;++node)
                     {
                         source.template segment<dim>(dim*e.node(node).gID)+=local.template segment<dim>(dim*node);
                     }
                 }
             }
+            // An equilibrated internal source does no work on rigid motions.
+            // Surface quadrature need not preserve this identity exactly. Remove
+            // only the dual global-moment load; virtual fields with zero mean
+            // translation/rotation retain exactly the assembled traction work.
+            const Eigen::MatrixXd rigid=rigidMotionPenalty->rigidModes();
+            const Eigen::MatrixXd moments=rigidMotionPenalty->lowRankPenaltyRows();
+            if(rigid.cols()>0)
+            {
+                const Eigen::VectorXd imbalance=rigid.transpose()*source;
+                const Eigen::MatrixXd coupling=moments*rigid;
+                source-=moments.transpose()*coupling.transpose().fullPivLu().solve(imbalance);
+            }
+            otherStress=base.voigtTraits.m2v((0.5/base.mesh.volume()*(stressMoment+stressMoment.transpose())).eval(),false);
             const MatrixDim plastic=this->microstructures.averagePlasticDistortion();
             const typename FEMControllerType::Vector6 strainOffset=base.voigtTraits.m2v(0.5*(plastic+plastic.transpose()),true)+elasticDeformationFEM->C.ldlt().solve(otherStress);
             const double time=base.simulationParameters.totalTime;
@@ -202,13 +301,7 @@ void ElasticDeformation<dim>::reSolve()
             weakProblemSolver->solveWithMasterSlaveConstraints();
             elasticDeformationFEM->u->setPeriodicGradient(femLoadController->gradient(weakProblemSolver->affineCoefficients()));
 
-            // Compute zDot
-            std::cout<<", zDot "<<std::flush;
-//            zDot.setZero(elasticDeformationFEM->z->gSize());
-            for(const auto& node : elasticDeformationFEM->z->fe().nodes())
-            {
-                zDot.template segment<dim>(dim*node.gID)=this->microstructures.inelasticDisplacementRate(node.P0,&node,nullptr,nullptr);
-            }
+
         }
     }
 

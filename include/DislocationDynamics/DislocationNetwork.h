@@ -18,6 +18,7 @@
 // https://www.codeproject.com/Articles/48575/How-to-Define-a-Template-Class-in-a-h-File-and-Imp
 
 #ifdef _OPENMP
+#include <optional>
 #include <omp.h>
 #endif
 
@@ -153,8 +154,12 @@ namespace model
         DislocationNetwork(MicrostructureContainerType& mc);
                 
         void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
+        void registerSolvedQuantities(SolvedQuantityRegistry&) override;
         void solve() override;
-        void reSolve() override;
+        std::optional<bool> solvedQuantityClimbStep;
+        void solveCoupledClimb(bool first);
+        Eigen::VectorXd solvedQuantityState() const;
+        void restoreSolvedQuantityState(const Eigen::VectorXd&);
         double getDt() const override;
         void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
         void updateConfiguration() override;

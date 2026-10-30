@@ -50,8 +50,7 @@ namespace model
         /* init */,chartActor(new ChartActor(ddBase.simulationParameters.traitsIO,renderWindow,ren))
         /* init */,ddField(new DDFieldWidget(renderWindow,ren,defectiveCrystal))
         /* init */,surfaceMesh(new SurfaceMeshActor(renderWindow,ren,defectiveCrystal))
-        /* init */,boxes(new BoxTreeActor(renderWindow,ren,ddBase.dislocationDynamicsBase ?
-            ddBase.dislocationDynamicsBase->boxTree : nullptr,
+        /* init */,boxes(new BoxTreeActor(renderWindow,ren,ddBase.fmmContext->boxTree,
             [base = ddBase.dislocationDynamicsBase]()
             {
                 std::vector<std::shared_ptr<GlidePlane<3>>> planes;

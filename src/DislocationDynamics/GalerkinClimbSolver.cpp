@@ -89,206 +89,16 @@ namespace model
         computeClimbScalarVelocitiesBulk(updateStiffness);
     }
 
-    // Retained temporarily for an easy source-level comparison with the
-    // optimized assembly below. The complete original file is also backed up
-    // as GalerkingClimbSolver_BK.cpp.
-#if 0
-    template <int dim>
-    void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
-    {
-//        std::vector<std::vector<Eigen::Triplet<double>>> lhsT(mSize);
-        std::vector<Eigen::VectorXd> Fc(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
-        std::vector<Eigen::VectorXd> KKc(mSize,Eigen::VectorXd::Zero(this->DN.networkNodes().size()));
-//        bool useLumpedSolver(true);
-        
-#ifdef _OPENMP
-        const size_t nThreads(omp_get_max_threads());
-//        std::vector<std::vector<std::vector<Eigen::Triplet<double>>>> lhsTV(nThreads,lhsT);
-        std::vector<std::vector<Eigen::VectorXd>> KKcT(nThreads,KKc);
-        std::vector<std::vector<Eigen::VectorXd>> FcT(nThreads,Fc);
-        const EqualIteratorRange<typename DislocationNetwork<dim>::NetworkLinkContainerType::const_iterator> eir(this->DN.networkLinks().begin(),this->DN.networkLinks().end(),nThreads);
-#pragma omp parallel for
-        for(size_t thread=0;thread<eir.size();++thread)
-        {
-            auto& Fc_ref(FcT[thread]);
-            auto& KKc_ref(KKcT[thread]);
-            for(auto fieldLinkIter=eir[thread].first;fieldLinkIter!=eir[thread].second;++fieldLinkIter)
-//            for(const auto& fieldLink : this->DN.networkLinks())
-            {// sum line-integral part of displacement field per segment
-                const auto& fieldLink(*fieldLinkIter);
-#else
-                auto& Fc_ref(Fc);
-                auto& KKc_ref(KKc);
-                for(const auto& fieldLink : this->DN.networkLinks())
-                {
-#endif
-////#pragma omp parallel for
-//        for(size_t thread=0;thread< eir.size();++thread)
-//        {
-//            for(auto fieldLinkIter=eir[thread].first;fieldLinkIter!=eir[thread].second;++fieldLinkIter)
-////            for(const auto& fieldLink : this->DN.networkLinks())
-//            {// sum line-integral part of displacement field per segment
-//                const auto& fieldLink(*fieldLinkIter);
-                if(   !fieldLink.second.lock()->hasZeroBurgers()
-                   && fieldLink.second.lock()->isSessile()
-                   && !fieldLink.second.lock()->isBoundarySegment()
-                   && !fieldLink.second.lock()->isGrainBoundarySegment()
-                   &&  fieldLink.second.lock()->chordLength()>FLT_EPSILON
-                   )
-                {
-                    const size_t i0(fieldLink.second.lock()->source->gID());
-                    const size_t i1(fieldLink.second.lock()->  sink->gID());
-                    
-                    const ForceVectorMatrixType fc(clusterForceVector(*fieldLink.second.lock()));
-                    for(int kc=0; kc<mSize; ++kc)
-                    {
-//#ifdef _OPENMP
-//#pragma omp critical
-//#endif
-//                        {
-                            Fc_ref[kc](i0)+=fc(0,kc);
-                            Fc_ref[kc](i1)+=fc(1,kc);
-//                        }
-                    }
-                    
-                    for(const auto& sourceLink : this->DN.networkLinks())
-                    {// sum line-integral part of displacement field per segment
-                        if(   !sourceLink.second.lock()->hasZeroBurgers()
-                           && !sourceLink.second.lock()->isBoundarySegment()
-                           && !sourceLink.second.lock()->isGrainBoundarySegment()
-                           &&  sourceLink.second.lock()->chordLength()>FLT_EPSILON
-                           )
-                        {
-                            const size_t j0(sourceLink.second.lock()->source->gID());
-                            const size_t j1(sourceLink.second.lock()->  sink->gID());
-                            const StiffnessMatrixType kcc(clusterStiffnessMatrix(*fieldLink.second.lock(),*sourceLink.second.lock()));
-                            
-                            for(int kc=0; kc<mSize; ++kc)
-                            {
-                                const Eigen::Matrix<double,2,2> kccs(kcc.template block<2,2>(2*kc,0));
-                                
-//                                if(useLumpedSolver)
-//                                {
-//#ifdef _OPENMP
-//#pragma omp critical
-//#endif
-//                                    {
-                                        KKc_ref[kc](i0)+=0.5*kccs(0,0)+0.5*kccs(0,1);
-                                        KKc_ref[kc](j0)+=0.5*kccs(0,0)+0.5*kccs(1,0);
-                                        KKc_ref[kc](i1)+=0.5*kccs(1,0)+0.5*kccs(1,1);
-                                        KKc_ref[kc](j1)+=0.5*kccs(0,1)+0.5*kccs(1,1);
-
-                                        
-                                        //lhsT[kc].emplace_back(i0,i0,0.5*kccs(0,0));
-                                        //lhsT[kc].emplace_back(j0,j0,0.5*kccs(0,0));
-                                        
-                                        //lhsT[kc].emplace_back(i0,i0,0.5*kccs(0,1));
-//                                        lhsT[kc].emplace_back(j1,j1,0.5*kccs(0,1));
-                                        
-//                                        lhsT[kc].emplace_back(i1,i1,0.5*kccs(1,0));
-                                        //lhsT[kc].emplace_back(j0,j0,0.5*kccs(1,0));
-                                        
-  //                                      lhsT[kc].emplace_back(i1,i1,0.5*kccs(1,1));
-//                                        lhsT[kc].emplace_back(j1,j1,0.5*kccs(1,1));
-//                                    }
-//                                }
-//                                else
-//                                {
-//                                    const bool forceSym(true);// at the moment we need to symmtrize, since numerical intgration on fieldLink is not equivalent to analytical integration on sourceLink
-//                                    if(forceSym)
-//                                    {
-//#ifdef _OPENMP
-//#pragma omp critical
-//#endif
-//                                        {
-//                                            lhsT[kc].emplace_back(i0,j0,0.5*kccs(0,0));
-//                                            lhsT[kc].emplace_back(i0,j1,0.5*kccs(0,1));
-//                                            lhsT[kc].emplace_back(i1,j0,0.5*kccs(1,0));
-//                                            lhsT[kc].emplace_back(i1,j1,0.5*kccs(1,1));
-//                                            
-//                                            lhsT[kc].emplace_back(j0,i0,0.5*kccs(0,0));
-//                                            lhsT[kc].emplace_back(j1,i0,0.5*kccs(0,1));
-//                                            lhsT[kc].emplace_back(j0,i1,0.5*kccs(1,0));
-//                                            lhsT[kc].emplace_back(j1,i1,0.5*kccs(1,1));
-//                                        }
-//                                    }
-//                                    else
-//                                    {
-//#ifdef _OPENMP
-//#pragma omp critical
-//#endif
-//                                        {
-//                                            lhsT[kc].emplace_back(i0,j0,kccs(0,0));
-//                                            lhsT[kc].emplace_back(i0,j1,kccs(0,1));
-//                                            lhsT[kc].emplace_back(i1,j0,kccs(1,0));
-//                                            lhsT[kc].emplace_back(i1,j1,kccs(1,1));
-//                                        }
-//                                    }
-//                                }
-                            }
-                        }
-                    }
-                }
-            }
-#ifdef _OPENMP
-        }
-            for(size_t thread=0;thread< eir.size();++thread)
-            {// recombine contributions of different threads
-                for(int kc=0; kc<mSize; ++kc)
-                {
-                    Fc[kc]+=FcT[thread][kc];
-                    KKc[kc]+=KKcT[thread][kc];
-//                    lhsT[kc].insert(lhsT[kc].end(), lhsTV[thread][kc].begin(), lhsTV[thread][kc].end());
-                }
-            }
-#endif
-        
-//        Eigen::SparseMatrix<double> Kcc(this->DN.networkNodes().size(),this->DN.networkNodes().size());
-        std::vector<Eigen::Array<double,1,mSize>> nodeV(this->DN.networkNodes().size(),Eigen::Array<double,1,mSize>::Zero());
-        
-        for(int kc=0; kc<mSize; ++kc)
-        {
-//            Kcc.setFromTriplets(lhsT[kc].begin(),lhsT[kc].end());
-            
-//            if(size_t(Kcc.rows())!=this->DN.networkNodes().size() || size_t(Kcc.cols())!=this->DN.networkNodes().size())
-//            {
-//                throw std::runtime_error("the Stiffness Matrix size is not equal to the node size.");
-//            }
-            
-//            if(useLumpedSolver)
-//            {
-//                Eigen::VectorXd Kccd(Kcc.diagonal());
-                for (size_t n=0; n<this->DN.networkNodes().size(); n++)
-                {
-                    if(std::fabs(KKc[kc](n))>FLT_EPSILON)
-                    {
-                        nodeV[n](kc)=Fc[kc](n)/KKc[kc](n);
-                    }
-                }
-//            }
-//            else
-//            {
-//                throw std::runtime_error("GalerkinClimbSolver: only the lumped solver is implemented.");
-//            }
-        }
-
-        this->scalarVelocities().resize(this->DN.networkNodes().size(),Eigen::Array<double,1,mSize>::Zero());
-        for(size_t k=0; k<this->DN.networkNodes().size();++k)
-        {
-            this->scalarVelocities()[k]=nodeV[k];
-        }
-    }
-
-#endif
-
     template <int dim>
     void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
     {
         const size_t nodeCount(this->DN.networkNodes().size());
         Fc.assign(mSize,Eigen::VectorXd::Zero(nodeCount));
-        if(updateStiffness)
+        const bool rebuild=updateStiffness || coupledSolvers.size()!=mSize || cachedNodeCount!=nodeCount;
+        std::vector<Eigen::MatrixXd> matrices;
+        if(rebuild)
         {
-            KKc.assign(mSize,Eigen::VectorXd::Zero(nodeCount));
+            matrices.assign(mSize,Eigen::MatrixXd::Zero(nodeCount,nodeCount));
         }
 
         using NetworkLinkPtrType=std::shared_ptr<NetworkLinkType>;
@@ -358,81 +168,87 @@ namespace model
             }
         }
 
-#ifdef _OPENMP
-        const size_t nThreads(omp_get_max_threads());
-        std::vector<std::vector<Eigen::VectorXd>> KKcT(nThreads,KKc);
-        std::vector<std::vector<Eigen::VectorXd>> FcT(nThreads,Fc);
-#pragma omp parallel for schedule(guided)
-        for(size_t fieldIndex=0;fieldIndex<fields.size();++fieldIndex)
-        {
-            const size_t thread(omp_get_thread_num());
-            auto& Fc_ref(FcT[thread]);
-            auto& KKc_ref(KKcT[thread]);
-            const auto& field(fields[fieldIndex]);
-#else
-        auto& Fc_ref(Fc);
-        auto& KKc_ref(KKc);
+        // Each field contributes to two shared rows. Atomics protect only the
+        // accumulated pair blocks, avoiding a dense matrix copy per thread.
         for(const auto& field : fields)
         {
-#endif
             for(int kc=0;kc<mSize;++kc)
             {
-                Fc_ref[kc](field.i0)+=field.force(0,kc);
-                Fc_ref[kc](field.i1)+=field.force(1,kc);
+                Fc[kc](field.i0)+=field.force(0,kc);
+                Fc[kc](field.i1)+=field.force(1,kc);
             }
-
-            if(updateStiffness)
+        }
+        if(rebuild)
+        {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(guided)
+#endif
+            for(size_t fi=0;fi<fields.size();++fi)
             {
+                const auto& field=fields[fi];
                 for(const auto& source : sources)
                 {
-                    Eigen::Array<double,mSize,1> i0Term(Eigen::Array<double,mSize,1>::Zero());
-                    Eigen::Array<double,mSize,1> j0Term(Eigen::Array<double,mSize,1>::Zero());
-                    Eigen::Array<double,mSize,1> i1Term(Eigen::Array<double,mSize,1>::Zero());
-                    Eigen::Array<double,mSize,1> j1Term(Eigen::Array<double,mSize,1>::Zero());
-
-                    // Assemble exactly the four lumped contributions consumed by
-                    // the solver; do not materialize the 2*mSize-by-2 pair matrix.
+                    StiffnessMatrixType block=StiffnessMatrixType::Zero();
                     for(const auto& qp : field.quadrature)
                     {
-                        const auto concentration(source.link->concentrationMatrices(qp.r,this->CD->cdp));
-                        const auto c0(concentration.col(0).array());
-                        const auto c1(concentration.col(1).array());
-                        i0Term+=0.5*qp.weightedM0*(c0+c1);
-                        j0Term+=0.5*(qp.weightedM0+qp.weightedM1)*c0;
-                        i1Term+=0.5*qp.weightedM1*(c0+c1);
-                        j1Term+=0.5*(qp.weightedM0+qp.weightedM1)*c1;
+                        const auto c=source.link->concentrationMatrices(qp.r,this->CD->cdp);
+                        for(int kc=0;kc<mSize;++kc)
+                        {
+                            block.row(2*kc)+=qp.weightedM0*c.row(kc);
+                            block.row(2*kc+1)+=qp.weightedM1*c.row(kc);
+                        }
                     }
-
+                    const size_t rows[2]={field.i0,field.i1};
+                    const size_t cols[2]={source.j0,source.j1};
                     for(int kc=0;kc<mSize;++kc)
                     {
-                        KKc_ref[kc](field.i0)+=i0Term(kc);
-                        KKc_ref[kc](source.j0)+=j0Term(kc);
-                        KKc_ref[kc](field.i1)+=i1Term(kc);
-                        KKc_ref[kc](source.j1)+=j1Term(kc);
+                        for(int i=0;i<2;++i)
+                        {
+                            for(int j=0;j<2;++j)
+                            {
+#ifdef _OPENMP
+#pragma omp atomic update
+#endif
+                                matrices[kc](rows[i],cols[j])+=block(2*kc+i,j);
+                            }
+                        }
                     }
                 }
             }
-        }
-
-#ifdef _OPENMP
-        for(size_t thread=0;thread<nThreads;++thread)
-        {
+            const auto Z=periodicClimbVelocityMap<dim>(this->DN);
+            // Topologically local preconditioner: self and immediate segment
+            // neighbors. Every other interaction remains in the dense operator.
+            std::set<std::pair<size_t,size_t>> pattern;
+            for(size_t i=0;i<nodeCount;++i)
+            {
+                pattern.emplace(i,i);
+            }
+            for(const auto& source : sources)
+            {
+                pattern.emplace(source.j0,source.j1);
+                pattern.emplace(source.j1,source.j0);
+            }
+            std::vector<std::unique_ptr<CoupledClimbSolve>> next;
             for(int kc=0;kc<mSize;++kc)
             {
-                Fc[kc]+=FcT[thread][kc];
-                if(updateStiffness)
+                std::vector<Eigen::Triplet<double>> entries;
+                for(const auto& ij : pattern)
                 {
-                    KKc[kc]+=KKcT[thread][kc];
+                    entries.emplace_back(ij.first,ij.second,matrices[kc](ij.first,ij.second));
                 }
+                SparseMatrixType local(nodeCount,nodeCount);
+                local.setFromTriplets(entries.begin(),entries.end());
+                auto solver=std::make_unique<CoupledClimbSolve>();
+                solver->compute(matrices[kc],local,Z);
+                next.emplace_back(std::move(solver));
             }
+            coupledSolvers=std::move(next);
+            cachedNodeCount=nodeCount;
         }
-#endif
-
-        const auto Z=periodicClimbVelocityMap<dim>(this->DN);
         std::vector<Eigen::Array<double,1,mSize>> nodeV(nodeCount,Eigen::Array<double,1,mSize>::Zero());
         for(int kc=0;kc<mSize;++kc)
         {
-            const Eigen::VectorXd constrained=solveConstrainedVelocityDiagonal(KKc[kc],Fc[kc],Z);
+            const Eigen::VectorXd constrained=coupledSolvers[kc]->solve(Fc[kc]);
             for(size_t n=0;n<nodeCount;++n)
             {
                 nodeV[n](kc)=constrained(n);

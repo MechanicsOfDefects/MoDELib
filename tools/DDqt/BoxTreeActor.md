@@ -43,16 +43,18 @@ hanging-face traversal are deliberately not exposed yet.
 
 ## Ownership and viewer
 
-`DislocationDynamicsBase<3>::boxTree` owns a shared tree initialized from the
-simulation mesh's axis-aligned bounds. Its initial depth is read from `inputFiles/DD.txt` using `fmmTreeDepth`
-(required integer 0..5 whenever DD is enabled). Missing settings or a missing
-DD file cause an input error. Explicitly specify zero for one root box. The configured value is available as
-`DislocationDynamicsBase::fmmTreeDepth`, including in Python.
+`DefectiveCrystalBase<3>::fmmContext` owns the shared `FMMContext<3>`.
+Its `boxTree` is initialized from the
+simulation mesh's axis-aligned bounds. Its initial depth is read from `inputFiles/DefectiveCrystal.txt` using `fmmTreeDepth`
+(required integer 0..5 for every simulation). Missing settings or a missing
+shared input file cause an input error. Explicitly specify zero for one root box. The configured value is available as
+`FMMContext::fmmTreeDepth`; Python exposes `base.fmmContext` as `FMMContext3`.
 The Boxes tab displays this tree, rather than creating a second
-viewer-only hierarchy. If DD is disabled, the tab explains why it is unavailable.
+viewer-only hierarchy. Boxes are available even when DD is disabled; only
+glide-plane cuts require existing DD glide planes.
 
 - Enable **Show boxes** to display the wireframe (off initially).
-- **Tree depth** is read-only. Change `fmmTreeDepth` in `inputFiles/DD.txt` and
+- **Tree depth** is read-only. Change `fmmTreeDepth` in `inputFiles/DefectiveCrystal.txt` and
   reload the simulation to change it.
 - **Display level** selects an existing level without modifying topology.
 - **Opacity** and **Line width** control the appearance.

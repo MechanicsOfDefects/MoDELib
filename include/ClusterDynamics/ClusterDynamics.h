@@ -91,8 +91,8 @@ namespace model
 //        const Eigen::VectorXd cascadeGlobalProduction;
         
         void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;
+        void registerSolvedQuantities(SolvedQuantityRegistry&) override;
         void solve() override;
-        void reSolve() override;
         double getDt() const override;
         void output(DefectiveCrystalConfigIO<dim>& configIO,DefectiveCrystalAuxIO<dim>& auxIO,std::ofstream& f_file,std::ofstream& F_labels) const override;
         void updateConfiguration() override;
@@ -106,6 +106,14 @@ namespace model
         VectorISize immobileClusters(const VectorDim&, const NodeType* const, const ElementType* const,const SimplexDim* const) const override;
 
         void applyBoundaryConditions();
+        bool solvedQuantityBoundaryCache=false;
+        std::map<size_t,VectorMSize> solvedQuantitySinkConcentrations;
+        // Geometry-only influence matrices, valid within one coupled solve.
+        std::vector<Eigen::MatrixXd> solvedQuantityInfluence;
+        std::vector<size_t> solvedQuantitySourceIDs;
+        std::map<size_t,size_t> solvedQuantityTargetRows;
+        size_t solvedQuantityInfluenceBuilds=0;
+
 
 
         // std::set<const Simplex<dim,dim>*> vertexSetNeighbors(const std::set<const Simplex<dim,dim>*>& inSet, const std::set<const Simplex<dim,dim>*>& usedEle) const;

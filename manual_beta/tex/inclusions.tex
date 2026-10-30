@@ -1,6 +1,6 @@
 \chapter{Inclusion physics}\label{chap:inclusions}
 \section{Objects and field contributions}
-\code{InclusionMicrostructure} is a microstructure whose state is a collection of Eshelby inclusion objects. The current implementation restores spherical, ellipsoidal and polyhedral inclusions from configuration records. The current inclusion state is static: \code{solve()} and \code{reSolve()} do not evolve it, and its time-step proposal is the shared maximum. A common \code{EshelbyInclusionBase} interface provides the elastic-field behavior needed by the surrounding simulation.
+\code{InclusionMicrostructure} is a microstructure whose state is a collection of Eshelby inclusion objects. The current implementation restores spherical, ellipsoidal and polyhedral inclusions from configuration records. The current inclusion state is static: \code{solve()} does not evolve it, and its time-step proposal is the shared maximum. A common \code{EshelbyInclusionBase} interface provides the elastic-field behavior needed by the surrounding simulation.
 
 An inclusion carries shape data, a transformation eigenstrain, a phase identity and mobility-reduction information. Its stress is a contribution to the aggregate stress seen by other physics. The geometry used by a polyhedral inclusion belongs to that inclusion; it should not be confused with the \code{PolyhedralMesh} representation of grain boundaries.
 \sourcefile{src/InclusionMicrostructure/InclusionMicrostructure.cpp}

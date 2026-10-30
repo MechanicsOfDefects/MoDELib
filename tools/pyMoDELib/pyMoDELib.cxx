@@ -356,9 +356,15 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readonly("referencePlane", &PeriodicGlidePlane<3>::referencePlane)
         .def("findPatch", &PeriodicGlidePlane<3>::findPatch)
     ;
+    py::class_<FMMContext<3>,std::shared_ptr<FMMContext<3>>>(m,"FMMContext3")
+        .def_readonly("fmmTreeDepth", &FMMContext<3>::fmmTreeDepth)
+        .def_property_readonly("treeDepth", [](const FMMContext<3>& context) { return context.boxTree->depth(); })
+        .def_property_readonly("lower", [](const FMMContext<3>& context) { return context.boxTree->lower().eval(); })
+        .def_property_readonly("upper", [](const FMMContext<3>& context) { return context.boxTree->upper().eval(); })
+        .def("boxCount", [](const FMMContext<3>& context, unsigned level) { return context.boxTree->boxes(level).size(); })
+    ;
     py::class_<DislocationDynamicsBase<3>,std::shared_ptr<DislocationDynamicsBase<3>>>(m,"DislocationDynamicsBase")
         .def_readonly("EwaldLength", &DislocationDynamicsBase<3>::EwaldLength)
-        .def_readonly("fmmTreeDepth", &DislocationDynamicsBase<3>::fmmTreeDepth)
         .def("glidePlane", [](DislocationDynamicsBase<3>& base, const Eigen::Vector3d& point,
                               const Eigen::Vector3d& normal, size_t grainID)
         {
@@ -417,6 +423,7 @@ PYBIND11_MODULE(pyMoDELib,m)
         {
             return base.poly;
         }, py::return_value_policy::reference_internal)
+        .def_readonly("fmmContext", &DefectiveCrystalBase<3>::fmmContext)
         .def_readonly("activePhysics", &DefectiveCrystalBase<3>::activePhysics)
         .def("hasPhysics", &DefectiveCrystalBase<3>::hasPhysics)
         .def("periodicCoordinates", &DefectiveCrystalBase<3>::periodicCoordinates)

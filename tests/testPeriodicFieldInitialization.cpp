@@ -53,7 +53,7 @@ int main(int argc, char** argv)
             {
                 {
                     std::ofstream f(input / "DefectiveCrystal.txt");
-                    f << "physics=DislocationDynamics;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
+                    f << "physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
                       << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\n";
                     if(rank > 0)
                     {

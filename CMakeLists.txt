@@ -19,7 +19,7 @@
 # Example on macOS with MacPorts (clang 20, Python 3.14):
 #   export LDFLAGS=-L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib
 #   export LDFLAGS="$LDFLAGS -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/system"
-# cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-20 -DCMAKE_PREFIX_PATH=$HOME/Applications/Qt/6.10.0//macos/lib/cmake -DPython_EXECUTABLE=/opt/local/bin/python3.14 -Dpybind11_DIR=$(/opt/local/bin/python3.14 -m pybind11 --cmakedir)
+# cmake .. -DCMAKE_CXX_COMPILER=clang++-mp-20 -DCMAKE_PREFIX_PATH=$HOME/Applications/Qt/6.10.0//macos/lib/cmake -DPython_EXECUTABLE=/opt/local/bin/python3.14 -Dpybind11_DIR=$(/opt/local/bin/python3.14 -m pybind11 --cmakedir) -DMODELIB_CD_MSIZE=1 -DMODELIB_CD_ISIZE=0
 # See also https://mcilloni.ovh/2021/02/09/cxx-cross-clang/
 
 cmake_minimum_required(VERSION 3.20)

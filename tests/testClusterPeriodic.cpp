@@ -94,7 +94,7 @@ fs::path fixture(const fs::path& root,int rank,int reactions,bool source,const s
         poly<<"C2G"<<g<<"=1 0 0 0 1 0 0 0 1;\n";
     }
     std::ofstream dc(folder/"inputFiles/DefectiveCrystal.txt");
-    dc<<"physics=ClusterDynamics;\nuseFEM=1;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=";
+    dc<<"physics=ClusterDynamics;\nfmmTreeDepth=0;\nuseFEM=1;\nNsteps=1;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=";
     for(int d=0;d<rank;++d)
     {
         dc<<"0 ";

@@ -101,7 +101,7 @@ namespace model
         typedef BilinearWeakForm<MobileIncrementBilinearFormType,VolumeIntegrationDomainType> MobileIncrementBilinearWeakFormType;
 
         using SparseMatrixType=Eigen::SparseMatrix<double>;
-        using Problem=WeakProblem<Eigen::SparseLU<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>;
+        using Problem=WeakProblem<DefaultWeakProblemDirectSolver<SparseMatrixType>,Eigen::BiCGSTAB<SparseMatrixType>>;
         template<class Trial>
         struct Load
         {

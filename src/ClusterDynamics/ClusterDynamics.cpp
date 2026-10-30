@@ -15,6 +15,7 @@
 #endif
 
 #include <ClusterDynamics.h>
+#include <exception>
 //#include <ExternalAndInternalBoundary.h>
 //#include <Fix.h>
 #include <DislocationNetwork.h>
@@ -139,6 +140,155 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
         periodicNodes.insert(pair.source);
         periodicNodes.insert(pair.sink);
     }
+    const auto dn=this->microstructures.template getUniqueTypedMicrostructure<DislocationNetwork<dim>>();
+    const bool useInfluence=solvedQuantityBoundaryCache && dn && dn->climbSolver;
+    Eigen::MatrixXd discreteConcentration;
+    if(useInfluence)
+    {
+        if(solvedQuantityInfluence.empty())
+        {
+            std::map<size_t,size_t> columns;
+            for(const auto& entry : dn->networkNodes())
+            {
+                columns.emplace(entry.first,solvedQuantitySourceIDs.size());
+                solvedQuantitySourceIDs.push_back(entry.first);
+            }
+            for(const auto& node : fem.mobileClusters->fe().nodes())
+            {
+                if(cdp.computeReactions || fem.sinkNormals.count(node.gID) || periodicNodes.count(node.gID))
+                {
+                    solvedQuantityTargetRows.emplace(node.gID,solvedQuantityTargetRows.size());
+                }
+            }
+            solvedQuantityInfluence.assign(mSize,Eigen::MatrixXd::Zero(solvedQuantityTargetRows.size(),columns.size()));
+            std::vector<const NodeType*> targets(solvedQuantityTargetRows.size());
+            for(const auto& node : fem.mobileClusters->fe().nodes())
+            {
+                const auto row=solvedQuantityTargetRows.find(node.gID);
+                if(row!=solvedQuantityTargetRows.end())
+                {
+                    targets[row->second]=&node;
+                }
+            }
+            std::vector<std::exception_ptr> failures(targets.size());
+            // Each worker writes a distinct H row, preserving segment summation
+            // order and the shared network-node columns within that row.
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+            for(std::ptrdiff_t row=0;row<static_cast<std::ptrdiff_t>(targets.size());++row)
+            {
+                try
+                {
+                    const auto& node=*targets[row];
+                    const auto pointGrains=dn->pointGrains(node.P0,&node,nullptr,nullptr);
+                    for(const auto& entry : dn->networkLinks())
+                    {
+                        const auto segment=entry.second.lock();
+                        if(segment->hasZeroBurgers())
+                        {
+                            continue;
+                        }
+                        const auto grains=segment->grains();
+                        size_t common=0;
+                        for(const auto* grain : grains)
+                        {
+                            common+=pointGrains.count(grain);
+                        }
+                        if(common==1)
+                        {
+                            const auto coefficients=segment->concentrationMatrices(node.P0,dn->climbSolver->CD->cdp);
+                            for(int species=0;species<mSize;++species)
+                            {
+                                solvedQuantityInfluence[species](row,columns.at(segment->source->sID))+=coefficients(species,0);
+                                solvedQuantityInfluence[species](row,columns.at(segment->sink->sID))+=coefficients(species,1);
+                            }
+                        }
+                    }
+                }
+                catch(...)
+                {
+                    failures[row]=std::current_exception();
+                }
+            }
+            for(const auto& failure : failures)
+            {
+                if(failure)
+                {
+                    solvedQuantityInfluence.clear();
+                    solvedQuantitySourceIDs.clear();
+                    solvedQuantityTargetRows.clear();
+                    std::rethrow_exception(failure);
+                }
+            }
+            ++solvedQuantityInfluenceBuilds;
+        }
+        if(dn->networkNodes().size()!=solvedQuantitySourceIDs.size())
+        {
+            throw std::runtime_error("DD topology changed during concentration coupling");
+        }
+        Eigen::MatrixXd velocities(solvedQuantitySourceIDs.size(),mSize);
+        for(size_t column=0;column<solvedQuantitySourceIDs.size();++column)
+        {
+            const auto found=dn->networkNodes().find(solvedQuantitySourceIDs[column]);
+            if(found==dn->networkNodes().end() || found->second.expired())
+            {
+                throw std::runtime_error("DD source changed during concentration coupling");
+            }
+            velocities.row(column)=found->second.lock()->climbVelocityScalar.matrix();
+        }
+        discreteConcentration.resize(solvedQuantityTargetRows.size(),mSize);
+        for(int species=0;species<mSize;++species)
+        {
+            discreteConcentration.col(species).noalias()=solvedQuantityInfluence[species]*velocities.col(species);
+        }
+    }
+    // Evaluate only uncached sink stresses in parallel. Commit to the map on
+    // the calling thread after every evaluation succeeds.
+    std::vector<const NodeType*> sinkTargets;
+    for(const auto& node : fem.mobileClusters->fe().nodes())
+    {
+        if(fem.sinkNormals.count(node.gID) &&
+           (!solvedQuantityBoundaryCache || !solvedQuantitySinkConcentrations.count(node.gID)))
+        {
+            sinkTargets.push_back(&node);
+        }
+    }
+    std::vector<VectorMSize> sinkValues(sinkTargets.size());
+    std::vector<std::exception_ptr> sinkFailures(sinkTargets.size());
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(!sinkTargets.empty())
+#endif
+    for(std::ptrdiff_t row=0;row<static_cast<std::ptrdiff_t>(sinkTargets.size());++row)
+    {
+        try
+        {
+            const auto& node=*sinkTargets[row];
+            const auto& normals=fem.sinkNormals.at(node.gID);
+            const MatrixDim sigma=this->microstructures.stress(node.P0,&node,nullptr,nullptr);
+            double normalTraction=0.0;
+            for(const auto& normal : normals)
+            {
+                normalTraction+=normal.dot(sigma*normal)/double(normals.size());
+            }
+            sinkValues[row]=cdp.boundaryMobileConcentration(sigma.trace(),normalTraction);
+        }
+        catch(...)
+        {
+            sinkFailures[row]=std::current_exception();
+        }
+    }
+    for(const auto& failure : sinkFailures)
+    {
+        if(failure)
+        {
+            std::rethrow_exception(failure);
+        }
+    }
+    for(size_t row=0;row<sinkTargets.size();++row)
+    {
+        solvedQuantitySinkConcentrations[sinkTargets[row]->gID]=sinkValues[row];
+    }
     for(const auto& node : fem.mobileClusters->fe().nodes())
     {
         const auto sink=fem.sinkNormals.find(node.gID);
@@ -152,19 +302,20 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
         {
             if(microstructure.get()!=static_cast<const MicrostructureBase<dim>*>(this))
             {
-                otherConcentration+=microstructure->mobileConcentration(node.P0,&node,nullptr,nullptr);
+                if(useInfluence && microstructure.get()==dn.get())
+                {
+                    otherConcentration+=discreteConcentration.row(solvedQuantityTargetRows.at(node.gID)).transpose();
+                }
+                else
+                {
+                    otherConcentration+=microstructure->mobileConcentration(node.P0,&node,nullptr,nullptr);
+                }
             }
         }
         offset.template segment<mSize>(mSize*node.gID)=-otherConcentration;
         if(sink!=fem.sinkNormals.end())
         {
-            const MatrixDim sigma=this->microstructures.stress(node.P0,&node,nullptr,nullptr);
-            double normalTraction=0.0;
-            for(const auto& normal : sink->second)
-            {
-                normalTraction+=normal.dot(sigma*normal)/double(sink->second.size());
-            }
-            const auto concentration=cdp.boundaryMobileConcentration(sigma.trace(),normalTraction);
+            const auto& concentration=solvedQuantitySinkConcentrations.at(node.gID);
             for(int c=0;c<mSize;++c)
             {
                 prescribed.emplace(mSize*node.gID+c,concentration(c)-otherConcentration(c));
@@ -174,6 +325,116 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
     fem.mobileClusters->setPeriodicNodalOffset(offset);
     fem.mobileClusters->dirichletConditions()=std::move(prescribed);
 }
+
+    template<int dim>
+    void ClusterDynamics<dim>::registerSolvedQuantities(SolvedQuantityRegistry& registry)
+    {
+        SolvedQuantityContribution concentration;
+        concentration.provider=this->tag;
+        concentration.name="MobileConcentration";
+        concentration.quantities={"MobileConcentration"};
+        concentration.dependencies={{"Stress","",false,{}},{"MobileConcentration","",false,{}}};
+        concentration.update=[this](const SolvedQuantityContext& context)
+        {
+            if(context.iteration==0)
+            {
+                solvedQuantitySinkConcentrations.clear();
+                solvedQuantityInfluence.clear();
+                solvedQuantitySourceIDs.clear();
+                solvedQuantityTargetRows.clear();
+            }
+            solvedQuantityBoundaryCache=true;
+            try
+            {
+                if(clusterDynamicsFEM)
+                {
+                    if(!clusterDynamicsFEM->solverInitialized)
+                    {
+                        clusterDynamicsFEM->initializeSolver();
+                    }
+                    applyBoundaryConditions();
+                    const auto dn=this->microstructures.template getUniqueTypedMicrostructure<DislocationNetwork<dim>>();
+                    clusterDynamicsFEM->solveMobileClusters(dn && !dn->loops().empty());
+                }
+            }
+            catch(...)
+            {
+                solvedQuantityBoundaryCache=false;
+                throw;
+            }
+            solvedQuantityBoundaryCache=false;
+        };
+        concentration.state=[this]() -> Eigen::VectorXd
+        {
+            if(clusterDynamicsFEM)
+            {
+                Eigen::VectorXd result=clusterDynamicsFEM->mobileClusters->dofVector();
+                const auto equilibrium=cdp.equilibriumMobileConcentration(0.0);
+                for(Eigen::Index k=0;k<result.size();++k)
+                {
+                    result(k)-=equilibrium(k%mSize);
+                }
+                return result;
+            }
+            return Eigen::VectorXd();
+        };
+        concentration.restore=[this](const Eigen::VectorXd& state)
+        {
+            if(clusterDynamicsFEM)
+            {
+                Eigen::VectorXd values=state;
+                const auto equilibrium=cdp.equilibriumMobileConcentration(0.0);
+                for(Eigen::Index k=0;k<values.size();++k)
+                {
+                    values(k)+=equilibrium(k%mSize);
+                }
+                clusterDynamicsFEM->mobileClusters->setFullDofVector(values);
+            }
+        };
+        TextFileParser input(this->microstructures.ddBase.simulationParameters.traitsIO.dcFile);
+        const double fraction=input.readStringVector("solvedQuantityConcentrationAbsoluteFraction").empty()? 1.e-10 :
+            input.readScalar<double>("solvedQuantityConcentrationAbsoluteFraction",true);
+        if(!std::isfinite(fraction) || fraction<=0.0)
+        {
+            throw std::runtime_error("solvedQuantityConcentrationAbsoluteFraction must be finite and positive.");
+        }
+        concentration.absoluteTolerance=[this,fraction]() -> Eigen::VectorXd
+        {
+            if(!clusterDynamicsFEM)
+            {
+                return Eigen::VectorXd();
+            }
+            Eigen::VectorXd tolerance(clusterDynamicsFEM->mobileClusters->gSize());
+            const auto equilibrium=cdp.equilibriumMobileConcentration(0.0);
+            for(Eigen::Index k=0;k<tolerance.size();++k)
+            {
+                tolerance(k)=fraction*std::max(std::abs(equilibrium(k%mSize)),1.e-100);
+            }
+            return tolerance;
+        };
+        registry.add(std::move(concentration));
+        SolvedQuantityContribution rates;
+        rates.provider=this->tag;
+        rates.name="ImmobileRates";
+        rates.quantities={"ImmobileRates"};
+        rates.dependencies={{"MobileConcentration","",false,{}}};
+        rates.update=[this](const SolvedQuantityContext&)
+        {
+            if(clusterDynamicsFEM)
+            {
+                const auto dn=this->microstructures.template getUniqueTypedMicrostructure<DislocationNetwork<dim>>();
+                if(iSize>0 && (!dn || dn->loops().empty()))
+                {
+                    clusterDynamicsFEM->solveImmobileClusters();
+                }
+                else
+                {
+                    clusterDynamicsFEM->immobileClusterRate.setZero();
+                }
+            }
+        };
+        registry.add(std::move(rates));
+    }
 
     template<int dim>
     void ClusterDynamics<dim>::solve()
@@ -197,11 +458,6 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
         }
     }
 
-    template<int dim>
-    void ClusterDynamics<dim>::reSolve()
-    {
-        solve();
-    }
 
     template<int dim>
     void ClusterDynamics<dim>::updateConfiguration()

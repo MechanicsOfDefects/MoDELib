@@ -21,6 +21,20 @@
 
 namespace model
 {
+    template<int dim>
+    void MicrostructureBase<dim>::registerSolvedQuantities(SolvedQuantityRegistry& registry)
+    {
+        SolvedQuantityContribution contribution;
+        contribution.provider=tag;
+        contribution.name="State";
+        contribution.quantities={"Stress"};
+        contribution.update=[this](const SolvedQuantityContext&)
+        {
+            solve();
+        };
+        registry.add(std::move(contribution));
+    }
+
     template <int dim>
     MicrostructureBase<dim>::MicrostructureBase(const std::string& tag_in,MicrostructureContainer<dim>& m_in):
     /* init */ tag(tag_in)
