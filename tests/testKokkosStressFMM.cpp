@@ -83,10 +83,19 @@ int main()
                 cached.setTranslationCacheBudget(0);
                 cached.evaluate(ex,changed,data.sourcePositions(),data.sourceTensors(),data.targetPositions(),data.stresses(),src.size(),tgt.size());
                 model::DislocationStressArrays<3> baseline; data.downloadStresses(baseline);
+                cached.setGroupedM2L(false);
                 cached.setTranslationCacheBudget(256*1024*1024);
                 cached.evaluate(ex,changed,data.sourcePositions(),data.sourceTensors(),data.targetPositions(),data.stresses(),src.size(),tgt.size());
                 require(cached.translationCacheBytes()>0,"Translation cache populated");
                 require(error(baseline)<1e-12,"Cached and uncached translations differ");
+                cached.setGroupedM2L(true);
+                cached.evaluate(ex,changed,data.sourcePositions(),data.sourceTensors(),data.targetPositions(),data.stresses(),src.size(),tgt.size());
+                if constexpr(std::is_same_v<typename decltype(ex)::memory_space,Kokkos::HostSpace>)
+                {
+                    require(cached.groupedPairCount()>0,"Grouped stress path was not exercised");
+                }
+                require(cached.translationCacheBytes()+cached.groupedMatrixBytes()<=256u*1024u*1024u,"Grouped matrices exceeded translation budget");
+                require(error(baseline)<1e-12,"Grouped stress GEMM differs from scalar translation");
                 cached.setTranslationCacheBudget(27*27*7*sizeof(double));
                 cached.evaluate(ex,changed,data.sourcePositions(),data.sourceTensors(),data.targetPositions(),data.stresses(),src.size(),tgt.size());
                 require(cached.translationCacheBytes()==27*27*7*sizeof(double),"Cache budget is respected");
@@ -149,6 +158,58 @@ int main()
         rejected=false;
         try { model::KokkosStressFMM<> invalid(ex,tree,src.positions.values,tgt.positions.values,1000000); }
         catch(const std::invalid_argument&) { rejected=true; } require(rejected,"Invalid interpolation order");
+        // Physical kernels are unchanged; only the interpolation cell is affine.
+        Eigen::Matrix3d H;H<<2,1.7,0, 0,.6,.1, 0,0,1.2;
+        const Eigen::Vector3d origin(-.8,1.3,-.2);
+        const auto transform=[&](auto& positions)
+        {
+            for(std::size_t i=0;i<positions[0].size();++i)
+            {
+                const Eigen::Vector3d x=origin+H*Eigen::Vector3d(positions[0][i],positions[1][i],positions[2][i]);
+                for(int c=0;c<3;++c) { positions[c][i]=x[c]; }
+            }
+        };
+        transform(src.positions.values);transform(tgt.positions.values);
+        data.uploadSources(src);data.uploadTargets(tgt);
+        const auto latticePolynomial=direct(PolynomialKernel{}),latticeReference=direct(kernel);
+        model::BoxTree<3> lattice(origin,H,3,model::BoxTree<3>::LatticeTag{});
+        model::KokkosStressFMM<> latticePlan(ex,lattice,src.positions.values,tgt.positions.values,6);
+        require(latticePlan.farBoxPairs()>0,"Lattice test did not exercise far interactions");
+        latticePlan.evaluate(ex,PolynomialKernel{},data.sourcePositions(),data.sourceTensors(),data.targetPositions(),data.stresses(),src.size(),tgt.size());
+        require(error(latticePolynomial)<1.e-12,"Lattice interpolation/transfer is not polynomial exact");
+        latticePlan.evaluate(ex,kernel,data.sourcePositions(),data.sourceTensors(),data.targetPositions(),data.stresses(),src.size(),tgt.size());
+        require(error(latticeReference)<.01,"Lattice stress accuracy");
+        for(int rank=0;rank<=3;++rank)
+        {
+            const Eigen::Matrix<double,3,Eigen::Dynamic> basis=Eigen::Matrix3d::Identity().leftCols(rank);
+            const auto neighborhood=model::explicitFMMImageNeighborhood(tree,basis);
+            std::size_t expected=1;for(int c=0;c<rank;++c) { expected*=3; }
+            require(neighborhood.size()==expected,"Cubic explicit root neighborhood");
+        }
+        const Eigen::Matrix<double,3,Eigen::Dynamic> skewBasis=H;
+        const auto skewImages=model::explicitFMMImageNeighborhood(lattice,skewBasis);
+        for(const auto& image:skewImages) { require(!lattice.admissible(image,0),"Invalid explicit image neighborhood"); }
+        const std::vector<Eigen::Vector3d> shifts{Eigen::Vector3d::Zero(),H.col(0),-H.col(0),3*H.col(1)};
+        model::DislocationStressArrays<3> shiftedReference;shiftedReference.reset(tgt.size());
+        for(std::size_t t=0;t<tgt.size();++t)
+        {
+            double sum[6]={};
+            for(const auto& shift:shifts) { for(std::size_t s=0;s<src.size();++s)
+            {
+                double r[3],q[9];
+                for(int c=0;c<3;++c) { r[c]=tgt.positions.values[c][t]-src.positions.values[c][s]-shift[c]; }
+                for(int c=0;c<9;++c) { q[c]=src.weightedBurgersTensors.values[c][s]; }
+                PolynomialKernel{}.addSymmetric(r,q,sum);
+            } }
+            int k=0;for(int i=0;i<3;++i) { for(int j=i;j<3;++j) { shiftedReference.stresses.values[3*i+j][t]=shiftedReference.stresses.values[3*j+i][t]=sum[k++]; } }
+        }
+        model::KokkosStressFMM<> shiftedPlan(ex,lattice,src.positions.values,tgt.positions.values,4,shifts);
+        shiftedPlan.evaluate(ex,PolynomialKernel{},data.sourcePositions(),data.sourceTensors(),data.targetPositions(),data.stresses(),src.size(),tgt.size());
+        require(error(shiftedReference)<1.e-12,"Shifted P2P/M2L polynomial partition mismatch");
+        bool duplicateRejected=false;
+        try { model::KokkosStressFMM<> bad(ex,lattice,src.positions.values,tgt.positions.values,4,{H.col(0),H.col(0)}); }
+        catch(const std::invalid_argument&) { duplicateRejected=true; }
+        require(duplicateRejected,"Duplicate image shift accepted");
         std::cout<<"FMM tests passed"<<std::endl;
     }
     catch(const std::exception& e) { std::cerr<<e.what()<<std::endl; return 1; }

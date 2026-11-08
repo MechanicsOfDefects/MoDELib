@@ -1,6 +1,8 @@
 #include <cfloat>
 #include <DislocationDynamics/StraightDislocationSegmentFactory.h>
 #include <type_traits>
+#include <DislocationDynamics/GrainClimbPartition.h>
+#include <DislocationDynamics/CoupledClimbSolve.h>
 #include <FMM/HelmholtzDiffusionKernel.h>
 #include <FMM/HelmholtzStressKernelFamily.h>
 #include <FMM/CaiStressKernelFamily.h>
@@ -156,6 +158,58 @@ void checkSharedSplits()
     tree.setDepth(3);
     require(!second->matches(tree),"Old split snapshot accepted new tree");
     cache.get(tree,moved);require(cache.buildCount()==4,"Tree change failed to invalidate cuts");
+    std::mt19937 rng(1941);
+    std::uniform_real_distribution<double> unit(0.0,1.0);
+    std::vector<SegmentSplitSnapshot::Endpoints> many;
+    for(int i=0;i<1024;++i)
+    {
+        Eigen::Vector3d a,b;
+        for(int axis=0;axis<3;++axis)
+        {
+            a[axis]=unit(rng);
+            b[axis]=unit(rng);
+        }
+        many.emplace_back(a,b);
+    }
+#ifdef _OPENMP
+    const int oldThreads=omp_get_max_threads();
+    omp_set_num_threads(1);
+#endif
+    SegmentSplitCache serial,parallel;
+    const auto reference=serial.get(tree,many);
+#ifdef _OPENMP
+    omp_set_num_threads(4);
+#endif
+    const auto actual=parallel.get(tree,many);
+    for(const auto& segment:many)
+    {
+        const auto& a=reference->pieces(segment.first,segment.second);
+        const auto& b=actual->pieces(segment.first,segment.second);
+        require(a.size()==b.size(),"Parallel split count differs");
+        for(std::size_t i=0;i<a.size();++i)
+        {
+            require(a[i].leaf==b[i].leaf && a[i].begin==b[i].begin && a[i].end==b[i].end &&
+                    a[i].p0==b[i].p0 && a[i].p1==b[i].p1,"Parallel split geometry differs");
+        }
+    }
+    auto invalid=many;
+    invalid[500].first[0]=2.0;
+    bool rejected=false;
+    try
+    {
+        parallel.get(tree,invalid);
+    }
+    catch(const std::out_of_range&)
+    {
+        rejected=true;
+    }
+    require(rejected && parallel.buildCount()==1 && parallel.get(tree,many)==actual,
+            "Worker exception replaced the valid shared cache");
+    std::reverse(many.begin(),many.end());
+    require(parallel.get(tree,many)==actual,"Reordered segments rebuilt the cache");
+#ifdef _OPENMP
+    omp_set_num_threads(oldThreads);
+#endif
     std::cout<<"Shared split cache reuse, motion, topology and tree invalidation passed\n";
 }
 void checkFluxTables()
@@ -244,12 +298,22 @@ void checkSegmentCoreDispatch()
     const auto cai=makeStraightDislocationSegmentCore(CoreType::Cai,false,parameters);
     const auto full=makeStraightDislocationSegmentCore(CoreType::Helmholtz,false,parameters);
     const auto ewald=makeStraightDislocationSegmentCore(CoreType::Helmholtz,true,parameters);
+    require(!cai->isSplit&&!full->isSplit&&ewald->isSplit,"Core split contract");
+    for(const auto& core:{cai,full})
+    {
+        require((core->stressNear(x,segment)-core->stress(x,segment)).norm()==0,"Unsplit near stress");
+        require((core->stressFar(x,segment)-core->stress(x,segment)).norm()==0,"Unsplit far stress");
+        const auto c=core->concentration(D,true);
+        require(!c->isSplit,"Unsplit concentration contract");
+        require((c->concentrationIntegralsNear(segment.p0,segment.p1,x)-c->concentrationIntegralsFar(segment.p0,segment.p1,x)).norm()==0,"Unsplit concentration delegation");
+        require((c->fluxNear(segment.p0,segment.p1,x,.7,-.2)-c->fluxFar(segment.p0,segment.p1,x,.7,-.2)).norm()==0,"Unsplit flux delegation");
+    }
     const auto reference=caiSegmentStress<double>(segment.p0,segment.p1,x,segment.b,t,bc,.01,1-parameters.nu,parameters.mu/(4*std::numbers::pi*(1-parameters.nu)));
     require((cai->stress(x,segment)-reference).norm()<1e-13,"Virtual Cai stress changed");
     helmholtzSegment::Evaluator fullReference(.1,.8,1.7,.27,8,64,4,true),shortReference(.1,.8,1.7,.27,8,64,4,false);
     require((full->stress(x,segment)-fullReference.stress(x,segment)).norm()==0,"Virtual Helmholtz stress changed");
-    require((ewald->nearStress(x,segment)-shortReference.stress(x,segment)).norm()==0,"Virtual Ewald near stress changed");
-    require((ewald->stress(x,segment)-ewald->shortStress(x,segment)-ewald->longStress(x,segment)).norm()<1e-14,"Ewald stress split changed");
+    require((ewald->stressNear(x,segment)-shortReference.stress(x,segment)).norm()==0,"Virtual Ewald near stress changed");
+    require((ewald->stress(x,segment)-ewald->stressNear(x,segment)-ewald->stressFar(x,segment)).norm()<1e-14,"Ewald stress split changed");
     for(const auto& core:{cai,full,ewald})
     {
         auto concentration=core->concentration(D,true);
@@ -281,9 +345,9 @@ void checkSegmentCoreDispatch()
             require(std::abs(weights.col(1).sum()-chord.norm()*.7*(-.2)*.55)<1e-13,"Source endpoint one moment");
         }
     }
-    const auto cf=ewald->concentration(D,true),cs=ewald->concentration(D,true,SegmentKernelPart::shortRange),cl=ewald->concentration(D,true,SegmentKernelPart::longRange);
-    require((cf->concentrationIntegrals(segment.p0,segment.p1,x)-cs->concentrationIntegrals(segment.p0,segment.p1,x)-cl->concentrationIntegrals(segment.p0,segment.p1,x)).norm()<1e-14,"Concentration split");
-    require((cf->flux(segment.p0,segment.p1,x,.7,-.2)-cs->flux(segment.p0,segment.p1,x,.7,-.2)-cl->flux(segment.p0,segment.p1,x,.7,-.2)).norm()<1e-14,"Flux split");
+    const auto cf=ewald->concentration(D,true);
+    require((cf->concentrationIntegrals(segment.p0,segment.p1,x)-cf->concentrationIntegralsNear(segment.p0,segment.p1,x)-cf->concentrationIntegralsFar(segment.p0,segment.p1,x)).norm()<1e-14,"Concentration split");
+    require((cf->flux(segment.p0,segment.p1,x,.7,-.2)-cf->fluxNear(segment.p0,segment.p1,x,.7,-.2)-cf->fluxFar(segment.p0,segment.p1,x,.7,-.2)).norm()<1e-14,"Flux split");
     bool rejected=false;
     try
     {
@@ -297,11 +361,226 @@ void checkSegmentCoreDispatch()
     std::cout<<"Segment core polymorphism and shared moments passed\n";
 }
 
+void checkLatticeSegments()
+{
+    Eigen::Matrix3d H;H<<2,1.2,0, 0,1,0.2, 0,0,1.5;
+    const Eigen::Vector3d origin(-1,2,-.5);
+    const auto point=[&](double x,double y,double z)->Eigen::Vector3d
+    { return origin+H*Eigen::Vector3d(x,y,z); };
+    std::vector<helmholtzSegment::Segment> segments{
+        {point(.05,.2,.3),point(.95,.8,.7),Eigen::Vector3d(1,0,0)},
+        {point(.2,.9,.1),point(.8,.1,.8),Eigen::Vector3d(0,1,0)}};
+    DislocationSourceArrays<3> sources;
+    DislocationTargetArrays<3> targets;
+    std::vector<ConcentrationTarget> concentrationTargets;
+    for(const auto& q:std::vector<Eigen::Vector3d>{point(.1,.1,.8),point(.8,.9,.2),point(.5,.4,.95),point(.01,.9,.6)})
+    {
+        targets.positions.append({q[0],q[1],q[2]});
+        concentrationTargets.push_back({{q[0],q[1],q[2]}, {}});
+    }
+    ClimbKernelChannel channel;
+    for(std::size_t i=0;i<segments.size();++i)
+    { channel.segments.push_back({segments[i].p0,segments[i].p1,{2*i,2*i+1},{1.,.7}}); }
+    auto manager=std::make_shared<FMMManager>();
+    ScreenedDislocationOptions options;options.coreType=CoreType::Cai;
+    options.screened=false;options.segmentShortRange=true;options.interpolationOrder=6;options.coreWidth=.05;
+    Eigen::VectorXd velocity(4);velocity<<1,-.3,.4,.8;
+    DislocationStressArrays<3> reference;
+    Eigen::VectorXd cref;
+    for(unsigned depth:{0u,2u})
+    {
+        auto tree=std::make_shared<BoxTree<3>>(origin,H,depth,BoxTree<3>::LatticeTag{});
+        std::vector<SegmentSplitSnapshot::Endpoints> endpoints;
+        for(const auto& seg:segments) { endpoints.emplace_back(seg.p0,seg.p1); }
+        options.segmentSplits=std::make_shared<SegmentSplitSnapshot>(*tree,SegmentSplitSnapshot::geometry(endpoints));
+        for(const auto& seg:segments)
+        {
+            double length=0;
+            for(const auto& piece:options.segmentSplits->pieces(seg.p0,seg.p1))
+            {
+                length+=(piece.p1-piece.p0).norm();
+                const auto q=tree->fractional(.5*(piece.p0+piece.p1));
+                const int n=1<<depth;
+                const std::size_t lex=int(q[0]*n)+n*(int(q[1]*n)+n*int(q[2]*n));
+                require(lex==piece.leaf,"Split piece assigned to wrong lattice leaf");
+            }
+            require(std::abs(length-(seg.p1-seg.p0).norm())<1.e-13,"Lattice split lost length");
+        }
+        FMMStressEvaluator stress(manager,tree,sources,targets,1,.3,options,segments);
+        const auto actual=stress.evaluate();
+        DislocationConcentrationEvaluator concentration(manager,tree,4,1,{channel},concentrationTargets,options);
+        const Eigen::VectorXd c=concentration.evaluate(0,velocity);
+        if(depth==0) { reference=actual;cref=c; }
+        else
+        {
+            double err=0,norm=0;
+            for(int k=0;k<9;++k) { for(std::size_t i=0;i<targets.size();++i)
+            { const double v=reference.stresses.values[k][i];err+=std::pow(actual.stresses.values[k][i]-v,2);norm+=v*v; } }
+            require(std::sqrt(err/norm)<.01,"Lattice segment stress differs from direct");
+            require((c-cref).norm()/cref.norm()<.01,"Lattice segment concentration differs from direct");
+        }
+    }
+}
+
+void checkShiftedSegments()
+{
+    for(bool skew:{false,true})
+    {
+        Eigen::Matrix3d H=Eigen::Matrix3d::Identity();
+        if(skew) { H(0,1)=.6;H(1,2)=.2; }
+        auto tree=std::make_shared<BoxTree<3>>(Eigen::Vector3d::Zero(),H,2,BoxTree<3>::LatticeTag{});
+        const auto point=[&](double x,double y,double z)->Eigen::Vector3d { return H*Eigen::Vector3d(x,y,z); };
+        std::vector<helmholtzSegment::Segment> segments{
+            {point(.02,.1,.3),point(.9,.8,.6),Eigen::Vector3d(1,0,0)},
+            {point(.2,.9,.05),point(.7,.05,.9),Eigen::Vector3d(0,1,0)}};
+        DislocationSourceArrays<3> src;DislocationTargetArrays<3> targets;
+        std::vector<ConcentrationTarget> ct;
+        for(const auto& x:std::vector<Eigen::Vector3d>{point(.99,.1,.3),point(.01,.8,.6),point(.6,.98,.1),point(.1,.3,.99)})
+        { targets.positions.append({x[0],x[1],x[2]});ct.push_back({{x[0],x[1],x[2]}, {}}); }
+        ClimbKernelChannel channel;channel.diffusion=(Eigen::Vector3d(.7,1.2,2.)).asDiagonal();
+        std::vector<SegmentSplitSnapshot::Endpoints> endpoints;
+        for(std::size_t i=0;i<segments.size();++i)
+        { const auto& a=segments[i];channel.segments.push_back({a.p0,a.p1,{2*i,2*i+1},{1.,.7}});endpoints.emplace_back(a.p0,a.p1); }
+        ScreenedDislocationOptions opt;opt.coreType=CoreType::Cai;opt.screened=false;
+        opt.segmentShortRange=true;opt.interpolationOrder=4;opt.coreWidth=.03;
+        opt.segmentSplits=std::make_shared<SegmentSplitSnapshot>(*tree,SegmentSplitSnapshot::geometry(endpoints));
+        SegmentCoreParameters parameters;parameters.coreWidth=.03;parameters.mu=1;parameters.nu=.3;
+        const auto core=makeStraightDislocationSegmentCore(CoreType::Cai,false,parameters);
+        const auto ck=core->concentration(channel.diffusion);
+        Eigen::VectorXd v(4);v<<1,-.3,.4,.8;
+        auto manager=std::make_shared<FMMManager>();
+        for(int rank=1;rank<=3;++rank)
+        {
+            opt.localImageShifts.clear();
+            for(int z=rank>=3?-1:0;z<=(rank>=3?1:0);++z) { for(int y=rank>=2?-1:0;y<=(rank>=2?1:0);++y) { for(int x=-1;x<=1;++x)
+            { opt.localImageShifts.push_back(H*Eigen::Vector3d(x,y,z)); } } }
+            FMMStressEvaluator stress(manager,tree,src,targets,1,.3,opt,segments);
+            const auto actual=stress.evaluate();
+            DislocationConcentrationEvaluator concentration(manager,tree,4,1,{channel},ct,opt);
+            const auto c=concentration.evaluate(0,v);Eigen::VectorXd expectedC=Eigen::VectorXd::Zero(ct.size());
+            double error=0,norm=0;
+            for(std::size_t t=0;t<ct.size();++t)
+            {
+                Eigen::Matrix3d expected=Eigen::Matrix3d::Zero();
+                const Eigen::Vector3d target(ct[t].position.data());
+                for(const auto& shift:opt.localImageShifts)
+                {
+                    for(std::size_t j=0;j<segments.size();++j)
+                    {
+                        expected+=core->stress(target-shift,segments[j]);
+                        const auto w=ck->concentrationIntegrals(segments[j].p0,segments[j].p1,target-shift);
+                        expectedC[t]+=w[0]*v[2*j]+w[1]*.7*v[2*j+1];
+                    }
+                }
+                for(int i=0;i<3;++i) { for(int j=0;j<3;++j)
+                { error+=std::pow(actual.stresses.values[3*i+j][t]-expected(i,j),2);norm+=expected(i,j)*expected(i,j); } }
+            }
+            const double se=std::sqrt(error/norm),ce=(c-expectedC).norm()/expectedC.norm();
+            std::cout<<"Shifted images skew="<<skew<<" rank="<<rank<<" count="<<opt.localImageShifts.size()<<" stress L2="<<se<<" concentration L2="<<ce<<std::endl;
+            require(se<.02 && ce<.01,"Shifted segment fields disagree with direct image reference");
+            require((concentration.evaluate(0,2*v)-2*c).norm()<1.e-12*(1+c.norm()),"Shifted plan strength reuse");
+            // The climb operator must project exactly the same concentration field.
+            ClimbAssemblySnapshot snapshot;snapshot.nodeCount=4;snapshot.speciesCount=1;snapshot.channels={channel};snapshot.rhs={Eigen::VectorXd::Zero(4)};
+            Eigen::VectorXd projected=Eigen::VectorXd::Zero(4);
+            for(std::size_t t=0;t<ct.size();++t)
+            { snapshot.targets.push_back({ct[t].position,{t,(t+1)%4},{.4,.6}});projected[t]+=.4*c[t];projected[(t+1)%4]+=.6*c[t]; }
+            ScreenedClimbAssembly climb(manager,tree,snapshot,opt);
+            require((climb.apply(0,v)-projected).norm()<1.e-12*(1+projected.norm()),"Shifted climb projection mismatch");
+        }
+    }
+}
+
+void checkIndependentGrainClimb()
+{
+    auto tree=std::make_shared<BoxTree<3>>(Eigen::Vector3d::Zero(),Eigen::Vector3d::Ones(),2);
+    auto manager=std::make_shared<FMMManager>();
+    ClimbAssemblySnapshot snapshot;
+    snapshot.nodeCount=4;snapshot.speciesCount=2;
+    snapshot.rhs.assign(2,Eigen::VectorXd::Zero(4));
+    for(std::size_t g=0;g<2;++g)
+    {
+        ClimbSourceSegment segment;
+        segment.p0=Eigen::Vector3d(.1,.3+.4*g,.5);
+        segment.p1=Eigen::Vector3d(.9,.3+.4*g,.5);
+        segment.nodes={2*g,2*g+1};segment.weights={1.,1.};
+        for(std::size_t species=0;species<2;++species)
+        {
+            ClimbKernelChannel channel;channel.grain=10+g;channel.species=species;
+            channel.diffusion=(1.+g+species)*Eigen::Matrix3d::Identity();
+            channel.segments.push_back(segment);snapshot.channels.push_back(channel);
+        }
+        for(double u:{.25,.75})
+        {
+            ClimbQuadratureMap target;
+            const Eigen::Vector3d x=(1-u)*segment.p0+u*segment.p1;
+            target.position={x[0],x[1],x[2]};target.nodes=segment.nodes;
+            target.weights={.4*(1-u),.4*u};target.grain=10+g;
+            snapshot.targets.push_back(target);
+        }
+    }
+    SegmentSplitCache cache;
+    std::vector<SegmentSplitSnapshot::Endpoints> inputs;
+    for(std::size_t g=0;g<2;++g)
+    {
+        const auto& segment=snapshot.channels[2*g].segments[0];
+        inputs.push_back({segment.p0,segment.p1});
+    }
+    ScreenedDislocationOptions options;
+    options.coreWidth=.05;options.screenWidth=.2;options.interpolationOrder=4;
+    options.shortCutoff=2;
+    options.segmentSplits=cache.get(*tree,inputs);
+    const auto groups=partitionClimbByGrain(snapshot);
+    require(groups.size()==2 && groups[0].nodes.size()==2 && groups[1].nodes.size()==2,"Grain partition dimensions");
+    Eigen::SparseMatrix<double> identity(4,4);identity.setIdentity();
+    const auto constraints=grainClimbConstraints(identity,groups);
+    Eigen::Vector4d v;v<<.7,-.2,.3,.9;
+    for(const auto core:{CoreType::Cai,CoreType::Helmholtz})
+    {
+        for(const bool screened:{false,true})
+        {
+            if(core==CoreType::Cai && screened) { continue; }
+            options.coreType=core;options.screened=screened;
+            ScreenedClimbAssembly combined(manager,tree,snapshot,options);
+            for(std::size_t species=0;species<2;++species)
+            {
+                const Eigen::VectorXd reference=combined.apply(species,v);
+                Eigen::Vector4d isolated=v;isolated.tail<2>().setZero();
+                require(combined.apply(species,isolated).tail(2).norm()==0,"Cross-grain climb interaction");
+                for(std::size_t g=0;g<groups.size();++g)
+                {
+                    auto assembly=std::make_shared<ScreenedClimbAssembly>(manager,tree,groups[g].snapshot,options);
+                    const auto localV=groups[g].gather(v);
+                    const Eigen::VectorXd rhs=assembly->apply(species,localV);
+                    require((rhs-groups[g].gather(reference)).norm()<1e-12*reference.norm(),"Partition changed same-grain operator");
+                    CoupledClimbSolve solver;
+                    solver.computeOperator([assembly,species](const Eigen::VectorXd& x) { return assembly->apply(species,x); },assembly->shortMatrix(species),constraints[g]);
+                    require((solver.solve(rhs)-localV).norm()<1e-8,"Independent grain GMRES solution");
+                    require((solver.solve(rhs)-localV).norm()<1e-8,"Grain warm start solution");
+                }
+            }
+        }
+    }
+    auto invalid=snapshot;
+    invalid.channels.back().segments[0].nodes[0]=0;
+    bool rejected=false;
+    try { partitionClimbByGrain(invalid); } catch(const std::runtime_error&) { rejected=true; }
+    require(rejected,"Shared active grain DOF was silently decoupled");
+    Eigen::SparseMatrix<double> coupled(4,3);
+    std::vector<Eigen::Triplet<double>> entries{{0,0,1},{1,1,1},{2,0,1},{3,2,1}};
+    coupled.setFromTriplets(entries.begin(),entries.end());rejected=false;
+    try { grainClimbConstraints(coupled,groups); } catch(const std::runtime_error&) { rejected=true; }
+    require(rejected,"Cross-grain constraints were silently dropped");
+    std::cout<<"Independent grain concentration/climb and GMRES checks passed"<<std::endl;
+}
+
 int main()
 {
     try
     {
         Kokkos::ScopeGuard guard;
+        checkLatticeSegments();
+        checkShiftedSegments();
+        checkIndependentGrainClimb();
         checkSegmentCoreDispatch();
         checkFluxTables();
         checkSharedSplits();

@@ -57,9 +57,19 @@ namespace model
             return points;
         }
 
-        static void append(DislocationFieldBuffers<dim>& buffers, const Segment& segment,
-                           double sourcePointsPerLength, double targetPointsPerLength,
-                           DislocationTargetPurpose purpose)
+        struct Prepared
+        {
+            typename DislocationFieldBuffers<dim>::SegmentKey endpoints;
+            typename DislocationFieldBuffers<dim>::Vector burgers{};
+            DislocationSegmentFieldSelection selection;
+            std::vector<Geometry> sources,targets;
+            void append(DislocationFieldBuffers<dim>& buffers,DislocationTargetPurpose purpose) const
+            {
+                buffers.addSegment(endpoints,burgers,selection,sources,targets,purpose);
+            }
+        };
+        static Prepared prepare(const Segment& segment,double sourcePointsPerLength,double targetPointsPerLength,
+                                DislocationTargetPurpose purpose)
         {
             const DislocationSegmentFieldSelection selection{segment.isGlissile(),
                 segment.isBoundarySegment(),segment.isGrainBoundarySegment()};
@@ -78,8 +88,12 @@ namespace model
                     targets=sample(segment,targetPointsPerLength);
                 }
             }
-            buffers.addSegment({segment.source->sID,segment.sink->sID},burgers,
-                               selection,sources,targets,purpose);
+            return {{segment.source->sID,segment.sink->sID},burgers,selection,std::move(sources),std::move(targets)};
+        }
+        static void append(DislocationFieldBuffers<dim>& buffers,const Segment& segment,
+                           double sourceDensity,double targetDensity,DislocationTargetPurpose purpose)
+        {
+            prepare(segment,sourceDensity,targetDensity,purpose).append(buffers,purpose);
         }
     };
 }

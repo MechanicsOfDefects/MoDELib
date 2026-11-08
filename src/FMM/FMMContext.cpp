@@ -3,6 +3,7 @@
 #include <Kokkos_Core.hpp>
 #endif
 #include <FMM/FMMContext.h>
+#include <FMM/LatticeBoxTree.h>
 #include <TextFileParser.h>
 #include <filesystem>
 #include <sstream>
@@ -112,11 +113,12 @@ namespace model
 
 
     template<int dim>
-    FMMContext<dim>::FMMContext(const Vector& lower, const Vector& upper, const std::string& inputFile)
+    FMMContext<dim>::FMMContext(const Vector& lower, const Vector& upper, const std::string& inputFile,
+        const Eigen::Matrix<double,dim,Eigen::Dynamic>& periodicBasis,const std::map<std::size_t,Vector>& points)
         : multipoleMode(readMode(inputFile)),
           interpolationOrder(usesFMM()?order(inputFile):4),
           fmmTreeDepth(readFmmTreeDepth<dim>(inputFile)),
-          boxTree(std::make_shared<BoxTree<dim>>(lower, upper, fmmTreeDepth))
+          boxTree(makeLatticeBoxTree<dim>(lower,upper,fmmTreeDepth,periodicBasis,points))
     {
         if(usesFMM())
         {

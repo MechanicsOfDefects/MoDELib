@@ -1,3 +1,4 @@
+#include <Utilities/Profiling.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -10,6 +11,8 @@
 
 #include <DislocationDynamics/DislocationFieldBase.h>
 #include <limits>
+#include <DislocationDynamics/StraightDislocationSegmentFactory.h>
+#include <Utilities/ParallelFor.h>
 #include <deque>
 #include <Utilities/SolverStageTimer.h>
 
@@ -56,7 +59,8 @@ namespace model
     typename GalerkinClimbSolver<dim>::StiffnessMatrixType GalerkinClimbSolver<dim>::clusterStiffnessKernel(const int& k,const NetworkLinkType& fieldSegment,const NetworkLinkType& sourceSegment) const
     {
         StiffnessMatrixType temp(StiffnessMatrixType::Zero());
-        if(sourceSegment.grains().size() == 1)
+        if(sourceSegment.grains().size()==1 && fieldSegment.grains().size()==1
+           && *sourceSegment.grains().begin()==*fieldSegment.grains().begin())
         {
             const auto bxt(fieldSegment.burgers().cross(fieldSegment.chord()));
             const double u(fieldSegment.quadraturePoint(k).abscissa);
@@ -82,9 +86,7 @@ namespace model
     template<int dim>
     ClimbAssemblySnapshot GalerkinClimbSolver<dim>::screenedAssemblySnapshot() const
     {
-        if(!this->CD)throw std::logic_error("Screened climb requires ClusterDynamics");
-        if(this->DN.ddBase.periodicLatticeBasis.cols()!=0)
-            throw std::logic_error("Screened climb periodic correction is not implemented");
+        if(!this->CD) { throw std::logic_error("Climb requires ClusterDynamics"); }
         ClimbAssemblySnapshot snapshot;
         snapshot.nodeCount=this->DN.networkNodes().size();snapshot.speciesCount=mSize;
         snapshot.rhs.assign(mSize,Eigen::VectorXd::Zero(snapshot.nodeCount));
@@ -92,21 +94,21 @@ namespace model
         for(const auto& item:this->DN.networkLinks())
         {
             const auto link=item.second.lock();
-            if(!link)throw std::logic_error("Expired link during climb assembly");
+            if(!link) { throw std::logic_error("Expired link during climb assembly"); }
             if(link->hasZeroBurgers()||link->isBoundarySegment()||link->isGrainBoundarySegment()||
-               link->chordLength()<=std::numeric_limits<float>::epsilon())continue;
+               link->chordLength()<=std::numeric_limits<float>::epsilon()||link->grains().size()!=1) { continue; }
             const std::array<std::size_t,2> nodes{link->source->gID(),link->sink->gID()};
-            if(nodes[0]>=snapshot.nodeCount||nodes[1]>=snapshot.nodeCount)throw std::logic_error("Noncontiguous climb node indices");
+            if(nodes[0]>=snapshot.nodeCount||nodes[1]>=snapshot.nodeCount) { throw std::logic_error("Noncontiguous climb node indices"); }
             if(link->isSessile())
             {
-                if(link->quadraturePoints().empty())throw std::logic_error("Update segment quadrature fields before assembling climb RHS");
+                if(link->quadraturePoints().empty()) { throw std::logic_error("Update segment quadrature fields before assembling climb RHS"); }
                 const auto force=clusterForceVector(*link);
                 for(int species=0;species<mSize;++species){snapshot.rhs[species](nodes[0])+=force(0,species);snapshot.rhs[species](nodes[1])+=force(1,species);}
                 const auto bxt=link->burgers().cross(link->chord());
                 for(const auto& qp:link->quadraturePoints())
                 {
-                    ClimbQuadratureMap map;map.nodes=nodes;
-                    for(int c=0;c<3;++c)map.position[c]=qp.r[c];
+                    ClimbQuadratureMap map;map.nodes=nodes;map.grain=(*link->grains().begin())->grainID;
+                    for(int c=0;c<3;++c) { map.position[c]=qp.r[c]; }
                     map.weights={qp.weight*(1-qp.abscissa)*bxt.dot(link->source->climbDirection()),
                                  qp.weight*qp.abscissa*bxt.dot(link->sink->climbDirection())};
                     snapshot.targets.push_back(map);
@@ -120,6 +122,10 @@ namespace model
     std::unique_ptr<ScreenedClimbAssembly> GalerkinClimbSolver<dim>::assembleScreened(
         const ScreenedDislocationOptions& options) const
     {
+        if(this->DN.ddBase.periodicLatticeBasis.cols()!=0)
+        {
+            throw std::logic_error("Periodic FMM climb is not implemented");
+        }
         auto snapshot=screenedAssemblySnapshot();
         const auto context=this->DN.ddBase.fmmContext;
         auto sharedOptions=options;
@@ -137,233 +143,156 @@ namespace model
     template <int dim>
     void GalerkinClimbSolver<dim>::computeClimbScalarVelocities(const bool& updateStiffness)
     {
-        std::cout<<", climbSolver "<<std::flush;
-        if(this->DN.ddBase.fmmContext->usesFMM())computeClimbScalarVelocitiesFMM(updateStiffness);
-        else computeClimbScalarVelocitiesBulk(updateStiffness);
+        if(profilingEnabled())
+        {
+            std::cout<<", climbSolver "<<std::flush;
+        }
+        if(this->DN.ddBase.fmmContext->usesFMM()) { computeClimbScalarVelocitiesFMM(updateStiffness); }
+        else { computeClimbScalarVelocitiesBulk(updateStiffness); }
     }
 
     template<int dim>
-    void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesFMM(bool updateStiffness)
+    void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesFMM(bool rebuild)
+    {
+        computeGrainClimbVelocities(rebuild,true);
+    }
+
+    template<int dim>
+    void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesBulk(const bool& rebuild)
+    {
+        computeGrainClimbVelocities(rebuild,false);
+    }
+
+    template<int dim>
+    void GalerkinClimbSolver<dim>::computeGrainClimbVelocities(bool updateStiffness,bool useFMM)
     {
         const auto context=this->DN.ddBase.fmmContext;
-        if(this->DN.ddBase.periodicLatticeBasis.cols()!=0)throw std::runtime_error("Periodic FMM climb is not implemented; set multipoleMode=none");
-        const auto count=this->DN.networkNodes().size();
-        if(updateStiffness||!screenedAssembly||cachedNodeCount!=count)
+        if(useFMM && this->DN.ddBase.periodicLatticeBasis.cols()!=0)
         {
-            SolverStageTimer stage("FMM climb sparse assembly and long-range plans");
-            ScreenedDislocationOptions options;options.segmentSplits=this->DN.segmentSplits();options.coreType=this->DN.multipoleSettings.coreType;options.segmentChebyshevOrder=this->DN.multipoleSettings.ewaldSegmentChebyshevOrder;options.segmentTableResolution=this->DN.multipoleSettings.ewaldSegmentTableResolution;options.screened=context->usesEwaldFMM();options.coreWidth=DislocationFieldBase<dim>::a;options.screenWidth=this->DN.multipoleSettings.ewaldWidth;
-            options.shortCutoff=this->DN.multipoleSettings.preconditionerCutoff;options.interpolationOrder=context->interpolationOrder;
-            std::shared_ptr<ScreenedClimbAssembly> next=assembleScreened(options);
-            const auto Z=periodicClimbVelocityMap<dim>(this->DN);
-            std::vector<std::unique_ptr<CoupledClimbSolve>> solvers;
-            for(int species=0;species<mSize;++species)
-            {
-                auto solver=std::make_unique<CoupledClimbSolve>();
-                solver->computeOperator([next,species](const Eigen::VectorXd& v){return next->apply(species,v);},next->shortMatrix(species),Z);
-                solvers.push_back(std::move(solver));
-            }
-            screenedAssembly=std::move(next);coupledSolvers=std::move(solvers);cachedNodeCount=count;
+            throw std::runtime_error("Periodic FMM climb is not implemented; set multipoleMode=none");
         }
-        // Concentrations change within the coupled iteration; geometry/maps do not.
+        const auto count=this->DN.networkNodes().size();
+        const bool rebuild=updateStiffness||!systemsReady||cachedNodeCount!=count||cachedFMM!=useFMM;
+        if(rebuild)
+        {
+            SolverStageTimer stage("Climb velocity assembly: independent grain systems",true);
+            auto groups=partitionClimbByGrain(screenedAssemblySnapshot());
+            const auto maps=grainClimbConstraints(periodicClimbVelocityMap<dim>(this->DN),groups);
+            ScreenedDislocationOptions options;
+            options.coreType=this->DN.multipoleSettings.coreType;
+            options.segmentChebyshevOrder=this->DN.multipoleSettings.ewaldSegmentChebyshevOrder;
+            options.segmentTableResolution=this->DN.multipoleSettings.ewaldSegmentTableResolution;
+            options.screened=context->usesEwaldFMM();
+            options.coreWidth=DislocationFieldBase<dim>::a;
+            options.screenWidth=this->DN.multipoleSettings.ewaldWidth;
+            options.shortCutoff=this->DN.multipoleSettings.preconditionerCutoff;
+            options.interpolationOrder=context->interpolationOrder;
+            if(useFMM) { options.segmentSplits=this->DN.segmentSplits(); }
+            std::vector<GrainSystem> next;
+            for(std::size_t g=0;g<groups.size();++g)
+            {
+                GrainSystem system;
+                system.partition=std::move(groups[g]);
+                const auto& snapshot=system.partition.snapshot;
+                if(useFMM)
+                {
+                    system.assembly=std::make_shared<ScreenedClimbAssembly>(context->manager,context->boxTree,snapshot,options);
+                    for(int species=0;species<mSize;++species)
+                    {
+                        auto solver=std::make_unique<CoupledClimbSolve>();
+                        const auto assembly=system.assembly;
+                        solver->computeOperator([assembly,species](const Eigen::VectorXd& v) { return assembly->apply(species,v); },assembly->shortMatrix(species),maps[g]);
+                        system.solvers.push_back(std::move(solver));
+                    }
+                }
+                else
+                {
+                    SegmentCoreParameters parameters;
+                    parameters.coreWidth=options.coreWidth;
+                    parameters.order=options.segmentChebyshevOrder;
+                    parameters.resolution=options.segmentTableResolution;
+                    const auto core=makeStraightDislocationSegmentCore(options.coreType,false,parameters);
+                    for(int species=0;species<mSize;++species)
+                    {
+                        SolverStageTimer timer("Climb grain "+std::to_string(system.partition.grain)+": direct matrix assembly");
+                        Eigen::MatrixXd matrix=Eigen::MatrixXd::Zero(snapshot.nodeCount,snapshot.nodeCount);
+                        std::vector<std::vector<std::pair<std::size_t,double>>> rows(snapshot.nodeCount);
+                        for(std::size_t q=0;q<snapshot.targets.size();++q)
+                        {
+                            for(int k=0;k<2;++k) { rows[snapshot.targets[q].nodes[k]].emplace_back(q,snapshot.targets[q].weights[k]); }
+                        }
+                        std::set<std::pair<std::size_t,std::size_t>> pattern;
+                        for(std::size_t i=0;i<snapshot.nodeCount;++i) { pattern.emplace(i,i); }
+                        for(const auto& channel:snapshot.channels)
+                        {
+                            if(channel.species!=std::size_t(species)) { continue; }
+                            const auto kernel=core->concentration(channel.diffusion);
+                            independentParallelFor(snapshot.nodeCount,[&](std::size_t row)
+                            {
+                                for(const auto& term:rows[row])
+                                {
+                                    if(term.second==0.0) { continue; }
+                                    const auto& target=snapshot.targets[term.first];
+                                    const Eigen::Vector3d x(target.position.data());
+                                    for(const auto& source:channel.segments)
+                                    {
+                                        Eigen::Vector2d value=Eigen::Vector2d::Zero();
+                                        for(const auto& shift:this->DN.ddBase.periodicShifts)
+                                        {
+                                            value+=kernel->concentrationIntegrals(source.p0,source.p1,x+shift);
+                                        }
+                                        for(int k=0;k<2;++k) { matrix(row,source.nodes[k])+=term.second*value[k]*source.weights[k]; }
+                                    }
+                                }
+                            });
+                            for(const auto& source:channel.segments)
+                            {
+                                pattern.emplace(source.nodes[0],source.nodes[1]);
+                                pattern.emplace(source.nodes[1],source.nodes[0]);
+                            }
+                        }
+                        std::vector<Eigen::Triplet<double>> entries;
+                        for(const auto& ij:pattern) { entries.emplace_back(ij.first,ij.second,matrix(ij.first,ij.second)); }
+                        SparseMatrixType local(snapshot.nodeCount,snapshot.nodeCount);
+                        local.setFromTriplets(entries.begin(),entries.end());
+                        auto solver=std::make_unique<CoupledClimbSolve>();
+                        solver->compute(matrix,local,maps[g]);
+                        system.solvers.push_back(std::move(solver));
+                    }
+                }
+                next.push_back(std::move(system));
+            }
+            grainSystems=std::move(next);
+            cachedNodeCount=count;cachedFMM=useFMM;systemsReady=true;
+        }
+        SolverStageTimer rhsStage("Climb velocity assembly: RHS",true);
         Fc.assign(mSize,Eigen::VectorXd::Zero(count));
         for(const auto& entry:this->DN.networkLinks())
         {
             const auto link=entry.second.lock();
-            if(!link||link->hasZeroBurgers()||!link->isSessile()||link->isBoundarySegment()||link->isGrainBoundarySegment()||link->chordLength()<=std::numeric_limits<float>::epsilon())continue;
+            if(!link||link->hasZeroBurgers()||!link->isSessile()||link->isBoundarySegment()||link->isGrainBoundarySegment()||link->grains().size()!=1||link->chordLength()<=std::numeric_limits<float>::epsilon()) { continue; }
             const auto force=clusterForceVector(*link);
-            for(int s=0;s<mSize;++s){Fc[s](link->source->gID())+=force(0,s);Fc[s](link->sink->gID())+=force(1,s);}
+            for(int s=0;s<mSize;++s)
+            {
+                Fc[s](link->source->gID())+=force(0,s);
+                Fc[s](link->sink->gID())+=force(1,s);
+            }
         }
+        rhsStage.finish();
         this->scalarVelocities().assign(count,Eigen::Array<double,1,mSize>::Zero());
-        for(int s=0;s<mSize;++s)
+        // Each operator parallelizes internally. Keep grain solves sequential to
+        // avoid nested Kokkos/OpenMP execution; their states and histories are independent.
+        for(auto& system:grainSystems)
         {
-            SolverStageTimer stage("FMM climb species "+std::to_string(s)+" GMRES");
-            const auto v=coupledSolvers[s]->solve(Fc[s]);
-            for(std::size_t i=0;i<count;++i)this->scalarVelocities()[i](s)=v(i);
-        }
-    }
-
-    template <int dim>
-    void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
-    {
-        const size_t nodeCount(this->DN.networkNodes().size());
-        const bool rebuild=updateStiffness || coupledSolvers.size()!=mSize || cachedNodeCount!=nodeCount;
-        std::cout<<"\n  Climb system: nodes="<<nodeCount<<", species="<<mSize
-                 <<", matrices="<<(rebuild?"rebuild":"reuse")<<std::flush;
-        SolverStageTimer stage("Climb RHS/dense matrix allocation");
-        Fc.assign(mSize,Eigen::VectorXd::Zero(nodeCount));
-        std::vector<Eigen::MatrixXd> matrices;
-        if(rebuild)
-        {
-            matrices.assign(mSize,Eigen::MatrixXd::Zero(nodeCount,nodeCount));
-        }
-
-        stage.start("Climb field/source preparation and RHS assembly");
-        using NetworkLinkPtrType=std::shared_ptr<NetworkLinkType>;
-        struct SourceData
-        {
-            NetworkLinkPtrType link;
-            size_t j0;
-            size_t j1;
-        };
-        struct FieldQuadratureData
-        {
-            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-            VectorDim r;
-            double weightedM0;
-            double weightedM1;
-        };
-        using FieldQuadratureContainer=std::vector<FieldQuadratureData,Eigen::aligned_allocator<FieldQuadratureData>>;
-        struct FieldData
-        {
-            NetworkLinkPtrType link;
-            size_t i0;
-            size_t i1;
-            ForceVectorMatrixType force;
-            FieldQuadratureContainer quadrature;
-        };
-
-        // Lock and filter each network link once, outside the O(N^2) loop.
-        std::vector<SourceData> sources;
-        std::vector<FieldData> fields;
-        sources.reserve(this->DN.networkLinks().size());
-        fields.reserve(this->DN.networkLinks().size());
-        for(const auto& networkLink : this->DN.networkLinks())
-        {
-            const auto link(networkLink.second.lock());
-            if(!link)
+            for(int s=0;s<mSize;++s)
             {
-                continue;
-            }
-
-            const bool isActive(!link->hasZeroBurgers()
-                                && !link->isBoundarySegment()
-                                && !link->isGrainBoundarySegment()
-                                && link->chordLength()>std::numeric_limits<float>::epsilon());
-            // clusterStiffnessKernel returned zero for all other sources.
-            if(isActive && link->grains().size()==1)
-            {
-                sources.push_back({link,link->source->gID(),link->sink->gID()});
-            }
-
-            if(isActive && link->isSessile())
-            {
-                FieldData field{link,link->source->gID(),link->sink->gID(),clusterForceVector(*link),{}};
-                field.quadrature.reserve(link->quadraturePoints().size());
-
-                // These quantities depend only on the field segment and its
-                // quadrature point, so compute them once rather than per source.
-                const auto bxt(link->burgers().cross(link->chord()));
-                const double sourceProjection(bxt.dot(link->source->climbDirection()));
-                const double sinkProjection(bxt.dot(link->sink->climbDirection()));
-                for(const auto& qp : link->quadraturePoints())
+                SolverStageTimer stage("Climb grain "+std::to_string(system.partition.grain)+", species "+std::to_string(s)+" GMRES",true);
+                const Eigen::VectorXd velocity=system.solvers[s]->solve(system.partition.gather(Fc[s]));
+                for(std::size_t i=0;i<system.partition.nodes.size();++i)
                 {
-                    field.quadrature.push_back({qp.r,
-                                                qp.weight*(1.0-qp.abscissa)*sourceProjection,
-                                                qp.weight*qp.abscissa*sinkProjection});
-                }
-                fields.emplace_back(std::move(field));
-            }
-        }
-
-        // Each field contributes to two shared rows. Atomics protect only the
-        // accumulated pair blocks, avoiding a dense matrix copy per thread.
-        for(const auto& field : fields)
-        {
-            for(int kc=0;kc<mSize;++kc)
-            {
-                Fc[kc](field.i0)+=field.force(0,kc);
-                Fc[kc](field.i1)+=field.force(1,kc);
-            }
-        }
-        std::cout<<"\n  Climb interactions: field segments="<<fields.size()<<", source segments="<<sources.size()<<std::flush;
-        if(rebuild)
-        {
-            stage.start("Climb dense interaction assembly (OpenMP)");
-#ifdef _OPENMP
-#pragma omp parallel for schedule(guided)
-#endif
-            for(size_t fi=0;fi<fields.size();++fi)
-            {
-                const auto& field=fields[fi];
-                for(const auto& source : sources)
-                {
-                    StiffnessMatrixType block=StiffnessMatrixType::Zero();
-                    for(const auto& qp : field.quadrature)
-                    {
-                        const auto c=source.link->concentrationMatrices(qp.r,this->CD->cdp);
-                        for(int kc=0;kc<mSize;++kc)
-                        {
-                            block.row(2*kc)+=qp.weightedM0*c.row(kc);
-                            block.row(2*kc+1)+=qp.weightedM1*c.row(kc);
-                        }
-                    }
-                    const size_t rows[2]={field.i0,field.i1};
-                    const size_t cols[2]={source.j0,source.j1};
-                    for(int kc=0;kc<mSize;++kc)
-                    {
-                        for(int i=0;i<2;++i)
-                        {
-                            for(int j=0;j<2;++j)
-                            {
-#ifdef _OPENMP
-#pragma omp atomic update
-#endif
-                                matrices[kc](rows[i],cols[j])+=block(2*kc+i,j);
-                            }
-                        }
-                    }
+                    if(system.partition.active[i]) { this->scalarVelocities()[system.partition.nodes[i]](s)=velocity[i]; }
                 }
             }
-            stage.start("Climb constraint map and local sparsity pattern");
-            const auto Z=periodicClimbVelocityMap<dim>(this->DN);
-            // Topologically local preconditioner: self and immediate segment
-            // neighbors. Every other interaction remains in the dense operator.
-            std::set<std::pair<size_t,size_t>> pattern;
-            for(size_t i=0;i<nodeCount;++i)
-            {
-                pattern.emplace(i,i);
-            }
-            for(const auto& source : sources)
-            {
-                pattern.emplace(source.j0,source.j1);
-                pattern.emplace(source.j1,source.j0);
-            }
-            std::vector<std::unique_ptr<CoupledClimbSolve>> next;
-            for(int kc=0;kc<mSize;++kc)
-            {
-                stage.start("Climb species "+std::to_string(kc)+" local matrix construction");
-                std::vector<Eigen::Triplet<double>> entries;
-                for(const auto& ij : pattern)
-                {
-                    entries.emplace_back(ij.first,ij.second,matrices[kc](ij.first,ij.second));
-                }
-                SparseMatrixType local(nodeCount,nodeCount);
-                local.setFromTriplets(entries.begin(),entries.end());
-                auto solver=std::make_unique<CoupledClimbSolve>();
-                stage.finish();
-                std::cout<<"\n  Climb species "<<kc<<" operator setup"<<std::flush;
-                solver->compute(matrices[kc],local,Z);
-                next.emplace_back(std::move(solver));
-            }
-            coupledSolvers=std::move(next);
-            cachedNodeCount=nodeCount;
-        }
-        stage.finish();
-        std::vector<Eigen::Array<double,1,mSize>> nodeV(nodeCount,Eigen::Array<double,1,mSize>::Zero());
-        for(int kc=0;kc<mSize;++kc)
-        {
-            SolverStageTimer speciesTimer("Climb species "+std::to_string(kc)+" linear solve");
-            const Eigen::VectorXd constrained=coupledSolvers[kc]->solve(Fc[kc]);
-            for(size_t n=0;n<nodeCount;++n)
-            {
-                nodeV[n](kc)=constrained(n);
-            }
-        }
-
-        this->scalarVelocities().resize(nodeCount,Eigen::Array<double,1,mSize>::Zero());
-        for(size_t k=0;k<nodeCount;++k)
-        {
-            this->scalarVelocities()[k]=nodeV[k];
         }
     }
 

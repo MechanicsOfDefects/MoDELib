@@ -91,4 +91,4 @@ ewaldSegmentTableResolution=64; # patches per coordinate (4..256)
 fmmSourcePointsPerLength=0.2; # both FMM modes: source quadrature density in 1/b
 climbPreconditionerCutoff=64; # plain FMM only: diffusion-metric local preconditioner radius, not an operator cutoff
 
-coreType=Helmholtz; # Physical core for all DD fields: Cai or Helmholtz; ewaldFMM requires Helmholtz
+coreType=Cai; # Physical core for all DD fields: Cai or Helmholtz; ewaldFMM requires Helmholtz

@@ -128,7 +128,7 @@ void diffusion(const fs::path& root,int rank)
         require(base.periodicLatticeBasis.cols()==rank,"Wrong active rank");
         auto u=fem.mobileClusters;
         Eigen::VectorXd target(u->gSize()),offset=Eigen::VectorXd::Zero(u->gSize());
-        for(const auto& node : base.fe->nodes())
+        for(const auto& node : fem.fe->nodes())
         {
             for(int c=0;c<4;++c)
             {
@@ -165,7 +165,7 @@ void diffusion(const fs::path& root,int rank)
         if(rank>0)
         {
             // Two constrained copies must not silently prescribe incompatible values.
-            for(const auto& pair : base.fe->periodicNodePairs())
+            for(const auto& pair : fem.fe->periodicNodePairs())
             {
                 if(u->dirichletConditions().count(4*pair.source) && u->dirichletConditions().count(4*pair.sink))
                 {
@@ -226,7 +226,7 @@ void closed(const fs::path& root,int reaction,bool source)
             {
                 expected(0)=expected(1)=std::sqrt(-parameters.G(0)/parameters.R2[0](0,1));
             }
-            for(const auto& node : base.fe->nodes())
+            for(const auto& node : fem.fe->nodes())
             {
                 require((u->dofVector().segment<4>(4*node.gID)-expected).norm()<2.e-6*expected.norm(),"Closed reaction balance or conserved mean is wrong");
             }
@@ -240,13 +240,13 @@ void closed(const fs::path& root,int reaction,bool source)
             fem.updateImmobileClusters(0.01);
             periodic(*fem.immobileClusters);
             DefectiveCrystalConfigIO<3> config((folder/"config").string());
-            config.cdMatrix().resize(base.fe->nodeSize(),12);
-            config.cdMatrix().leftCols(4)=u->dofVector().reshaped(4,base.fe->nodeSize()).transpose();
-            config.cdMatrix().rightCols(8)=fem.immobileClusters->dofVector().reshaped(8,base.fe->nodeSize()).transpose();
+            config.cdMatrix().resize(fem.fe->nodeSize(),12);
+            config.cdMatrix().leftCols(4)=u->dofVector().reshaped(4,fem.fe->nodeSize()).transpose();
+            config.cdMatrix().rightCols(8)=fem.immobileClusters->dofVector().reshaped(8,fem.fe->nodeSize()).transpose();
             std::ofstream unused;
             fem.initializeConfiguration(config,unused,unused);
             const auto state=fem.immobileClusters->dofVector().eval();
-            config.cdMatrix()(base.fe->periodicNodePairs().front().sink,4)+=1.0;
+            config.cdMatrix()(fem.fe->periodicNodePairs().front().sink,4)+=1.0;
             bool rejected=false;
             try
             {
@@ -272,7 +272,7 @@ void sinks(const fs::path& root,const std::string& name,int rank)
         auto& fem=*physics->clusterDynamicsFEM;
         require(!fem.sinkNormals.empty(),"GB and free-surface sinks missing");
         bool internal=false,periodicGB=false;
-        for(const auto& node : base.fe->nodes())
+        for(const auto& node : fem.fe->nodes())
         {
             bool expected=false;
             for(const auto* element : node)

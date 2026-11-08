@@ -93,8 +93,11 @@ int main(int argc,char** argv)
             fmm=base.fmmContext;
             require(generator.ddBase.fmmContext==container.ddBase.fmmContext,"Consumers do not share the FMM context");
             require(fmm->boxTree && fmm->boxTree->depth()==0,"Shared box topology was not initialized");
-            require(fmm->boxTree->lower()==base.mesh.xMin() && fmm->boxTree->upper()==base.mesh.xMax(),
-                    "Shared boxes do not enclose the simulation mesh");
+            for(const auto& vertex:base.mesh.template simplexFactory<0>().liveSimplices())
+            {
+                require(fmm->boxTree->contains(vertex.second->P0,1.e-10),
+                        "Shared boxes do not enclose the simulation mesh");
+            }
         }
         // Input depth initializes the shared hierarchy before any viewer is created.
         require(fmm->fmmTreeDepth==0,"Explicit zero depth was not retained");

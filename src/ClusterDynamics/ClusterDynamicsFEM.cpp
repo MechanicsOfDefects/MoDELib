@@ -1,3 +1,4 @@
+#include <Utilities/Profiling.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -77,18 +78,19 @@ template struct InvDscaling<3>;
     ClusterDynamicsFEM<dim>::ClusterDynamicsFEM(DefectiveCrystalBase<dim>& ddBase_in,const ClusterDynamicsParameters<dim>& cdp_in) :
     /* init */ ddBase(ddBase_in)
     /* init */,cdp(cdp_in)
+    /* init */,fe(std::make_shared<FiniteElementType>(ddBase.mesh,NodeSharingPolicy::grainContinuous))
     /* init */,iDs(std::make_shared<InvDscaling<dim>>(cdp))
-    /* init */,mobileClusters(ddBase.fe->template trial<'m',mSize>())
+    /* init */,mobileClusters(fe->template trial<'m',mSize>())
     /* init */,mobileGrad(grad(mobileClusters))
     /* init */,mobileFlux(std::make_shared<FluxMatrix<dim>>(cdp)*mobileGrad)
-    /* init */,immobileClusters(ddBase.fe->template trial<'i',iSize>())
-    /* init */,sinkNormals(clusterBoundarySinks(*ddBase.fe))
-    /* init */,mobileClustersIncrement(ddBase.fe->template trial<'d',mSize>())
-    /* init */,dV(ddBase.fe->template domain<EntireDomain,dVorder,GaussLegendre>())
+    /* init */,immobileClusters(fe->template trial<'i',iSize>())
+    /* init */,sinkNormals(clusterBoundarySinks(*fe))
+    /* init */,mobileClustersIncrement(fe->template trial<'d',mSize>())
+    /* init */,dV(fe->template domain<EntireDomain,dVorder,GaussLegendre>())
 //    /* init */,mBWF((test(this->mobileGrad),-ddBase.poly.Omega*this->mobileFlux)*dV)
     /* init */,mBWF((test(grad(iDs*mobileClusters)),-ddBase.poly.Omega*this->mobileFlux)*dV)
     /* init */,dmBWF((test(grad(iDs*mobileClustersIncrement)),-ddBase.poly.Omega*(std::make_shared<FluxMatrix<dim>>(this->cdp)*grad(mobileClustersIncrement)))*dV)
-    /* init */,immobileRateTrial(ddBase.fe->template trial<'r',iSize>())
+    /* init */,immobileRateTrial(fe->template trial<'r',iSize>())
     /* init */,solverInitialized(false)
     /* init */,cascadeGlobalProduction(((test(iDs*this->mobileClusters),make_constant(this->cdp.G))*dV)->globalVector())
     // /* init */,cascadeGlobalProduction(((test(this->mobileClusters),make_constant(this->cdp.G))*dV)->globalVector())
@@ -109,14 +111,14 @@ template struct InvDscaling<3>;
         const auto& offset=mobileClusters->periodicNodalOffset();
         const auto lift=[&](size_t node,int component)
         {
-            const size_t root=ddBase.fe->periodicRepresentative(node);
+            const size_t root=fe->periodicRepresentative(node);
             return offset.size()? offset(node*mSize+component)-offset(root*mSize+component) : 0.0;
         };
         for(const auto& bc : mobileClusters->dirichletConditions())
         {
             const size_t node=bc.first/mSize;
             const int component=bc.first%mSize;
-            const size_t root=ddBase.fe->periodicRepresentative(node)*mSize+component;
+            const size_t root=fe->periodicRepresentative(node)*mSize+component;
             const double value=bc.second-lift(node,component);
             const auto inserted=fixed.emplace(root,value);
             if(!inserted.second && std::abs(inserted.first->second-value)>1.e-8*std::max({1.e-50,std::abs(value),std::abs(inserted.first->second)}))
@@ -124,11 +126,11 @@ template struct InvDscaling<3>;
                 throw std::runtime_error("ClusterDynamics: incompatible concentrations on periodic sink nodes.");
             }
         }
-        for(size_t node=0;node<ddBase.fe->nodeSize();++node)
+        for(size_t node=0;node<fe->nodeSize();++node)
         {
             for(int c=0;c<mSize;++c)
             {
-                const size_t root=ddBase.fe->periodicRepresentative(node)*mSize+c;
+                const size_t root=fe->periodicRepresentative(node)*mSize+c;
                 values(node*mSize+c)=(fixed.count(root)? fixed.at(root) : mobileClusters->dofVector()(root))+lift(node,c);
             }
         }
@@ -171,7 +173,7 @@ template struct InvDscaling<3>;
             if(useImmobileClusters)
             {
                 FirstOrderReaction<MobileTrialType,ImmobileTrialType> sink(immobileClusters,cdp,ddBase.poly);
-                for(const auto& entry : ddBase.fe->elements())
+                for(const auto& entry : fe->elements())
                 {
                     // Include every interpolation node, not only element centers.
                     for(int n=0;n<ElementType::nodesPerElement;++n)
@@ -204,7 +206,10 @@ template struct InvDscaling<3>;
     template<int dim>
     void ClusterDynamicsFEM<dim>::solveMobileClusters(const bool hasDiscreteLoops)
     {
-        std::cout<<", mobile solver, "<<std::flush;
+        if(profilingEnabled())
+        {
+            std::cout<<", mobile solver, "<<std::flush;
+        }
         const Eigen::VectorXd saved=mobileClusters->dofVector();
         const Eigen::VectorXd savedIncrement=mobileClustersIncrement->dofVector();
         try
@@ -248,13 +253,13 @@ template struct InvDscaling<3>;
                 std::set<size_t> fixed;
                 for(const auto& bc : mobileClusters->dirichletConditions())
                 {
-                    fixed.insert(ddBase.fe->periodicRepresentative(bc.first/mSize)*mSize+bc.first%mSize);
+                    fixed.insert(fe->periodicRepresentative(bc.first/mSize)*mSize+bc.first%mSize);
                 }
-                for(size_t n=0;n<ddBase.fe->nodeSize();++n)
+                for(size_t n=0;n<fe->nodeSize();++n)
                 {
                     for(int c=0;c<mSize;++c)
                     {
-                        const size_t root=ddBase.fe->periodicRepresentative(n)*mSize+c;
+                        const size_t root=fe->periodicRepresentative(n)*mSize+c;
                         if(!fixed.count(root))
                         {
                             reduced(root)+=value(n*mSize+c);
@@ -368,9 +373,9 @@ template struct InvDscaling<3>;
                 }
             }
         }
-        for(size_t node=0;node<ddBase.fe->nodeSize();++node)
+        for(size_t node=0;node<fe->nodeSize();++node)
         {
-            const size_t root=ddBase.fe->periodicRepresentative(node);
+            const size_t root=fe->periodicRepresentative(node);
             if(root!=node)
             {
                 immobileClusters->dofVector().template segment<iSize>(iSize*node)=
@@ -445,12 +450,32 @@ template struct InvDscaling<3>;
     template<int dim>
     void ClusterDynamicsFEM<dim>::initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels)
     {    
-        if(size_t(configIO.cdMatrix().size())==mobileClusters->gSize()+immobileClusters->gSize())
+        if(configIO.cdMatrix().rows())
         {
-            const size_t nNodes(mobileClusters->fe().nodes().size());
-            const Eigen::VectorXd mobile=configIO.cdMatrix().block(0,0,nNodes,mSize).transpose().reshaped(mobileClusters->gSize(),1);
-            const Eigen::VectorXd immobile=configIO.cdMatrix().block(0,mSize,nNodes,iSize).transpose().reshaped(immobileClusters->gSize(),1);
-            for(const auto& pair : ddBase.fe->periodicNodePairs())
+            const size_t nNodes=fe->nodeSize();
+            if(configIO.cdMatrix().cols()!=mSize+iSize)
+            {
+                throw std::runtime_error("ClusterDynamics: restart species count mismatch");
+            }
+            Eigen::MatrixXd values=configIO.cdMatrix();
+            if(size_t(values.rows())!=nNodes)
+            {
+                if(size_t(values.rows())!=ddBase.fe->nodeSize())
+                {
+                    throw std::runtime_error("ClusterDynamics: restart does not match grain-continuous or legacy continuous connectivity");
+                }
+                // Legacy snapshots had one value per geometric node. Preserve
+                // them as initial guesses on each side; solve reapplies side BCs.
+                values.resize(nNodes,mSize+iSize);
+                for(const auto& node:fe->nodes())
+                {
+                    values.row(node.gID)=configIO.cdMatrix().row(ddBase.fe->correspondingNode(node).gID);
+                }
+                std::cout<<"  CD restart: expanded legacy shared-node values to grain sides"<<std::endl;
+            }
+            const Eigen::VectorXd mobile=values.block(0,0,nNodes,mSize).transpose().reshaped(mobileClusters->gSize(),1);
+            const Eigen::VectorXd immobile=values.block(0,mSize,nNodes,iSize).transpose().reshaped(immobileClusters->gSize(),1);
+            for(const auto& pair : fe->periodicNodePairs())
             {
                 const auto a=immobile.template segment<iSize>(iSize*pair.source);
                 const auto b=immobile.template segment<iSize>(iSize*pair.sink);

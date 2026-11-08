@@ -27,7 +27,7 @@ Geometric identification and elastic-image summation are separate controls. \cod
 \bm s=\sum_{k=1}^{p}n_k\bm a_k,\quad -|m_k|\le n_k\le|m_k|,
 \qquad N_{\mathrm{shifts}}=\prod_{k=1}^{p}(2|m_k|+1).
 \end{equation}
-Zero extents retain only the central image without disabling geometric periodicity. Nonzero extents increase the number of field evaluations; convergence of the chosen field observable must be checked separately. \code{EwaldLengthFactor} belongs to the DDD field formulation and does not select periodic faces.
+Zero extents retain only the central image without disabling geometric periodicity. Nonzero extents increase the number of field evaluations; convergence of the chosen field observable must be checked separately. The Ewald split used by the multipole framework is a separate field-acceleration choice; it does not select periodic faces (Chapter~\ref{chap:fmm}).
 \sourcefile{src/DefectiveCrystal/DefectiveCrystalBase.cpp}
 \sourcefile{include/GlidePlanes/PeriodicGlidePlane.h}
 \sourcefile{include/DislocationDynamics/PeriodicVelocityConstraints.h}

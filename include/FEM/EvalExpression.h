@@ -7,6 +7,7 @@
 
 #ifndef model_EvalExpression_H_
 #define model_EvalExpression_H_
+#include <NodeSharingPolicy.h>
 
 #include <utility>
 #include <EvalFunction.h>
@@ -83,13 +84,16 @@ namespace model
 
         EvalMatrixType operator()(const NodeType& node) const
         {
+            // Resolve a unique grain/element side for broken spaces. Continuous
+            // fields may average adjacent elements, including a supplied grain side.
+            const auto& side=field().fe().nodeSharing==NodeSharingPolicy::continuous?node:field().fe().correspondingNode(node);
             EvalMatrixType temp(EvalMatrixType::Zero());
-            for(const auto& ele : node)
+            for(const auto& ele : side)
             {
                 const Eigen::Matrix<double,dim+1,1> bary(ele->simplex.pos2bary(node.P0));
                 temp+=trialExp->sfm(*ele,bary)*field().dofs(*ele);
             }
-            return temp/node.size();
+            return temp/side.size();
         }
 
         const auto& field() const

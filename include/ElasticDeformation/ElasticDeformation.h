@@ -52,6 +52,8 @@ namespace model
     std::shared_ptr<WeakProblemType> weakProblemSolver;
     Eigen::VectorXd zDot;
     bool solverInitialized;
+    std::vector<std::pair<const ElementType*,int>> tractionFaces;
+    std::vector<std::vector<std::pair<std::size_t,int>>> tractionNodeRows;
     
     ElasticDeformation(MicrostructureContainerType& mc);
     void initializeConfiguration(const DefectiveCrystalConfigIO<dim>& configIO,const std::ofstream& f_file,const std::ofstream& F_labels) override;

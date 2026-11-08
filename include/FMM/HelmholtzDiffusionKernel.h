@@ -1,6 +1,7 @@
 /* This file is part of MoDELib, distributed under GNU GPL v2. */
 #ifndef model_HelmholtzDiffusionKernel_H_
 #define model_HelmholtzDiffusionKernel_H_
+#include <FMM/FMMKernelFamilyBase.h>
 #include <DislocationDynamics/CoreType.h>
 #include <Kokkos_Core.hpp>
 #include <Eigen/Dense>
@@ -84,7 +85,7 @@ namespace model
         KOKKOS_INLINE_FUNCTION void prepareTranslation(const double* r,double* data) const { data[0]=value(r); }
         KOKKOS_INLINE_FUNCTION void applyTranslation(const double* data,const double* q,double* out) const { out[0]+=data[0]*q[0]; }
     };
-    class HelmholtzDiffusionFamily
+    class HelmholtzDiffusionFamily : public FMMKernelFamilyBase<HelmholtzDiffusionFamily>
     {
         HelmholtzDiffusionKernel<HelmholtzDiffusionPart::full> full_;
         HelmholtzDiffusionKernel<HelmholtzDiffusionPart::shortRange> short_;
@@ -92,7 +93,7 @@ namespace model
         double radiusScale_;
     public:
         static constexpr int sourceComponents=1,fieldComponents=1;
-        HelmholtzDiffusionFamily(const Eigen::Matrix3d& D,double a,double h,CoreType coreType=CoreType::Helmholtz):full_(D,a,h,coreType),short_(D,a,h,coreType),long_(D,a,h,coreType)
+        HelmholtzDiffusionFamily(const Eigen::Matrix3d& D,double a,double h,CoreType coreType=CoreType::Helmholtz,bool split=true):FMMKernelFamilyBase<HelmholtzDiffusionFamily>(split),full_(D,a,h,coreType),short_(D,a,h,coreType),long_(D,a,h,coreType)
         {
             Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es((D+D.transpose())*.5);
             radiusScale_=std::sqrt(es.eigenvalues().maxCoeff()/std::exp(es.eigenvalues().array().log().mean()));

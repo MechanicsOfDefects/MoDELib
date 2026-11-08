@@ -122,14 +122,14 @@ int main(int argc,char** argv)
             std::map<size_t,std::vector<size_t>> sinkClasses;
             for(const auto& sink : sinkFEM.sinkNormals)
             {
-                sinkClasses[base.fe->periodicRepresentative(sink.first)].push_back(sink.first);
+                sinkClasses[sinkFEM.fe->periodicRepresentative(sink.first)].push_back(sink.first);
             }
             for(const auto& entry : sinkClasses)
             {
                 Eigen::Matrix3d meanStress=Eigen::Matrix3d::Zero();
                 for(const size_t id : entry.second)
                 {
-                    const auto& node=base.fe->node(id);
+                    const auto& node=sinkFEM.fe->node(id);
                     meanStress+=owner->stress(node.P0,&node,nullptr,nullptr)/double(entry.second.size());
                 }
                 const auto& normals=sinkFEM.sinkNormals.at(entry.second.front());

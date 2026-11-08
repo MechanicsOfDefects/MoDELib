@@ -59,10 +59,10 @@ double check(const Tree& tree, const Cut& cut)
             bool outer = false;
             for(int axis = 0; axis < 3; ++axis)
             {
-                for(double boundary : {tree.lower()[axis], tree.upper()[axis]})
+                for(double boundary : {0.0,1.0})
                 {
-                    outer = outer || (std::abs(segment->first->position[axis] - boundary) < 1e-10 &&
-                                      std::abs(segment->second->position[axis] - boundary) < 1e-10);
+                    outer = outer || (std::abs(tree.fractional(segment->first->position)[axis] - boundary) < 1e-10 &&
+                                      std::abs(tree.fractional(segment->second->position)[axis] - boundary) < 1e-10);
                 }
             }
             require(outer, "Unpaired internal cut edge");
@@ -138,6 +138,10 @@ int main()
         checkLevels(tree, Eigen::Vector3d(0,0,.5 + 1e-10), Eigen::Vector3d::UnitZ());
         Tree stretched(Eigen::Vector3d(-3,2,5), Eigen::Vector3d(4,3,9), 2);
         checkLevels(stretched, Eigen::Vector3d(0,2.5,6), Eigen::Vector3d(2,-3,1));
+        Eigen::Matrix3d H;H<<2,1.4,0, 0,.7,.3, 0,0,1.2;
+        Tree skew(Eigen::Vector3d(-1,2,3),H,3,Tree::LatticeTag{});
+        checkLevels(skew,skew.physical(Eigen::Vector3d(.5,.5,.5)),H.inverse().transpose()*Eigen::Vector3d::UnitY());
+        checkLevels(skew,skew.physical(Eigen::Vector3d(.3,.4,.6)),Eigen::Vector3d(1,-2,3));
         bool rejected = false;
         try
         {

@@ -38,13 +38,15 @@ struct SegmentGaussRule {
             return p;
         }
         int p_;
+        Eigen::Matrix3d coordinateTransform_;
         SegmentGaussRule stressRule_,concentrationRule_;
         std::vector<double> nodes_;
         void basis(const Eigen::Vector3d& x,const Eigen::Vector3d& center,const Eigen::Vector3d& width,double w[3][6]) const
         {
+            const Eigen::Vector3d delta=coordinateTransform_*(x-center);
             for(int c=0;c<3;++c)
             {
-                const double u=2*(x[c]-center[c])/width[c];
+                const double u=2*delta[c]/width[c];
                 for(int j=0;j<p_;++j)
                 {
                     w[c][j]=1;
@@ -61,7 +63,7 @@ struct SegmentGaussRule {
     public:
         using StressMoments=Eigen::Matrix<double,Eigen::Dynamic,9>;
         using ConcentrationMoments=Eigen::Matrix<double,Eigen::Dynamic,2>;
-        explicit SegmentMomentIntegrator(int p):p_(checkedOrder(p)),stressRule_((3*p_-1)/2),concentrationRule_(3*p_/2),nodes_(p_)
+        explicit SegmentMomentIntegrator(int p,const Eigen::Matrix3d& transform=Eigen::Matrix3d::Identity()):p_(checkedOrder(p)),coordinateTransform_(transform),stressRule_((3*p_-1)/2),concentrationRule_(3*p_/2),nodes_(p_)
         {
             if(p<2||p>6)
             {

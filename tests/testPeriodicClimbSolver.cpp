@@ -275,6 +275,86 @@ std::map<int,double> mixedAnnealing(const fs::path& root,int selection)
     fs::remove_all(folder);
     return means;
 }
+// Actual bicrystal network: changing the drive in grain 2 must not enter
+// grain 1's climb operator. Boundary/elastic fields are held fixed here.
+void independentGrainNetwork(const fs::path& root,const std::string& mode)
+{
+    const auto folder=fixture(root,0,0,false,"bicrystal_48.msh");
+    auto dc=read(folder/"inputFiles/DefectiveCrystal.txt");
+    parameter(dc,"physics","ClusterDynamics DislocationDynamics");
+    parameter(dc,"fmmTreeDepth","2");
+    dc+="\nmultipoleMode="+mode+";\n";
+    std::ofstream(folder/"inputFiles/DefectiveCrystal.txt")<<dc;
+    auto dd=read(root/"Library/DislocationDynamics/DD.txt");
+    parameter(dd,"coreType",mode=="ewaldFMM"?"Helmholtz":"Cai");
+    // One midpoint per edge leaves an alternating nodal null mode on an
+    // even polygon. Use enough field quadrature to test unique velocities.
+    parameter(dd,"quadPerLength","1.0");
+    parameter(dd,"ewaldWidthFactor","0.75");
+    std::ofstream(folder/"inputFiles/DD.txt")<<dd;
+    DefectiveCrystalBase<3> base(folder.string());
+    MicrostructureGenerator generator(base);
+    const Eigen::Vector3d normal=Eigen::Vector3d::UnitZ();
+    for(int g=1;g<=2;++g)
+    {
+        const Eigen::Vector3d center(g==1?-50.:50.,0,0);
+        const auto grain=base.poly.grain(g);
+        const auto key=GlidePlaneKey<3>(center,grain->reciprocalLatticeDirection(normal));
+        const auto plane=base.dislocationDynamics().periodicGlidePlaneFactory.getFromKey(key);
+        std::vector<Eigen::Vector3d> polygon;
+        for(int i=0;i<8;++i)
+        {
+            const double angle=2*M_PI*i/8;
+            polygon.push_back(center+Eigen::Vector3d(8*std::cos(angle),8*std::sin(angle),0));
+        }
+        require(generator.insertJunctionLoop(polygon,plane,std::sqrt(8./3)*normal,normal,center,g,DislocationLoopIO<3>::SESSILELOOP),"Bicrystal loop insertion failed");
+    }
+    MicrostructureContainer<3> container(base);
+    auto cd=std::make_shared<ClusterDynamics<3>>(container);container.push_back(cd);
+    DislocationNetwork<3> network(container);
+    network.initializeConfiguration(generator.config(),std::ofstream(),std::ofstream());
+    std::map<std::size_t,std::size_t> grainNodes;
+    for(const auto& entry:network.networkLinks())
+    {
+        const auto link=entry.second.lock();
+        require(link->grains().size()==1,"Bicrystal test segment touches GB");
+        const auto grain=(*link->grains().begin())->grainID;
+        grainNodes.emplace(link->source->gID(),grain);grainNodes.emplace(link->sink->gID(),grain);
+        link->createQuadraturePoints(true);
+        for(auto& qp:link->quadraturePoints())
+        {
+            qp.cDD.setConstant(1e-4);qp.cCD.setZero();
+        }
+    }
+    network.climbSolver->computeClimbScalarVelocities(true);
+    const Eigen::VectorXd before=network.climbSolver->getNodeVelocities();
+    for(const auto& entry:network.networkLinks())
+    {
+        const auto link=entry.second.lock();
+        if((*link->grains().begin())->grainID==2)
+        {
+            for(auto& qp:link->quadraturePoints()) { qp.cDD*=3; }
+        }
+    }
+    network.climbSolver->computeClimbScalarVelocities(false);
+    const Eigen::VectorXd after=network.climbSolver->getNodeVelocities();
+    require(before.norm()>0 && after.allFinite(),"Invalid bicrystal climb velocity");
+    for(const auto& item:grainNodes)
+    {
+        const double factor=item.second==1?1.:3.;
+        const double difference=(after.segment<3>(3*item.first)-factor*before.segment<3>(3*item.first)).norm();
+        if(difference>=1e-8*before.norm())
+        {
+            std::cerr<<"Grain isolation mode="<<mode<<" grain="<<item.second<<" node="<<item.first
+                     <<" before="<<before.segment<3>(3*item.first).transpose()<<" after="<<after.segment<3>(3*item.first).transpose()
+                     <<" relative difference="<<difference/before.norm()<<std::endl;
+        }
+        require(difference<1e-8*before.norm(),"Climb drive leaked across grains or stale grain RHS");
+    }
+    std::cout<<"PASS independent bicrystal climb "<<mode<<std::endl;
+    fs::remove_all(folder);
+}
+
 int main(int argc, char **argv)
 {
     try
@@ -284,6 +364,7 @@ int main(int argc, char **argv)
         {
             climb(argv[1], rank);
         }
+        for(const std::string mode:{"none","FMM","ewaldFMM"}) { independentGrainNetwork(argv[1],mode); }
         const auto vacancy=mixedAnnealing(argv[1],1);
         const auto interstitial=mixedAnnealing(argv[1],-1);
         const auto mixed=mixedAnnealing(argv[1],0);

@@ -1,3 +1,6 @@
+#include <Utilities/OutputFormatting.h>
+#include <Utilities/TerminalColors.h>
+#include <Utilities/Profiling.h>
 #include <DefectiveCrystal/SolvedQuantityRegistry.h>
 #include <Eigen/QR>
 #include <algorithm>
@@ -14,12 +17,34 @@ namespace model
     namespace
     {
         void updateContribution(const std::shared_ptr<SolvedQuantityContribution>& contribution,
-                                const SolvedQuantityContext& context)
+                                const SolvedQuantityContext& context,bool quiet=false)
         {
             const auto start=std::chrono::steady_clock::now();
-            std::cout<<"Solving "<<contribution->provider<<":"<<contribution->name<<" "<<std::flush;
+            if(!quiet)
+            {
+                std::cout<<(profilingEnabled()?"Solving ":"  ")<<contribution->provider<<":"<<contribution->name
+                         <<(profilingEnabled()?" ":" ... ")<<std::flush;
+            }
             contribution->update(context);
-            std::cout<<" ["<<std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count()<<" sec]"<<std::endl;
+            if(!quiet)
+            {
+                std::ostringstream line;
+                if(contribution->provider=="DislocationDynamics" && contribution->name=="Velocity")
+                {
+                    line<<"\n  DislocationDynamics:Velocity completed"<<magentaColor<<" ["
+                        <<formatSeconds(std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count())
+                        <<" sec]"<<defaultColor;
+                }
+                else if(profilingEnabled())
+                {
+                    line<<" ["<<std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count()<<" sec]";
+                }
+                else
+                {
+                    line<<std::fixed<<std::setprecision(3)<<std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count()<<" s";
+                }
+                std::cout<<line.str()<<std::endl;
+            }
         }
     }
 
@@ -79,6 +104,7 @@ namespace model
         {
             for(size_t iteration=0;iteration<options.maxIterations;++iteration)
             {
+                const auto sweepStart=std::chrono::steady_clock::now();
                 const Eigen::VectorXd sweepBefore=gather();
                 error=0.0;
                 worst.clear();
@@ -88,7 +114,7 @@ namespace model
                 for(const auto& c : contributions)
                 {
                     const Eigen::VectorXd before=c->state();
-                    updateContribution(c,{time,iteration});
+                    updateContribution(c,{time,iteration},!profilingEnabled());
                     const Eigen::VectorXd after=c->state();
                     const Eigen::VectorXd absolute=c->absoluteTolerance();
                     if(before.size()!=after.size() || absolute.size()!=after.size()
@@ -121,6 +147,8 @@ namespace model
                             worstTolerance=tolerance;
                         }
                     }
+                    if(profilingEnabled())
+                    {
                     const Eigen::VectorXd update=after-before;
                     const double updateNorm=update.stableNorm();
                     const double beforeNorm=before.stableNorm(),afterNorm=after.stableNorm();
@@ -144,6 +172,7 @@ namespace model
                     }
                     diagnostic<<", relaxation="<<options.relaxation;
                     std::cout<<diagnostic.str()<<std::endl;
+                    }
                     // Test the unrelaxed discrepancy; damping must not fake convergence.
                     if(options.relaxation!=1.0)
                     {
@@ -151,6 +180,8 @@ namespace model
                     }
                 }
                 iterations=iteration+1;
+                if(profilingEnabled())
+                {
                 std::cout<<"Coupled quantities: iteration "<<iterations<<", normalized error "<<error;
                 if(worstComponent>=0)
                 {
@@ -159,12 +190,24 @@ namespace model
                              <<", tolerance="<<worstTolerance;
                 }
                 std::cout<<std::endl;
+                }
+                else
+                {
+                    std::ostringstream line;
+                    line<<"\n  Iteration "<<std::setw(2)<<iterations<<"  |  error "<<std::scientific<<std::setprecision(2)<<error
+                        <<"  |  "<<std::fixed<<std::setprecision(3)
+                        <<std::chrono::duration<double>(std::chrono::steady_clock::now()-sweepStart).count()<<" s"
+                        <<(error<=1.0?"  [converged]":"");
+                    std::cout<<line.str()<<std::endl;
+                }
                 if(error<=1.0)
                 {
                     return;
                 }
                 if(options.andersonDepth && stateSize && iteration+1<options.maxIterations)
                 {
+                    const auto andersonStart=std::chrono::steady_clock::now();
+                    std::ostringstream andersonMessage;
                     const Eigen::VectorXd image=gather();
                     const Eigen::VectorXd residual=image-sweepBefore;
                     // Fix one scale per contribution for this solve: units and large
@@ -189,19 +232,25 @@ namespace model
                     if(restart)
                     {
                         residualHistory.clear();imageHistory.clear();
-                        std::cout<<"  Anderson acceleration restarted: sweep residual grew; using ordinary sweep."<<std::endl;
+                        andersonMessage<<"  Anderson acceleration restarted: sweep residual grew; using ordinary sweep.";
                     }
                     if(!restart && !residualHistory.empty())
                     {
                         const Eigen::Index m=residualHistory.size();
                         Eigen::MatrixXd differences(stateSize,m);
-                        for(Eigen::Index j=0;j<m;++j) differences.col(j)=residualHistory[j]-scaled;
+                        for(Eigen::Index j=0;j<m;++j)
+                        {
+                            differences.col(j)=residualHistory[j]-scaled;
+                        }
                         Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(differences);
                         qr.setThreshold(1.e-10);
                         const Eigen::VectorXd alpha=qr.solve(-scaled);
                         const double last=1.0-alpha.sum();
                         Eigen::VectorXd candidate=last*image;
-                        for(Eigen::Index j=0;j<m;++j) candidate+=alpha(j)*imageHistory[j];
+                        for(Eigen::Index j=0;j<m;++j)
+                        {
+                            candidate+=alpha(j)*imageHistory[j];
+                        }
                         // Bound extrapolation and reject degenerate/nonfinite fits.
                         if(qr.rank()>0 && alpha.allFinite() && candidate.allFinite()
                            && alpha.lpNorm<1>()+std::abs(last)<=100.0
@@ -214,13 +263,12 @@ namespace model
                                 offset+=saved[i].size();
                             }
                             acceleratedLast=true;
-                            std::cout<<"  Anderson acceleration applied after iteration "<<iterations
-                                     <<" (history="<<m<<", rank="<<qr.rank()<<")."<<std::endl;
+                            andersonMessage<<"  Anderson acceleration (history="<<m<<", rank="<<qr.rank()<<")";
                         }
                         else
                         {
                             residualHistory.clear();imageHistory.clear();
-                            std::cout<<"  Anderson acceleration skipped: unreliable extrapolation; history reset."<<std::endl;
+                            andersonMessage<<"  Anderson acceleration skipped: unreliable extrapolation; history reset.";
                         }
                     }
                     residualHistory.push_back(scaled);imageHistory.push_back(image);
@@ -229,6 +277,11 @@ namespace model
                         residualHistory.erase(residualHistory.begin());imageHistory.erase(imageHistory.begin());
                     }
                     previousResidual=norm;
+                    if(!andersonMessage.str().empty())
+                    {
+                        const double elapsed=std::chrono::duration<double>(std::chrono::steady_clock::now()-andersonStart).count();
+                        std::cout<<andersonMessage.str()<<magentaColor<<" ["<<formatSeconds(elapsed)<<" sec]"<<defaultColor<<std::endl;
+                    }
                 }
             }
             throw std::runtime_error("SolvedQuantityGroup did not converge after "+std::to_string(iterations)
@@ -390,7 +443,7 @@ namespace model
             {
                 return a.cyclic==b.cyclic && a.contributions==b.contributions;
             });
-        if(!sameSequence)
+        if(!sameSequence && profilingEnabled())
         {
             std::cout<<"Solve sequence ("<<groups.size()<<" groups):"<<std::endl;
             for(size_t k=0;k<groups.size();++k)
@@ -405,7 +458,23 @@ namespace model
         }
         for(size_t k=0;k<groups.size();++k)
         {
-            std::cout<<"Solving group "<<k+1<<"/"<<groups.size()<<std::endl;
+            if(profilingEnabled())
+            {
+                std::cout<<"Solving group "<<k+1<<"/"<<groups.size()<<std::endl;
+            }
+            else
+            {
+                std::cout<<"\nGroup "<<k+1<<"/"<<groups.size();
+                if(groups[k].cyclic)
+                {
+                    std::cout<<"  |  coupled (converged when error <= 1)";
+                    for(const auto& c:groups[k].contributions)
+                    {
+                        std::cout<<"\n  "<<c->provider<<":"<<c->name;
+                    }
+                }
+                std::cout<<std::endl;
+            }
             groups[k].solve(options,time);
         }
     }

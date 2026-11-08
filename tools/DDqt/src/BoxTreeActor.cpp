@@ -161,7 +161,7 @@ namespace model
         displayedRevision = tree->revision();
         displayedLevel = level;
         const unsigned n = 1u << level;
-        const Eigen::Vector3d size = (tree->upper() - tree->lower()) / n;
+        const Eigen::Vector3d size = tree->basis().colwise().norm().transpose() / n;
         summary->setText(QString("%1 boxes, %2 faces, %3 edges, %4 vertices\nBox size: %5 × %6 × %7 b")
             .arg(static_cast<qulonglong>(tree->boxes(level).size())).arg(3u * n * n * (n + 1))
             .arg(static_cast<qulonglong>(edges.size())).arg(static_cast<qulonglong>(vertices.size()))

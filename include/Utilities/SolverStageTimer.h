@@ -2,6 +2,9 @@
 #ifndef model_SolverStageTimer_H_
 #define model_SolverStageTimer_H_
 #include <chrono>
+#include <Utilities/OutputFormatting.h>
+#include <Utilities/TerminalColors.h>
+#include <Utilities/Profiling.h>
 #include <exception>
 #include <iostream>
 #include <string>
@@ -15,8 +18,9 @@ namespace model
         Clock::time_point started;
         int exceptions=0;
         bool active=false;
+        bool alwaysVisible=false;
     public:
-        explicit SolverStageTimer(const std::string& name) { start(name); }
+        explicit SolverStageTimer(const std::string& name,bool showProgress=false):alwaysVisible(showProgress) { start(name); }
         SolverStageTimer(const SolverStageTimer&)=delete;
         SolverStageTimer& operator=(const SolverStageTimer&)=delete;
         void finish()
@@ -25,12 +29,16 @@ namespace model
             {
                 const double seconds=std::chrono::duration<double>(Clock::now()-started).count();
                 std::cout<<"\n  "<<label<<(std::uncaught_exceptions()>exceptions?" interrupted":" completed")
-                         <<" ["<<seconds<<" sec]"<<std::flush;
+                         <<magentaColor<<" ["<<formatSeconds(seconds)<<" sec]"<<defaultColor<<std::flush;
                 active=false;
             }
         }
         void start(const std::string& name)
         {
+            if(!alwaysVisible && !profilingEnabled())
+            {
+                return;
+            }
             finish(); label=name; exceptions=std::uncaught_exceptions(); active=true;
             std::cout<<"\n  "<<label<<" starting"<<std::flush;
             started=Clock::now();

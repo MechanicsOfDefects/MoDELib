@@ -1,3 +1,4 @@
+#include <Utilities/OutputFormatting.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -134,7 +135,7 @@ void DefectiveCrystalAuxIO<dim>::clear()
                 }
 
                 file.close();
-                std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+                std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
             }
             else
             {
@@ -177,7 +178,7 @@ void DefectiveCrystalAuxIO<dim>::clear()
                 }
                 
                 file.close();
-                std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+                std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
             }
             else
             {
@@ -328,7 +329,7 @@ void DefectiveCrystalAuxIO<dim>::clear()
         template<int dim>
         void DefectiveCrystalAuxIO<dim>::printLog(const std::chrono::time_point<std::chrono::system_clock>& t0) const
         {
-            std::cout<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<std::endl;
+            std::cout<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<std::endl;
             std::cout<<"  "<<meshNodes().size()<<" meshNodes "<<std::endl;
 //            std::cout<<"  "<<glidePlanes().size()<<" glidePlanes "<<std::endl;
             std::cout<<"  "<<periodicGlidePlanePatches().size()<<" periodicPlanePatches"<<std::endl;

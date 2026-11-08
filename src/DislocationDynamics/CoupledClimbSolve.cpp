@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <iostream>
+#include <chrono>
 #include <Utilities/SolverStageTimer.h>
 namespace model
 {
@@ -84,6 +85,7 @@ namespace model
         previousSolution.resize(0);
         ready=false;directFallback.reset();matrix.resize(0,0);physicalOperator=std::move(op);physicalSize=local.rows();
         if(!physicalOperator||local.cols()!=physicalSize||Z.rows()!=physicalSize)throw std::invalid_argument("Invalid matrix-free climb dimensions");
+        SolverStageTimer reduction("Climb setup: constraint reduction and scaling",true);
         const Eigen::SparseMatrix<double> reduced=Z.transpose()*local*Z;
         std::vector<bool> active(reduced.rows(),false);
         for(int j=0;j<reduced.outerSize();++j)for(Eigen::SparseMatrix<double>::InnerIterator it(reduced,j);it;++it)
@@ -94,7 +96,16 @@ namespace model
         Eigen::SparseMatrix<double> P=S.transpose()*reduced*S;scale.resize(P.rows());
         for(Eigen::Index i=0;i<P.rows();++i){const double d=std::abs(P.coeff(i,i));if(!(d>0))throw std::runtime_error("Active FMM climb row has zero local self interaction");scale(i)=1/std::sqrt(d);}
         P=scale.asDiagonal()*P*scale.asDiagonal();
-        if(P.rows()){localSolver.compute(P);if(localSolver.info()!=Eigen::Success)throw std::runtime_error("FMM climb sparse preconditioner factorization failed");}
+        reduction.finish();
+        if(P.rows())
+        {
+            SolverStageTimer factorization("Climb setup: preconditioner factorization (n="+std::to_string(P.rows())+")",true);
+            localSolver.compute(P);
+            if(localSolver.info()!=Eigen::Success)
+            {
+                throw std::runtime_error("FMM climb sparse preconditioner factorization failed");
+            }
+        }
         ready=true;
     }
 
@@ -119,6 +130,24 @@ namespace model
             previousSolution=Eigen::VectorXd::Zero(scale.size());
             return Eigen::VectorXd::Zero(physicalSize);
         }
+        // Exclusive wall-clock buckets. Include warm-start and final residual
+        // products, not just Arnoldi products. The matrix-free callback fences
+        // device work before returning, so operator time includes completion.
+        const bool profileEnabled=profilingEnabled();
+        using ProfileClock=std::chrono::steady_clock;
+        const auto profileStart=profileEnabled?ProfileClock::now():ProfileClock::time_point{};
+        double operatorSeconds=0,arnoldiOperatorSeconds=0,orthogonalizationSeconds=0,preconditionerSeconds=0;
+        std::size_t operatorCalls=0,arnoldiCalls=0,preconditionerCalls=0;
+        const auto timedProduct=[&](const Eigen::VectorXd& value,bool arnoldi=false)->Eigen::VectorXd
+        {
+            const auto start=profileEnabled?ProfileClock::now():ProfileClock::time_point{};
+            Eigen::VectorXd result=product(value);
+            const double elapsed=profileEnabled?std::chrono::duration<double>(ProfileClock::now()-start).count():0.0;
+            operatorSeconds+=elapsed;
+            ++operatorCalls;
+            if(arnoldi) { ++arnoldiCalls; arnoldiOperatorSeconds+=elapsed; }
+            return result;
+        };
         const Eigen::Index n=scale.size();
         const int restart=std::min<Eigen::Index>(50,n);
         const int maxIterations=std::max<Eigen::Index>(500,2*n);
@@ -133,7 +162,7 @@ namespace model
         bool warmStart=false;
         if(!directFallback && previousSolution.size()==n && previousSolution.allFinite())
         {
-            const Eigen::VectorXd candidateResidual=rhs-product(previousSolution);
+            const Eigen::VectorXd candidateResidual=rhs-timedProduct(previousSolution);
             // A radically different or tiny RHS can make the previous solution
             // worse than zero. Compare actual residuals in both scalings.
             if(candidateResidual.allFinite() && candidateResidual.stableNorm()<=rhsNorm &&
@@ -144,10 +173,21 @@ namespace model
                 warmStart=true;
             }
         }
+        Eigen::VectorXd cachedResidual=initialResidual;
+        bool residualCurrent=true;
+        const auto actualResidual=[&]() -> const Eigen::VectorXd&
+        {
+            if(!residualCurrent)
+            {
+                cachedResidual=rhs-timedProduct(x);
+                residualCurrent=true;
+            }
+            return cachedResidual;
+        };
         int iterations=0;
         const auto failure=[&](const char* reason)
         {
-            const Eigen::VectorXd r=rhs-product(x);
+            const Eigen::VectorXd& r=actualResidual();
             std::ostringstream message;
             message<<std::scientific<<std::setprecision(6)
                    <<reason<<" iterations="<<iterations<<"/"<<maxIterations
@@ -160,22 +200,26 @@ namespace model
         };
         if(directFallback)
         {
-            SolverStageTimer cached("Climb cached LU substitution");
+            SolverStageTimer cached("Climb cached LU substitution",true);
             x=directFallback->solve(rhs);
+            residualCurrent=false;
         }
         // Restarted right-preconditioned GMRES, with reorthogonalization.
         if(!directFallback)
+        {
+            if(profilingEnabled())
         {
             std::cout<<"\n  GMRES n="<<n<<", restart="<<restart<<", max iterations="<<maxIterations
                      <<", scaled tolerance="<<tolerance<<", physical tolerance="<<physicalTolerance
                      <<", initial guess="<<(warmStart?"previous solution":"zero")
                      <<", initial scaled relative residual="<<initialResidual.stableNorm()/rhsNorm
                      <<", Eigen configured threads="<<Eigen::nbThreads()<<std::flush;
-            SolverStageTimer gmres("Climb GMRES");
+        }
+            SolverStageTimer gmres("Climb GMRES",true);
             auto lastProgress=std::chrono::steady_clock::now();
             while(!directFallback && iterations<maxIterations)
             {
-                Eigen::VectorXd residual=iterations==0?initialResidual:Eigen::VectorXd(rhs-product(x));
+                const Eigen::VectorXd& residual=actualResidual();
                 const double beta=residual.stableNorm();
                 if(!residual.allFinite())
                 {
@@ -198,8 +242,15 @@ namespace model
                 for(int j=0;j<restart && iterations<maxIterations;++j)
                 {
                     ++iterations;
+                    const auto preconditionerStart=profileEnabled?ProfileClock::now():ProfileClock::time_point{};
                     W.col(j)=localSolver.solve(V.col(j));
-                    Eigen::VectorXd w=product(W.col(j));
+                    if(profileEnabled)
+                    {
+                        preconditionerSeconds+=std::chrono::duration<double>(ProfileClock::now()-preconditionerStart).count();
+                    }
+                    ++preconditionerCalls;
+                    Eigen::VectorXd w=timedProduct(W.col(j),true);
+                    const auto orthogonalizationStart=profileEnabled?ProfileClock::now():ProfileClock::time_point{};
                     for(int pass=0;pass<2;++pass)
                     {
                         for(int i=0;i<=j;++i)
@@ -214,6 +265,10 @@ namespace model
                     if(!breakdown)
                     {
                         V.col(j+1)=w/H(j+1,j);
+                    }
+                    if(profileEnabled)
+                    {
+                        orthogonalizationSeconds+=std::chrono::duration<double>(ProfileClock::now()-orthogonalizationStart).count();
                     }
                     for(int i=0;i<j;++i)
                     {
@@ -236,8 +291,10 @@ namespace model
                     const auto now=std::chrono::steady_clock::now();
                     if(std::chrono::duration<double>(now-lastProgress).count()>=5.0)
                     {
-                        std::cout<<"\n  GMRES iteration "<<iterations<<"/"<<maxIterations
-                                 <<", estimated scaled relative residual="<<std::abs(g(j+1))/rhsNorm<<std::flush;
+                        std::ostringstream progress;
+                        progress<<"\n    GMRES: "<<iterations<<" iterations, estimated relative residual "
+                                <<std::scientific<<std::setprecision(2)<<std::abs(g(j+1))/rhsNorm;
+                        std::cout<<progress.str()<<std::endl;
                         lastProgress=now;
                     }
                     if(std::abs(g(j+1))<=estimatedTarget || breakdown)
@@ -246,15 +303,26 @@ namespace model
                     }
                 }
                 x+=W.leftCols(count)*H.topLeftCorner(count,count).triangularView<Eigen::Upper>().solve(g.head(count));
+                residualCurrent=false;
             }
-            const Eigen::VectorXd finalResidual=rhs-product(x);
+            const Eigen::VectorXd& finalResidual=actualResidual();
+            if(profilingEnabled())
+        {
             std::cout<<"\n  GMRES finished: iterations="<<iterations
                      <<", scaled relative residual="<<finalResidual.stableNorm()/rhsNorm
                      <<", physical relative residual="<<finalResidual.cwiseQuotient(scale).stableNorm()/projectedNorm<<std::flush;
         }
+        else
+        {
+            std::ostringstream summary;
+            summary<<"\n    GMRES: "<<iterations<<" iterations, final relative residual "
+                   <<std::scientific<<std::setprecision(2)<<finalResidual.stableNorm()/rhsNorm;
+            std::cout<<summary.str()<<std::flush;
+        }
+        }
         const auto acceptable=[&]()
         {
-            const Eigen::VectorXd residual=(rhs-product(x)).cwiseQuotient(scale);
+            const Eigen::VectorXd residual=actualResidual().cwiseQuotient(scale);
             return x.allFinite() && residual.allFinite() &&
                    residual.stableNorm()<=physicalTolerance*projectedNorm;
         };
@@ -263,10 +331,11 @@ namespace model
             // Difficult geometries can stagnate with a local preconditioner and
             // restarted GMRES. Retain the complete operator and original residual
             // tolerance; cache a pivoted LU for subsequent RHS at this geometry.
-            SolverStageTimer fallback("Climb dense LU fallback factorization (n="+std::to_string(n)+")");
+            SolverStageTimer fallback("Climb dense LU fallback factorization (n="+std::to_string(n)+")",true);
             directFallback=std::make_unique<Eigen::PartialPivLU<Eigen::MatrixXd>>(matrix);
             fallback.start("Climb dense LU fallback substitution");
             x=directFallback->solve(rhs);
+            residualCurrent=false;
             if(acceptable())
             {
                 std::cout<<" (climb direct fallback after "<<iterations<<" GMRES iterations)"<<std::flush;
@@ -277,6 +346,25 @@ namespace model
             throw failure(physicalOperator?"FMM climb GMRES failed its reduced residual check (no dense fallback).":"Coupled climb solve failed the full reduced residual check after direct fallback.");
         }
         previousSolution=x; // Publish only after the residual check succeeds.
-        return map*(scale.asDiagonal()*x);
+        const Eigen::VectorXd solution=map*(scale.asDiagonal()*x);
+        if(profileEnabled)
+        {
+        const double totalSeconds=std::chrono::duration<double>(ProfileClock::now()-profileStart).count();
+        const double otherSeconds=totalSeconds-operatorSeconds-orthogonalizationSeconds-preconditionerSeconds;
+        std::ostringstream profile;
+        profile<<std::scientific<<std::setprecision(9)
+               <<"\n  Climb solve profile: operator="<<(physicalOperator?"FMM":"dense")
+               <<", iterations="<<iterations<<", operator_calls="<<operatorCalls
+               <<", arnoldi_calls="<<arnoldiCalls<<", residual_calls="<<operatorCalls-arnoldiCalls
+               <<", preconditioner_calls="<<preconditionerCalls
+               <<", operator_seconds="<<operatorSeconds
+               <<", arnoldi_operator_seconds="<<arnoldiOperatorSeconds
+               <<", residual_operator_seconds="<<operatorSeconds-arnoldiOperatorSeconds
+               <<", orthogonalization_seconds="<<orthogonalizationSeconds
+               <<", preconditioner_seconds="<<preconditionerSeconds
+               <<", other_seconds="<<otherSeconds<<", total_seconds="<<totalSeconds;
+        std::cout<<profile.str()<<std::flush;
+        }
+        return solution;
     }
 }

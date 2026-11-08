@@ -8,12 +8,14 @@
 #include <map>
 #include <memory>
 #include <vector>
+#include <limits>
+#include <algorithm>
 
 namespace model
 {
     template<int dim> class BoxTree;
 
-    // A cubical cell of order 0..dim. Identity uses exact dyadic coordinates,
+    // An affine cell of order 0..dim. Identity uses exact dyadic coordinates,
     // never rounded physical positions. Boundary and refinement are distinct.
     template<int dim>
     class BoxEntity
@@ -35,6 +37,7 @@ namespace model
         Vector lowerValue;
         Vector upperValue;
         int orderValue;
+        double measureValue=1;
         std::vector<Incidence> boundaryValue;
         std::map<Key, std::weak_ptr<BoxEntity>> parentsValue;
         std::vector<std::shared_ptr<BoxEntity>> subdivisionsValue;
@@ -46,6 +49,7 @@ namespace model
         BoxEntity& operator=(const BoxEntity&) = delete;
         const Key& key() const;
         int order() const;
+        // Physical axis-aligned bounds (vertices have identical lower/upper).
         const Vector& lower() const;
         const Vector& upper() const;
         Vector center() const;
@@ -58,7 +62,8 @@ namespace model
     };
 
     // Uniform dyadic hierarchy for the initial loop-FMM geometry layer.
-    // No source assignment, periodic identification, or field kernels.
+    // Physical cells may be lattice-aligned parallelepipeds. Periodic images
+    // and wrapping remain explicit responsibilities of the caller.
     // A rebuild replaces the hierarchy atomically and increments revision().
     template<int dim>
     class BoxTree
@@ -76,6 +81,9 @@ namespace model
       private:
         Vector lowerValue;
         Vector upperValue;
+        Vector originValue;
+        Eigen::Matrix<double,dim,dim> basisValue, inverseValue;
+        double diameterValue;
         struct State
         {
             Factory factory;
@@ -88,6 +96,43 @@ namespace model
 
       public:
         BoxTree(const Vector& lower, const Vector& upper, unsigned depth = 0);
+        using Matrix = Eigen::Matrix<double,dim,dim>;
+        // Physical origin and cell edge vectors. lower()/upper() remain AABB bounds.
+        struct LatticeTag {};
+        BoxTree(const Vector& origin, const Matrix& basis, unsigned depth, LatticeTag);
+        const Matrix& basis() const { return basisValue; }
+        const Matrix& inverseBasis() const { return inverseValue; }
+        Vector fractional(const Vector& x) const { return inverseValue*(x-originValue); }
+        Vector physical(const Vector& q) const { return originValue+basisValue*q; }
+        Vector cellCenter(unsigned level, std::size_t lex) const
+        {
+            const unsigned n=1u<<level;
+            Vector q;
+            for(int c=0;c<dim;++c) { q[c]=(lex%n+0.5)/n; lex/=n; }
+            return physical(q);
+        }
+        double cellDiameter(unsigned level) const { return diameterValue/(1u<<level); }
+        double minimumFaceSpacing(unsigned level) const
+        {
+            double result=std::numeric_limits<double>::max();
+            for(int c=0;c<dim;++c) { result=std::min(result,1.0/inverseValue.row(c).norm()); }
+            return result/(1u<<level);
+        }
+        bool admissible(const Vector& displacement,unsigned level) const
+        { return displacement.norm()>1.01*cellDiameter(level); }
+        // Translation-invariant stencil shared by direct leaf interactions.
+        std::vector<Eigen::Matrix<int,dim,1>> nearOffsets(unsigned level) const;
+        bool contains(const Vector& x,double tolerance=0) const
+        {
+            if(!x.allFinite()) { return false; }
+            const Vector q=fractional(x);
+            for(int c=0;c<dim;++c)
+            {
+                const double eps=tolerance*inverseValue.row(c).norm();
+                if(q[c]<-eps || q[c]>1+eps) { return false; }
+            }
+            return true;
+        }
         BoxTree(const BoxTree&) = delete;
         BoxTree& operator=(const BoxTree&) = delete;
         const Vector& lower() const;

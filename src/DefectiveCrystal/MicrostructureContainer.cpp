@@ -1,3 +1,7 @@
+#include <Utilities/OutputFormatting.h>
+#include <Utilities/Profiling.h>
+#include <sstream>
+#include <iomanip>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -46,7 +50,7 @@ namespace model
             const auto t0= std::chrono::system_clock::now();
             std::cout<<"Initializing "<<pair->tag<<":"<<std::flush;
             pair->initializeConfiguration(configIO,f_file,F_labels);
-            std::cout<<greenColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+            std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
         }
     }
 
@@ -102,13 +106,22 @@ namespace model
         double dt(ddBase.simulationParameters.dtMax);
         for(auto& pair : microstructures())
         {
-            std::cout<<pair->tag<<":"<<std::flush;
+            if(profilingEnabled())
+            {
+                std::cout<<pair->tag<<":"<<std::flush;
+            }
             const double pairDt(pair->getDt());
-            std::cout<<" dt="<<pairDt<<std::endl;
+            if(profilingEnabled())
+            {
+                std::cout<<" dt="<<pairDt<<std::endl;
+            }
             dt=std::min(dt,pairDt);
         }
+        if(profilingEnabled())
+        {
         std::cout<<"Used dt="<<dt;
-        std::cout<<greenColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+        std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
+        }
         return dt;
     }
 
@@ -127,9 +140,9 @@ namespace model
         for(auto& pair : microstructures())
         {
             const auto t0= std::chrono::system_clock::now();
-            std::cout<<"Updating "<<pair->tag<<":"<<std::flush;
+            std::cout<<"Updating "<<pair->tag<<std::endl;
             pair->updateConfiguration();
-            std::cout<<greenColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+            std::cout<<"  "<<pair->tag<<" update completed"<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
         }
     }
 

@@ -133,7 +133,7 @@ namespace model
 
         Eigen::Matrix<double,dofPerNode,1> dofs(const NodeType& node) const
         {
-            return state->dofvector.template segment<dofPerNode>(node.gID*dofPerNode);
+            return state->dofvector.template segment<dofPerNode>(fe().correspondingNode(node).gID*dofPerNode);
         }
 
         Eigen::Matrix<double,dofPerNode,1> dofs(const size_t& gID) const
@@ -143,10 +143,12 @@ namespace model
 
         Eigen::Matrix<double,dofPerElement,1> dofs(const ElementType& ele) const
         {
+            const auto& space=fe();
+            const auto& own=ele.spaceID==&space?ele:space.elements().at(ele.simplex.xID);
             Eigen::Matrix<double,dofPerElement,1> temp;
             for(int n=0;n<nodesPerElement;++n)
             {
-                temp.template segment<dofPerNode>(n*dofPerNode)=dofs(ele.node(n));
+                temp.template segment<dofPerNode>(n*dofPerNode)=state->dofvector.template segment<dofPerNode>(own.node(n).gID*dofPerNode);
             }
             return temp;
         }

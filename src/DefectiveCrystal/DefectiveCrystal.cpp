@@ -1,3 +1,5 @@
+#include <Utilities/OutputFormatting.h>
+#include <Utilities/Profiling.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -115,6 +117,10 @@ namespace model
         
         this->solve();
         this->ddBase.simulationParameters.dt=this->getDt();
+        if(!profilingEnabled())
+        {
+            std::cout<<"\nTime step: "<<formatSeconds(this->ddBase.simulationParameters.dt)<<std::endl;
+        }
                 
         if (!(this->ddBase.simulationParameters.runID%this->ddBase.simulationParameters.outputFrequency))
         {

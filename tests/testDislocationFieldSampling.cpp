@@ -82,6 +82,8 @@ void check(const fs::path& root, int rank, int master=0)
     fs::copy_file(root / "Library/DislocationDynamics/DD.txt", folder / "inputFiles/DD.txt");
     auto dd=read(folder / "inputFiles/DD.txt");
     parameter(dd,"coreSize","2");
+    // This fixture compares Helmholtz full and split kernels, independent of Library defaults.
+    parameter(dd,"coreType","Helmholtz");
     // Root minimum width is 50*sqrt(3); preserve h=8 for this fixture.
     parameter(dd,"ewaldWidthFactor","0.09237604307034013");
     parameter(dd,"climbPreconditionerCutoff","50");
@@ -109,6 +111,7 @@ void check(const fs::path& root, int rank, int master=0)
     container.push_back(networkOwner);
     auto& network=*networkOwner;
     network.initializeConfiguration(generator.config(), std::ofstream(), std::ofstream());
+    require(!network.fieldEvaluator.hasFMMStress(),"Frame loading eagerly prepared stress FMM");
     const auto original = network.loops().begin()->second.lock();
     const auto duplicate = network.loops().create(original->burgers(), original->glidePlane);
     std::vector<std::shared_ptr<DislocationLoopNode<3>>> nodes;
@@ -191,9 +194,27 @@ void check(const fs::path& root, int rank, int master=0)
         require(!snapshot.channels.empty()&&!snapshot.targets.empty(),"Missing network climb maps");
         if(master)
         {
-            network.prepareFMMStress();
+            network.fieldEvaluator.clear();
             const auto sampledStress=network.stress(Eigen::Vector3d(1,2,3),nullptr,nullptr,nullptr);
             require(sampledStress.allFinite(),"Production stress dispatch failed");
+            require(network.fieldEvaluator.hasFMMStress(),"First stress query did not prepare FMM");
+            network.updateGeometry();
+            require(!network.fieldEvaluator.hasFMMStress(),"Geometry update retained stale stress plan");
+            std::array<Eigen::Matrix3d,4> concurrentStress;
+            std::array<std::exception_ptr,4> failures;
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(4)
+#endif
+            for(int i=0;i<4;++i)
+            {
+                try { concurrentStress[i]=network.stress(Eigen::Vector3d(1,2,3),nullptr,nullptr,nullptr); }
+                catch(...) { failures[i]=std::current_exception(); }
+            }
+            for(int i=0;i<4;++i)
+            {
+                if(failures[i]) { std::rethrow_exception(failures[i]); }
+                require((concurrentStress[i]-sampledStress).norm()<1.e-12,"Parallel lazy stress preparation changed results");
+            }
             auto probe=network.solvedQuantityState();
             for(Eigen::Index n=0;n<probe.size()/(ClusterDynamics<3>::mSize+3);++n) {
         for(int species=0;species<ClusterDynamics<3>::mSize;++species) {

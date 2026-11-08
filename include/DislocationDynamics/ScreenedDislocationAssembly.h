@@ -14,6 +14,8 @@ namespace model
     // Shared free-space settings for stress, concentration and climb operators.
     struct ScreenedDislocationOptions
     {
+        // Internal explicit neighborhood; does not enable a complete periodic solve.
+        std::vector<Eigen::Vector3d> localImageShifts{Eigen::Vector3d::Zero()};
         std::shared_ptr<const SegmentSplitSnapshot> segmentSplits;
         bool boxShortRange=true;
         bool segmentShortRange=false; // Set by DD for ewaldFMM; particle-only tests remain available.
@@ -47,6 +49,7 @@ namespace model
         std::array<double,3> position{};
         std::array<std::size_t,2> nodes{};
         std::array<double,2> weights{}; // Shape * b cross tangent dot climbDirection * dL; source also /bias.
+        std::size_t grain=0; // Owning grain; boundary targets require an explicit grain side.
     };
     struct ClimbSourceSegment
     {

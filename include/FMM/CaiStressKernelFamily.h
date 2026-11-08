@@ -1,6 +1,7 @@
 /* This file is part of MoDELib, distributed under GNU GPL v2. */
 #ifndef model_CaiStressKernelFamily_H_
 #define model_CaiStressKernelFamily_H_
+#include <FMM/FMMKernelFamilyBase.h>
 #include <DislocationDynamics/CaiStressParticleKernel.h>
 namespace model
 {
@@ -14,12 +15,12 @@ namespace model
     };
     // Full-kernel FMM only. The generic interaction requires all three accessors;
     // no Cai Ewald decomposition is implied by these interface placeholders.
-    class CaiStressKernelFamily
+    class CaiStressKernelFamily : public FMMKernelFamilyBase<CaiStressKernelFamily>
     {
         FMMCaiStressKernel kernel_;
     public:
         static constexpr int sourceComponents=9,fieldComponents=6;
-        CaiStressKernelFamily(double mu,double nu,double a,double):kernel_(mu,nu,a) {}
+        CaiStressKernelFamily(double mu,double nu,double a,double,bool split=false):FMMKernelFamilyBase<CaiStressKernelFamily>(false),kernel_(mu,nu,a) { if(split) { throw std::invalid_argument("Cai has no Ewald split"); } }
         auto fullKernel() const { return kernel_; }
         auto longKernel() const { return kernel_; }
         auto shortKernel() const { return kernel_; }

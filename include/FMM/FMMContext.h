@@ -20,7 +20,9 @@ namespace model
         const int interpolationOrder;
         const unsigned fmmTreeDepth;
         const std::shared_ptr<BoxTree<dim>> boxTree;
-        FMMContext(const Vector& lower, const Vector& upper, const std::string& inputFile);
+        FMMContext(const Vector& lower, const Vector& upper, const std::string& inputFile,
+                   const Eigen::Matrix<double,dim,Eigen::Dynamic>& periodicBasis=Eigen::Matrix<double,dim,Eigen::Dynamic>(dim,0),
+                   const std::map<std::size_t,Vector>& points={});
         FMMContext(const FMMContext&) = delete;
         FMMContext& operator=(const FMMContext&) = delete;
     };

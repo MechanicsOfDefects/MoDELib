@@ -38,15 +38,7 @@ namespace model
     }
     template<int dim> double BoxEntity<dim>::measure() const
     {
-        double result = 1.0;
-        for(int axis = 0; axis < dim; ++axis)
-        {
-            if(keyValue[axis] != keyValue[dim + axis])
-            {
-                result *= upperValue[axis] - lowerValue[axis];
-            }
-        }
-        return result;
+        return measureValue;
     }
     template<int dim> const std::vector<typename BoxEntity<dim>::Incidence>& BoxEntity<dim>::boundary() const
     {
@@ -79,14 +71,52 @@ namespace model
 
     template<int dim>
     BoxTree<dim>::BoxTree(const Vector& lower, const Vector& upper, unsigned depth)
-        : lowerValue(lower), upperValue(upper)
+        : BoxTree(lower, Matrix((upper-lower).asDiagonal()), depth, LatticeTag{})
     {
-        const Vector span = upper - lower;
-        if(!lower.allFinite() || !upper.allFinite() || !span.allFinite() || (span.array() <= 0.0).any())
+        if(((upper-lower).array()<=0).any())
+        { throw std::invalid_argument("BoxTree bounds must be strictly increasing"); }
+    }
+    template<int dim>
+    BoxTree<dim>::BoxTree(const Vector& origin,const Matrix& basis,unsigned depth,LatticeTag)
+        : originValue(origin),basisValue(basis),diameterValue(0)
+    {
+        if(!origin.allFinite() || !basis.allFinite() || !basis.fullPivLu().isInvertible())
+        { throw std::invalid_argument("BoxTree cell must be finite and nonsingular"); }
+        inverseValue=basis.inverse();
+        lowerValue=upperValue=origin;
+        for(unsigned mask=0;mask<(1u<<dim);++mask)
         {
-            throw std::invalid_argument("BoxTree bounds must be finite and strictly increasing");
+            Vector q,sign;
+            for(int c=0;c<dim;++c) { q[c]=(mask>>c)&1; sign[c]=2*q[c]-1; }
+            const Vector corner=physical(q);
+            lowerValue=lowerValue.cwiseMin(corner);upperValue=upperValue.cwiseMax(corner);
+            diameterValue=std::max(diameterValue,(basisValue*sign).norm());
         }
+        if(!lowerValue.allFinite() || !upperValue.allFinite() || !inverseValue.allFinite() || !std::isfinite(diameterValue))
+        { throw std::invalid_argument("BoxTree cell exceeds representable physical coordinates"); }
         setDepth(depth);
+    }
+    template<int dim>
+    std::vector<Eigen::Matrix<int,dim,1>> BoxTree<dim>::nearOffsets(unsigned level) const
+    {
+        using Offset=Eigen::Matrix<int,dim,1>;
+        if(level>depth()) { throw std::out_of_range("BoxTree near stencil level is not built"); }
+        const int n=1<<level;
+        Offset limit,d;
+        for(int c=0;c<dim;++c)
+        { limit[c]=int(std::min(double(n-1),std::ceil(1.01*diameterValue*inverseValue.row(c).norm()))); }
+        std::vector<Offset> result;
+        const std::function<void(int)> walk=[&](int c)
+        {
+            if(c<0)
+            {
+                if(!admissible(basisValue*d.template cast<double>()/n,level)) { result.push_back(d); }
+                return;
+            }
+            for(d[c]=-limit[c];d[c]<=limit[c];++d[c]) { walk(c-1); }
+        };
+        walk(dim-1);
+        return result;
     }
     template<int dim> const typename BoxTree<dim>::Vector& BoxTree<dim>::lower() const
     {
@@ -125,16 +155,28 @@ namespace model
         {
             return found->second;
         }
-        Vector lower;
-        Vector upper;
-        for(int axis = 0; axis < dim; ++axis)
+        Vector q0,q1;
+        for(int axis=0;axis<dim;++axis)
         {
-            lower[axis] = lowerValue[axis] + (upperValue[axis] - lowerValue[axis]) *
-                (static_cast<double>(key[axis]) / latticeSize);
-            upper[axis] = lowerValue[axis] + (upperValue[axis] - lowerValue[axis]) *
-                (static_cast<double>(key[dim + axis]) / latticeSize);
+            q0[axis]=double(key[axis])/latticeSize;
+            q1[axis]=double(key[dim+axis])/latticeSize;
+        }
+        Vector lower=physical(q0),upper=lower;
+        for(unsigned mask=0;mask<(1u<<dim);++mask)
+        {
+            Vector q;
+            for(int c=0;c<dim;++c) { q[c]=(mask>>c)&1?q1[c]:q0[c]; }
+            const Vector x=physical(q);
+            lower=lower.cwiseMin(x);upper=upper.cwiseMax(x);
         }
         Pointer entity(new Entity(key, lower, upper));
+        Eigen::Matrix<double,dim,Eigen::Dynamic> edges(dim,entity->order());
+        int column=0;
+        for(int c=0;c<dim;++c)
+        {
+            if(q1[c]!=q0[c]) { edges.col(column++)=basisValue.col(c)*(q1[c]-q0[c]); }
+        }
+        entity->measureValue=column?std::sqrt(std::max(0.0,(edges.transpose()*edges).determinant())):1.0;
         target.factory.emplace(key, entity);
         int rank = 0;
         for(int axis = 0; axis < dim; ++axis)
@@ -271,18 +313,16 @@ namespace model
         {
             throw std::out_of_range("BoxTree level is not built");
         }
-        if(!point.allFinite() || (point.array() < lowerValue.array()).any() ||
-            (point.array() > upperValue.array()).any())
-        {
-            return nullptr;
-        }
+        const double tolerance=64*std::numeric_limits<double>::epsilon()*std::max({1.0,lowerValue.norm(),upperValue.norm(),diameterValue});
+        if(!contains(point,tolerance)) { return nullptr; }
+        const Vector q=fractional(point);
         const unsigned count = 1u << level;
         const auto width = latticeSize / count;
         Key key{};
         for(int axis = 0; axis < dim; ++axis)
         {
             const auto index = std::min(count - 1, static_cast<unsigned>(std::floor(
-                (point[axis] - lowerValue[axis]) / (upperValue[axis] - lowerValue[axis]) * count)));
+                std::clamp(q[axis],0.0,1.0) * count)));
             key[axis] = index * width;
             key[dim + axis] = (index + 1) * width;
         }

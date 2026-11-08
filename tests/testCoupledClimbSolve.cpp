@@ -72,7 +72,7 @@ int main()
         const auto first=warm.solve(probe);
         products=0;
         const auto repeated=warm.solve(probe);
-        require(products<=4,"Repeated RHS restarted GMRES from zero");
+        require(products==1,"Repeated RHS must evaluate its actual residual exactly once");
         require((repeated-first).norm()==0,"Repeated RHS changed the converged solution");
         const Eigen::VectorXd changed=probe+0.01*Eigen::VectorXd::Ones(n);
         const Eigen::MatrixXd reduced=Z.transpose()*(K*Z);

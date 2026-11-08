@@ -1,3 +1,5 @@
+#include <FMM/LatticeBoxTree.h>
+#include <FMM/BoxParticleIndex.h>
 #include <FMM/BoxTree.h>
 #include <cmath>
 #include <iostream>
@@ -178,10 +180,53 @@ void checkTopology()
     require(rejected, "Reversed bounds accepted");
 }
 
+void checkLattice()
+{
+    using Tree=model::BoxTree<3>;
+    Eigen::Matrix3d H;
+    H<<2,1.8,0, 0,.4,0, 0,0,1;
+    const Eigen::Vector3d origin(-3,2,1);
+    Tree tree(origin,H,3,Tree::LatticeTag{});
+    require(std::abs(tree.root()->measure()-std::abs(H.determinant()))<1.e-13,"Lattice volume");
+    for(std::size_t b=0;b<512;++b)
+    {
+        const auto x=tree.cellCenter(3,b);
+        const auto box=tree.locate(x,3);
+        require(bool(box)&&(box->center()-x).norm()<1.e-13,"Lattice lookup/center");
+    }
+    const Eigen::Vector3d outside=tree.physical(Eigen::Vector3d(-.01,.5,.5));
+    require(!tree.contains(outside),"AABB accepted point outside lattice cell");
+    bool extended=false;
+    for(const auto& d:tree.nearOffsets(3))
+    {
+        require(!tree.admissible(H*d.cast<double>()/8,3),"Invalid near stencil entry");
+        extended=extended||d.cwiseAbs().maxCoeff()>1;
+    }
+    require(extended,"Skewed-cell near stencil was not expanded");
+    Tree cube(Eigen::Vector3d::Zero(),Eigen::Vector3d::Ones(),3);
+    require(cube.nearOffsets(3).size()==27,"Cube stencil changed");
+    std::map<std::size_t,Eigen::Vector3d> vertices;
+    for(int i=0;i<8;++i) { vertices[i]=tree.physical(Eigen::Vector3d(i&1,(i>>1)&1,(i>>2)&1)); }
+    for(const auto& v:vertices) { require(bool(tree.locate(v.second,3)),"Lattice corner excluded from lookup"); }
+    for(int rank=1;rank<=3;++rank)
+    {
+        Eigen::Matrix<double,3,Eigen::Dynamic> periodic=H.leftCols(rank);
+        const auto aligned=model::makeLatticeBoxTree<3>(tree.lower(),tree.upper(),2,periodic,vertices);
+        for(int c=0;c<rank;++c)
+        { require(aligned->basis().col(c).cross(H.col(c)).norm()<1.e-12,"Periodic direction not aligned"); }
+        for(const auto& v:vertices) { require(aligned->contains(v.second,1.e-12),"Mesh vertex outside aligned tree"); }
+    }
+    bool rejected=false;
+    try { Tree bad(origin,Eigen::Matrix3d::Zero(),1,Tree::LatticeTag{}); }
+    catch(const std::invalid_argument&) { rejected=true; }
+    require(rejected,"Singular lattice accepted");
+}
+
 int main()
 {
     try
     {
+        checkLattice();
         checkTopology<1>();
         checkTopology<2>();
         checkTopology<3>();

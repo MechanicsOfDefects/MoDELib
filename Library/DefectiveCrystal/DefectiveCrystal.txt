@@ -17,8 +17,8 @@ periodicImageSize= 0 0 0; # number of images for each periodic shift vector
 outputFrequency=1;
 outputBinary=0;
 
-# SCREENED FMM (free-space only; set multipoleMode=none for analytical segment stress/climb)
+# FMM (free-space only; set multipoleMode=none for direct segment stress/climb)
 # Modes: none (analytical segments), ewaldFMM, FMM (full core-regularized kernels).
-multipoleMode=ewaldFMM; # enables both stress evaluation and matrix-free climb
+multipoleMode=FMM; # enables both stress evaluation and matrix-free climb
 fmmInterpolationOrder=4; # integer 2..6
 fmmTreeDepth=2; # uniform depth for FMM and ewaldFMM, integer 0..5; 0 gives one root box

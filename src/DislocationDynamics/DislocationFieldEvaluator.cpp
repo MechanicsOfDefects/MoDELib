@@ -1,3 +1,5 @@
+#include <cfloat>
+#include <Utilities/ParallelFor.h>
 #ifdef MODELIB_FIELD_EVALUATOR_KOKKOS
 #include <DislocationDynamics/KokkosDislocationFieldBuffers.h>
 #include <FMM/KokkosBoxParticleIndex.h>
@@ -37,12 +39,27 @@ namespace model
         using Clock=std::chrono::steady_clock;
         auto next=std::make_unique<State>();
         const auto start=Clock::now();
+        std::vector<std::shared_ptr<DislocationSegment<dim>>> segments;
+        segments.reserve(network_.networkLinks().size());
         for(const auto& entry:network_.networkLinks())
         {
             const auto segment=entry.second.lock();
             if(!segment) { throw std::logic_error("Expired network segment during field sampling"); }
-            DislocationFieldSampling<dim>::append(next->buffers,*segment,sourceDensity,targetDensity,purpose);
+            segments.push_back(segment);
         }
+        using Sampling=DislocationFieldSampling<dim>;
+        std::vector<typename Sampling::Prepared> samples(segments.size());
+        independentParallelFor(segments.size(),[&](std::size_t i)
+        {
+            samples[i]=Sampling::prepare(*segments[i],sourceDensity,targetDensity,purpose);
+        });
+        std::size_t sources=0,targets=0;
+        for(const auto& sample:samples)
+        {
+            sources+=sample.sources.size();targets+=sample.targets.size();
+        }
+        next->buffers.reserve(sources,targets);
+        for(const auto& sample:samples) { sample.append(next->buffers,purpose); }
         const auto sampled=Clock::now();
         next->index.rebuild(*tree_,next->buffers.sources().positions.values,next->buffers.targets().positions.values);
         const auto indexed=Clock::now();

@@ -133,6 +133,8 @@ namespace model
         using ImmobileRateTrialType=TrialFunction<'r',iSize,FiniteElementType>;
         const DefectiveCrystalBase<dim>& ddBase;
         const ClusterDynamicsParameters<dim>& cdp;
+        std::shared_ptr<FiniteElementType> fe; // Continuous within grains, separate GB nodes.
+
         const std::shared_ptr<InvDscaling<dim>> iDs;
         
         const Eigen::Matrix<double,mSize,mSize> invTrD;

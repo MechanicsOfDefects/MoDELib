@@ -76,6 +76,11 @@ int main(int argc, char** argv)
                     p << ";\n";
                 }
                 model::DefectiveCrystalBase<3> base(folder.string());
+                for(const auto& vertex:base.mesh.template simplexFactory<0>().liveSimplices())
+                {
+                    require(base.fmmContext->boxTree->contains(vertex.second->P0,1.e-10),
+                            "Polyhedron-derived FMM bounds exclude a mesh vertex");
+                }
                 require(base.periodicLatticeBasis.cols() == rank, "Incorrect active rank");
                 require(base.periodicImageSize.size() == size_t(rank), "Image counts ignored for active directions");
                 const size_t expected = imageCount == 0 ? 1 : size_t(std::pow(3, rank));

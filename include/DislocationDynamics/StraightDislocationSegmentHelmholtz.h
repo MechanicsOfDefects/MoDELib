@@ -4,7 +4,7 @@
 #include <DislocationDynamics/HelmholtzSegmentTables.h>
 namespace model
 {
-    class HelmholtzSegmentConcentration final : public SegmentConcentrationKernelBase
+    class HelmholtzSegmentConcentration final : public UnsplitSegmentConcentrationKernel
     {
         helmholtzSegment::ConcentrationEvaluator table_;
     public:
@@ -27,7 +27,7 @@ namespace model
         mutable std::once_flag stressOnce_;
         mutable std::unique_ptr<helmholtzSegment::Evaluator> full_;
     public:
-        explicit StraightDislocationSegmentHelmholtz(const SegmentCoreParameters& parameters):parameters_(parameters) {}
+        explicit StraightDislocationSegmentHelmholtz(const SegmentCoreParameters& parameters,bool split=false):StraightDislocationSegmentBase(split),parameters_(parameters) {}
         const char* name() const override { return "Helmholtz"; }
         Eigen::Matrix3d stress(const Eigen::Vector3d& x,const Segment& s) const override
         {
@@ -38,17 +38,16 @@ namespace model
             });
             return full_->stress(x,s);
         }
-        Eigen::Matrix3d nearStress(const Eigen::Vector3d& x,const Segment& s) const override { return stress(x,s); }
-        Eigen::Matrix3d shortStress(const Eigen::Vector3d&,const Segment&) const override { throw std::logic_error("Select HelmholtzEwald for screened kernels"); }
-        Eigen::Matrix3d longStress(const Eigen::Vector3d&,const Segment&) const override { throw std::logic_error("Select HelmholtzEwald for screened kernels"); }
+        Eigen::Matrix3d stressNear(const Eigen::Vector3d& x,const Segment& s) const override { return stress(x,s); }
+        Eigen::Matrix3d stressFar(const Eigen::Vector3d& x,const Segment& s) const override { return stress(x,s); }
         Eigen::Vector3d displacement(const Eigen::Vector3d&,const Segment&) const override { throw std::logic_error("Helmholtz displacement is not implemented"); }
         double elasticInteractionEnergy(const Eigen::Vector3d&,const Eigen::Vector3d&,const Eigen::Vector3d&,const Segment&) const override { throw std::logic_error("Helmholtz interaction energy is not implemented"); }
-        ConcentrationPtr concentration(const Eigen::Matrix3d& D,bool flux=false,SegmentKernelPart part=SegmentKernelPart::full) const override
+        Eigen::Vector3d displacementNear(const Eigen::Vector3d& x,const Segment& s) const override { return displacement(x,s); }
+        Eigen::Vector3d displacementFar(const Eigen::Vector3d& x,const Segment& s) const override { return displacement(x,s); }
+        double elasticInteractionEnergyNear(const Eigen::Vector3d& x,const Eigen::Vector3d& t,const Eigen::Vector3d& b,const Segment& s) const override { return elasticInteractionEnergy(x,t,b,s); }
+        double elasticInteractionEnergyFar(const Eigen::Vector3d& x,const Eigen::Vector3d& t,const Eigen::Vector3d& b,const Segment& s) const override { return elasticInteractionEnergy(x,t,b,s); }
+        ConcentrationPtr concentration(const Eigen::Matrix3d& D,bool flux=false) const override
         {
-            if(part!=SegmentKernelPart::full)
-            {
-                throw std::logic_error("Select HelmholtzEwald for screened kernels");
-            }
             return std::make_shared<HelmholtzSegmentConcentration>(D,parameters_,false,flux);
         }
         SegmentMomentIntegrator::StressMoments stressMoments(const SegmentMomentIntegrator& helper,const Segment& segment,const Eigen::Vector3d& center,const Eigen::Vector3d& width) const override

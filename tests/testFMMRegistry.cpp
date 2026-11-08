@@ -131,6 +131,42 @@ int main()
         for(int t=0;t<13;++t)for(int c=0;c<3;++c)
             require(std::abs(smoothCustom(t,c)-customResult(t,c))<1.e-10,"Smooth neighbor translations changed polynomial field");
         auto smoothFamily=std::make_shared<HelmholtzDiffusionFamily>(D,a,4.0);
+        // Cache self/neighbor translations under the same budget as ordinary M2L.
+        // Depth zero has no far boxes: any allocated operator must be the self operator.
+        for(auto geometry:{tree0,tree})
+        {
+            KokkosParticleFMM<1,1> cached(ex,*geometry,src,tgt,4);
+            cached.setInterpolateNearBoxes(true);
+            cached.setTranslationCacheBudget(0);
+            cached.evaluate(ex,smoothFamily->longKernel(),sp,q,tp,out,48,13);
+            const auto reference=Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(),out);
+            for(std::size_t budget:{std::size_t(64*64*sizeof(double)),std::size_t(256*1024*1024)})
+            {
+                cached.setTranslationCacheBudget(budget);
+                cached.evaluate(ex,smoothFamily->longKernel(),sp,q,tp,out,48,13);
+                require(cached.translationCacheBytes()>0 && cached.translationCacheBytes()<=budget,"Near translation cache budget");
+                const auto values=Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(),out);
+                for(int i=0;i<13;++i)
+                {
+                    require(std::abs(values(i,0)-reference(i,0))<1e-12*(1+std::abs(reference(i,0))),"Cached neighbor translations changed result");
+                }
+                const auto bytes=cached.translationCacheBytes();
+                Kokkos::deep_copy(q,qh);
+                cached.evaluate(ex,smoothFamily->longKernel(),sp,q,tp,out,48,13);
+                require(cached.translationCacheBytes()==bytes,"Near translation cache reuse");
+            }
+            // Changing the kernel must invalidate the cached coefficients.
+            const HelmholtzDiffusionFamily changed(D,a,2.0);
+            cached.evaluate(ex,changed.longKernel(),sp,q,tp,out,48,13);
+            const auto changedCached=Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(),out);
+            cached.setTranslationCacheBudget(0);
+            cached.evaluate(ex,changed.longKernel(),sp,q,tp,out,48,13);
+            const auto changedDirect=Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(),out);
+            for(int i=0;i<13;++i)
+            {
+                require(std::abs(changedCached(i,0)-changedDirect(i,0))<1e-12*(1+std::abs(changedDirect(i,0))),"Near translation cache invalidation");
+            }
+        }
         auto smoothOptions=opt;smoothOptions.interpolateScreenedNear=true;smoothOptions.interpolationOrder=6;
         for(auto geometry : {tree0,tree})
         {
@@ -166,6 +202,36 @@ int main()
         require(seen==std::vector<int>({1,1,0,0}),"Corner stencil must include diagonal neighbor and exclude second neighbor");
         seen.assign(4,0);edgeList.forEach(1,[&](std::size_t s){++seen[s];});
         require(seen==std::vector<int>({0,0,0,1}),"Upper root boundary stencil");
+        // Split kernels: shifted direct short work and shifted long P2P/M2L.
+        auto shiftedTree=std::make_shared<BoxTree<3>>(Eigen::Vector3d::Zero(),Eigen::Vector3d::Ones(),2);
+        FMMInteractionOptions shiftedOptions;shiftedOptions.interpolateScreenedNear=false;
+        shiftedOptions.localImageShifts={Eigen::Vector3d::Zero(),Eigen::Vector3d::UnitX(),-Eigen::Vector3d::UnitX(),Eigen::Vector3d::UnitY()};
+        std::vector<double> shiftedShort(13,0),shiftedLong(13,0);
+        for(int t=0;t<13;++t) { for(int s=0;s<48;++s)
+        {
+            const Eigen::Vector3d x(tgt[0][t],tgt[1][t],tgt[2][t]),y(src[0][s],src[1][s],src[2][s]);
+            const auto tb=shiftedTree->locate(x,2),sb=shiftedTree->locate(y,2);
+            for(const auto& shift:shiftedOptions.localImageShifts)
+            {
+                const Eigen::Vector3d r=x-y-shift;
+                shiftedLong[t]+=lo.value(r.data())*qh(s,0);
+                if(!shiftedTree->admissible(tb->center()-sb->center()-shift,2))
+                { shiftedShort[t]+=sh.value(r.data())*qh(s,0); }
+            }
+        } }
+        Scalar shifted(std::make_shared<const HelmholtzDiffusionFamily>(family),ex,shiftedTree,src,tgt,shiftedOptions);
+        shifted.evaluateShort(q,out);require(error(shiftedShort)<1.e-12,"Shifted short kernel mismatch");
+        shifted.evaluateLong(q,out);require(error(shiftedLong)<.003,"Shifted long kernel mismatch");
+        shiftedOptions.interpolateScreenedNear=true;
+        Scalar shiftedCached(std::make_shared<const HelmholtzDiffusionFamily>(family),ex,shiftedTree,src,tgt,shiftedOptions);
+        shiftedCached.evaluateLong(q,out);
+        const auto savedShifted=Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(),out);
+        std::vector<double> shiftedCachedValues(13);
+        for(int i=0;i<13;++i) { shiftedCachedValues[i]=savedShifted(i,0); }
+        shiftedOptions.translationCacheBytes=0;
+        Scalar shiftedUncached(std::make_shared<const HelmholtzDiffusionFamily>(family),ex,shiftedTree,src,tgt,shiftedOptions);
+        shiftedUncached.evaluateLong(q,out);
+        require(error(shiftedCachedValues)<1.e-12,"Shifted self/neighbor cache differs from uncached translations");
         tree->setDepth(1);
         rejects([&]{interaction->evaluateLong(q,out);});
         // Empty snapshots and lifetime independent of the manager's name entry.

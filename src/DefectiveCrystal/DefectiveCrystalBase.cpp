@@ -25,6 +25,21 @@ namespace model
 
     namespace
     {
+        template<int dim>
+        std::map<std::size_t,Eigen::Matrix<double,dim,1>> fmmPolyhedronVertices(const SimplicialMesh<dim>& mesh)
+        {
+            std::map<std::size_t,Eigen::Matrix<double,dim,1>> result;
+            if(mesh.periodicBasis().cols()>0)
+            {
+                // Fractional coordinates are affine: their extrema on a convex
+                // grain occur at polyhedron vertices. The factory shares vertices
+                // across grains, so no FEM-node scan or duplicate corners are needed.
+                for(const auto& entry:mesh.polyhedralMesh().template factory<0>())
+                { result.emplace(result.size(),entry.second->position); }
+            }
+            return result;
+        }
+
         std::vector<std::string> parsePhysics(const std::string& input)
         {
             std::vector<std::string> result;
@@ -101,7 +116,7 @@ namespace model
     /* init */,poly(*polyOwner)
     /* init */,fe(simulationParameters.useFEM ? new FiniteElement<ElementType>(meshOwner) : nullptr)
     /* init */,activePhysics(parsePhysics(simulationParameters.physics))
-    /* init */,fmmContext(std::make_shared<FMMContext<dim>>(mesh.xMin(),mesh.xMax(),simulationParameters.traitsIO.dcFile))
+    /* init */,fmmContext(std::make_shared<FMMContext<dim>>(mesh.xMin(),mesh.xMax(),simulationParameters.traitsIO.dcFile,mesh.periodicBasis(),fmmPolyhedronVertices(mesh)))
     /* init */,dislocationDynamicsBase(hasPhysics("DislocationDynamics") ? std::make_shared<DislocationDynamicsBase<dim>>(meshOwner,polyOwner) : nullptr)
     /* init */,clusterDynamicsBase(hasPhysics("ClusterDynamics") ? std::make_shared<ClusterDynamicsBase<dim>>(*this) : nullptr)
     /* init */,elasticDeformationBase(hasPhysics("ElasticDeformation") ? std::make_shared<ElasticDeformationBase<dim>>(*this) : nullptr)

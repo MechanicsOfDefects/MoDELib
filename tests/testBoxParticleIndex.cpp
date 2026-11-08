@@ -42,6 +42,23 @@ template<int dim> void check()
             require(data.leafOfPoint[p]==leaf,"Reverse lookup mismatch");
         }
     }
+    // Arithmetic roundoff at either root face must preserve leaf membership.
+    auto boundary=points;
+    for(int axis=0;axis<dim;++axis)
+    {
+        boundary[axis][0]=std::nextafter(tree.lower()[axis],-std::numeric_limits<double>::infinity());
+        boundary[axis][1]=std::nextafter(tree.upper()[axis],std::numeric_limits<double>::infinity());
+    }
+    index.rebuild(tree,boundary,boundary);
+    const auto nearBoundary=index.sources().leafOfPoint;
+    for(int axis=0;axis<dim;++axis)
+    {
+        boundary[axis][0]=tree.lower()[axis];
+        boundary[axis][1]=tree.upper()[axis];
+    }
+    index.rebuild(tree,boundary,boundary);
+    require(index.sources().leafOfPoint==nearBoundary,"Root-face roundoff changed leaf assignment");
+    index.rebuild(tree,points,points);
     const auto old=index.sources().permutation;
     for(double bad:{7.,std::numeric_limits<double>::quiet_NaN()})
     {
@@ -85,11 +102,33 @@ template<int dim> void check()
     index.rebuild(tree,empty,empty);
     require(index.sources().permutation.empty(),"Empty rebuild");
 }
+void checkAccumulatedBoundaryRoundoff()
+{
+    const double half=1837.1285565613894;
+    model::BoxTree<3> tree(Eigen::Vector3d::Constant(-half),Eigen::Vector3d::Constant(half),2);
+    std::array<std::vector<double>,3> points{{{0.0},{0.0},{1837.12855656177}}};
+    model::BoxParticleIndex<3> index;
+    index.rebuild(tree,points,points);
+    require(points[2][0]==1837.12855656177,"Indexing changed physical coordinates");
+    const auto leaves=index.sources().leafOfPoint;
+    points[2][0]=half;
+    index.rebuild(tree,points,points);
+    require(leaves==index.sources().leafOfPoint,"Boundary roundoff changed leaf ownership");
+    points[2][0]=half+9.736731954035349e-8;
+    index.rebuild(tree,points,points);
+    require(leaves==index.sources().leafOfPoint,"Accepted boundary geometry changed ownership");
+    points[2][0]=half+1.e-5;
+    bool rejected=false;
+    try { index.rebuild(tree,points,points); }
+    catch(const std::out_of_range&) { rejected=true; }
+    require(rejected,"Genuine root excursion accepted");
+}
 int main(int argc,char** argv)
 {
 #ifdef MODELIB_TEST_KOKKOS
     Kokkos::ScopeGuard guard(argc,argv);
 #endif
     check<1>(); check<2>(); check<3>();
+    checkAccumulatedBoundaryRoundoff();
     std::cout<<"Particle leaf assignment passed\n";
 }

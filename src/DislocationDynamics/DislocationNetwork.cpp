@@ -1,3 +1,6 @@
+#include <Utilities/OutputFormatting.h>
+#include <Utilities/ParallelFor.h>
+#include <Utilities/Profiling.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -29,7 +32,7 @@ namespace model
     /* init */,glideStepsSinceLastClimb(0)
     /* init */,ddBase(this->microstructures.ddBase)
     /* init */,multipoleSettings(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt",ddBase.fmmContext->multipoleMode,
-        (ddBase.fmmContext->boxTree->upper()-ddBase.fmmContext->boxTree->lower()).minCoeff()/(1u<<ddBase.fmmContext->fmmTreeDepth))
+        ddBase.fmmContext->boxTree->minimumFaceSpacing(ddBase.fmmContext->fmmTreeDepth))
     /* init */,fieldEvaluator(*this,ddBase.fmmContext->boxTree)
     /* init */,networkRemesher(*this)
     /* init */,junctionsMaker(*this)
@@ -63,11 +66,11 @@ namespace model
         if(ddBase.fmmContext->usesEwaldFMM())
         {
             const auto& context=*ddBase.fmmContext;
-            const auto widths=(context.boxTree->upper()-context.boxTree->lower())/(1u<<context.fmmTreeDepth);
+            const Eigen::Matrix<double,1,dim> widths=context.boxTree->basis().colwise().norm()/(1u<<context.fmmTreeDepth);
             std::cout<<"Ewald box stencil: depth="<<context.fmmTreeDepth<<", leaf widths="<<widths.transpose()
                      <<", ewaldWidthFactor="<<multipoleSettings.ewaldWidthFactor
                      <<", Ewald width="<<multipoleSettings.ewaldWidth
-                     <<"; h=min(leaf widths)*ewaldWidthFactor; same and adjacent leaves only."<<std::endl;
+                     <<"; h=min(leaf face spacing)*ewaldWidthFactor; physically near leaves."<<std::endl;
         }
         assert(velocityReductionFactor>0.0 && velocityReductionFactor<=1.0);
         LoopNetworkType::verboseLevel=TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseLoopNetwork",true);
@@ -267,10 +270,9 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
         //        EshelbyInclusionBase<3>::force_count(0);
         
         this->loopLinks().clear(); // erase base network to clear current config
+        // Loading geometry does not require evaluating fields. updateGeometry()
+        // invalidates the old plan; the first stress request prepares the new one.
         addConfiguration(evl);
-        if(ddBase.fmmContext->usesFMM()) {
-    prepareFMMStress();
-  }
 
   //        // Create Loops
         //        std::deque<std::shared_ptr<LoopType>> tempLoops; // keep loops alive during setConfiguration
@@ -692,9 +694,11 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
       *
       * Note:
       */
-        if(ddBase.fmmContext->usesFMM()) {
-    return fieldEvaluator.fmmStressAt(x);
-  }
+        if(ddBase.fmmContext->usesFMM())
+        {
+            prepareFMMStress();
+            return fieldEvaluator.fmmStressAt(x);
+        }
   MatrixDim temp(MatrixDim::Zero());
         for(const auto& link : this->networkLinks())
         {// sum stress field per segment
@@ -922,23 +926,32 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
     template<int dim>
     std::shared_ptr<const SegmentSplitSnapshot> DislocationNetwork<dim>::segmentSplits() const
     {
-        std::vector<SegmentSplitSnapshot::Endpoints> geometry;
-        geometry.reserve(this->networkLinks().size());
+        std::vector<std::shared_ptr<DislocationSegment<dim>>> segments;
+        segments.reserve(this->networkLinks().size());
         for(const auto& item:this->networkLinks())
         {
             const auto segment=item.second.lock();
-            if(!segment)
-            {
-                throw std::logic_error("Expired network segment in split cache");
-            }
-            geometry.emplace_back(segment->source->get_P(),segment->sink->get_P());
+            if(!segment) { throw std::logic_error("Expired network segment in split cache"); }
+            segments.push_back(segment);
         }
+        std::vector<SegmentSplitSnapshot::Endpoints> geometry(segments.size());
+        independentParallelFor(segments.size(),[&](std::size_t i)
+        {
+            geometry[i]={segments[i]->source->get_P(),segments[i]->sink->get_P()};
+        });
         return segmentSplitCache.get(*ddBase.fmmContext->boxTree,geometry);
     }
 
     template<int dim>
-    void DislocationNetwork<dim>::prepareFMMStress()
+    void DislocationNetwork<dim>::prepareFMMStress() const
     {
+        // Sampling planes may make their first queries from parallel workers.
+        // Publish only one completed plan. Geometry updates remain exclusive.
+        std::lock_guard<std::mutex> lock(stressPreparationMutex);
+        if(fieldEvaluator.hasFMMStress())
+        {
+            return;
+        }
         const auto context=ddBase.fmmContext;
         if(!context->usesFMM()) {
     return;
@@ -963,11 +976,17 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
   const bool isClimbingStep(isClimbStep());
         if(isClimbingStep)
         {
+            if(profilingEnabled())
+        {
             std::cout<<" climbStep"<<std::flush;
+        }
         }
         else
         {
+            if(profilingEnabled())
+        {
             std::cout<<" glideStep"<<std::flush;
+        }
         }
         double maxVelocity = 0.0;
         for (const auto &nodeIter : this->networkNodes())
@@ -992,7 +1011,7 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
             velocityBinMap.emplace(binVal, 0);
         }
         
-        SolverStageTimer quadratureTimer("DD quadrature creation");
+        SolverStageTimer quadratureTimer(profilingEnabled()?"DD quadrature creation":"Velocity assembly: quadrature creation",true);
         for (const auto &links : this->networkLinks())
         {
             
@@ -1007,7 +1026,7 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
             }
         }
         
-        quadratureTimer.start("DD quadrature field/force update ("+std::to_string(nThreads)+" OpenMP threads)");
+        quadratureTimer.start(std::string(profilingEnabled()?"DD quadrature field/force update (":"Velocity assembly: field/force update (")+std::to_string(nThreads)+" OpenMP threads)");
     #ifdef _OPENMP
     {
         // Topology is fixed during field evaluation. Preserve container order
@@ -1111,7 +1130,7 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
     {/*! Moves all nodes in the DislocationNetwork using the stored glide velocity and current dt
       */
         const auto t0= std::chrono::system_clock::now();
-        std::cout<<"Moving DislocationNodes (dt="<<dt_in<< ")... "<<std::flush;
+        std::cout<<"  Moving dislocation nodes (dt="<<dt_in<< ")... "<<std::flush;
         // Thermal hazards use this step's accepted time interval, not the
         // previous dt still present during the velocity solve.
         if(crossSlipModel && crossSlipModel->isThermal() && !isClimbStep())
@@ -1169,7 +1188,7 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
             trialNodeMotion=false;
             throw;
         }
-        std::cout<<magentaColor<<std::setprecision(3)<<std::scientific<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]."<<defaultColor<<std::endl;
+        std::cout<<magentaColor<<std::setprecision(3)<<std::scientific<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
     }
 
     template <int dim>
@@ -1495,6 +1514,28 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
                 }
             }
         }
+        // Polygon clipping classifies vertices within its geometric tolerance
+        // as boundary incidences. Reconstruct those positions on the actual
+        // mesh/glide-plane intersection before committing network coordinates;
+        // otherwise the tolerated 2D offset becomes a real exterior DD source.
+        const auto mappedContourPosition=[&](const Plan& plan,const Record& record)->VectorDim
+        {
+            const auto patch=plan.loop->periodicGlidePlane->getPatch(std::get<1>(record));
+            const VectorDim mapped=plan.loop->periodicGlidePlane->referencePlane->globalPosition(std::get<0>(record))+patch->shift;
+            VectorDim snapped=mapped;
+            double nearest=tolerance;
+            for(const auto& edge:patch->edges())
+            {
+                const VectorDim candidate=edge->meshIntersection->snap(mapped);
+                const double distance=(candidate-mapped).norm();
+                if(distance<=nearest)
+                {
+                    nearest=distance;
+                    snapped=candidate;
+                }
+            }
+            return snapped;
+        };
         // Select a representative per original junction before editing any
         // positions. Prefer its existing RVE copy when several copies survive.
         std::map<size_t,VectorDim> committedPositions;
@@ -1505,7 +1546,7 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
                 if(const auto index=std::get<6>(record).originalVertex)
                 {
                     const auto node=plan.anchors.at(*index)->networkNode;
-                    const VectorDim mapped=plan.loop->periodicGlidePlane->referencePlane->globalPosition(std::get<0>(record))+std::get<1>(record);
+                    const VectorDim mapped=mappedContourPosition(plan,record);
                     if(!committedPositions.count(node->sID) || (mapped-node->get_P()).norm()<=tolerance)
                     {
                         committedPositions[node->sID]=mapped;
@@ -1555,8 +1596,8 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
             {
                 const auto& info=std::get<6>(record);
                 const auto patch=plan.loop->periodicGlidePlane->getPatch(std::get<1>(record));
-                const VectorDim position=plan.loop->periodicGlidePlane->referencePlane->globalPosition(std::get<0>(record));
-                const VectorDim mapped=position+patch->shift;
+                const VectorDim mapped=mappedContourPosition(plan,record);
+                const VectorDim position=mapped-patch->shift;
                 std::pair<std::shared_ptr<Edge>,std::shared_ptr<Edge>> edges;
                 if(std::get<2>(record).first>=0)
                 {

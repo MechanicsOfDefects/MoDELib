@@ -1,3 +1,4 @@
+#include <Utilities/Profiling.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -513,7 +514,10 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             {
                 clusterDynamicsFEM->initializeSolver();
             }
+            if(profilingEnabled())
+        {
             std::cout<<", mobile BCs"<<std::flush;
+        }
             applyBoundaryConditions();
 
             auto DN(this->microstructures.template getUniqueTypedMicrostructure<DislocationNetwork<dim>>());

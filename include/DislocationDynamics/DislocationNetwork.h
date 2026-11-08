@@ -1,3 +1,4 @@
+#include <mutex>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -129,10 +130,11 @@ namespace model
 
         DefectiveCrystalBase<dim>& ddBase;
         const DislocationMultipoleSettings multipoleSettings;
-        DislocationFieldEvaluator<dim> fieldEvaluator;
+        mutable DislocationFieldEvaluator<dim> fieldEvaluator;
+        mutable std::mutex stressPreparationMutex;
         mutable SegmentSplitCache segmentSplitCache;
         std::shared_ptr<const SegmentSplitSnapshot> segmentSplits() const;
-        void prepareFMMStress();
+        void prepareFMMStress() const;
         DislocationNetworkRemesh<dim> networkRemesher;
         DislocationJunctionFormation<dim> junctionsMaker;
         const std::shared_ptr<BaseCrossSlipModel<dim>> crossSlipModel;

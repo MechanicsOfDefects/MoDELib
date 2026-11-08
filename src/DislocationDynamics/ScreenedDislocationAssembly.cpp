@@ -1,4 +1,6 @@
 #include <cfloat>
+#include <FMM/BoxBoundaryTolerance.h>
+#include <Utilities/Profiling.h>
 #include <DislocationDynamics/StraightDislocationSegmentFactory.h>
 #ifdef MODELIB_FIELD_EVALUATOR_KOKKOS
 #include <DislocationDynamics/StraightDislocationSegmentCai.h>
@@ -7,11 +9,17 @@
 #include <FMM/KokkosFMMInteraction.h>
 #include <FMM/HelmholtzDiffusionKernel.h>
 #include <DislocationDynamics/SegmentConcentrationPlan.h>
+#include <Utilities/SolverStageTimer.h>
 #include <FMM/HelmholtzStressKernelFamily.h>
 #include <FMM/CaiStressKernelFamily.h>
 #endif
 #include <DislocationDynamics/ScreenedDislocationAssembly.h>
 #include <atomic>
+#include <Utilities/ParallelFor.h>
+#include <chrono>
+#include <cstdlib>
+#include <iomanip>
+#include <sstream>
 #include <limits>
 namespace model
 {
@@ -61,7 +69,8 @@ namespace model
         FMMInteractionOptions interactionOptions(const ScreenedDislocationOptions& options)
         {
             FMMInteractionOptions opt;
-            opt.boxShortRange=options.boxShortRange;opt.interpolateScreenedNear=options.interpolateScreenedNear;opt.screened=options.screened;opt.interpolationOrder=options.interpolationOrder;opt.shortCutoff=options.shortCutoff;
+            opt.localImageShifts=options.localImageShifts;
+            opt.boxShortRange=options.boxShortRange;opt.interpolateScreenedNear=options.interpolateScreenedNear;opt.interpolationOrder=options.interpolationOrder;opt.shortCutoff=options.shortCutoff;
             opt.translationCacheBytes=options.translationCacheBytes;return opt;
         }
         Positions positions(const std::vector<ClimbQuadratureMap>& points,std::size_t nodes)
@@ -116,26 +125,27 @@ namespace model
         std::vector<std::size_t> lexToBox_;
         std::shared_ptr<const StraightDislocationSegmentBase> segmentKernel_;
         std::vector<std::vector<helmholtzSegment::Segment>> segmentBins_;
+        std::unique_ptr<ShiftedBoxNeighbors> nearNeighborhood_;
         DislocationTargetArrays<3> targetSnapshot_;
         StressImpl(std::shared_ptr<FMMManager> m,std::shared_ptr<const BoxTree<3>> tree,
              const DislocationSourceArrays<3>& src,const DislocationTargetArrays<3>& tgt,
              double mu,double nu,const ScreenedDislocationOptions& opt,const std::vector<helmholtzSegment::Segment>& segments):registrations(std::move(m)),
              mu_(mu),nu_(nu),strengths("stress quadrature strengths",src.size(),9),tree_(tree),revision_(tree?tree->revision():0),
-             sources_(src),family_(mu,nu,opt.coreWidth,opt.screenWidth),options_(opt),originalTargets_(tgt.size())
+             sources_(src),family_(mu,nu,opt.coreWidth,opt.screenWidth,opt.screened),options_(opt),originalTargets_(tgt.size())
         {
             if(!tree_) {
       throw std::invalid_argument("Missing stress tree");
     }
     targetSnapshot_=tgt;
+            nearNeighborhood_=std::make_unique<ShiftedBoxNeighbors>(*tree_,options_.localImageShifts);
             if(opt.segmentShortRange){
                 if(!opt.boxShortRange||(opt.screened&&(!opt.interpolateScreenedNear||(opt.coreType==CoreType::Cai)))) {
         throw std::invalid_argument("Segment short stress requires box-local screened Helmholtz FMM");
       }
-      const Eigen::Vector3d leafWidth=(tree_->upper()-tree_->lower())/(1<<tree_->depth());
       SegmentCoreParameters parameters;
       parameters.coreWidth=opt.coreWidth;parameters.ewaldWidth=opt.screenWidth;
       parameters.mu=mu;parameters.nu=nu;parameters.order=opt.segmentChebyshevOrder;
-      parameters.resolution=opt.segmentTableResolution;parameters.maxDistance=2*leafWidth.norm();
+      parameters.resolution=opt.segmentTableResolution;parameters.maxDistance=2*tree_->cellDiameter(tree_->depth());
       segmentKernel_=makeStraightDislocationSegmentCore(opt.coreType,opt.screened,parameters);
                 if(!options_.segmentSplits)
                 {
@@ -166,10 +176,10 @@ namespace model
             if(options_.segmentShortRange){
                 // Mark occupied leaves only; source coefficients are integrated below.
                 sources_=DislocationSourceArrays<3>();
-                const int n=1<<tree_->depth();const auto w=(tree_->upper()-tree_->lower())/n;
                 for(std::size_t b=0;b<segmentBins_.size();++b) {
         if(!segmentBins_[b].empty()){
-                    std::array<double,3> x{};for(int c=0;c<3;++c){const int cell=c==0?b%n:c==1?(b/n)%n:b/(n*n);x[c]=tree_->lower()[c]+(cell+.5)*w[c];}
+                    const auto point=tree_->cellCenter(tree_->depth(),b);
+                    std::array<double,3> x{point[0],point[1],point[2]};
                     sources_.positions.append(x);sources_.weightedBurgersTensors.append(std::array<double,9>{});
                 }
       }
@@ -178,11 +188,11 @@ namespace model
             const auto& effective=sources_;
             auto targets=tgt.positions.values;
             // Occupy every leaf so cached locals support arbitrary FEM and DD targets.
-            const int n=1<<tree_->depth();const Eigen::Vector3d width=(tree_->upper()-tree_->lower())/n;
+            const int n=1<<tree_->depth();const Eigen::Vector3d width=Eigen::Vector3d::Constant(1.0/n);
             for(int z=0;z<n;++z) {
       for(int y=0;y<n;++y) {
         for(int x=0;x<n;++x)
-            {const Eigen::Vector3d point=tree_->lower()+width.cwiseProduct(Eigen::Vector3d(x+.5,y+.5,z+.5));for(int c=0;c<3;++c) {
+            {const Eigen::Vector3d point=tree_->cellCenter(tree_->depth(),x+n*(y+n*z));for(int c=0;c<3;++c) {
             targets[c].push_back(point[c]);
           }
         }
@@ -211,12 +221,12 @@ namespace model
                 const int p=opt.interpolationOrder,P=p*p*p;
                 View coefficients("segment integrated stress moments",segmentBins_.size()*P,9);
                 auto h=Kokkos::create_mirror(coefficients);Kokkos::deep_copy(h,0.0);
-                const SegmentMomentIntegrator helper(p);
+                const SegmentMomentIntegrator helper(p,tree_->inverseBasis());
 #ifdef _OPENMP
                 #pragma omp parallel for
                 #endif
                 for(std::size_t b=0;b<segmentBins_.size();++b){
-                    const Eigen::Vector3d center=tree_->lower()+width.cwiseProduct(Eigen::Vector3d(b%n+.5,(b/n)%n+.5,b/(n*n)+.5));
+                    const Eigen::Vector3d center=tree_->cellCenter(tree_->depth(),b);
                     for(const auto& piece:segmentBins_[b]){
                         const auto values=segmentKernel_->stressMoments(helper,piece,center,width);
                         for(int j=0;j<P;++j)
@@ -271,10 +281,11 @@ namespace model
     }
     double sum[6]={};const auto longKernel=family_.longKernel();const auto shortKernel=family_.shortKernel();
             const int n=1<<tree_->depth(),p=options_.interpolationOrder,P=p*p*p;
-            const Eigen::Vector3d lo=tree_->lower(),width=(tree_->upper()-lo)/n;
+            const Eigen::Vector3d lo=Eigen::Vector3d::Zero(),width=Eigen::Vector3d::Constant(1.0/n);
+            const Eigen::Vector3d fractional=tree_->fractional(x);
             // FEM face quadrature can round just outside an exact mesh bound.
-            const double boundTolerance=64*std::numeric_limits<double>::epsilon()*std::max({1.,lo.cwiseAbs().maxCoeff(),tree_->upper().cwiseAbs().maxCoeff()});
-            const bool inside=(x.array()>=lo.array()-boundTolerance).all()&&(x.array()<=tree_->upper().array()+boundTolerance).all();
+            const double boundTolerance=boxBoundaryTolerance(tree_->lower(),tree_->upper());
+            const bool inside=tree_->contains(x,boundTolerance);
             if(!inside && options_.screened && options_.boxShortRange) {
       throw std::out_of_range("Ewald stress target lies outside the prepared box tree; rebuild with bounds containing the target");
     }
@@ -284,8 +295,8 @@ namespace model
                 double w[3][6]={};
                 for(int c=0;c<3;++c)
                 {
-                    cell[c]=std::clamp(int((x[c]-lo[c])/width[c]),0,n-1);
-                    const double q=2*(x[c]-(lo[c]+(cell[c]+.5)*width[c]))/width[c];
+                    cell[c]=std::clamp(int(fractional[c]/width[c]),0,n-1);
+                    const double q=2*(fractional[c]-(cell[c]+.5)*width[c])/width[c];
                     for(int j=0;j<p;++j)
                     {
                         const double node=std::cos(3.14159265358979323846*j/(p-1));w[c][j]=1;
@@ -302,25 +313,25 @@ namespace model
             }
             const auto& points=index_.sources();
             const bool stencil=inside && (!options_.screened || options_.boxShortRange);
-            const int x0=stencil?std::max(0,cell[0]-1):0,x1=stencil?std::min(n,cell[0]+2):n;
-            const int y0=stencil?std::max(0,cell[1]-1):0,y1=stencil?std::min(n,cell[1]+2):n;
-            const int z0=stencil?std::max(0,cell[2]-1):0,z1=stencil?std::min(n,cell[2]+2):n;
-            for(int z=z0;z<z1;++z) {
-      for(int y=y0;y<y1;++y) {
-        for(int bx=x0;bx<x1;++bx)
+            const std::size_t targetLeaf=cell[0]+n*(cell[1]+n*cell[2]);
+            const auto& nearEntries=nearNeighborhood_->rows[targetLeaf];
+            const std::size_t leafCount=std::size_t(n)*n*n;
+            const std::size_t candidateCount=stencil?nearEntries.size():leafCount*options_.localImageShifts.size();
+            for(std::size_t candidate=0;candidate<candidateCount;++candidate)
             {
-                const std::size_t leaf=bx+n*(y+n*z);
-                const bool near=!inside||(!(options_.screened && options_.interpolateScreenedNear) &&
-                    std::abs(bx-cell[0])<=1&&std::abs(y-cell[1])<=1&&std::abs(z-cell[2])<=1);
-                const Eigen::Vector3d lower=lo+width.cwiseProduct(Eigen::Vector3d(bx,y,z)),upper=lower+width;
-                double dist2=0;for(int c=0;c<3;++c){const double d=std::max({lower[c]-x[c],0.,x[c]-upper[c]});dist2+=d*d;}
-                const bool adjacent=std::abs(bx-cell[0])<=1&&std::abs(y-cell[1])<=1&&std::abs(z-cell[2])<=1;
+                const auto leaf=stencil?nearEntries[candidate].source:candidate%leafCount;
+                const auto image=stencil?nearEntries[candidate].image:candidate/leafCount;
+                const Eigen::Vector3d shiftedTarget=x-options_.localImageShifts[image];
+                const bool adjacent=inside&&!tree_->admissible(tree_->cellCenter(tree_->depth(),targetLeaf)-tree_->cellCenter(tree_->depth(),leaf)-options_.localImageShifts[image],tree_->depth());
+                const bool near=!inside||(!(options_.screened && options_.interpolateScreenedNear)&&adjacent);
+                const double distance=std::max(0.0,(shiftedTarget-tree_->cellCenter(tree_->depth(),leaf)).norm()-.5*tree_->cellDiameter(tree_->depth()));
+                const double dist2=distance*distance;
                 const bool local=options_.screened && (options_.boxShortRange?adjacent:dist2<=options_.shortCutoff*options_.shortCutoff);
                 if(!near&&!local) {
             continue;
           }
           if(options_.segmentShortRange && (local||near)){Eigen::Matrix3d value=Eigen::Matrix3d::Zero();for(const auto& piece:segmentBins_[leaf]) {
-              value+=segmentKernel_->nearStress(x,piece);
+              value+=segmentKernel_->stressNear(shiftedTarget,piece);
             }
             int c=0;for(int i=0;i<3;++i) {
               for(int j=i;j<3;++j) {
@@ -335,7 +346,7 @@ namespace model
                 {
                     const auto s=points.permutation[k];double r[3],q[9];
                     for(int c=0;c<3;++c) {
-              r[c]=x[c]-sources_.positions.values[c][s];
+              r[c]=shiftedTarget[c]-sources_.positions.values[c][s];
             }
             for(int c=0;c<9;++c) {
               q[c]=sources_.weightedBurgersTensors.values[c][s];
@@ -351,8 +362,6 @@ namespace model
             }
           }
             }
-      }
-    }
     Eigen::Matrix3d result;int c=0;for(int i=0;i<3;++i) {
       for(int j=i;j<3;++j) {
         result(i,j)=result(j,i)=sum[c++];
@@ -392,7 +401,7 @@ namespace model
         std::uint64_t revision;
         std::size_t nodes,species,targets;
         bool longOnly;
-        View velocity;
+
         struct SparseMap
         {
             Indices offsets,columns;
@@ -434,7 +443,8 @@ namespace model
             std::vector<std::size_t> rows;
             std::shared_ptr<KokkosFMMInteraction<HelmholtzDiffusionFamily>> interaction;
             Indices ids;
-            View weights,strengths,output,moments;
+            View weights,strengths,output,moments,velocity;
+            std::vector<std::size_t> nodeIDs;
             SparseMap momentMap,localMap;
             bool segmentBased=false,addLocal=false;
         };
@@ -442,7 +452,7 @@ namespace model
         Impl(std::shared_ptr<FMMManager> manager,std::shared_ptr<const BoxTree<3>> t,
              std::size_t n,std::size_t ns,const std::vector<ClimbKernelChannel>& sources,
              const std::vector<ConcentrationTarget>& points,const ScreenedDislocationOptions& supplied,bool filter,bool onlyLong)
-            :registrations(std::move(manager)),tree(std::move(t)),revision(tree?tree->revision():0),nodes(n),species(ns),targets(points.size()),longOnly(onlyLong),velocity("concentration velocities",n,1)
+            :registrations(std::move(manager)),tree(std::move(t)),revision(tree?tree->revision():0),nodes(n),species(ns),targets(points.size()),longOnly(onlyLong)
         {
             if(!tree)
             {
@@ -458,7 +468,7 @@ namespace model
     }
     for(std::size_t ci=0;ci<sources.size();++ci)
             {
-                const auto& source=sources[ci];
+                auto source=sources[ci];
                 if(source.species>=species) {
         throw std::invalid_argument("Invalid concentration species");
       }
@@ -479,6 +489,23 @@ namespace model
                 if(ch.rows.empty()||(source.sources.empty()&&source.segments.empty())) {
         continue;
       }
+                std::set<std::size_t> nodeIDs;
+                for(const auto& entry:source.sources) { nodeIDs.insert(entry.nodes.begin(),entry.nodes.end()); }
+                for(const auto& entry:source.segments) { nodeIDs.insert(entry.nodes.begin(),entry.nodes.end()); }
+                ch.nodeIDs.assign(nodeIDs.begin(),nodeIDs.end());
+                std::map<std::size_t,std::size_t> localIDs;
+                for(std::size_t i=0;i<ch.nodeIDs.size();++i)
+                {
+                    if(ch.nodeIDs[i]>=nodes) { throw std::invalid_argument("Invalid concentration source node"); }
+                    localIDs.emplace(ch.nodeIDs[i],i);
+                }
+                const auto remap=[&](auto& entry)
+                {
+                    for(auto& node:entry.nodes) { node=localIDs.at(node); }
+                };
+                for(auto& entry:source.sources) { remap(entry); }
+                for(auto& entry:source.segments) { remap(entry); }
+                ch.velocity=View("grain concentration velocities",ch.nodeIDs.size(),1);
                 ch.segmentBased=!source.segments.empty();
                 ch.addLocal=!onlyLong||!options.screened;
                 std::unique_ptr<SegmentConcentrationPlan> segmentPlan;
@@ -487,10 +514,13 @@ namespace model
                 opt.buildShortNeighbors=!onlyLong;
                 if(ch.segmentBased)
                 {
-                    segmentPlan=std::make_unique<SegmentConcentrationPlan>(*tree,source,nodes,targetPositions,options,ch.addLocal);
+                    segmentPlan=std::make_unique<SegmentConcentrationPlan>(*tree,source,ch.nodeIDs.size(),targetPositions,options,ch.addLocal);
                     src=segmentPlan->markers;
-                    std::cout<<"  FMM concentration: "<<source.segments.size()<<" source segments, "
+                    if(profilingEnabled())
+        {
+            std::cout<<"  FMM concentration: "<<source.segments.size()<<" source segments, "
                              <<src[0].size()<<" occupied leaves, segment-integrated source coefficients"<<std::endl;
+        }
                     opt.buildShortNeighbors=false;
                     opt.externalNear=!options.screened;
                     ch.momentMap.upload(ex,segmentPlan->moments);
@@ -502,10 +532,10 @@ namespace model
                 }
                 else
                 {
-                    src=positions(source.sources,nodes);
+                    src=positions(source.sources,ch.nodeIDs.size());
                     uploadMap(ex,source.sources,ch.ids,ch.weights);
                 }
-                HelmholtzDiffusionFamily family(source.diffusion,options.coreWidth,options.screenWidth,options.coreType);
+                HelmholtzDiffusionFamily family(source.diffusion,options.coreWidth,options.screenWidth,options.coreType,options.screened);
                 auto handle=registrations.addKernel("concentration/"+std::to_string(ci),family);
                 ch.interaction=registrations.addInteraction<KokkosFMMInteraction<HelmholtzDiffusionFamily>>("concentration/interaction/"+std::to_string(ci),handle,ex,tree,src,targetPositions,opt);
                 ch.strengths=View("concentration strengths",src[0].size(),1);
@@ -515,46 +545,94 @@ namespace model
         }
         Eigen::VectorXd evaluate(std::size_t speciesID,const Eigen::VectorXd& v)
         {
+            // Opt-in because fences perturb asynchronous device execution.
+            const bool profile=longOnly && profilingEnabled();
+            using Clock=std::chrono::steady_clock;
+            auto stamp=Clock::now();
+            const auto start=stamp;
+            std::array<double,5> times{}; // upload, source map, long plan, local map, download
+            std::array<double,4> planTimes{};
+            std::array<double,3> translationTimes{};
+            const auto checkpoint=[&](std::size_t bucket)
+            {
+                if(profile)
+                {
+                    ex.fence();
+                    const auto now=Clock::now();
+                    times[bucket]+=std::chrono::duration<double>(now-stamp).count();
+                    stamp=now;
+                }
+            };
             if(speciesID>=species||v.size()!=Eigen::Index(nodes)||!v.allFinite()) {
       throw std::invalid_argument("Invalid concentration velocities");
     }
     if(tree->revision()!=revision) {
       throw std::logic_error("Stale concentration geometry");
     }
-    auto host=Kokkos::create_mirror(velocity);for(std::size_t i=0;i<nodes;++i) {
-      host(i,0)=v(i);
-    }
-    Kokkos::deep_copy(ex,velocity,host);
             Eigen::VectorXd result=Eigen::VectorXd::Zero(targets);
             for(auto& ch:channels) {
       if(ch.species==speciesID)
             {
+                auto host=Kokkos::create_mirror(ch.velocity);
+                for(std::size_t i=0;i<ch.nodeIDs.size();++i) { host(i,0)=v(ch.nodeIDs[i]); }
+                Kokkos::deep_copy(ex,ch.velocity,host);
+                checkpoint(0);
+                ch.interaction->setProfiling(profile);
                 if(ch.segmentBased)
                 {
-                    ch.momentMap.apply(ex,velocity,ch.moments);
+                    ch.momentMap.apply(ex,ch.velocity,ch.moments);
                     ch.interaction->setIntegratedLeafMoments(ch.moments);
+                    checkpoint(1);
                     ch.interaction->evaluateLong(ch.strengths,ch.output);
+                    checkpoint(2);
                     if(ch.addLocal)
                     {
-                        ch.localMap.apply(ex,velocity,ch.output,true);
+                        ch.localMap.apply(ex,ch.velocity,ch.output,true);
                     }
                 }
                 else
                 {
-                const auto ids=ch.ids;const auto weights=ch.weights,q=ch.strengths,vv=velocity;
+                const auto ids=ch.ids;const auto weights=ch.weights,q=ch.strengths,vv=ch.velocity;
                 Kokkos::parallel_for("concentration source map",Kokkos::RangePolicy<Ex,Kokkos::IndexType<std::size_t>>(ex,0,q.extent(0)),KOKKOS_LAMBDA(const std::size_t i)
                 {q(i,0)=weights(i,0)*vv(ids(i,0),0)+weights(i,1)*vv(ids(i,1),0);});
+                checkpoint(1);
                 if(longOnly) {
           ch.interaction->evaluateLong(q,ch.output);
         } else {
           ch.interaction->evaluate(q,ch.output);
         }
+                checkpoint(2);
+                }
+                checkpoint(3);
+                if(profile)
+                {
+                    for(std::size_t j=0;j<planTimes.size();++j)
+                    {
+                        planTimes[j]+=0.001*ch.interaction->lastTimings()[j];
+                    }
+                    for(std::size_t j=0;j<translationTimes.size();++j)
+                    {
+                        translationTimes[j]+=0.001*ch.interaction->translationTimings()[j];
+                    }
                 }
         auto values=Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(),ch.output);
                 for(std::size_t i=0;i<ch.rows.size();++i) {
           result(ch.rows[i])+=values(i,0);
         }
+                checkpoint(4);
       }
+    }
+    if(profile)
+    {
+        std::ostringstream message;
+        message<<std::scientific<<std::setprecision(9)
+               <<"\n  FMM operator detail: upload="<<times[0]<<", source_map="<<times[1]
+               <<", plan="<<times[2]<<", local_map="<<times[3]<<", download="<<times[4]
+               <<", cache="<<planTimes[0]<<", upward="<<planTimes[1]
+               <<", m2l="<<translationTimes[0]<<", l2l="<<translationTimes[1]
+               <<", near_m2l="<<translationTimes[2]<<", target="<<planTimes[3]
+               <<", total="<<std::chrono::duration<double>(Clock::now()-start).count();
+        std::cout<<message.str();
     }
     return result;
         }
@@ -571,6 +649,7 @@ namespace model
         std::vector<Eigen::VectorXd> rhs;
         std::unique_ptr<DislocationConcentrationEvaluator> evaluator;
         std::vector<ClimbQuadratureMap> targetMaps;
+        std::vector<std::vector<std::pair<std::size_t,double>>> targetRows;
         Impl(std::shared_ptr<FMMManager> m,std::shared_ptr<const BoxTree<3>> t,
              const ClimbAssemblySnapshot& snapshot,const ScreenedDislocationOptions& supplied)
             :registrations(std::move(m)),tree(std::move(t)),revision(tree?tree->revision():0),nodes(snapshot.nodeCount),species(snapshot.speciesCount),screened(supplied.screened),rhs(snapshot.rhs),targetMaps(snapshot.targets)
@@ -594,9 +673,19 @@ namespace model
       }
     }
     const auto targets=positions(snapshot.targets,nodes);
+            targetRows.resize(nodes);
+            for(std::size_t i=0;i<targetMaps.size();++i)
+            {
+                for(int k=0;k<2;++k)
+                {
+                    targetRows.at(targetMaps[i].nodes[k]).emplace_back(i,targetMaps[i].weights[k]);
+                }
+            }
             std::vector<ConcentrationTarget> fieldPoints;
-            for(const auto& point:snapshot.targets){ConcentrationTarget target;target.position=point.position;fieldPoints.push_back(target);}
-            evaluator=std::make_unique<DislocationConcentrationEvaluator>(registrations.manager,tree,nodes,species,snapshot.channels,fieldPoints,opt,false,true);
+            for(const auto& point:snapshot.targets){ConcentrationTarget target;target.position=point.position;target.grains={point.grain};fieldPoints.push_back(target);}
+            SolverStageTimer setupStage("Climb setup: FMM plans",true);
+            evaluator=std::make_unique<DislocationConcentrationEvaluator>(registrations.manager,tree,nodes,species,snapshot.channels,fieldPoints,opt,true,true);
+            setupStage.start("Climb setup: local matrix construction");
             std::vector<std::vector<Eigen::Triplet<double>>> entries(species);
             for(std::size_t ci=0;ci<snapshot.channels.size();++ci)
             {
@@ -606,28 +695,40 @@ namespace model
       }
                 if(!input.segments.empty())
                 {
-                    SegmentConcentrationPlan plan(*tree,input,nodes,targets,opt,true,false);
-                    auto& triplets=entries[input.species];
-                    for(std::size_t ti=0;ti<snapshot.targets.size();++ti)
+                    Positions grainTargets;
+                    std::vector<std::size_t> grainRows;
+                    for(std::size_t i=0;i<snapshot.targets.size();++i)
                     {
-                        const auto& target=snapshot.targets[ti];
+                        if(snapshot.targets[i].grain==input.grain)
+                        {
+                            grainRows.push_back(i);
+                            for(int c=0;c<3;++c) { grainTargets[c].push_back(snapshot.targets[i].position[c]); }
+                        }
+                    }
+                    SegmentConcentrationPlan plan(*tree,input,nodes,grainTargets,opt,true,false);
+                    auto& triplets=entries[input.species];
+                    std::vector<std::vector<Eigen::Triplet<double>>> rows(grainRows.size());
+                    independentParallelFor(rows.size(),[&](std::size_t ti)
+                    {
+                        const auto& target=snapshot.targets[grainRows[ti]];
                         for(Eigen::SparseMatrix<double,Eigen::RowMajor>::InnerIterator it(plan.local,ti);it;++it)
                         {
                             for(int k=0;k<2;++k)
                             {
-                                triplets.emplace_back(target.nodes[k],it.col(),target.weights[k]*it.value());
+                                rows[ti].emplace_back(target.nodes[k],it.col(),target.weights[k]*it.value());
                             }
                         }
-                    }
+                    });
+                    appendOrderedRows(triplets,rows);
                     continue;
                 }
       const auto sources=positions(input.sources,nodes);
-                HelmholtzDiffusionFamily family(input.diffusion,opt.coreWidth,opt.screenWidth,opt.coreType);
+                HelmholtzDiffusionFamily family(input.diffusion,opt.coreWidth,opt.screenWidth,opt.coreType,opt.screened);
                 // Assemble only geometrically local point pairs, scatter four endpoint terms.
                 std::unique_ptr<ShortRangeParticleNeighbors> neighbors;
                 std::unique_ptr<LeafBoxNeighbors> boxNeighbors;
-                if(opt.screened && opt.boxShortRange) {
-        boxNeighbors=std::make_unique<LeafBoxNeighbors>(*tree,sources,targets);
+                if((opt.screened && opt.boxShortRange)||opt.localImageShifts.size()!=1||!opt.localImageShifts.front().isZero()) {
+        boxNeighbors=std::make_unique<LeafBoxNeighbors>(*tree,sources,targets,opt.localImageShifts);
       } else {
         neighbors=std::make_unique<ShortRangeParticleNeighbors>(sources,targets,family.searchRadius(opt.shortCutoff));
       }
@@ -635,11 +736,12 @@ namespace model
                 for(std::size_t ti=0;ti<snapshot.targets.size();++ti)
                 {
                     const auto& target=snapshot.targets[ti];
-                    const auto accumulate=[&](std::size_t sourceID)
+                    if(target.grain!=input.grain) { continue; }
+                    const auto accumulate=[&](std::size_t sourceID,std::size_t image)
                     {
                         const auto& source=input.sources[sourceID];
                         double r[3];for(int c=0;c<3;++c) {
-            r[c]=target.position[c]-source.position[c];
+            r[c]=target.position[c]-source.position[c]-opt.localImageShifts[image][c];
           }
           if(!boxNeighbors && kernel.distance(r)>opt.shortCutoff) {
             return;
@@ -656,10 +758,10 @@ namespace model
           }
         };
                     if(boxNeighbors) {
-          boxNeighbors->forEach(ti,accumulate);
+          boxNeighbors->forEachImage(ti,accumulate);
         } else {
           for(std::size_t j=neighbors->offsets[ti];j<neighbors->offsets[ti+1];++j) {
-            accumulate(neighbors->pairs[j].source);
+            accumulate(neighbors->pairs[j].source,0);
           }
         }
       }
@@ -680,11 +782,12 @@ namespace model
             check(s,v);
             const auto concentration=evaluator->evaluate(s,v);
             Eigen::VectorXd out=Eigen::VectorXd::Zero(nodes);
-            for(std::size_t i=0;i<targetMaps.size();++i) {
-      for(int j=0;j<2;++j) {
-        out(targetMaps[i].nodes[j])+=targetMaps[i].weights[j]*concentration(i);
-      }
-    }
+            independentParallelFor(nodes,[&](std::size_t node)
+            {
+                double value=0.0;
+                for(const auto& term:targetRows[node]) { value+=term.second*concentration(term.first); }
+                out(node)=value;
+            });
     return out;
         }
     };

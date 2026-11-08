@@ -186,7 +186,7 @@ namespace model
         return factor*Eigen::Vector2d((1-begin)*v[0]+(1-end)*v[1],begin*v[0]+end*v[1]);
     }
 
-    class CaiSegmentConcentration final : public SegmentConcentrationKernelBase
+    class CaiSegmentConcentration final : public UnsplitSegmentConcentrationKernel
     {
         Eigen::Matrix3d diffusion_;
         Eigen::Matrix<long double,3,3> inverse_;
@@ -230,9 +230,8 @@ namespace model
             return caiSegmentStress<double>(s.p0,s.p1,x,s.b,t,bc,parameters_.coreWidth*parameters_.coreWidth,
                 1-parameters_.nu,parameters_.mu/(4*std::numbers::pi*(1-parameters_.nu)));
         }
-        Eigen::Matrix3d nearStress(const Eigen::Vector3d& x,const Segment& s) const override { return stress(x,s); }
-        Eigen::Matrix3d shortStress(const Eigen::Vector3d&,const Segment&) const override { throw std::logic_error("Cai Ewald split is not implemented"); }
-        Eigen::Matrix3d longStress(const Eigen::Vector3d&,const Segment&) const override { throw std::logic_error("Cai Ewald split is not implemented"); }
+        Eigen::Matrix3d stressNear(const Eigen::Vector3d& x,const Segment& s) const override { return stress(x,s); }
+        Eigen::Matrix3d stressFar(const Eigen::Vector3d& x,const Segment& s) const override { return stress(x,s); }
         Eigen::Vector3d displacement(const Eigen::Vector3d& x,const Segment& s) const override
         {
             const Eigen::Vector3d t=(s.p1-s.p0).normalized(),bc=s.b.cross(t);
@@ -244,12 +243,12 @@ namespace model
             return caiSegmentInteractionEnergy<double>(s.p0,s.p1,x,t,s.b,tA,bA,parameters_.coreWidth*parameters_.coreWidth,
                 1-parameters_.nu,parameters_.nu,parameters_.mu/(4*std::numbers::pi*(1-parameters_.nu)));
         }
-        ConcentrationPtr concentration(const Eigen::Matrix3d& D,bool=false,SegmentKernelPart part=SegmentKernelPart::full) const override
+        Eigen::Vector3d displacementNear(const Eigen::Vector3d& x,const Segment& s) const override { return displacement(x,s); }
+        Eigen::Vector3d displacementFar(const Eigen::Vector3d& x,const Segment& s) const override { return displacement(x,s); }
+        double elasticInteractionEnergyNear(const Eigen::Vector3d& x,const Eigen::Vector3d& t,const Eigen::Vector3d& b,const Segment& s) const override { return elasticInteractionEnergy(x,t,b,s); }
+        double elasticInteractionEnergyFar(const Eigen::Vector3d& x,const Eigen::Vector3d& t,const Eigen::Vector3d& b,const Segment& s) const override { return elasticInteractionEnergy(x,t,b,s); }
+        ConcentrationPtr concentration(const Eigen::Matrix3d& D,bool=false) const override
         {
-            if(part!=SegmentKernelPart::full)
-            {
-                throw std::logic_error("Cai Ewald split is not implemented");
-            }
             return std::make_shared<CaiSegmentConcentration>(D,parameters_.coreWidth);
         }
         SegmentMomentIntegrator::StressMoments stressMoments(const SegmentMomentIntegrator& helper,const Segment& segment,const Eigen::Vector3d& center,const Eigen::Vector3d& width) const override

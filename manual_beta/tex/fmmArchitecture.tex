@@ -1,0 +1,231 @@
+\chapter{Fast multipole field evaluation}\label{chap:fmm}
+
+\section{Purpose and scope}
+The fast multipole method (FMM) accelerates the application of a nonlocal field
+operator without assembling its dense interaction matrix. For source strengths
+$\bm q_s$ and target positions $\bm x_t$, the basic operation is
+\begin{equation}
+ \bm u_t=\sum_s \mathsf K(\bm x_t-\bm y_s)\bm q_s.
+ \label{eq:fmmDiscreteOperator}
+\end{equation}
+The kernel $\mathsf K$ may be scalar or tensor valued. Dislocation stress and
+mobile-species concentration use different kernels and source strengths, but
+share the geometry, hierarchy and translation machinery. In a climb solve,
+each GMRES iteration changes the strengths; it does not require reconstruction
+of the geometry or an explicit dense Green's-function matrix.
+
+The implementation uses tensor-product interpolation coefficients as its
+multipole representation. These coefficients encode the effect of all sources
+in a box on an interpolation basis. They play the role of moments, but are not
+a spherical-harmonic or Cartesian Taylor expansion of a particular kernel.
+This makes it possible to register different kernel families with the same
+FMM framework.
+\sourcefile{include/FMM/FMMManager.h}
+\sourcefile{include/FMM/KokkosParticleFMM.h}
+
+\section{A lattice-aligned box hierarchy}
+Write a physical point as
+\begin{equation}
+ \bm x=\bm x_0+\mathsf H\bm\xi,\qquad
+ \mathsf H=[\bm a_1\ \bm a_2\ \bm a_3],\qquad
+ \bm\xi\in[0,1]^3.
+ \label{eq:fmmAffineCell}
+\end{equation}
+The columns of $\mathsf H$ are the physical root-cell edges. The hierarchy is
+axis aligned in fractional coordinates $\bm\xi$; its physical cells may be
+skewed parallelepipeds. At level $d$, each coordinate interval has been divided
+into $2^d$ intervals, giving $8^d$ boxes with edge vectors
+$2^{-d}\bm a_i$. Every parent has eight children. The current hierarchy is
+uniform, rather than adaptively refined by particle occupancy.
+
+\code{fmmTreeDepth} selects the leaf level. Increasing it reduces the number
+of sources per leaf and the direct work per target, while increasing the number
+of boxes, interpolation coefficients and translations. Empty boxes need not
+contribute source work, but the uniform hierarchy still has a memory cost.
+
+Without periodic directions, the root retains the Cartesian mesh bounds.
+With periodic directions, the corresponding cell edges follow the mesh's
+periodic lattice basis. For partial periodicity, an orthogonal complement
+supplies the remaining directions. Bounds in this basis are obtained from the
+shared grain polyhedron vertices, not from every finite-element mesh node.
+Each fractional coordinate is an affine function of physical position, so its
+extrema over a convex grain occur at vertices. Taking extrema over all grain
+vertices therefore encloses the entire polycrystal. Shared vertices are read
+once through the polyhedral vertex factory.
+
+This construction provides a covering cell aligned with the periodic lattice.
+It must not be confused with an automatic identification of opposite tree
+faces or with a periodic-image summation. In particular, the covering cell of
+a general partially periodic domain need not itself be a fundamental periodic
+cell.
+\sourcefile{include/FMM/BoxTree.h}
+\sourcefile{include/FMM/LatticeBoxTree.h}
+\sourcefile{src/DefectiveCrystal/DefectiveCrystalBase.cpp}
+
+\subsection{Source and target assignment}
+Source and field roles are distinct. A segment can contribute a field even
+when no velocity or force is required on that segment. Sources and targets
+are assigned to leaves using fractional coordinates, while kernel evaluation,
+Burgers vectors, stresses, diffusion tensors and physical line lengths remain
+in Cartesian coordinates. An affine coordinate map for the tree does not
+change the physical kernel.
+
+For segment-based evaluation, straight segments are split at leaf faces.
+A segment crossing several boxes contributes one piece to each intersected
+box. Splitting changes the integration bookkeeping, not the physical network.
+The shared split cache is rebuilt when segment geometry or the tree changes;
+stress, concentration and climb reuse the same pieces. Roundoff-equivalent
+crossings at a box edge or vertex are merged to avoid spurious tiny pieces.
+
+Source coefficients are integrated along each piece. The interpolation basis
+restricted to a straight line is polynomial, so suitable Gaussian rules
+integrate these coefficients exactly up to floating-point error. This does
+not assert that Gaussian quadrature integrates the physical near-field kernel
+exactly. Near interactions use the corresponding segment kernel, including
+endpoint/table formulas where available.
+\sourcefile{include/DislocationDynamics/SegmentSplitCache.h}
+\sourcefile{include/DislocationDynamics/StraightDislocationSegmentMoments.h}
+
+\section{Near interactions and physical admissibility}
+Index-space proximity is insufficient for a skewed cell: two boxes separated
+by several indices can still be close in physical space. The implementation
+uses a conservative enclosing-sphere criterion. For congruent level-$d$ boxes,
+let
+\begin{equation}
+ D_d=2^{-d}\max_{\bm\epsilon\in\{-1,1\}^3}
+          \|\mathsf H\bm\epsilon\|.
+\end{equation}
+This is the maximum physical diagonal and twice the enclosing-sphere radius.
+Boxes with centers $\bm c_t,\bm c_s$ are accepted for far translation when
+\begin{equation}
+ \|\bm c_t-\bm c_s\|>1.01D_d.
+ \label{eq:fmmAdmissibility}
+\end{equation}
+Otherwise the traversal descends to their children. At the leaf level the
+unaccepted pairs form the near list. The same criterion determines the direct
+segment neighborhood, avoiding gaps or overlap between near and far work.
+
+For cubic cells this gives the familiar self box and 26 neighbors. Skewed or
+elongated cells can require more neighbors. A strongly distorted lattice is
+therefore supported conservatively but may increase direct work considerably.
+The geometric acceptance test is not itself a prescribed field-error
+ tolerance; interpolation order and kernel smoothness still determine accuracy.
+\sourcefile{include/FMM/LeafBoxNeighbors.h}
+
+\section{How the hierarchy evaluates the far field}
+For interpolation order $p$, each box has $p^3$ interpolation nodes. The
+calculation consists of the following passes:
+\begin{enumerate}
+ \item \textbf{Source-to-multipole (P2M).} Construct leaf coefficients from
+ particles or integrate them directly over segment pieces.
+ \item \textbf{Multipole-to-multipole (M2M).} Transfer child coefficients to
+ parents. A parent represents all sources in its descendants.
+ \item \textbf{Multipole-to-local (M2L).} Translate accepted source-box
+ coefficients to a target-box local field. A dual-tree traversal accepts a
+ pair once or subdivides it; distant groups are handled at coarse levels.
+ \item \textbf{Local-to-local (L2L).} Propagate accumulated local fields from
+ parents to children.
+ \item \textbf{Local-to-target (L2P).} Interpolate the leaf local field at
+ each target and add the required near contribution.
+\end{enumerate}
+Thus distant particles do not interact individually with every target.
+Their aggregate coefficients are reused across many targets and across the
+hierarchy. The source representation is independent of the current target
+values; in a linear solve only strengths and the resulting coefficients need
+updating while geometry is fixed.
+
+For a translation-invariant kernel, boxes at the same level with the same
+relative lattice offset share an M2L operator. Cached matrices depend on the
+cell geometry, interpolation order and kernel parameters, not on individual
+particle locations. Grouping multiple source-box coefficient vectors forms
+matrix--matrix products. The current CPU path uses Eigen for these grouped
+products; the surrounding FMM passes use Kokkos. A grouped GPU implementation
+is deferred. Cache budgets can limit which translation matrices are retained.
+
+\section{Unsplit and split kernel families}
+\subsection{Ordinary FMM}
+With \code{multipoleMode=FMM}, the full core-regularized kernel is used in both
+near and far interactions:
+\begin{equation}
+ \bm u_t\simeq
+ \sum_{s\in\mathcal N_t}\mathsf K(\bm x_t-\bm y_s)\bm q_s
+ +\operatorname{FMM}_{\mathcal F_t}[\mathsf K\bm q].
+\end{equation}
+Here $\mathcal N_t$ and $\mathcal F_t$ partition the source interactions.
+The chosen \code{coreType}, currently Cai or Helmholtz, specifies the physical
+regularization. Ordinary FMM does not introduce an additional screening length.
+With \code{multipoleMode=none}, the accelerated evaluation is bypassed and the
+selected core's direct segment evaluation is used instead.
+
+\subsection{Ewald-split FMM}
+With \code{multipoleMode=ewaldFMM}, the framework uses a decomposition
+\begin{equation}
+ \mathsf K=\mathsf K_{\mathrm{near}}+\mathsf K_{\mathrm{far}},
+ \qquad
+ \bm u_t\simeq
+ \sum_{s\in\mathcal N_t}\mathsf K_{\mathrm{near}}(\bm x_t-\bm y_s)\bm q_s
+ +\operatorname{FMM}_{\mathrm{all}}[\mathsf K_{\mathrm{far}}\bm q].
+ \label{eq:fmmSplit}
+\end{equation}
+The near kernel decays rapidly and is omitted outside the near-box stencil.
+The smoother far kernel contributes from \emph{all} source boxes, including
+the self box and near neighbors. Those additional smooth translations are
+essential: excluding them would omit part of the full interaction. Cached
+self/neighbor translations avoid evaluating the smooth kernel separately for
+every nearby source--target pair.
+
+The current Ewald path uses the Helmholtz core and screening formulation.
+The physical core length $\ell$ and numerical Ewald width $h$ have different
+roles. The former regularizes the physical field; the latter controls the
+split and should not alter the full field in an exact evaluation. The input
+\code{ewaldWidthFactor} determines $h$ from the minimum leaf face spacing:
+\begin{equation}
+ h=\texttt{ewaldWidthFactor}\;2^{-d}
+       \min_i\frac{1}{\|\text{row}_i(\mathsf H^{-1})\|}.
+\end{equation}
+A smaller width makes the short field more local but leaves a less smooth far
+field to interpolate. Larger widths improve smoothness while increasing the
+short tail omitted beyond the stencil. Short-field truncation and long-field
+interpolation are separate errors and must be measured separately. Ewald FMM
+optimization is currently deferred; ordinary FMM with the Cai core is the
+working default.
+
+\subsection{A common interface}
+Kernel families expose full, near and far evaluations and declare whether
+they are split. For an unsplit family, near and far dispatch to the full
+kernel. For a split family, they provide the separate contributions; the full
+kernel retains its direct expression rather than being evaluated by splitting
+and recombining it. Segment-specific stress and concentration formulas live
+in the corresponding Cai, Helmholtz and Helmholtz--Ewald classes, with
+polynomial moment integration in a shared helper. New physics should supply
+its kernel and source representation while reusing the hierarchy and plans.
+\sourcefile{include/DislocationDynamics/StraightDislocationSegmentBase.h}
+\sourcefile{include/DislocationDynamics/SegmentConcentrationPlan.h}
+
+\section{Periodicity: geometry versus image summation}
+For $r$ active periodic vectors collected in $\mathsf A$, the intended periodic
+field has the form
+\begin{equation}
+ \bm u(\bm x)=\sum_{\bm n\in\mathbb Z^r}\sum_s
+ \mathsf K(\bm x-\bm y_s-\mathsf A\bm n)\bm q_s,
+\end{equation}
+subject to the kernel's compatibility conditions and summation convention.
+For partial periodicity, translations occur only in the active directions;
+physical boundaries in the remaining directions are not wrapped.
+
+The lattice-aligned tree implements the geometry needed for this extension.
+It does \emph{not} yet implement the periodic-image field. Periodic FMM
+requests remain explicitly rejected rather than silently returning free-space
+results. The next layer must account for nearby translated boxes and the
+remaining image lattice, without double counting images or central-cell
+interactions. A finite image sum must be validated against the same finite
+image set in direct evaluation. It must not be presented as a converged
+infinite periodic sum without a convergence study. Infinite sums additionally
+require the appropriate neutrality/compatibility conditions and macroscopic
+or zero-mode convention for each kernel.
+
+This separation also matters for FEM coupling: periodic identification of
+mesh degrees of freedom, periodic continuation of the dislocation network,
+and periodic evaluation of its fields are distinct operations. Aligning the
+FMM tree solves their geometric coordination, not the field boundary-value
+problem by itself.

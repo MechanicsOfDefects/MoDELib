@@ -13,7 +13,7 @@ namespace model
     auto clusterBoundarySinks(const FE& fe)
     {
         std::map<size_t,std::vector<Eigen::Vector3d>> result;
-        std::set<size_t> visited;
+        std::set<std::pair<size_t,size_t>> visited;
         std::map<size_t,std::map<size_t,Eigen::Vector3d>> classFaces;
         using Element=typename FE::ElementType;
         for(const auto& region : fe.mesh.regions())
@@ -21,7 +21,7 @@ namespace model
             for(const auto& entry : region.second->faces())
             {
                 const auto& face=*entry.second;
-                if(!visited.insert(face.sID).second)
+                if(!visited.emplace(region.first,face.sID).second)
                 {
                     continue;
                 }
@@ -33,7 +33,14 @@ namespace model
                 std::set<size_t> nodes;
                 for(const auto* triangle : face.simplices())
                 {
-                    const auto& element=fe.elements().at(triangle->parents().begin()->first);
+                    const typename FE::ElementType* parent=nullptr;
+                    for(const auto& candidate:triangle->parents())
+                    {
+                        const auto& element=fe.elements().at(candidate.first);
+                        if(element.simplex.region->regionID==region.first) { parent=&element;break; }
+                    }
+                    if(!parent) { throw std::logic_error("Sink face has no element on its grain side"); }
+                    const auto& element=*parent;
                     const size_t opposite=element.simplex.childOrder(triangle->xID);
                     for(size_t n=0;n<Element::nodesPerElement;++n)
                     {
@@ -46,7 +53,7 @@ namespace model
                 for(const auto node : nodes)
                 {
                     const size_t faceID=partner?std::min(face.sID,partner->sID):face.sID;
-                    classFaces[fe.periodicRepresentative(node)].emplace(faceID,face.outNormal(face.regionIDs.first));
+                    classFaces[fe.periodicRepresentative(node)].emplace(faceID,face.outNormal(region.first));
                 }
             }
         }

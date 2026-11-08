@@ -1,3 +1,4 @@
+#include <Utilities/OutputFormatting.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -403,7 +404,7 @@ typename DefectiveCrystalConfigIO<dim>::DispMatrixType& DefectiveCrystalConfigIO
             std::cout<<"Writing "<<filename<<std::flush;
             writeTxtStream(file);
             file.close();
-            std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+            std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
         }
         else
         {
@@ -599,7 +600,7 @@ typename DefectiveCrystalConfigIO<dim>::DispMatrixType& DefectiveCrystalConfigIO
             }
             
             file.close();
-            std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+            std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
             
         }
         else
@@ -706,7 +707,7 @@ typename DefectiveCrystalConfigIO<dim>::DispMatrixType& DefectiveCrystalConfigIO
             
             infile.close();
             finalize();
-            std::cout<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<std::endl;
+            std::cout<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<std::endl;
 
             print();
         }
@@ -734,7 +735,7 @@ typename DefectiveCrystalConfigIO<dim>::DispMatrixType& DefectiveCrystalConfigIO
             std::cout<<"reading "<<filename<<std::flush;
             readTxtStream(infile);
             infile.close();
-            std::cout<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<std::endl;
+            std::cout<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<std::endl;
 
             print();
         }

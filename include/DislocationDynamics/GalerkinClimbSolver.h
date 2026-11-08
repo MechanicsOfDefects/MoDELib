@@ -20,6 +20,7 @@
 #include <vector>
 #include <DislocationDynamics/ScreenedDislocationAssembly.h>
 #include <CoupledClimbSolve.h>
+#include <DislocationDynamics/GrainClimbPartition.h>
 
 #include <DislocationDynamicsModule.h>
 #include <DislocationClimbSolverFactory.h>
@@ -46,10 +47,17 @@ namespace model
         typedef std::deque<Eigen::Triplet<double> > TripletContainerType;
         
         std::vector<Eigen::VectorXd> Fc;
-        std::vector<std::unique_ptr<CoupledClimbSolve>> coupledSolvers;
+        struct GrainSystem
+        {
+            GrainClimbPartition partition;
+            std::shared_ptr<ScreenedClimbAssembly> assembly;
+            std::vector<std::unique_ptr<CoupledClimbSolve>> solvers;
+        };
+        std::vector<GrainSystem> grainSystems;
         size_t cachedNodeCount=0;
-        std::shared_ptr<ScreenedClimbAssembly> screenedAssembly;
+        bool cachedFMM=false,systemsReady=false;
         void computeClimbScalarVelocitiesFMM(bool rebuild);
+        void computeGrainClimbVelocities(bool rebuild,bool useFMM);
 
         ForceVectorMatrixType clusterForceVector(const NetworkLinkType& networkLink) const;
         ForceVectorMatrixType clusterForceKernel(const int& k,const NetworkLinkType& networkLink) const;

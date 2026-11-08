@@ -1,3 +1,5 @@
+#include <Utilities/ParallelFor.h>
+#include <Utilities/Profiling.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -52,11 +54,11 @@ namespace model
         
         TextFileParser parser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/ElasticDeformation.txt");
         
-        const auto f0(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStress0",true));
-        const auto f0Dot(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStressRate",true));
-        const auto g0(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStrain0",true));
-        const auto g0Dot(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStrainRate",true));
-        const auto stiffnessRatio(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("stiffnessRatio",true));
+        const auto f0(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStress0",profilingEnabled()));
+        const auto f0Dot(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStressRate",profilingEnabled()));
+        const auto g0(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStrain0",profilingEnabled()));
+        const auto g0Dot(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStrainRate",profilingEnabled()));
+        const auto stiffnessRatio(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("stiffnessRatio",profilingEnabled()));
         const double t0(0.0);
         return std::unique_ptr<UniformControllerType>(new UniformControllerType(t0,C,stiffnessRatio,g0,g0Dot,f0,f0Dot));
     }
@@ -141,10 +143,20 @@ void ElasticDeformation<dim>::solveDisplacementRate()
     }
     else
     {
-        std::cout<<", zDot "<<std::flush;
+        if(profilingEnabled())
+        {
+            std::cout<<", zDot "<<std::flush;
+        }
         for(const auto& node : elasticDeformationFEM->z->fe().nodes())
         {
-            zDot.template segment<dim>(dim*node.gID)=this->microstructures.inelasticDisplacementRate(node.P0,&node,nullptr,nullptr);
+            // Project element-side rates onto the continuous displacement space.
+            // CD has separate GB traces, so a shared node is not a unique side.
+            VectorDim rate=VectorDim::Zero();
+            for(const auto* element:node)
+            {
+                rate+=this->microstructures.inelasticDisplacementRate(node.P0,nullptr,element,nullptr);
+            }
+            zDot.template segment<dim>(dim*node.gID)=rate/double(node.size());
         }
     }
 }
@@ -213,13 +225,15 @@ void ElasticDeformation<dim>::solveDisplacementRate()
                 int face;
                 std::array<VectorDim,Q::quadratureOrder> tractionWeights;
                 std::exception_ptr failure;
+                std::array<Eigen::Matrix<double,dim*ElementType::nodesPerElement,1>,Q::quadratureOrder> loads;
+                std::array<MatrixDim,Q::quadratureOrder> moments;
             };
             std::vector<SurfaceResult> surfaces;
             for(const auto& entry : base.fe->elements())
             {
                 for(const int face : entry.second.boundaryFaces())
                 {
-                    surfaces.push_back({&entry.second,face,{},{}});
+                    surfaces.push_back({&entry.second,face,{},{},{},{}});
                 }
             }
             // Geometry and physics stay fixed. Each worker owns one face buffer;
@@ -261,10 +275,25 @@ void ElasticDeformation<dim>::solveDisplacementRate()
                     std::rethrow_exception(result.failure);
                 }
             }
-            // Preserve the original face/quadrature summation order regardless
-            // of thread count, including contributions at shared FEM nodes.
-            for(const auto& result : surfaces)
+            std::vector<std::pair<const ElementType*,int>> faceKeys;
+            faceKeys.reserve(surfaces.size());
+            for(const auto& face:surfaces) { faceKeys.emplace_back(face.element,face.face); }
+            if(faceKeys!=tractionFaces || tractionNodeRows.size()!=std::size_t(source.size()/dim))
             {
+                std::vector<std::vector<std::pair<std::size_t,int>>> rows(source.size()/dim);
+                for(std::size_t i=0;i<surfaces.size();++i)
+                {
+                    for(int node=0;node<ElementType::nodesPerElement;++node)
+                    {
+                        rows.at(surfaces[i].element->node(node).gID).emplace_back(i,node);
+                    }
+                }
+                tractionNodeRows=std::move(rows);
+                tractionFaces=std::move(faceKeys);
+            }
+            independentParallelFor(surfaces.size(),[&](std::size_t i)
+            {
+                auto& result=surfaces[i];
                 const auto& e=*result.element;
                 for(size_t k=0;k<Q::quadratureOrder;++k)
                 {
@@ -272,13 +301,26 @@ void ElasticDeformation<dim>::solveDisplacementRate()
                     const auto bary=BarycentricTraits<dim>::face2domainBary(faceBary,result.face);
                     const VectorDim position=e.position(bary);
                     const auto& tractionWeight=result.tractionWeights[k];
-                    stressMoment.noalias()+=tractionWeight*position.transpose();
-                    const auto local=(-elasticDeformationFEM->u->sfm(e,bary).transpose()*tractionWeight).eval();
-                    for(int node=0;node<ElementType::nodesPerElement;++node)
+                    result.moments[k].noalias()=tractionWeight*position.transpose();
+                    result.loads[k]=(-elasticDeformationFEM->u->sfm(e,bary).transpose()*tractionWeight).eval();
+                }
+            });
+            independentParallelFor(tractionNodeRows.size(),[&](std::size_t node)
+            {
+                VectorDim value=VectorDim::Zero();
+                for(const auto& term:tractionNodeRows[node])
+                {
+                    for(size_t k=0;k<Q::quadratureOrder;++k)
                     {
-                        source.template segment<dim>(dim*e.node(node).gID)+=local.template segment<dim>(dim*node);
+                        value+=surfaces[term.first].loads[k].template segment<dim>(dim*term.second);
                     }
                 }
+                source.template segment<dim>(dim*node)=value;
+            });
+            // Nine short ordered reductions; all per-face tensor work is parallel.
+            for(const auto& result:surfaces)
+            {
+                for(size_t k=0;k<Q::quadratureOrder;++k) { stressMoment+=result.moments[k]; }
             }
             // An equilibrated internal source does no work on rigid motions.
             // Surface quadrature need not preserve this identity exactly. Remove
@@ -535,11 +577,11 @@ void ElasticDeformation<dim>::solveDisplacementRate()
 //    TextFileParser parser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/uniformExternalLoadControllerNew.txt");
 //
 //    SymmetricVoigtTraits<dim> svt(parser.readMatrix<size_t,SymmetricVoigtTraits<dim>::voigtSize,2>("voigtOrder",true));
-//    const auto f0(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStress0",true),false)));
-//    const auto f0Dot(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStressRate",true),false)));
-//    const auto g0(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStrain0",true),true)));
-//    const auto g0Dot(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStrainRate",true),true)));
-//    const auto stiffnessRatio(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("stiffnessRatio",true),false)));
+//    const auto f0(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStress0",profilingEnabled()),false)));
+//    const auto f0Dot(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStressRate",profilingEnabled()),false)));
+//    const auto g0(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStrain0",profilingEnabled()),true)));
+//    const auto g0Dot(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("ExternalStrainRate",profilingEnabled()),true)));
+//    const auto stiffnessRatio(vt.m2v(svt.v2m(parser.readMatrix<double,SymmetricVoigtTraits<dim>::voigtSize,1>("stiffnessRatio",profilingEnabled()),false)));
 //    const double t0(0.0);
 //    std::cout<<f0<<std::endl<<std::endl;
 //    std::cout<<f0Dot<<std::endl<<std::endl;

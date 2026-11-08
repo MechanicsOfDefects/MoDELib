@@ -1,6 +1,7 @@
 /* MoDELib: Helmholtz straight-segment stress, concentration and flux endpoint formulas. */
 #ifndef model_HelmholtzSegmentTables_H_
 #define model_HelmholtzSegmentTables_H_
+#include <FMM/BoxBoundaryTolerance.h>
 #include <DislocationDynamics/HelmholtzSegmentGeometry.h>
 #include <DislocationDynamics/StraightDislocationSegmentMoments.h>
 #include <array>
@@ -379,7 +380,7 @@ inline std::vector<std::vector<Segment>> split(const std::vector<Segment>&segmen
   if(!s.p0.allFinite()||!s.p1.allFinite()||!s.b.allFinite()) {
       throw std::invalid_argument("Nonfinite stress segment");
     }
-    double tol=64*std::numeric_limits<double>::epsilon()*std::max({1.,lo.cwiseAbs().maxCoeff(),hi.cwiseAbs().maxCoeff()});
+    double tol=boxBoundaryTolerance(lo,hi);
   if((s.p0.array()<lo.array()-tol).any()||(s.p1.array()<lo.array()-tol).any()||(s.p0.array()>hi.array()+tol).any()||(s.p1.array()>hi.array()+tol).any()) {
       throw std::out_of_range("Stress segment outside prepared tree");
     }

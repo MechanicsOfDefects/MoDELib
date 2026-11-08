@@ -765,3 +765,43 @@ provides a lifecycle diagnostic.
 Helmholtz flux now uses cached Chebyshev endpoint moments of the radial gradient
 kernel, with centered primitive differences for short segments. There is no
 adaptive line quadrature or numerical concentration differentiation in flux queries.
+
+## Solver output and profiling
+
+Normal DDomp runs show solve-group progress, compact timings, and one convergence
+row per coupled iteration. The normalized error must be at most 1 to converge.
+Warnings, solver failures, long-running GMRES progress, and Anderson acceleration
+notices remain visible.
+
+Enable detailed stage timings, GMRES statistics, coupling diagnostics, and FMM
+operator profiling for a run with:
+
+```sh
+MODELIB_PROFILE=1 /path/to/DDomp /path/to/simulation
+```
+
+Profiling is off by default. Values `1`, `true`, and `on` enable it; `0` or an unset
+variable disable it. `MODELIB_PROFILE_FMM=1` remains a compatibility alias.
+Profiling adds synchronization for accurate FMM stage timings and can affect
+performance, particularly on accelerators. It does not change solver tolerances.
+
+### Lattice-aligned FMM geometry
+
+The FMM hierarchy uses fractional coordinates of an affine cell. With active
+periodic directions, its edges follow the mesh periodic basis; remaining axes
+are completed orthogonally and the bounds are obtained from the shared grain polyhedron vertices.
+Without periodic directions the existing Cartesian bounds are retained.
+`BoxTree::lower()` and `upper()` are physical axis-aligned bounds, not fractional
+cell corners. Use `physical()`, `fractional()` and `basis()` for cell geometry.
+
+Particle assignment, shared segment splitting, integrated source coefficients
+and interpolation all use this same coordinate map. Kernels and source tensors
+remain in physical Cartesian coordinates. Near/far acceptance uses physical
+center distance and the maximum cell diagonal; the direct stencil expands for
+skewed or elongated boxes. Cubic boxes retain the 27-cell stencil. The Ewald
+width factor multiplies the minimum physical leaf face spacing.
+
+This implements the geometry needed for periodic FMM, **not the periodic image
+sum**. Periodic FMM evaluations remain explicitly rejected pending that operator;
+no minimum-image or free-space result is silently substituted. Arbitrarily skewed
+cells are supported conservatively but can require many direct interactions.

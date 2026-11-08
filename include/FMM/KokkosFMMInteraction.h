@@ -11,9 +11,10 @@ namespace model
     enum class FMMBoundaryMode { freeSpace, periodic };
     struct FMMInteractionOptions
     {
+        // Internal explicit neighborhood; does not enable a complete periodic solve.
+        std::vector<Eigen::Vector3d> localImageShifts{Eigen::Vector3d::Zero()};
         int interpolationOrder=4;
         bool boxShortRange=true; // Shared leaf stencil; false only for legacy reference tests.
-        bool screened=true;
         bool interpolateScreenedNear=true; // False is a direct-reference/debug path.
         bool externalNear=false; // Caller supplies full segment near interactions in unscreened mode.
         bool buildShortNeighbors=true; // False for callers assembling their own sparse local operator.
@@ -38,8 +39,8 @@ namespace model
             std::shared_ptr<const BoxTree<3>> tree;
             std::uint64_t revision;
             std::size_t ns,nt,shortPairs=0;
-            View sources,targets,scratch;
-            Indices offsets,ids,sourceOffsets,sourceIDs,targetLeaves;
+            View sources,targets,scratch,shifts;
+            Indices offsets,ids,sourceOffsets,sourceIDs,targetLeaves,imageIDs;
             Plan plan;
             static const BoxTree<3>& checkedTree(const std::shared_ptr<const BoxTree<3>>& t)
             { if(!t) { throw std::invalid_argument("Null FMM tree"); } return *t; }
@@ -47,8 +48,12 @@ namespace model
                   const Family& family,const FMMInteractionOptions& opt)
                 :tree(std::move(t)),revision(checkedTree(tree).revision()),ns(src[0].size()),nt(tgt[0].size()),
                  sources("FMM source snapshot",ns,3),targets("FMM target snapshot",nt,3),scratch("FMM short result",nt,NF),
-                 plan(ex,*tree,src,tgt,opt.interpolationOrder)
+                 plan(ex,*tree,src,tgt,opt.interpolationOrder,opt.localImageShifts)
             {
+                shifts=View("short image shifts",opt.localImageShifts.size(),3);
+                auto ih=Kokkos::create_mirror(shifts);
+                for(std::size_t i=0;i<opt.localImageShifts.size();++i) { for(int c=0;c<3;++c) { ih(i,c)=opt.localImageShifts[i][c]; } }
+                Kokkos::deep_copy(ex,shifts,ih);
                 auto sh=Kokkos::create_mirror(sources),th=Kokkos::create_mirror(targets);
                 for(int c=0;c<3;++c)
                 {
@@ -56,11 +61,11 @@ namespace model
                     for(std::size_t i=0;i<nt;++i) { th(i,c)=tgt[c][i]; }
                 }
                 Kokkos::deep_copy(ex,sources,sh); Kokkos::deep_copy(ex,targets,th);
-                if(opt.screened && opt.buildShortNeighbors)
+                if(family.isSplit && opt.buildShortNeighbors)
                 {
                 if(opt.boxShortRange)
                 {
-                    LeafBoxNeighbors list(*tree,src,tgt);
+                    LeafBoxNeighbors list(*tree,src,tgt,opt.localImageShifts);
                     const auto upload=[&](const char* name,const std::vector<std::size_t>& values){Indices v(std::string(name),values.size());auto h=Kokkos::create_mirror(v);for(std::size_t i=0;i<values.size();++i) {
               h(i)=values[i];
             }
@@ -71,6 +76,7 @@ namespace model
               shortPairs+=targetsInBox*(list.index.sources().offsets[list.boxes[k]+1]-list.index.sources().offsets[list.boxes[k]]);
             }
           }
+                    imageIDs=upload("short image IDs",list.images);
                     offsets=upload("short box offsets",list.offsets);ids=upload("short boxes",list.boxes);
                     sourceOffsets=upload("short source offsets",list.index.sources().offsets);
                     sourceIDs=upload("short source IDs",list.index.sources().permutation);
@@ -87,7 +93,7 @@ namespace model
                 }
                 }
                 plan.setExternalNear(opt.externalNear);
-                plan.setInterpolateNearBoxes(opt.screened && opt.interpolateScreenedNear);
+                plan.setInterpolateNearBoxes(family.isSplit && opt.interpolateScreenedNear);
                 plan.setTranslationCacheBudget(opt.translationCacheBytes); ex.fence();
             }
         };
@@ -108,10 +114,12 @@ namespace model
                             const Positions& src,const Positions& tgt,FMMInteractionOptions options={})
             :family_(std::move(family)),ex_(ex),options_(options)
         {
+            if(!options_.boxShortRange && (options_.localImageShifts.size()!=1 || !options_.localImageShifts.front().isZero()))
+            { throw std::invalid_argument("Shifted interactions require box-local neighbors"); }
             if(!family_) { throw std::invalid_argument("Null FMM kernel family"); }
             if(options_.boundary!=FMMBoundaryMode::freeSpace)
             { throw std::invalid_argument("Periodic FMM correction is not implemented; refusing free-space substitution"); }
-            if(options_.screened && !options_.boxShortRange && (!std::isfinite(options_.shortCutoff)||options_.shortCutoff<=0))
+            if(family_->isSplit && !options_.boxShortRange && (!std::isfinite(options_.shortCutoff)||options_.shortCutoff<=0))
             { throw std::invalid_argument("FMM short cutoff must be finite and positive"); }
             rebuildGeometry(std::move(tree),src,tgt);
         }
@@ -124,22 +132,26 @@ namespace model
         template<class Strengths,class Output> void evaluateLong(Strengths strengths,Output out)
         {
             check(strengths,out);
-            if(!options_.screened)
-            { state_->plan.evaluate(ex_,family_->fullKernel(),state_->sources,strengths,state_->targets,out,state_->ns,state_->nt); return; }
-            state_->plan.evaluate(ex_,family_->longKernel(),state_->sources,strengths,state_->targets,out,state_->ns,state_->nt);
+            family_->withFarKernel([&](const auto& kernel)
+            {
+                state_->plan.evaluate(ex_,kernel,state_->sources,strengths,state_->targets,out,state_->ns,state_->nt);
+            });
         }
         template<class Strengths,class Output> void evaluateShort(Strengths strengths,Output out)
         {
-            if(!options_.screened) {
+            if(!family_->isSplit) {
       throw std::logic_error("Unscreened FMM has no additive short-range correction");
     }
     if(!options_.buildShortNeighbors) {
       throw std::logic_error("This interaction was prepared for long-range evaluation only");
     }
     check(strengths,out);
-            const auto src=state_->sources,tgt=state_->targets;
+            const auto src=state_->sources,tgt=state_->targets,shifts=state_->shifts;
+            const auto imageIDs=state_->imageIDs;
             const auto offsets=state_->offsets,ids=state_->ids;
-            const auto kernel=family_->shortKernel(); const double cutoff=options_.shortCutoff;
+            const double cutoff=options_.shortCutoff;
+            family_->withNearKernel([&](const auto& kernel)
+            {
             const bool boxShort=options_.boxShortRange;
             const auto so=state_->sourceOffsets,si=state_->sourceIDs,tl=state_->targetLeaves;
             Kokkos::parallel_for("FMM registered short kernel",Kokkos::RangePolicy<ExecutionSpace,Kokkos::IndexType<std::size_t>>(ex_,0,state_->nt),KOKKOS_LAMBDA(const std::size_t t)
@@ -151,7 +163,7 @@ namespace model
                   const auto begin=boxShort?so(ids(j)):j,end=boxShort?so(ids(j)+1):j+1;
                   for(auto a=begin;a<end;++a){
                     const auto s=boxShort?si(a):ids(a); double r[3],q[NS];
-                    for(int c=0;c<3;++c) { r[c]=tgt(t,c)-src(s,c); }
+                    for(int c=0;c<3;++c) { r[c]=tgt(t,c)-src(s,c)-(boxShort?shifts(imageIDs(j),c):0.0); }
                     if(!boxShort && kernel.distance(r)>cutoff) { continue; }
                     for(int c=0;c<NS;++c) { q[c]=strengths(s,c); }
                     kernel.add(r,q,sum);
@@ -160,11 +172,12 @@ namespace model
                 for(int c=0;c<NF;++c) { out(t,c)=sum[c]; }
             });
             ex_.fence();
+            });
         }
         template<class Strengths,class Output> void evaluate(Strengths strengths,Output out)
         {
             evaluateLong(strengths,out);
-            if(!options_.screened) {
+            if(!family_->isSplit) {
       return;
     }
     evaluateShort(strengths,state_->scratch);
@@ -173,6 +186,9 @@ namespace model
             { for(int c=0;c<NF;++c) { out(t,c)+=local(t,c); } });
             ex_.fence();
         }
+        void setProfiling(bool enabled) { state_->plan.setProfiling(enabled); }
+        const std::array<double,4>& lastTimings() const { return state_->plan.lastTimings(); }
+        const std::array<double,3>& translationTimings() const { return state_->plan.translationTimings(); }
         void setIntegratedLeafMoments(View values)
         {state_->plan.setIntegratedLeafMoments(ex_,values);}
         std::vector<double> hostLeafLocals() const { return state_->plan.hostLeafLocals(); }

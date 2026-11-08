@@ -1,3 +1,4 @@
+#include <Utilities/OutputFormatting.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -56,7 +57,7 @@ namespace model
 template <int dim>
 void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
 {
-        std::cout << "        Remeshing network: removeCollapsedLoops... " << std::flush;
+        std::cout << "  Removing collapsed loops... " << std::flush;
 //        std::cout<<"Removing collapsed via climb... " << std::flush;
         const auto t0 = std::chrono::system_clock::now();
         std::deque<size_t> loopIDs;
@@ -78,8 +79,8 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
         {
             DN.deleteLoop(loopID);
         }
-        std::cout<<"("<<loopIDs.size()<<" removed)"<<std::endl;
-        std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+        std::cout<<"("<<loopIDs.size()<<" removed)"<<std::flush;
+        std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
     }
     
     template <int dim>
@@ -175,7 +176,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
     void DislocationNetworkRemesh<dim>::remeshByRemoval()
     {
         const auto t0 = std::chrono::system_clock::now();
-        std::cout << "        Remeshing network: removing... " << std::flush;
+        std::cout << "  Remeshing network: removing... " << std::flush;
         simplifyPhysicalBoundaryChains();
         DN.danglingBoundaryLoopNodes.clear();
         
@@ -328,7 +329,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
             DN.updateBoundaryNodes();
         }
 
-        std::cout << magentaColor << std::setprecision(3) << std::scientific << " [" << (std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count() << " sec]." << defaultColor << std::endl;
+        std::cout << magentaColor << std::setprecision(3) << std::scientific << " [" << formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count()) << " sec]" << defaultColor << std::endl;
     }
     
     /**************************************************************************/
@@ -336,7 +337,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
     void DislocationNetworkRemesh<dim>::remeshByExpansion()
     {
         const auto t0 = std::chrono::system_clock::now();
-        std::cout << "        Remeshing network: expanding... " << std::flush;
+        std::cout << "  Remeshing network: expanding... " << std::flush;
         std::set<std::pair<size_t, size_t>> toBeExpanded;
         for (const auto &linkIter : DN.networkLinks())
         {
@@ -389,7 +390,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
             }
         }
         std::cout << " (" << Nexpanded << " expanded)" << std::flush;
-        std::cout << magentaColor << std::setprecision(3) << std::scientific << " [" << (std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count() << " sec]." << defaultColor << std::endl;
+        std::cout << magentaColor << std::setprecision(3) << std::scientific << " [" << formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count()) << " sec]" << defaultColor << std::endl;
     }
     
     /**************************************************************************/
@@ -490,7 +491,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
                 DN.contract(bndPair.first, bndPair.second);
             }
         }
-        std::cout << magentaColor << " [" << (std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count() << " sec]" << defaultColor << std::endl;
+        std::cout << magentaColor << " [" << formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count()) << " sec]" << defaultColor << std::endl;
     }
     
     /**************************************************************************/
@@ -554,7 +555,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
     template <int dim>
     void DislocationNetworkRemesh<dim>::contract0chordSegments()
     {
-        std::cout<<"        Contracting zero-chord segments... "<<std::flush;
+        std::cout<<"  Contracting zero-chord segments... "<<std::flush;
         const auto t0=std::chrono::system_clock::now();
         std::set<std::pair<double,std::pair<size_t,size_t>>> ordered;
         for(const auto& entry : DN.networkLinks())
@@ -579,7 +580,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
     template <int dim>
     void DislocationNetworkRemesh<dim>::remove0AreaLoopAcrossBnd()
     {
-        std::cout << "        Removing zero-area loops across boundary... " << std::flush;
+        std::cout << "  Removing zero-area loops across boundary... " << std::flush;
         const auto t0 = std::chrono::system_clock::now();
         size_t nRemoved(0);
 
@@ -618,7 +619,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
             ++nRemoved;
         }
         std::cout << "(" << nRemoved << " Loops Removed)" << std::flush;
-        std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+        std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
     }
     
 //    /**************************************************************************/

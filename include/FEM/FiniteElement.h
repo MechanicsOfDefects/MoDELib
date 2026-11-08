@@ -24,7 +24,7 @@
 #include <CompareVectorsByComponent.h>
 #include <SimplicialMesh.h>
 #include <LagrangeElement.h>
-#include <DiscontinuousLagrangeElement.h>
+#include <NodeSharingPolicy.h>
 #include <TrialFunction.h>
 #include <TrialSum.h>
 #include <LinearWeakForm.h>
@@ -94,13 +94,75 @@ namespace model
         /*                                  */ CompareVectorsByComponent<double,_ElementType::dim,float> // key compare
         /*                                  */ > NodeFinderType;
         
+    private:
+        std::map<size_t,NodeFinderType> grainNodeFinders;
+        std::map<size_t,std::map<size_t,const NodeType* const>> grainMeshNodes;
+    public:
+        const NodeSharingPolicy nodeSharing;
         const MeshType& mesh;
+
+        NodeType* acquireNode(const Simplex<dim,dim>& simplex,const Eigen::Matrix<double,dim,1>& position,
+                              bool vertex,size_t meshID)
+        {
+            NodeFinderType* finder=nullptr;
+            if(nodeSharing==NodeSharingPolicy::continuous) { finder=&static_cast<NodeFinderType&>(*this); }
+            else if(nodeSharing==NodeSharingPolicy::grainContinuous) { finder=&grainNodeFinders[simplex.region->regionID]; }
+            NodeType* result=nullptr;
+            if(finder)
+            {
+                const auto found=finder->find(position);
+                if(found!=finder->end()) { result=found->second; }
+            }
+            if(!result)
+            {
+                NodeContainerType::emplace_back(position,NodeContainerType::size());
+                result=&NodeContainerType::back();
+                if(finder) { finder->emplace(position,result); }
+            }
+            if(vertex)
+            {
+                if(nodeSharing==NodeSharingPolicy::continuous)
+                {
+                    static_cast<std::map<size_t,const NodeType* const>&>(*this).emplace(meshID,result);
+                }
+                else if(nodeSharing==NodeSharingPolicy::grainContinuous)
+                {
+                    grainMeshNodes[simplex.region->regionID].emplace(meshID,result);
+                }
+            }
+            return result;
+        }
+        // A node from another FE space must be resolved geometrically, never
+        // interpreted using that space's unrelated global index.
+        const NodeType& correspondingNode(const NodeType& other) const
+        {
+            if(other.gID<nodeSize() && &node(other.gID)==&other) { return other; }
+            const NodeType* result=nullptr;
+            for(const auto* parent:other)
+            {
+                const auto& own=elements().at(parent->simplex.xID);
+                for(int n=0;n<nodesPerElement;++n)
+                {
+                    if((own.node(n).P0-other.P0).norm()<=1.e-10*(1+other.P0.norm()))
+                    {
+                        if(result && result!=&own.node(n))
+                        {
+                            throw std::invalid_argument("Ambiguous FEM node: specify an element or grain side");
+                        }
+                        result=&own.node(n);
+                    }
+                }
+            }
+            if(!result) { throw std::invalid_argument("Node does not belong to this FEM mesh"); }
+            return *result;
+        }
         
         /**********************************************************************/
-        FiniteElement(const SimplicialMesh<dim>& m) :
+        FiniteElement(const SimplicialMesh<dim>& m,NodeSharingPolicy policy=NodeSharingPolicy::continuous) :
         /* init list */ _xMin(Eigen::Matrix<double,dim,1>::Zero()),
         /* init list */ _xMax(Eigen::Matrix<double,dim,1>::Zero()),
         /* init list */ nodeListID(0),
+        /* init list */ nodeSharing(policy),
         /* init list */ mesh(m)
         {
             meshLifetime=m.lifetimeToken();
@@ -116,7 +178,7 @@ namespace model
             // Insert elements
             for (const auto& simpl : mesh.simplices())
             {
-                auto temp=ElementContainerType::emplace(simpl.first,ElementType(*simpl.second,*this,*this,mesh2femIDmap()));
+                auto temp=ElementContainerType::emplace(simpl.first,ElementType(*simpl.second,*this));
 //                assert(temp.second && "UNABLE TO INSERT ELEMENT IN ELEMENT CONTAINER.");
                 if(!temp.second)
                 {
@@ -135,7 +197,7 @@ namespace model
                 }
             }
             
-            if(std::is_same<ElementType,LagrangeElement<ElementType::dim,ElementType::order>>::value)
+            if(nodeSharing==NodeSharingPolicy::continuous)
             {
                 if(mesh2femIDmap().size()!=mesh.template simplexFactory<0>().liveSimplices().size())
                 {
@@ -190,7 +252,7 @@ namespace model
         }
         
         /**********************************************************************/
-        explicit FiniteElement(std::shared_ptr<const MeshType> m): FiniteElement(requireMesh(m))
+        explicit FiniteElement(std::shared_ptr<const MeshType> m,NodeSharingPolicy policy=NodeSharingPolicy::continuous): FiniteElement(requireMesh(m),policy)
         {
             meshOwner=std::move(m);
         }
@@ -219,7 +281,7 @@ namespace model
         // Rebuild explicitly if mesh active periodicity changes after FE creation.
         void updatePeriodicNodePairs()
         {
-            if constexpr(std::is_same_v<ElementType,LagrangeElement<dim,ElementType::order>>)
+            if(nodeSharing!=NodeSharingPolicy::discontinuous)
             {
                 PeriodicFEMNodePairing<ElementType> staged(*this);
                 _periodicNodes=std::move(staged);
@@ -227,6 +289,7 @@ namespace model
             else
             {
                 // Discontinuous spaces do not acquire strong periodic ties.
+                _periodicNodes.pairs.clear();
                 _periodicNodes.representatives.resize(nodeSize());
                 _periodicNodes.shifts.assign(nodeSize(),Eigen::Matrix<double,dim,1>::Zero());
                 for(size_t i=0;i<nodeSize();++i)
@@ -296,7 +359,20 @@ namespace model
         /**********************************************************************/
         const NodeFinderType& nodeFinder() const
         {
+            if(nodeSharing!=NodeSharingPolicy::continuous) { throw std::logic_error("Node lookup requires a grain/element side"); }
             return *this;
+        }
+        const NodeFinderType& nodeFinder(size_t grain) const
+        {
+            if(nodeSharing==NodeSharingPolicy::continuous) { return *this; }
+            if(nodeSharing==NodeSharingPolicy::discontinuous) { throw std::logic_error("Discontinuous node lookup requires an element"); }
+            return grainNodeFinders.at(grain);
+        }
+        const auto& mesh2femIDmap(size_t grain) const
+        {
+            if(nodeSharing==NodeSharingPolicy::continuous) { return static_cast<const std::map<size_t,const NodeType* const>&>(*this); }
+            if(nodeSharing==NodeSharingPolicy::discontinuous) { throw std::logic_error("Discontinuous vertex lookup requires an element"); }
+            return grainMeshNodes.at(grain);
         }
         
         /**********************************************************************/
@@ -352,12 +428,14 @@ namespace model
         /**********************************************************************/
         const std::map<size_t,const typename _ElementType::NodeType* const>& mesh2femIDmap() const
         {
+            if(nodeSharing!=NodeSharingPolicy::continuous) { throw std::logic_error("Mesh vertex lookup requires a grain/element side"); }
             return *this;
         }
 
         /**********************************************************************/
         std::map<size_t,const typename _ElementType::NodeType* const>& mesh2femIDmap()
         {
+            if(nodeSharing!=NodeSharingPolicy::continuous) { throw std::logic_error("Mesh vertex lookup requires a grain/element side"); }
             return *this;
         }
         

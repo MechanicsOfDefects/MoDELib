@@ -1,10 +1,15 @@
 /* This file is part of MoDELib, distributed under GNU GPL v2. */
 #ifndef model_BoxParticleIndex_H_
 #define model_BoxParticleIndex_H_
+#include <FMM/BoxBoundaryTolerance.h>
 #include <FMM/BoxTree.h>
 #include <array>
 #include <cmath>
 #include <stdexcept>
+#include <algorithm>
+#include <limits>
+#include <sstream>
+#include <iomanip>
 namespace model
 {
     // Stable counting-sort index; particle arrays and their ownership never move.
@@ -24,7 +29,7 @@ namespace model
         Points sources_, targets_;
         static Points assign(const BoxTree<dim>& tree,
                              const std::vector<std::size_t>& leafIDs,
-                             const std::array<std::vector<double>,dim>& positions)
+                             const std::array<std::vector<double>,dim>& positions,const char* role)
         {
             Points result;
             const auto count=positions[0].size();
@@ -41,16 +46,29 @@ namespace model
             const unsigned n=1u<<tree.depth();
             for(std::size_t p=0;p<count;++p)
             {
+                typename BoxTree<dim>::Vector physicalPoint;
+                for(int c=0;c<dim;++c) { physicalPoint[c]=positions[c][p]; }
+                const auto fractional=tree.fractional(physicalPoint);
                 std::size_t cell=0, stride=1;
                 for(int a=0;a<dim;++a)
                 {
-                    const double x=positions[a][p];
-                    if(!std::isfinite(x) || x<tree.lower()[a] || x>tree.upper()[a])
+                    const double x=fractional[a];
+                    const double lo=0,hi=1;
+                    // Interpolating points on a boundary can round a few ULPs
+                    // outside it. Clamp only the indexing coordinate, never the
+                    // physical source/target geometry. Reject real excursions.
+                    const double tolerance=boxBoundaryTolerance(tree.lower(),tree.upper())*tree.inverseBasis().row(a).norm();
+                    if(!std::isfinite(x) || x<lo-tolerance || x>hi+tolerance)
                     {
-                        throw std::out_of_range("Particle outside BoxTree root");
+                        std::ostringstream message;
+                        message<<std::setprecision(17)<<"Particle outside BoxTree root: "<<role
+                               <<" index="<<p<<", axis="<<a<<", coordinate="<<x
+                               <<", bounds=["<<lo<<", "<<hi<<"], tolerance="<<tolerance;
+                        throw std::out_of_range(message.str());
                     }
+                    const double coordinate=std::clamp(x,lo,hi);
                     const auto i=std::min(n-1,static_cast<unsigned>(std::floor(
-                        (x-tree.lower()[a])/(tree.upper()[a]-tree.lower()[a])*n)));
+                        (coordinate-lo)/(hi-lo)*n)));
                     cell+=stride*i;
                     stride*=n;
                 }
@@ -95,8 +113,8 @@ namespace model
                 }
                 leafIDs[cell]=id;
             }
-            auto nextSources=assign(tree,leafIDs,sources);
-            auto nextTargets=assign(tree,leafIDs,targets);
+            auto nextSources=assign(tree,leafIDs,sources,"source");
+            auto nextTargets=assign(tree,leafIDs,targets,"target");
             sources_=std::move(nextSources);
             targets_=std::move(nextTargets);
             tree_=&tree;

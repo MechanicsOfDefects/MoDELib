@@ -1,6 +1,7 @@
 #ifndef model_PeriodicFEMNodePairing_H_
 #define model_PeriodicFEMNodePairing_H_
 #include <Eigen/Core>
+#include <NodeSharingPolicy.h>
 #include <array>
 #include <map>
 #include <vector>
@@ -41,6 +42,10 @@ namespace model
                 }
                 const auto& a=fe.elements().at(source->parents().begin()->first);
                 const auto& b=fe.elements().at(target->parents().begin()->first);
+                if(fe.nodeSharing==NodeSharingPolicy::grainContinuous && a.simplex.region->regionID!=b.simplex.region->regionID)
+                {
+                    continue; // Periodic GBs are separate Dirichlet grain sides.
+                }
                 const auto localIndices=[](const auto& element,const auto* face)
                 {
                     std::array<size_t,dim> indices{};

@@ -82,19 +82,19 @@ setInputVariable(microstructureFileLocal,'radiusDistributionStd_SI','0e-07')
 setInputVector(microstructureFileLocal,'allowedGrainIDs',np.array([-1]),'set of grain IDs where loops are allowed. Use -1 for all grains')
 setInputVector(microstructureFileLocal,'allowedSlipSystemIDs',np.array([-1]),'set of slip system IDs whose Burgers vector are allowed to be the prism axis. Use -1 for all slip systems')
 
-microstructureFileID=2;
-microstructureName='frankLoopsDensity.txt';
-microstructureFileTemplate='../../Library/Microstructures/'+microstructureName;
-microstructureFileLocal='inputFiles/microstructureFile'+str(microstructureFileID)+'.txt'
-microstructureFiles.append('microstructureFile'+str(microstructureFileID)+'.txt')
-print("\033[1;32mCreating  microstructureFile"+str(microstructureFileID)+"\033[0m")
-shutil.copy2(microstructureFileTemplate,microstructureFileLocal) # target filename is /dst/dir/file.ext
-setInputVariable(microstructureFileLocal,'targetDensity_SI','1e13')
-setInputVariable(microstructureFileLocal,'radiusDistributionMean_SI','5e-08')
-setInputVariable(microstructureFileLocal,'radiusDistributionStd_SI','1e-09')
-setInputVariable(microstructureFileLocal,'areVacancyLoops','0')
-setInputVector(microstructureFileLocal,'allowedGrainIDs',np.array([-1]),'set of grain IDs where loops are allowed. Use -1 for all grains')
-setInputVector(microstructureFileLocal,'allowedPlaneIDs',np.array([-1]),'# set of plane IDs containing the loops. Use -1 for random plane')
+#microstructureFileID=2;
+#microstructureName='frankLoopsDensity.txt';
+#microstructureFileTemplate='../../Library/Microstructures/'+microstructureName;
+#microstructureFileLocal='inputFiles/microstructureFile'+str(microstructureFileID)+'.txt'
+#microstructureFiles.append('microstructureFile'+str(microstructureFileID)+'.txt')
+#print("\033[1;32mCreating  microstructureFile"+str(microstructureFileID)+"\033[0m")
+#shutil.copy2(microstructureFileTemplate,microstructureFileLocal) # target filename is /dst/dir/file.ext
+#setInputVariable(microstructureFileLocal,'targetDensity_SI','1e13')
+#setInputVariable(microstructureFileLocal,'radiusDistributionMean_SI','5e-08')
+#setInputVariable(microstructureFileLocal,'radiusDistributionStd_SI','1e-09')
+#setInputVariable(microstructureFileLocal,'areVacancyLoops','0')
+#setInputVector(microstructureFileLocal,'allowedGrainIDs',np.array([-1]),'set of grain IDs where loops are allowed. Use -1 for all grains')
+#setInputVector(microstructureFileLocal,'allowedPlaneIDs',np.array([-1]),'# set of plane IDs containing the loops. Use -1 for random plane')
 
 print("\033[1;32mCreating  initialMicrostructureFile\033[0m")
 with open('inputFiles/initialMicrostructure.txt', "w") as initialMicrostructureFile:

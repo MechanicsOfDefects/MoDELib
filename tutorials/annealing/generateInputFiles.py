@@ -30,6 +30,8 @@ DCfile='DefectiveCrystal.txt'
 DCfileTemplate=str(repository)+'/Library/DefectiveCrystal/'+DCfile
 print("\033[1;32mCreating  DDfile\033[0m")
 shutil.copy2(DCfileTemplate,'inputFiles/'+DCfile)
+# Use ordinary FMM while Ewald accuracy optimization is deferred (see TODO.md).
+setInputVariable('inputFiles/'+DCfile,'multipoleMode','FMM')
 setInputVariable('inputFiles/'+DCfile,'physics','DislocationDynamics ClusterDynamics ElasticDeformation')
 setInputVariable('inputFiles/'+DCfile,'useFEM','1')
 setInputVariable('inputFiles/'+DCfile,'Nsteps','2000')  # number of simulation steps
@@ -53,6 +55,7 @@ DDfile='DD.txt'
 DDfileTemplate=str(repository)+'/Library/DislocationDynamics/'+DDfile
 print("\033[1;32mCreating  DDfile\033[0m")
 shutil.copy2(DDfileTemplate,'inputFiles/'+DDfile)
+setInputVariable('inputFiles/'+DDfile,'coreType','Cai')
 setInputVariable('inputFiles/'+DDfile,'timeSteppingMethod','adaptive') # adaptive or fixed
 setInputVariable('inputFiles/'+DDfile,'dxMax','10') # max nodal displacement for when timeSteppingMethod=adaptive
 setInputVariable('inputFiles/'+DDfile,'alphaLineTension','1.0') # dimensionless scale factor in for line tension forces
@@ -120,7 +123,7 @@ microstructureFileLocal='inputFiles/microstructureFile'+str(microstructureFileID
 microstructureFiles.append('microstructureFile'+str(microstructureFileID)+'.txt')
 print("\033[1;32mCreating  microstructureFile"+str(microstructureFileID)+"\033[0m")
 shutil.copy2(microstructureFileTemplate,microstructureFileLocal) # target filename is /dst/dir/file.ext
-setInputVariable(microstructureFileLocal,'targetDensity_SI','1e13')
+setInputVariable(microstructureFileLocal,'targetDensity_SI','1e14')
 setInputVariable(microstructureFileLocal,'radiusDistributionMean_SI','5e-08')
 setInputVariable(microstructureFileLocal,'radiusDistributionStd_SI','1e-09')
 setInputVariable(microstructureFileLocal,'targetSegmentLength','50') # [b], radius-dependent nodes (minimum 8)
@@ -135,7 +138,7 @@ microstructureFileLocal='inputFiles/microstructureFile'+str(microstructureFileID
 microstructureFiles.append('microstructureFile'+str(microstructureFileID)+'.txt')
 print("\033[1;32mCreating  microstructureFile"+str(microstructureFileID)+"\033[0m")
 shutil.copy2(microstructureFileTemplate,microstructureFileLocal) # target filename is /dst/dir/file.ext
-setInputVariable(microstructureFileLocal,'targetDensity_SI','1e13')
+setInputVariable(microstructureFileLocal,'targetDensity_SI','1e14')
 setInputVariable(microstructureFileLocal,'radiusDistributionMean_SI','5e-08')
 setInputVariable(microstructureFileLocal,'radiusDistributionStd_SI','1e-09')
 setInputVariable(microstructureFileLocal,'targetSegmentLength','50') # [b], radius-dependent nodes (minimum 8)

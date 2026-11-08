@@ -1,11 +1,14 @@
 #ifndef model_SegmentConcentrationPlan_H_
 #define model_SegmentConcentrationPlan_H_
+#include <FMM/BoxBoundaryTolerance.h>
+#include <FMM/ShiftedBoxNeighbors.h>
 #include <DislocationDynamics/ScreenedDislocationAssembly.h>
 #include <DislocationDynamics/StraightDislocationSegmentHelmholtz.h>
 #include <Eigen/Eigenvalues>
 #include <DislocationDynamics/StraightDislocationSegmentFactory.h>
 #include <exception>
 #include <mutex>
+#include <Utilities/ParallelFor.h>
 namespace model
 {
     // Geometry-only maps: nodal velocities -> leaf coefficients and local concentrations.
@@ -19,6 +22,7 @@ namespace model
         };
         using Matrix=Eigen::SparseMatrix<double,Eigen::RowMajor>;
         std::vector<std::vector<Piece>> bins;
+
         Eigen::Vector3d lower,width;
         int n,p;
     public:
@@ -27,7 +31,7 @@ namespace model
         SegmentConcentrationPlan(const BoxTree<3>& tree,const ClimbKernelChannel& channel,
             std::size_t nodeCount,const std::array<std::vector<double>,3>& targets,
             const ScreenedDislocationOptions& options,bool buildLocal,bool buildMoments=true)
-            :lower(tree.lower()),width((tree.upper()-tree.lower())/(1<<tree.depth())),
+            :lower(tree.lower()),width(Eigen::Vector3d::Constant(1.0/(1<<tree.depth()))),
              n(1<<tree.depth()),p(options.interpolationOrder)
         {
             if(p<2||p>6)
@@ -38,8 +42,9 @@ namespace model
             {
                 throw std::invalid_argument("Segment concentration requires box-local FMM and screened near interpolation");
             }
+            const ShiftedBoxNeighbors neighborhood(tree,options.localImageShifts);
             bins.resize(std::size_t(n)*n*n);
-            const double tolerance=64*std::numeric_limits<double>::epsilon()*std::max({1.0,lower.norm(),tree.upper().norm()});
+            const double tolerance=boxBoundaryTolerance(lower,tree.upper());
             if(!options.segmentSplits || !options.segmentSplits->matches(tree))
             {
                 throw std::logic_error("Concentration plan requires a current shared segment split snapshot");
@@ -58,37 +63,38 @@ namespace model
             SegmentCoreParameters parameters;
             parameters.coreWidth=options.coreWidth;parameters.ewaldWidth=options.screenWidth;
             parameters.order=options.segmentChebyshevOrder;parameters.resolution=options.segmentTableResolution;
-            parameters.maxDistance=2*width.norm();
+            parameters.maxDistance=2*tree.cellDiameter(tree.depth());
             const auto core=makeStraightDislocationSegmentCore(options.coreType,options.screened,parameters);
-            const SegmentMomentIntegrator helper(p);
+            const SegmentMomentIntegrator helper(p,tree.inverseBasis());
             std::vector<Eigen::Triplet<double>> entries;
             if(buildMoments)
             {
             const int P=p*p*p;
+            std::vector<std::size_t> occupied;
             for(std::size_t b=0;b<bins.size();++b)
             {
-                if(bins[b].empty())
-                {
-                    continue;
-                }
-                const Eigen::Vector3d center=lower+width.cwiseProduct(Eigen::Vector3d(b%n+.5,(b/n)%n+.5,b/(n*n)+.5));
-                for(int c=0;c<3;++c)
-                {
-                    markers[c].push_back(center[c]);
-                }
+                if(!bins[b].empty()) { occupied.push_back(b); }
+            }
+            for(auto& component:markers) { component.resize(occupied.size()); }
+            std::vector<std::vector<Eigen::Triplet<double>>> boxEntries(occupied.size());
+            independentParallelFor(occupied.size(),[&](std::size_t i)
+            {
+                const auto b=occupied[i];
+                const Eigen::Vector3d center=tree.cellCenter(tree.depth(),b);
+                for(int c=0;c<3;++c) { markers[c][i]=center[c]; }
+                auto& output=boxEntries[i];
+                output.reserve(bins[b].size()*P*2);
                 for(const auto& piece:bins[b])
                 {
                     const auto& s=piece.segment;
                     const auto weights=core->concentrationMoments(helper,s.p0,s.p1,center,width,piece.begin,piece.end,s.weights);
                     for(int j=0;j<P;++j)
                     {
-                        for(int k=0;k<2;++k)
-                        {
-                            entries.emplace_back(b*P+j,s.nodes[k],weights(j,k));
-                        }
+                        for(int k=0;k<2;++k) { output.emplace_back(b*P+j,s.nodes[k],weights(j,k)); }
                     }
                 }
-            }
+            },32);
+            appendOrderedRows(entries,boxEntries);
             moments.resize(bins.size()*P,nodeCount);
             moments.setFromTriplets(entries.begin(),entries.end());
             moments.makeCompressed();
@@ -98,7 +104,7 @@ namespace model
             {
                 return;
             }
-            const auto kernel=core->concentration(channel.diffusion,false,options.screened?SegmentKernelPart::shortRange:SegmentKernelPart::full);
+            const auto kernel=core->concentration(channel.diffusion);
             entries.clear();
             std::vector<std::vector<Eigen::Triplet<double>>> rowEntries(targets[0].size());
             std::exception_ptr error;
@@ -111,32 +117,29 @@ namespace model
                 try
                 {
                 const Eigen::Vector3d x(targets[0][i],targets[1][i],targets[2][i]);
-                if(!x.allFinite()||(x.array()<lower.array()-tolerance).any()||(x.array()>tree.upper().array()+tolerance).any())
+                if(!tree.contains(x,tolerance))
                 {
                     throw std::out_of_range("Concentration target outside FMM tree");
                 }
+                const Eigen::Vector3d fractional=tree.fractional(x);
                 Eigen::Vector3i cell;
                 for(int c=0;c<3;++c)
                 {
-                    cell[c]=std::clamp(int((x[c]-lower[c])/width[c]),0,n-1);
+                    cell[c]=std::clamp(int(fractional[c]/width[c]),0,n-1);
                 }
-                for(int z=std::max(0,cell[2]-1);z<std::min(n,cell[2]+2);++z)
+                const auto leaf=cell[0]+n*(cell[1]+n*cell[2]);
+                for(const auto& entry:neighborhood.rows[leaf])
                 {
-                    for(int y=std::max(0,cell[1]-1);y<std::min(n,cell[1]+2);++y)
-                    {
-                        for(int bx=std::max(0,cell[0]-1);bx<std::min(n,cell[0]+2);++bx)
-                        {
-                            for(const auto& piece:bins[bx+n*(y+n*z)])
+                    const Eigen::Vector3d shiftedTarget=x-options.localImageShifts[entry.image];
+                            for(const auto& piece:bins[entry.source])
                             {
-                                const Eigen::Vector2d values=kernel->concentrationIntegrals(piece.segment.p0,piece.segment.p1,x,piece.begin,piece.end);
+                                const Eigen::Vector2d values=kernel->concentrationIntegralsNear(piece.segment.p0,piece.segment.p1,shiftedTarget,piece.begin,piece.end);
                                 for(int k=0;k<2;++k)
                                 {
                                     rowEntries[i].emplace_back(i,piece.segment.nodes[k],values[k]*piece.segment.weights[k]);
                                 }
                             }
-                        }
                     }
-                }
                 }
                 catch(...)
                 {
@@ -151,10 +154,7 @@ namespace model
             {
                 std::rethrow_exception(error);
             }
-            for(auto& row:rowEntries)
-            {
-                entries.insert(entries.end(),row.begin(),row.end());
-            }
+            appendOrderedRows(entries,rowEntries);
             local.setFromTriplets(entries.begin(),entries.end());
             local.makeCompressed();
         }

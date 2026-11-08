@@ -1,3 +1,4 @@
+#include <Utilities/Profiling.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -54,7 +55,10 @@ namespace model
             }
 //            const double vRef(1.0);
             const float vEff(vmax+vRef*std::exp(-vmax/(vRef*vFactor))); // use float to truncate some floating point digits
-            std::cout<<" (vMax="<<vmax<<", vMaxID="<<vmaxID<<", vRef="<<vRef<<", vEff="<<vEff<<")"<<std::flush;
+            if(profilingEnabled())
+            {
+                std::cout<<" (vMax="<<vmax<<", vMaxID="<<vmaxID<<", vRef="<<vRef<<", vEff="<<vEff<<")"<<std::flush;
+            }
             return std::min(dxMax / vEff,DN.ddBase.simulationParameters.dtMax);
         }
         else

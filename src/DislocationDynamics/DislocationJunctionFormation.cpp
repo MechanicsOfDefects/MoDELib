@@ -1,3 +1,4 @@
+#include <Utilities/OutputFormatting.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -123,7 +124,7 @@ namespace model
       */
         
         const auto t0= std::chrono::system_clock::now();
-        std::cout<<"		Finding collisions "<<std::flush;
+        std::cout<<"  Finding collisions "<<std::flush;
         
         // Use SweepPlane to compute possible intersections
         SweepPlane<NetworkLinkType,dim> swp;
@@ -165,10 +166,10 @@ namespace model
             }
         }
         
-        std::cout<<" ("<<reducedIntersectionPairs.size()<<" reduced pairs) "<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()<<" sec]"<<defaultColor<<std::endl;
+        std::cout<<" ("<<reducedIntersectionPairs.size()<<" reduced pairs) "<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())<<" sec]"<<defaultColor<<std::endl;
         
         const auto t1= std::chrono::system_clock::now();
-        std::cout<<"        Selecting junctions ("<<nThreads<<" threads): "<<std::flush;
+        std::cout<<"  Selecting junctions ("<<nThreads<<(nThreads==1?" thread): ":" threads): ")<<std::flush;
         
         //! 2- loop over all links and determine their intersections
         // #ifdef _OPENMP
@@ -189,7 +190,7 @@ namespace model
             nIntersections+=intersectionByThreadContainer.size();
         }
         std::cout<<nIntersections<<" physical junctions "<<std::flush;
-        std::cout<<magentaColor<<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t1)).count()<<" sec]"<<defaultColor<<std::endl;
+        std::cout<<magentaColor<<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t1)).count())<<" sec]"<<defaultColor<<std::endl;
 
     }
 
@@ -450,7 +451,7 @@ namespace model
     size_t DislocationJunctionFormation<dim>::contractJunctions(const std::deque<IntersectionTypeContainerType>& intersectionContainer)
     {
         const auto t0= std::chrono::system_clock::now();
-        std::cout<<"        : "<<std::flush;
+        std::cout<<"  Contracting junctions: "<<std::flush;
         
         DN.danglingBoundaryLoopNodes.clear();
         size_t nContracted=0;
@@ -589,7 +590,7 @@ namespace model
             DN.updateBoundaryNodes();
         }
         std::cout<<" ("<<nContracted<<" contracted, "<<nDeferred<<" deferred)"<<magentaColor
-                 <<" ["<<(std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count()
+                 <<" ["<<formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now()-t0)).count())
                  <<" sec]"<<defaultColor<<std::endl;
 
         return nContracted;
@@ -600,7 +601,7 @@ namespace model
     void DislocationJunctionFormation<dim>::glissileJunctions(const double &dx)
     {
         const auto t0 = std::chrono::system_clock::now();
-        std::cout << "        Forming Glissile Junctions: " << std::flush;
+        std::cout << "  Forming Glissile Junctions: " << std::flush;
         
         std::deque<std::tuple<std::shared_ptr<NetworkNodeType>, std::shared_ptr<NetworkNodeType>, size_t, size_t>> glissDeq;
                 
@@ -840,7 +841,7 @@ namespace model
             DN.insertLoop(seed,nodes);
             ++formedJunctions;
         }
-        std::cout << "(" << formedJunctions << " junctions)" << magentaColor << " [" << (std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count() << " sec]" << defaultColor << std::endl;
+        std::cout << "(" << formedJunctions << " junctions)" << magentaColor << " [" << formatSeconds((std::chrono::duration<double>(std::chrono::system_clock::now() - t0)).count()) << " sec]" << defaultColor << std::endl;
     }
 
     template <int dim>

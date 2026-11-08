@@ -1,11 +1,16 @@
 #ifndef model_SegmentSplitCache_H_
 #define model_SegmentSplitCache_H_
+#include <FMM/BoxBoundaryTolerance.h>
 #include <FMM/BoxTree.h>
 #include <array>
 #include <map>
 #include <mutex>
 #include <algorithm>
 #include <limits>
+#include <exception>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 namespace model
 {
     // Only geometry lives here. Coincident oriented segments may share their cuts;
@@ -50,33 +55,46 @@ namespace model
             :tree_(&tree),revision_(tree.revision()),geometry_(std::move(geometry))
         {
             const int n=1<<tree.depth();
-            const Eigen::Vector3d lo=tree.lower(),hi=tree.upper(),width=(hi-lo)/n;
+            const Eigen::Vector3d lo=Eigen::Vector3d::Zero(),width=Eigen::Vector3d::Constant(1.0/n);
             leafCount_=std::size_t(n)*n*n;
-            const double tolerance=64*std::numeric_limits<double>::epsilon()*std::max({1.,lo.norm(),hi.norm()});
+            const double tolerance=boxBoundaryTolerance(tree.lower(),tree.upper());
+            struct Work
+            {
+                const Endpoints* endpoints;
+                std::vector<Piece>* pieces;
+            };
+            std::vector<Work> work;
+            work.reserve(geometry_.size());
+            // Create map entries before launching workers: each worker owns only
+            // its segment's output vector; no concurrent map insertion occurs.
             for(const auto& entry:geometry_)
             {
-                const auto& a=entry.second.first;
-                const auto& b=entry.second.second;
-                auto& pieces=pieces_[entry.first];
-                if((a.array()<lo.array()-tolerance).any()||(b.array()<lo.array()-tolerance).any()||
-                   (a.array()>hi.array()+tolerance).any()||(b.array()>hi.array()+tolerance).any())
-                {
-                    throw std::out_of_range("Segment outside split-cache box tree");
-                }
+                auto inserted=pieces_.emplace(entry.first,std::vector<Piece>{});
+                work.push_back({&entry.second,&inserted.first->second});
+            }
+            std::vector<std::exception_ptr> failures(work.size());
+            const auto split=[&](std::size_t i)
+            {
+                const auto& a=work[i].endpoints->first;
+                const auto& b=work[i].endpoints->second;
+                auto& pieces=*work[i].pieces;
+                if(!tree.contains(a,tolerance)||!tree.contains(b,tolerance))
+                { throw std::out_of_range("Segment outside split-cache box tree"); }
+                const Eigen::Vector3d qa=tree.fractional(a),dq=tree.inverseBasis()*(b-a);
                 const Eigen::Vector3d chord=b-a;
                 if(chord.squaredNorm()==0)
                 {
-                    continue;
+                    return;
                 }
                 std::vector<double> cuts{0,1};
                 for(int c=0;c<3;++c)
                 {
-                    if(chord[c]!=0)
+                    if(dq[c]!=0)
                     {
                         for(int j=1;j<n;++j)
                         {
-                            const double u=(lo[c]+j*width[c]-a[c])/chord[c];
-                            if(u>0&&u<1)
+                            const double u=(j*width[c]-qa[c])/dq[c];
+                            if(u>32*std::numeric_limits<double>::epsilon()&&u<1-32*std::numeric_limits<double>::epsilon())
                             {
                                 cuts.push_back(u);
                             }
@@ -84,11 +102,14 @@ namespace model
                     }
                 }
                 std::sort(cuts.begin(),cuts.end());
-                cuts.erase(std::unique(cuts.begin(),cuts.end()),cuts.end());
+                // Crossings of multiple faces at one edge/vertex can differ by
+                // roundoff after the affine transform. Do not create zero-scale pieces.
+                cuts.erase(std::unique(cuts.begin(),cuts.end(),[](double a,double b)
+                { return std::abs(a-b)<=32*std::numeric_limits<double>::epsilon(); }),cuts.end());
                 for(std::size_t j=1;j<cuts.size();++j)
                 {
                     const double begin=cuts[j-1],end=cuts[j];
-                    const Eigen::Vector3d mid=a+(begin+(end-begin)*.5)*chord;
+                    const Eigen::Vector3d mid=qa+(begin+(end-begin)*.5)*dq;
                     Eigen::Vector3i cell;
                     for(int c=0;c<3;++c)
                     {
@@ -100,6 +121,29 @@ namespace model
                     {
                         pieces.push_back({std::size_t(cell[0]+n*(cell[1]+n*cell[2])),begin,end,p0,p1});
                     }
+                }
+            };
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) if(work.size()>=256 && !omp_in_parallel())
+#endif
+            for(std::ptrdiff_t i=0;i<static_cast<std::ptrdiff_t>(work.size());++i)
+            {
+                try
+                {
+                    split(static_cast<std::size_t>(i));
+                }
+                catch(...)
+                {
+                    failures[i]=std::current_exception();
+                }
+            }
+            // Exceptions cannot cross an OpenMP region. Rethrow in deterministic
+            // segment order before the cache publishes a replacement snapshot.
+            for(const auto& failure:failures)
+            {
+                if(failure)
+                {
+                    std::rethrow_exception(failure);
                 }
             }
         }

@@ -33,6 +33,8 @@ int main(int argc,char** argv)
         {
             std::filesystem::copy_file(fixture/name,input/name);
         }
+        // This regression checks analytical displacement, currently supplied by Cai.
+        std::ofstream(input/"DD.txt",std::ios::app)<<"\ncoreType=Cai;\n";
         std::filesystem::copy_file(root/"Library/Materials/W.txt",input/"W.txt");
         std::filesystem::copy_file(root/"Library/Meshes/poly30_periodicXYZ.msh",input/"poly30_periodicXYZ.msh");
         {
