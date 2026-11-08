@@ -12,7 +12,7 @@
 #include <iostream>
 #include <vector>
 #include <Eigen/Dense>
-#include <cfloat>
+#include <limits>
 #include <math.h>       /* asin */
 
 #include <SegmentSegmentDistance.h>
@@ -26,7 +26,7 @@ namespace model
     struct LinkingNumber
     {
         
-        static constexpr double tol=FLT_EPSILON;
+        static constexpr double tol=std::numeric_limits<float>::epsilon();
         
         
         typedef Eigen::Matrix<double,dim,1> VectorDim;
@@ -93,7 +93,7 @@ namespace model
         
         const DislocationNetwork<dim>& DN;
         
-        static constexpr double tol=FLT_EPSILON;
+        static constexpr double tol=std::numeric_limits<float>::epsilon();
         
         
         

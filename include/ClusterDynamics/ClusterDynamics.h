@@ -8,6 +8,7 @@
 #ifndef model_ClusterDynamics_H_
 #define model_ClusterDynamics_H_
 
+#include <DislocationDynamics/ScreenedDislocationAssembly.h>
 #include <DefectiveCrystal/MicrostructureContainer.h>
 #include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <ClusterDynamicsFEM.h>
@@ -111,6 +112,7 @@ namespace model
         bool solvedQuantityBoundaryCache=false;
         std::map<size_t,VectorMSize> solvedQuantitySinkConcentrations;
         // Geometry-only influence matrices, valid within one coupled solve.
+        std::shared_ptr<DislocationConcentrationEvaluator> solvedQuantityConcentrationEvaluator;
         std::vector<Eigen::MatrixXd> solvedQuantityInfluence;
         std::vector<size_t> solvedQuantitySourceIDs;
         std::map<size_t,size_t> solvedQuantityTargetRows;

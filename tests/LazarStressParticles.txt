@@ -1,0 +1,83 @@
+Lazar particle stress kernels
+=============================
+Implementation: include/DislocationDynamics/LazarStressParticleKernel.h
+LazarStressParticleKernel<LazarPart::{full,shortRange,longRange}>.
+Constructor arguments: shear modulus, Poisson ratio, physical length ell,
+numerical screening length h. This implementation accepts h>=4*ell>0.
+Six independent stress components; row-major source Q=b tensor t times line weight.
+Uses the Helmholtz potential A=r+2ell^2(1-exp(-r/ell))/r and the rational screen
+(1+2h^2 k^2)/(1+h^2 k^2)^2. No numerical convolution or line antiderivative.
+Precomputed inverse lengths, screening prefactors, and Taylor coefficients.
+Factored radial polynomials and four shared stress coefficients; six explicit
+scalar stress contractions with one reciprocal radius and no temporary tensor.
+Small-radius Taylor series and explicit radial derivatives. Scale separation
+is checked once at construction; no h/ell-dependent branches or equal-length
+fallbacks exist in particle evaluation. At exact coincidence
+returns the odd-kernel principal value zero; the directional near-core limit
+is finite but not zero. This convention needs to be retained when choosing
+self quadrature. Production forces are NOT switched to these kernels.
+The generic evaluateStressParticles Kokkos loop is shared with Cai;
+evaluateCaiParticles remains as a compatible wrapper.
+
+Validation: testLazarStressParticles checks independent long-double radial
+derivatives, split reconstruction, rejection of insufficient scale separation, near-core
+limits, classical far-field limit, oddness, parameter rejection, and Kokkos
+versus host for all three kernels. testCaiStressParticles still passes.
+No GPU backend is available on this machine: these are OpenMP CPU results.
+
+Benchmark: benchmarkLazarStressParticles tutorial frame [targets=1024] [repeats=9].
+Same saved polycrystal frames, source density 0.1, targets sampled at evenly
+spaced array indices, and source/target arrays as benchmarkCaiStressParticles.
+Cai a=2; Lazar ell=2, h=8 (Burgers units). Equal numerical core lengths do NOT
+make the two physical core models equivalent, so their stress norms differ.
+All source-target pairs, no cutoff, no periodic image sum, no FMM. Timings
+exclude sampling/upload/download and initialization. Warmup followed by
+11 repetitions per kernel; reported fenced medians. Kernels run consecutively.
+Machine: Apple M2 Max, MacPorts Clang 20, optimized build, Kokkos OpenMP.
+
+Historical measured output before removal of the equal-length fallback
+(all runs already used h=4*ell, so they took the explicit radial path):
+CAI_BENCHMARK frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=3.31882080e+01 six_min_ms=3.20962500e+01 six_max_ms=3.50293750e+01 stress_norm=2.32134426e-01
+LAZAR_FULL frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=1.11913875e+02 six_min_ms=1.06885333e+02 six_max_ms=1.26513083e+02 stress_norm=1.77677716e-01
+LAZAR_SHORT_h4ell frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=1.54513083e+02 six_min_ms=1.46552375e+02 six_max_ms=1.81150875e+02 stress_norm=9.06289223e-02
+LAZAR_LONG_h4ell frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=1.68266708e+02 six_min_ms=1.57077292e+02 six_max_ms=2.20953917e+02 stress_norm=1.23740820e-01
+CAI_BENCHMARK frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=4.04290410e+01 six_min_ms=3.65039170e+01 six_max_ms=4.23538330e+01 stress_norm=2.02657760e-01
+LAZAR_FULL frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.40586125e+02 six_min_ms=1.28558625e+02 six_max_ms=2.11325875e+02 stress_norm=1.54798171e-01
+LAZAR_SHORT_h4ell frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.84027291e+02 six_min_ms=1.79021292e+02 six_max_ms=2.32351417e+02 stress_norm=8.09688311e-02
+LAZAR_LONG_h4ell frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.97744250e+02 six_min_ms=1.88113083e+02 six_max_ms=2.09464417e+02 stress_norm=1.06309727e-01
+CAI_BENCHMARK frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=2.96059292e+02 six_min_ms=2.93409792e+02 six_max_ms=3.00132417e+02 stress_norm=2.02657760e-01
+LAZAR_FULL frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.13923333e+03 six_min_ms=1.12761271e+03 six_max_ms=1.14613658e+03 stress_norm=1.54798171e-01
+LAZAR_SHORT_h4ell frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.55447096e+03 six_min_ms=1.54522279e+03 six_max_ms=1.74592575e+03 stress_norm=8.09688311e-02
+LAZAR_LONG_h4ell frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.62596937e+03 six_min_ms=1.61933775e+03 six_max_ms=1.69293313e+03 stress_norm=1.06309727e-01
+
+Rerun after enforcing h>=4*ell and removing equal-length runtime handling:
+CAI_BENCHMARK frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=3.35223330e+01 six_min_ms=3.09382920e+01 six_max_ms=3.98797080e+01 stress_norm=2.32134426e-01
+LAZAR_FULL frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=1.09209875e+02 six_min_ms=1.05713458e+02 six_max_ms=1.14682000e+02 stress_norm=1.77677716e-01
+LAZAR_SHORT_h4ell frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=1.38550875e+02 six_min_ms=1.34639167e+02 six_max_ms=1.44748709e+02 stress_norm=9.06289223e-02
+LAZAR_LONG_h4ell frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=1.58119375e+02 six_min_ms=1.55641834e+02 six_max_ms=1.68032458e+02 stress_norm=1.23740820e-01
+CAI_BENCHMARK frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=4.06722920e+01 six_min_ms=3.76304580e+01 six_max_ms=4.38534590e+01 stress_norm=2.02657760e-01
+LAZAR_FULL frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.42920583e+02 six_min_ms=1.35266208e+02 six_max_ms=1.58859834e+02 stress_norm=1.54798171e-01
+LAZAR_SHORT_h4ell frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.72167417e+02 six_min_ms=1.60980833e+02 six_max_ms=2.59234791e+02 stress_norm=8.09688311e-02
+LAZAR_LONG_h4ell frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=2.03727792e+02 six_min_ms=1.94221208e+02 six_max_ms=2.43545875e+02 stress_norm=1.06309727e-01
+CAI_BENCHMARK frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=2.98637666e+02 six_min_ms=2.96229375e+02 six_max_ms=3.00504959e+02 stress_norm=2.02657760e-01
+LAZAR_FULL frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.13488988e+03 six_min_ms=1.13010975e+03 six_max_ms=1.14109188e+03 stress_norm=1.54798171e-01
+LAZAR_SHORT_h4ell frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.41199600e+03 six_min_ms=1.40184050e+03 six_max_ms=1.43795542e+03 stress_norm=8.09688311e-02
+LAZAR_LONG_h4ell frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.64646196e+03 six_min_ms=1.63752975e+03 six_max_ms=1.69716983e+03 stress_norm=1.06309727e-01
+
+Arithmetic optimization (steps 1, 2, 3):
+Same benchmark settings as above. Regression compares 13,500 full stress
+tensors against the frozen pre-optimization implementation in
+LazarStressParticleReference.h. Maximum scaled difference 2.49331e-11
+(scale=max(1/ell^2, norm(reference))); Cai and Lazar tests passed.
+CAI_BENCHMARK frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=3.40339580e+01 six_min_ms=3.07650000e+01 six_max_ms=3.65420840e+01 stress_norm=2.32134426e-01
+LAZAR_FULL frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=9.13593330e+01 six_min_ms=8.37445000e+01 six_max_ms=1.06157208e+02 stress_norm=1.77677716e-01
+LAZAR_SHORT_h4ell frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=1.13865959e+02 six_min_ms=1.09877750e+02 six_max_ms=1.25741709e+02 stress_norm=9.06289223e-02
+LAZAR_LONG_h4ell frame=0 backend=OpenMP concurrency=12 sources=44160 targets=1024 available_targets=44160 repeats=11 six_median_ms=1.31750458e+02 six_min_ms=1.24599542e+02 six_max_ms=1.39807250e+02 stress_norm=1.23740820e-01
+CAI_BENCHMARK frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=4.48909160e+01 six_min_ms=3.73977500e+01 six_max_ms=5.09688340e+01 stress_norm=2.02657760e-01
+LAZAR_FULL frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.09455000e+02 six_min_ms=1.02373541e+02 six_max_ms=1.32270042e+02 stress_norm=1.54798171e-01
+LAZAR_SHORT_h4ell frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.42597334e+02 six_min_ms=1.33466667e+02 six_max_ms=1.47754042e+02 stress_norm=8.09688311e-02
+LAZAR_LONG_h4ell frame=1000 backend=OpenMP concurrency=12 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.50889666e+02 six_min_ms=1.47276625e+02 six_max_ms=1.74950750e+02 stress_norm=1.06309727e-01
+CAI_BENCHMARK frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=2.97242417e+02 six_min_ms=2.93972250e+02 six_max_ms=3.02202875e+02 stress_norm=2.02657760e-01
+LAZAR_FULL frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=8.83140500e+02 six_min_ms=8.75411167e+02 six_max_ms=8.89234000e+02 stress_norm=1.54798171e-01
+LAZAR_SHORT_h4ell frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.15299692e+03 six_min_ms=1.14797600e+03 six_max_ms=1.16373946e+03 stress_norm=8.09688311e-02
+LAZAR_LONG_h4ell frame=1000 backend=OpenMP concurrency=1 sources=54216 targets=1024 available_targets=50342 repeats=11 six_median_ms=1.27372883e+03 six_min_ms=1.26411617e+03 six_max_ms=1.33765129e+03 stress_norm=1.06309727e-01

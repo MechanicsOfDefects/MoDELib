@@ -8,6 +8,7 @@
 #ifndef model_Lattice_cpp_
 #define model_Lattice_cpp_
 
+#include <limits>
 #include <LatticeModule.h>
 
 namespace model
@@ -19,7 +20,7 @@ namespace model
 
         // Check that Q is orthogonal
         const MatrixDimD QQT(Q * Q.transpose());
-        if ((QQT - MatrixDimD::Identity()).norm() > 2.0 * DBL_EPSILON * dim * dim)
+        if ((QQT - MatrixDimD::Identity()).norm() > 2.0 * std::numeric_limits<double>::epsilon() * dim * dim)
         {
             std::cout << "Q=\n"
                       << Q << std::endl;
@@ -30,15 +31,15 @@ namespace model
         }
 
         // Check sure that C2G is proper
-        if(std::fabs(Q.determinant() - 1.0) > FLT_EPSILON)
+        if(std::fabs(Q.determinant() - 1.0) > std::numeric_limits<float>::epsilon())
         {
             throw std::runtime_error("ROTATION MATRIX IS NOT PROPER.");
 
         }
-//        assert(std::fabs(Q.determinant() - 1.0) < FLT_EPSILON && "ROTATION MATRIX IS NOT PROPER.");
+//        assert(std::fabs(Q.determinant() - 1.0) < std::numeric_limits<float>::epsilon() && "ROTATION MATRIX IS NOT PROPER.");
 
         // Check that A is full rank
-        if(std::fabs(A.determinant()) < FLT_EPSILON)
+        if(std::fabs(A.determinant()) < std::numeric_limits<float>::epsilon())
         {
             throw std::runtime_error("A matrix is singular");
 
@@ -102,7 +103,7 @@ namespace model
         const LatticeVectorType temp(rationalApproximation(nd), *this);
 
         const double crossNorm(temp.cartesian().normalized().cross(d.normalized()).norm());
-        if (crossNorm > FLT_EPSILON)
+        if (crossNorm > std::numeric_limits<float>::epsilon())
         {
             std::cout << "input direction=" << d.normalized().transpose() << std::endl;
             std::cout << "lattice direction=" << temp.cartesian().normalized().transpose() << std::endl;
@@ -120,7 +121,7 @@ namespace model
         const ReciprocalLatticeVectorType temp(rationalApproximation(nd), *this);
 
         const double crossNorm(temp.cartesian().normalized().cross(d.normalized()).norm());
-        if (crossNorm > FLT_EPSILON)
+        if (crossNorm > std::numeric_limits<float>::epsilon())
         {
             std::cout << "input direction=" << std::setprecision(15) << std::scientific << d.normalized().transpose() << std::endl;
             std::cout << "reciprocal lattice direction=" << std::setprecision(15) << std::scientific << temp.cartesian().normalized().transpose() << std::endl;
@@ -140,7 +141,7 @@ namespace model
         const BestRationalApproximation bra(d.norm() / ld.cartesian().norm(), maxDen);
         Rational rat(bra.num, bra.den);
         RationalLatticeDirectionType rld(rat, ld);
-        if ((rld.cartesian() - d).squaredNorm() > FLT_EPSILON)
+        if ((rld.cartesian() - d).squaredNorm() > std::numeric_limits<float>::epsilon())
         {
             std::cout << "input vector=" << d.transpose() << std::endl;
             std::cout << "lattice direction=" << ld.cartesian().transpose() << std::endl;

@@ -96,7 +96,7 @@ namespace model
 
                 mg.insertJunctionLoop(loopPoints,glidePlane,
                                       b,n,
-                                      loopPoints[0],grainID,std::fabs(b.normalized().dot(n.normalized()))<FLT_EPSILON? DislocationLoopIO<dim>::GLISSILELOOP : DislocationLoopIO<dim>::SESSILELOOP);
+                                      loopPoints[0],grainID,std::fabs(b.normalized().dot(n.normalized()))<std::numeric_limits<float>::epsilon()? DislocationLoopIO<dim>::GLISSILELOOP : DislocationLoopIO<dim>::SESSILELOOP);
 
         }
         

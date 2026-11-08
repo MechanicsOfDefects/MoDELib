@@ -116,7 +116,7 @@ Slip systems are named by their crystallography, for example `a/2<111>{110}` ins
 | Cross slip | `CrossSlipModels.h` | `crossSlipModel`: 0 none, 1 deterministic (largest glide Peach–Koehler force) |
 | Junctions and remeshing | `DislocationJunctionFormation.h`, `DislocationNetworkRemesh.h`, `DislocationNodeContraction.h` | segment lengths kept between `Lmin` and `Lmax` |
 | Nucleation | `DislocationNucleation.h` | `bulkNucleationModel=1` inserts shear loops in mesh elements; a first model |
-| Periodic domains | `GlidePlanes/PeriodicGlidePlane.h` | periodic faces chosen per mesh face (`periodicFaceIDs`); image sums set by `periodicImageSize`; `EwaldLengthFactor` |
+| Periodic domains | `GlidePlanes/PeriodicGlidePlane.h` | periodic faces chosen per mesh face (`periodicFaceIDs`); image sums set by `periodicImageSize` |
 | Finite domains | `include/FEM/`, `ElasticDeformationFEM.h` | `useFEM=1`; direct solvers (CHOLMOD, UMFPACK) or iterative solvers |
 | Uniform load control | `DefectiveCrystal/UniformController.h` | stress control, strain control, or mixed, per Voigt component ([section 3.5](#35-load-control)) |
 | Glide-plane noise | `GlidePlanes/AnalyticalSolidSolutionNoise.h`, `MDSolidSolutionNoise.h`, `MDStackingFaultNoise.h` | stress noise of a solid solution and stacking-fault energy noise, sampled on a grid (FFTW) from analytical or MD correlations |
@@ -613,7 +613,7 @@ Input files of 1.0.0 do not run unchanged. A missing variable stops the run with
 | `useDislocations`, `useClusterDynamics`, `useInclusions`, `useElasticDeformation` | the `physics` list of `DefectiveCrystal.txt` |
 | `useCracks` | removed |
 | `useFEM`, `Nsteps`, `dtMax`, `startAtTimeStep`, `outputFrequency`, `outputBinary` | `DefectiveCrystal.txt` |
-| `periodicImageSize`, `EwaldLengthFactor` | `DefectiveCrystal.txt` |
+| `periodicImageSize` | `DefectiveCrystal.txt` |
 | `useElasticDeformationFEM`, `inertiaReliefPenaltyFactor` | `ElasticDeformation.txt` |
 | `useClusterDynamicsFEM` | `ClusterDynamics.txt` |
 | `use_stochasticForce` | renamed `useStochasticForce` |
@@ -743,3 +743,25 @@ MoDELib is distributed without any warranty under the GNU General Public License
 MoDELib was created by Giacomo Po, whose copyright notices in the tools date from 2012. The contributors are listed in `Contributors.txt` (38 names).
 
 Questions and bug reports: please open an issue at <https://github.com/MechanicsOfDefects/MoDELib/issues>.
+
+### DD physical core selection
+
+Set `coreType=Cai;` or `coreType=Helmholtz;` in `DD.txt` (default Helmholtz).
+The physical core applies independently of `multipoleMode` to stress, concentration,
+climb interactions and flux. `none` uses direct segment evaluation with the selected
+core; `FMM` accelerates that same core. `ewaldFMM` requires Helmholtz.
+The old `fmmStressCore` name is rejected with a migration message.
+Helmholtz direct segment tables honor `ewaldSegmentChebyshevOrder` and
+`ewaldSegmentTableResolution` even when FMM is disabled.
+Displacement and interaction energy currently support only Cai; Helmholtz requests
+are rejected explicitly rather than silently substituting Cai expressions.
+
+The dislocation network owns an immutable segment/leaf split snapshot shared by
+stress, CD concentration, and climb (all grain/species channels). Exact endpoint
+geometry and box-tree revision checks reuse it across solves and evaluator resets;
+motion, changed segment geometry/topology, or tree changes rebuild the snapshot.
+Only physics weights and target maps are prepared separately. `segmentSplitCache.buildCount()`
+provides a lifecycle diagnostic.
+Helmholtz flux now uses cached Chebyshev endpoint moments of the radial gradient
+kernel, with centered primitive differences for short segments. There is no
+adaptive line quadrature or numerical concentration differentiation in flux queries.

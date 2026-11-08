@@ -7,7 +7,6 @@ dtMax=3.4e18; # max dt in b/cs
 maxResolveSteps=0;
 startAtTimeStep = -1;  # time step for restart. -1 means last available step in file F/F_0.txt
 periodicImageSize= 0 0 0; # number of images for each periodic shift vector
-EwaldLengthFactor=0;
 outputFrequency=1;
 outputBinary=0;
 

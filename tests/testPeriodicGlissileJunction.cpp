@@ -83,7 +83,7 @@ int main(int argc,char** argv)
                 {
                     f<<"0 ";
                 }
-                f<<";\nEwaldLengthFactor=0;\n";
+                f<<";\n";
                 std::ofstream p(input/"polycrystal.txt");
                 p<<std::setprecision(17)<<"materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\nF="<<length<<" 0 0 0 "<<length<<" 0 0 0 "<<length<<";\nX0=0 0 0;\nperiodicFaceIDs=";
                 for(int k=0;k<rank;++k)

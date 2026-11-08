@@ -1,6 +1,7 @@
 #ifndef model_FluxStreamlinesActor_H_
 #define model_FluxStreamlinesActor_H_
 #include <QWidget>
+#include <LoopSeedTracker.h>
 #include <vtkSmartPointer.h>
 #include <DefectiveCrystal/DefectiveCrystal.h>
 class QGroupBox;
@@ -19,6 +20,8 @@ namespace model
 {
     class FluxStreamlinesActor : public QWidget
     {
+        LoopSeedTracker seedTracker;
+        size_t frameID=0;
         const DefectiveCrystal<3>& crystal;
         vtkGenericOpenGLRenderWindow* window;
         vtkRenderer* renderer;
@@ -38,6 +41,7 @@ namespace model
         ~FluxStreamlinesActor();
         void compute();
         void invalidate();
+        void updateFrame(size_t frame);
     };
 }
 #endif

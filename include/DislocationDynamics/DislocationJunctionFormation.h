@@ -15,7 +15,7 @@
 #include <SegmentSegmentDistance.h>
 #include <SweepPlane.h>
 #include <TypeTraits.h>
-#include <DislocationDynamics/StressStraight.h>
+#include <DislocationDynamics/StraightDislocationSegment.h>
 
 #include <DislocationNetworkRemesh.h>
 

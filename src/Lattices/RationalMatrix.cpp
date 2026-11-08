@@ -8,6 +8,7 @@
 #ifndef model_RationalMatrix_cpp_
 #define model_RationalMatrix_cpp_
 
+#include <limits>
 #include <RationalMatrix.h>
 
 namespace model
@@ -57,7 +58,7 @@ namespace model
         }
 
         const double error = (im.template cast<double>() / sigma - R).norm() / (dim * dim);
-        if (error > 100.0 * DBL_EPSILON)
+        if (error > 100.0 * std::numeric_limits<double>::epsilon())
         {
             std::cout << "error=" << error << std::endl;
             std::cout << "maxDen=" << maxDen << std::endl;

@@ -8,6 +8,7 @@
 #ifndef model_LagrangeNode_H_
 #define model_LagrangeNode_H_
 
+#include <limits>
 #include <set>
 #include <Eigen/Dense>
 
@@ -45,14 +46,14 @@ namespace model
                 const Eigen::Matrix<double,dim+1,1> bary(ele->simplex.pos2bary(P0));
                 for(int k=0;k<dim+1;++k)
                 {
-                    if (std::fabs(bary(k))<FLT_EPSILON && ele->simplex.child(k).isBoundarySimplex())
+                    if (std::fabs(bary(k))<std::numeric_limits<float>::epsilon() && ele->simplex.child(k).isBoundarySimplex())
                     {
                         temp += ele->simplex.nda.col(k).normalized();
                     }
                 }
             }
             const double tempNorm(temp.norm());
-            return tempNorm>FLT_EPSILON? (temp/tempNorm).eval() : Eigen::Matrix<double,dim,1>::Zero();
+            return tempNorm>std::numeric_limits<float>::epsilon()? (temp/tempNorm).eval() : Eigen::Matrix<double,dim,1>::Zero();
         }
         
         Eigen::Matrix<double,dim,dim> normalTensor() const
@@ -63,7 +64,7 @@ namespace model
                 const Eigen::Matrix<double,dim+1,1> bary(ele->simplex.pos2bary(P0));
                 for(int k=0;k<dim+1;++k)
                 {
-                    if (std::fabs(bary(k))<FLT_EPSILON && (ele->simplex.child(k).isBoundarySimplex() || ele->simplex.child(k).isRegionBoundarySimplex()))
+                    if (std::fabs(bary(k))<std::numeric_limits<float>::epsilon() && (ele->simplex.child(k).isBoundarySimplex() || ele->simplex.child(k).isRegionBoundarySimplex()))
                     {
                         const Eigen::Matrix<double,dim,1> unitNormal(ele->simplex.nda.col(k).normalized());
                         temp += unitNormal*unitNormal.transpose();

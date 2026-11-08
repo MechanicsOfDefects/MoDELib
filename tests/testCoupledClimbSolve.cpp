@@ -59,6 +59,33 @@ int main()
             require((v-exact).norm()<1.e-8*exact.norm(),"Dense constrained reference mismatch");
             require((Z.transpose()*(K*v-f)).norm()<1.e-8*(Z.transpose()*f).norm(),"Full residual mismatch");
         }
+        CoupledClimbSolve matrixFree;
+        matrixFree.computeOperator([&K](const Eigen::VectorXd& v)->Eigen::VectorXd{return K*v;},P,Z);
+        Eigen::VectorXd probe=Eigen::VectorXd::LinSpaced(n,-1,1);
+        require((matrixFree.solve(probe)-solver.solve(probe)).norm()<1e-8*solver.solve(probe).norm(),"Matrix-free GMRES differs from dense");
+        require(!matrixFree.usesDirectFallback(),"Matrix-free solve materialized a dense fallback");
+        // Repeated RHS must reuse the accepted solution, not perform another Krylov solve.
+        int products=0;
+        CoupledClimbSolve warm;
+        const auto operation=[&](const Eigen::VectorXd& v)->Eigen::VectorXd {++products;return K*v;};
+        warm.computeOperator(operation,P,Z);
+        const auto first=warm.solve(probe);
+        products=0;
+        const auto repeated=warm.solve(probe);
+        require(products<=4,"Repeated RHS restarted GMRES from zero");
+        require((repeated-first).norm()==0,"Repeated RHS changed the converged solution");
+        const Eigen::VectorXd changed=probe+0.01*Eigen::VectorXd::Ones(n);
+        const Eigen::MatrixXd reduced=Z.transpose()*(K*Z);
+        const Eigen::VectorXd reference=Z*reduced.partialPivLu().solve(Z.transpose()*changed);
+        require((warm.solve(changed)-reference).norm()<1e-8*reference.norm(),"Warm start used stale RHS");
+        // Same-sized operator rebuild invalidates the cached scaled coordinates.
+        warm.computeOperator(operation,P,Z);products=0;
+        warm.solve(probe);
+        require(products>4,"Operator rebuild retained a stale initial guess");
+        require(warm.solve(Eigen::VectorXd::Zero(n)).isZero(0),"Warm zero RHS retained velocity");
+        const Eigen::VectorXd tiny=1e-180*probe;
+        const Eigen::VectorXd tinyReference=Z*reduced.partialPivLu().solve(Z.transpose()*tiny);
+        require((warm.solve(tiny)-tinyReference).stableNorm()<1e-8*tinyReference.stableNorm(),"Warm start mishandled tiny RHS");
         require(solver.solve(Eigen::VectorXd::Zero(n)).isZero(0),"Zero drive must give zero velocity");
         // Opposite signed source rates: positive driving terms at both sites
         // can still require absorption at the second site through coupling.

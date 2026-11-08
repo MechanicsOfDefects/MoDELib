@@ -8,6 +8,7 @@
 #ifndef model_PeriodicLatticeInterpolant_cpp_
 #define model_PeriodicLatticeInterpolant_cpp_
 
+#include <limits>
 #include <PeriodicLatticeInterpolant.h>
 
 namespace model
@@ -33,7 +34,7 @@ namespace model
         for (const auto &N : mirSymm)
         { // apply mirSymm to each existing entry in temp
             const double nNorm(N.norm());
-            if (nNorm > FLT_EPSILON)
+            if (nNorm > std::numeric_limits<float>::epsilon())
             {
                 const VectorDim n(N / nNorm);
                 const auto temp1 = temp;
@@ -73,7 +74,7 @@ namespace model
         std::vector<int> nonZcols;
         for (int j = 0; j < M.cols(); ++j)
         {
-            if (M.col(j).squaredNorm() > FLT_EPSILON)
+            if (M.col(j).squaredNorm() > std::numeric_limits<float>::epsilon())
             {
                 nonZcols.push_back(j);
             }

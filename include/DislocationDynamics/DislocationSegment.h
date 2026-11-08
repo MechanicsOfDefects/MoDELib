@@ -1,3 +1,5 @@
+#include <mutex>
+#include <DislocationDynamics/StraightDislocationSegmentHelmholtz.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -127,6 +129,9 @@ namespace model
         VectorDim snapToGlidePlanes(const VectorDim &P) const;
         VectorDim climbDirection() const;
         
+        void prepareConcentrationKernels(const ClusterDynamicsParameters<dim>& icp) const;
+        mutable std::once_flag concentrationKernelOnce;
+        mutable std::array<std::shared_ptr<const SegmentConcentrationKernelBase>,mSize> concentrationKernels;
         ConcentrationMatrixType concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const;
         ConcentrationVectorType clusterConcentration(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const;
         // Value snapshot for repeated evaluation at fixed geometry and climb rates.
@@ -136,8 +141,9 @@ namespace model
             using WideVector=Eigen::Matrix<long double,dim,1>;
             VectorDim source=VectorDim::Zero();
             WideVector d=WideVector::Zero();
-            Eigen::Matrix<long double,dim,dim> inv=Eigen::Matrix<long double,dim,dim>::Zero();
-            long double a=0,core=0,qA=0,qB=0,factor=0;
+            long double qA=0,qB=0;
+            std::shared_ptr<const SegmentConcentrationKernelBase> kernel;
+            double factor=0;
             VectorDim evaluate(const VectorDim& x,const std::vector<VectorDim>& shifts) const;
         };
         MobileClusterFluxSource mobileClusterFluxSource(const ClusterDynamicsParameters<dim>& icp,int species) const;

@@ -148,7 +148,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
             std::map<double,ReciprocalLatticeDirection<3>> ssMap;
             for(const auto& ss : grain->slipSystems())
             {
-                if((ss.second->s-b).squaredNorm()<FLT_EPSILON)
+                if((ss.second->s-b).squaredNorm()<std::numeric_limits<float>::epsilon())
                 {
                     const double cosAngle(ss.second->unitNormal.dot(refNormal));
                     const double sinAngle(ss.second->unitNormal.dot(unitAxis.cross(refNormal)));
@@ -207,7 +207,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
                 P.col(1)=plane1.planeOrigin();
                 P.col(2)=plane2.planeOrigin();
                 
-                PlanesIntersection<3> pi(N,P,FLT_EPSILON);
+                PlanesIntersection<3> pi(N,P,std::numeric_limits<float>::epsilon());
                 const std::pair<bool,VectorDimD> intPair(pi.snap(VectorDimD::Zero()));
                 if(intPair.first)
                 {
@@ -236,7 +236,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
                         const auto* face=entry.second.get();
                         const VectorDimD normal=face->outNormal(grainID);
                         const double speed=normal.dot(direction);
-                        if(speed>FLT_EPSILON)
+                        if(speed>std::numeric_limits<float>::epsilon())
                         {
                             const double candidate=normal.dot(face->center()-center-shift)/speed;
                             if(candidate>=parameter-1.e-9 && candidate<exitParameter-1.e-9)
@@ -303,7 +303,7 @@ double PrismaticLoopGenerator::generateSingle(MicrostructureGenerator& mg,const 
                     retainedArea+=0.5*(result.nodes[k].position-polygon.front()).cross(
                         result.nodes[(k+1)%result.nodes.size()].position-polygon.front());
                 }
-                if(result.nodes.size()<3 || originalArea.norm()<=FLT_EPSILON ||
+                if(result.nodes.size()<3 || originalArea.norm()<=std::numeric_limits<float>::epsilon() ||
                    (retainedArea-originalArea).norm()>1.e-8*originalArea.norm())
                 {
                     throw std::runtime_error("Prismatic loop crosses a physical grain boundary; entire prism rejected.");

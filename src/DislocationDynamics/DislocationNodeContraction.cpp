@@ -8,6 +8,7 @@
 #ifndef model_DislocationNodeContraction_cpp_
 #define model_DislocationNodeContraction_cpp_
 
+#include <limits>
 #include <memory>
 #include <tuple>
 #include <Eigen/Dense>
@@ -56,7 +57,7 @@ namespace model
                     if(a->isPeriodicSubdivision() && b->isPeriodicSubdivision() &&
                        a->networkNode!=b->networkNode &&
                        a->networkNode->meshFaces()==b->networkNode->meshFaces() &&
-                       (a->networkNode->get_P()-b->networkNode->get_P()).norm()<FLT_EPSILON)
+                       (a->networkNode->get_P()-b->networkNode->get_P()).norm()<std::numeric_limits<float>::epsilon())
                     {
                         NodeSet merged{a->networkNode,b->networkNode};
                         for(auto it=groups.begin();it!=groups.end();)
@@ -140,13 +141,13 @@ namespace model
             normals.push_back(DN.nodalVelocityConstraints.row(row));
         }
         const VectorDim actual=oneSidedMotion<dim>(requested,normals,node->physicalBoundaryNormals());
-        if((actual-requested).norm()>FLT_EPSILON)
+        if((actual-requested).norm()>std::numeric_limits<float>::epsilon())
         {
             return false;
         }
         for(const auto* ln : node->loopNodes())
         {
-            if(ln->periodicPlaneEdge.first && requested.norm()>FLT_EPSILON)
+            if(ln->periodicPlaneEdge.first && requested.norm()>std::numeric_limits<float>::epsilon())
             {
                 return false;
             }
@@ -373,7 +374,7 @@ namespace model
                     ++k;
                 }
                 
-                PlanesIntersection<dim> pInt(N,P,FLT_EPSILON);
+                PlanesIntersection<dim> pInt(N,P,std::numeric_limits<float>::epsilon());
                 const std::pair<bool,VectorDim> snapped(pInt.snap(0.5*(nA->get_P()+nB->get_P())));
                 if(snapped.first)
                 {
@@ -388,7 +389,7 @@ namespace model
         }
         else
         {
-            if ((nA->get_P() - nB->get_P()).norm() <= FLT_EPSILON)
+            if ((nA->get_P() - nB->get_P()).norm() <= std::numeric_limits<float>::epsilon())
             {
                 VerboseNodeContraction(1, "DislocationNodeContraction case 2a" << std::endl;);
                 return contractYoungest(nA, nB,reconcileBoundary);

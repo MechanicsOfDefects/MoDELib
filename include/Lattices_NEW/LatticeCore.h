@@ -8,7 +8,7 @@
 #define model_LatticeCore_h_
 
 #include <iostream>
-#include <cfloat> // FLT_EPSILON
+#include <limits>
 #include <Eigen/Dense>
 #include <IntegerMath.h>
 
@@ -19,7 +19,7 @@ namespace model
     struct LatticeCore
     {
         static_assert(dim>0,"dim must be > 0.");
-        static constexpr double roundTol=FLT_EPSILON;
+        static constexpr double roundTol=std::numeric_limits<float>::epsilon();
         
         typedef Eigen::Matrix<  double,dim,1> VectorDimD;
         typedef Eigen::Matrix<double,dim,dim> MatrixDimD;

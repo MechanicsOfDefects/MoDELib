@@ -52,7 +52,7 @@ MicrostructureGenerator::MicrostructureGenerator(DefectiveCrystalBase<3>& ddBase
     std::cout<<greenBoldColor<<"Generating microstructure for folder "<<ddBase.simulationParameters.traitsIO.simulationFolder<<defaultColor<<std::endl;
     
     // Some sanity checks
-    if(ddBase.mesh.volume()<FLT_EPSILON)
+    if(ddBase.mesh.volume()<std::numeric_limits<float>::epsilon())
     {
         throw std::runtime_error("mesh "+ddBase.simulationParameters.traitsIO.meshFile+" is empty.");
     }
@@ -484,7 +484,7 @@ std::vector<size_t> MicrostructureGenerator::insertLoopLinks(const size_t& loopI
         const size_t   sinkNodeID(loopNodeIDs[k1]);
         const auto sourceNode(configIO.loopNodes()[sourceNodeID]);
         const auto   sinkNode(configIO.loopNodes()[sinkNodeID]);
-        configIO.loopLinks().emplace_back(loopID,sourceNodeID,sinkNodeID,(sourceNode.P-sinkNode.P).norm()>FLT_EPSILON,0);
+        configIO.loopLinks().emplace_back(loopID,sourceNodeID,sinkNodeID,(sourceNode.P-sinkNode.P).norm()>std::numeric_limits<float>::epsilon(),0);
     }
     return temp;
 }

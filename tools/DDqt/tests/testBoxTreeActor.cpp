@@ -118,7 +118,7 @@ int main(int argc, char** argv)
         std::filesystem::copy_file(root / "Library/Meshes/unitCube24.msh", input / "mesh.msh");
         std::ofstream(input / "DefectiveCrystal.txt")
             << "physics=DislocationDynamics;\nfmmTreeDepth=2;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
-            << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
+            << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\n";
         std::ofstream(input / "polycrystal.txt")
             << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\n"
             << "F=100 0 0 0 100 0 0 0 100;\nX0=0 0 0;\nperiodicFaceIDs=;\n";

@@ -8,7 +8,7 @@
 #ifndef model_DDtimeStepper_cpp_
 #define model_DDtimeStepper_cpp_
 
-#include <cfloat>
+#include <limits>
 #include <DDtimeStepper.h>
 
 #include <DislocationNetwork.h>
@@ -22,9 +22,9 @@ namespace model
     /* init */,timeSteppingMethod(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readString("timeSteppingMethod", true))
     /* init */,dxMax(TextFileParser(DN.ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<double>("dxMax", true))
     {
-        if (dxMax < FLT_EPSILON)
+        if (dxMax < std::numeric_limits<float>::epsilon())
         {
-            throw std::runtime_error("dxMax must be > FLT_EPSILON.");
+            throw std::runtime_error("dxMax must be > std::numeric_limits<float>::epsilon().");
         }
     }
 

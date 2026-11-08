@@ -9,6 +9,7 @@
 #ifndef model_GlidePlaneActor_cpp_
 #define model_GlidePlaneActor_cpp_
 
+#include <limits>
 #include <DislocationNetwork.h>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <numbers>
@@ -442,7 +443,7 @@ void GlidePlaneActor::computeStackingFaults()
                             }
                             const double sfe(pair.second.planeBase->misfitEnergy(slip)*defectiveCrystal.ddBase.poly.b_SI*defectiveCrystal.ddBase.poly.mu_SI);
 //                            std::cout<<"sfe="<<sfe<<std::endl;
-                            if(std::fabs(sfe)>FLT_EPSILON)
+                            if(std::fabs(sfe)>std::numeric_limits<float>::epsilon())
                             {
                                 meshTriangles->InsertNextCell ( triangle );
                                 

@@ -14,6 +14,7 @@
 #ifndef model_ClusterDynamicsParameters_cpp_
 #define model_ClusterDynamicsParameters_cpp_
 
+#include <limits>
 #include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <DefectiveCrystal/DefectiveCrystalBase.h>
 
@@ -89,12 +90,12 @@ namespace model
             }
         }
         
-        if(fabs(vacancySum-1.0)>FLT_EPSILON)
+        if(fabs(vacancySum-1.0)>std::numeric_limits<float>::epsilon())
         {
             //            throw std::runtime_error("vacancy cluster fraction does not sum to one.");
             std::cout<<redBoldColor<<"Warning: vacancy cluster fraction does not sum to one."<<defaultColor<<std::endl;
         }
-        if(fabs(interstitialSum-1.0)>FLT_EPSILON)
+        if(fabs(interstitialSum-1.0)>std::numeric_limits<float>::epsilon())
         {
             //            throw std::runtime_error("interstitial cluster fraction does not sum to one.");
             std::cout<<redBoldColor<<"Warning: interstitial cluster fraction does not sum to one."<<defaultColor<<std::endl;
@@ -140,11 +141,11 @@ namespace model
         int vIndex, iIndex;
         for(int k=0;k<mSize;k++)
         {
-            if(fabs(msVector(k)+1)<FLT_EPSILON)
+            if(fabs(msVector(k)+1)<std::numeric_limits<float>::epsilon())
             {
                 vIndex=k;
             }
-            if(fabs(msVector(k)-1)<FLT_EPSILON)
+            if(fabs(msVector(k)-1)<std::numeric_limits<float>::epsilon())
             {
                 iIndex=k;
             }
@@ -163,7 +164,7 @@ namespace model
         Eigen::Array<double,1,mSize> rn(Eigen::Array<double,1,mSize>::Zero());
         for(int k=0;k<mSize;k++)
         {
-            if(fabs(msVector(k)-1)<FLT_EPSILON || fabs(msVector(k)+1)<FLT_EPSILON)
+            if(fabs(msVector(k)-1)<std::numeric_limits<float>::epsilon() || fabs(msVector(k)+1)<std::numeric_limits<float>::epsilon())
             {
                 rn(k)=pow(3.0*this->omega/4.0/M_PI,1.0/3.0);
             }
@@ -235,7 +236,7 @@ namespace model
         Eigen::Array<double,1,mSize> rn(Eigen::Array<double,1,mSize>::Zero());
         for(int k=0;k<mSize;k++)
         {
-            if(fabs(msVector(k)-1)<FLT_EPSILON || fabs(msVector(k)+1)<FLT_EPSILON)
+            if(fabs(msVector(k)-1)<std::numeric_limits<float>::epsilon() || fabs(msVector(k)+1)<std::numeric_limits<float>::epsilon())
             {
                 rn(k)=pow(3.0*this->omega/4.0/M_PI,1.0/3.0);
             }
@@ -271,7 +272,7 @@ namespace model
                     tempR2_k(key.first ,key.second) -= pair.second*4.0*M_PI*(rn(key.first)+rn(key.second))*(aveD(key.first)+aveD(key.second))/omega;
                     tempR2_k(key.second ,key.first) -= pair.second*4.0*M_PI*(rn(key.first)+rn(key.second))*(aveD(key.first)+aveD(key.second))/omega;
                 }
-                else if( fabs(msVector(key.first)+msVector(key.second)-msVector(k))<FLT_EPSILON )
+                else if( fabs(msVector(key.first)+msVector(key.second)-msVector(k))<std::numeric_limits<float>::epsilon() )
                 {// (key.first, key.second) generate k_specie
                     const double same= (key.first==key.second) ? 0.5 : 1.0;
 //                    if(msVector(key.second)>1.0 && use0DsinkStrength)
@@ -292,7 +293,7 @@ namespace model
             tempR2.push_back(tempR2_k);
             const double maxCoeffLocal(std::max(std::abs(tempR2.back().maxCoeff()),std::abs(tempR2.back().minCoeff())));
             
-            if((tempR2.back()-tempR2.back().transpose()).norm()/maxCoeffLocal>FLT_EPSILON)
+            if((tempR2.back()-tempR2.back().transpose()).norm()/maxCoeffLocal>std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("ClusterDynamicsParameters: R2_"+std::to_string(k)+" is not symmetric.");
             }
@@ -300,7 +301,7 @@ namespace model
             R2sum+=tempR2.back()*msVector(k);
         }
         
-        if(R2sum.norm()/maxCoeff>FLT_EPSILON)
+        if(R2sum.norm()/maxCoeff>std::numeric_limits<float>::epsilon())
         {
             //            throw std::runtime_error("Sum of R2's must be zero.");
             std::cout<<redBoldColor<<"Warning: Sum of R2 is not zero."<<defaultColor<<std::endl;
@@ -349,7 +350,7 @@ namespace model
                 const Eigen::Matrix<double,dim,dim> Dglobal(grainPair.second->C2G*Dlocal*grainPair.second->C2G.transpose());
                 grainIter.first->second.emplace_back(Dglobal);
                 
-                if( fabs(Dglobal.eigenvalues().imag()(0)*Dglobal.eigenvalues().imag()(1)*Dglobal.eigenvalues().imag()(2)) > FLT_EPSILON)
+                if( fabs(Dglobal.eigenvalues().imag()(0)*Dglobal.eigenvalues().imag()(1)*Dglobal.eigenvalues().imag()(2)) > std::numeric_limits<float>::epsilon())
                 {
                     throw std::runtime_error("Diffusion tensor does not have proper eigen values.");
                 }
@@ -445,7 +446,7 @@ namespace model
     {
         const VectorDim bxt(b.cross(t));
         const double bxtNorm2(bxt.squaredNorm());
-        if(bxtNorm2>FLT_EPSILON)
+        if(bxtNorm2>std::numeric_limits<float>::epsilon())
         {
             const double fc(fPK.dot(bxt));
             return equilibriumMobileConcentration(stress.trace())*exp(-(msVector*omega*fc)/(kB*T*(bxtNorm2+0.05*b.squaredNorm())));

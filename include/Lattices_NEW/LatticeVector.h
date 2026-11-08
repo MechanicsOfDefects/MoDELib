@@ -6,6 +6,7 @@
 #ifndef model_LatticeVector_h_
 #define model_LatticeVector_h_
 
+#include <limits>
 #include <LatticeModule.h>
 
 namespace model
@@ -19,7 +20,7 @@ namespace model
 
     public:
         
-//        static constexpr double roundTol=FLT_EPSILON;
+//        static constexpr double roundTol=std::numeric_limits<float>::epsilon();
         typedef typename LatticeCore<dim>::IntScalarType IntScalarType;
         typedef typename LatticeCore<dim>::VectorDimD VectorDimD;
         typedef typename LatticeCore<dim>::MatrixDimD MatrixDimD;

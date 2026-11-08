@@ -8,6 +8,7 @@
 #ifndef model_LatticeLine_cpp_
 #define model_LatticeLine_cpp_
 
+#include <limits>
 #include <LatticeModule.h>
 #include <LatticeLine.h>
 #include <math.h> /* round, floor, ceil, trunc */
@@ -40,7 +41,7 @@ namespace model
         VectorDimD dc(d.cartesian());
         const VectorDimD Pc(P.cartesian());
         const double dNorm(dc.norm());
-        assert(dNorm > FLT_EPSILON);
+        assert(dNorm > std::numeric_limits<float>::epsilon());
         dc /= dNorm;
         return Pc + (P0 - Pc).dot(dc) * dc;
     }

@@ -58,6 +58,7 @@ namespace model
 //        const double targetDensity(this->parser.readScalar<double>("targetDensity",true));
         if(spec.targetDensity>0.0)
         {
+            spec.validateDiscretization();
 //            const int numberOfSides(this->parser.readScalar<int>("numberOfSides",true));
 //            const double radiusDistributionMean(this->parser.readScalar<double>("radiusDistributionMean",true));
 //            const double radiusDistributionStd(this->parser.readScalar<double>("radiusDistributionStd",true));
@@ -90,10 +91,12 @@ namespace model
 
                     const int pID(allowedPlaneID<0? ssDist(generator) : allowedPlaneID); // a random SlipSystem
                     const double radius(radiusDistribution(generator));
+                    if(!std::isfinite(radius) || radius<=0.0) { continue; }
+                    const size_t sides=spec.sidesForRadius(radius);
                     try
                     {
                         const bool isVL(spec.areVacancyLoops>0);
-                        generateSingle(mg,pID,L0.cartesian(),radius,spec.numberOfSides,isVL);
+                        generateSingle(mg,pID,L0.cartesian(),radius,sides,isVL);
                         density+=2.0*std::numbers::pi*radius/mg.ddBase.mesh.volume()/std::pow(mg.ddBase.poly.b_SI,2);
                         std::cout<<"Frank loop density="<<density<<std::endl;
                     }

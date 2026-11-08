@@ -10,6 +10,7 @@
 #ifndef model_DislocationQuadraturePoint_cpp_
 #define model_DislocationQuadraturePoint_cpp_
 
+#include <limits>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationQuadraturePoint.h>
 #include <DislocationSegment.h>
@@ -32,7 +33,7 @@ namespace model
     /* init */,r(SF*qH)
     /* init */,ru(QuadPowDynamicType::duPow(qOrder).row(qID)*SFCH.template block<Ncoeff-1,Ncoeff>(1,0)*qH)
     /* init */,j(ru.norm())
-    /* init */,rl(j > FLT_EPSILON ? (ru/j).eval() : VectorDim::Zero())
+    /* init */,rl(j > std::numeric_limits<float>::epsilon() ? (ru/j).eval() : VectorDim::Zero())
     /* init */,dL(j*weight)
     /* init */,internalStress(MatrixDim::Zero())
     /* init */,stress(MatrixDim::Zero())
@@ -75,7 +76,7 @@ namespace model
     /* init */,r(SF*qH)
     /* init */,ru(QuadPowDynamicType::duPow(qOrder).row(qID)*SFCH.template block<Ncoeff-1,Ncoeff>(1,0)*qH)
     /* init */,j(ru.norm())
-    /* init */,rl(j > FLT_EPSILON ? (ru/j).eval() : VectorDim::Zero())
+    /* init */,rl(j > std::numeric_limits<float>::epsilon() ? (ru/j).eval() : VectorDim::Zero())
     /* init */,dL(j*weight)
     /* init */,stress(MatrixDim::Zero())
     /* init */,pkForce(VectorDim::Zero())
@@ -154,7 +155,7 @@ namespace model
 //            if(parentSegment.loopLinks().size()==1)
 //            {// pick right-handed normal for n
 //                const typename LinkType::LoopLinkType& loopLink(**parentSegment.loopLinks().begin());
-//                if(std::fabs(loopLink.loop->slippedArea())>FLT_EPSILON)
+//                if(std::fabs(loopLink.loop->slippedArea())>std::numeric_limits<float>::epsilon())
 //                {
 //                    if(parentSegment.source->sID!=loopLink.source->sID)
 //                    {// NetworkLink and LoopLink are oriented in opposite direction
@@ -170,7 +171,7 @@ namespace model
 
             VectorDim glideDirection=n.cross(t);
             const double glideDirectionNorm=glideDirection.norm();
-            if(glideDirectionNorm<FLT_EPSILON)
+            if(glideDirectionNorm<std::numeric_limits<float>::epsilon())
             {
                 return VectorDim::Zero();
             }
@@ -181,18 +182,18 @@ namespace model
             VectorDim glideForce=fPK.dot(glideDirection)*glideDirection;
             double glideForceNorm(glideForce.norm());
             
-            if(glideForceNorm<FLT_EPSILON && parentSegment.network().stochasticForceGenerator)
+            if(glideForceNorm<std::numeric_limits<float>::epsilon() && parentSegment.network().stochasticForceGenerator)
             {
                 glideForce=-glideDirection;
                 glideForceNorm=glideForce.norm();
-                if(glideForceNorm>FLT_EPSILON)
+                if(glideForceNorm>std::numeric_limits<float>::epsilon())
                 {
                     glideForce/=glideForceNorm;
                 }
             }
             
             VectorDim vv=VectorDim::Zero();
-            if(glideForceNorm>FLT_EPSILON)
+            if(glideForceNorm>std::numeric_limits<float>::epsilon())
             {
                 //            std::cout<<"a"<<std::endl;
                 
@@ -201,7 +202,7 @@ namespace model
                                                                          parentSegment.network().ddBase.poly.T,
                                                                          dL,parentSegment.network().ddBase.simulationParameters.dt,parentSegment.network().stochasticForceGenerator);
                 // std::cout<<"v is "<<v<<std::endl;
-                if(v<0.0 && v>=-FLT_EPSILON && !parentSegment.network().stochasticForceGenerator)
+                if(v<0.0 && v>=-std::numeric_limits<float>::epsilon() && !parentSegment.network().stochasticForceGenerator)
                 {
                     v=0.0; // kill roundoff errors for small negative velocities
                 }
@@ -213,7 +214,7 @@ namespace model
                 
                 assert((parentSegment.network().stochasticForceGenerator || v>= 0.0) && "Velocity must be a positive scalar");
                 const bool useNonLinearVelocity=true;
-                if(useNonLinearVelocity && v>FLT_EPSILON && !parentSegment.network().stochasticForceGenerator)
+                if(useNonLinearVelocity && v>std::numeric_limits<float>::epsilon() && !parentSegment.network().stochasticForceGenerator)
                 {
                     v= 1.0-std::exp(-v);
                 }
@@ -306,7 +307,7 @@ namespace model
         const double burgersNorm=parentSegment.burgers().norm();
         VectorDim glideDirection=parentSegment.glidePlaneNormal().cross(unitTangent);
         const double directionNorm=glideDirection.norm();
-        if(burgersNorm>FLT_EPSILON && directionNorm>FLT_EPSILON)
+        if(burgersNorm>std::numeric_limits<float>::epsilon() && directionNorm>std::numeric_limits<float>::epsilon())
         {
             glideDirection/=directionNorm;
             const double resolvedForce=force.dot(glideDirection);
@@ -314,7 +315,7 @@ namespace model
             const VectorDim normal=parentSegment.glidePlaneNormal();
             const MatrixDim unitStress=unitBurgers*normal.transpose()+normal*unitBurgers.transpose();
             const double resolvedUnitForce=((unitStress*parentSegment.burgers()).cross(unitTangent)).dot(glideDirection);
-            if(std::abs(resolvedUnitForce)>FLT_EPSILON)
+            if(std::abs(resolvedUnitForce)>std::numeric_limits<float>::epsilon())
             {
                 return (resolvedForce/resolvedUnitForce)*unitStress;
             }
@@ -428,7 +429,22 @@ namespace model
         
         if(this->size())
         {
-            if(parentSegment.network().computeDDinteractions)
+            if(parentSegment.network().computeDDinteractions && parentSegment.network().ddBase.fmmContext->usesFMM())
+            {
+                for(auto& qp:quadraturePoints())
+                {
+                    qp.internalStress=parentSegment.network().stress(qp.r,nullptr,nullptr,nullptr);
+                    // Energy uses the physical core; unsupported combinations are rejected during setup.
+                    if(parentSegment.network().computeElasticEnergyPerLength)
+                    {
+                        for(const auto& source:parentSegment.network().networkLinks())
+                        {
+                            qp.elasticEnergyPerLength+=source.second.lock()->straight.elasticInteractionEnergy(qp.r,qp.rl,parentSegment.burgers());
+                        }
+                    }
+                }
+            }
+            else if(parentSegment.network().computeDDinteractions)
             {
                 const double L0(parentSegment.chord().norm());
                 const VectorDim c(0.5*(parentSegment.source->get_P()+parentSegment.sink->get_P()));
@@ -445,11 +461,11 @@ namespace model
                                 const VectorDim& P1(patch.second[k1]);
                                 const VectorDim chord(P1-P0);
                                 const double chordLength(chord.norm());
-                                if(chordLength>FLT_EPSILON)
+                                if(chordLength>std::numeric_limits<float>::epsilon())
                                 {
                                     const VectorDim tangent(chord/chordLength);
                                     //                                const StraightDislocationSegment<dim> ss(parentSegment.network().poly,P0-patch.first->shift,P1-patch.first->shift,loop.second.lock()->burgers(),chordLength,tangent);
-                                    const StraightDislocationSegment<dim> ss(parentSegment.network().ddBase.poly,P0,P1,loop.second.lock()->burgers(),chordLength,tangent,parentSegment.network().ddBase.dislocationDynamics().EwaldLength);
+                                    const StraightDislocationSegment<dim> ss(parentSegment.network().ddBase.poly,P0,P1,loop.second.lock()->burgers(),chordLength,tangent);
                                     updateKernel(parentSegment,ss,L0,c);
                                 }
                             }
@@ -480,7 +496,7 @@ namespace model
                 const double eps=1.0e-2;
                 VectorDim outDir(parentSegment.unitDirection().cross(slipSystem.unitNormal));
                 const double outDirNorm(outDir.norm());
-                if(outDirNorm>FLT_EPSILON)
+                if(outDirNorm>std::numeric_limits<float>::epsilon())
                 {
                     outDir/=outDirNorm;
                     std::vector<std::pair<VectorDim,VectorDim>> qPointSlip(quadraturePoints().size(),std::make_pair(VectorDim::Zero(),VectorDim::Zero())); // accumulated slip vectors (outside,inside) for each qPoint
@@ -507,7 +523,7 @@ namespace model
                     
                     for(auto& qPoint : quadraturePoints())
                     {
-                        if((qPoint.slipVectors.first-qPoint.slipVectors.second).squaredNorm()>FLT_EPSILON)
+                        if((qPoint.slipVectors.first-qPoint.slipVectors.second).squaredNorm()>std::numeric_limits<float>::epsilon())
                         {
                             //                                auto& qPoint(loopLink->networkLink()->quadraturePoints()[q]);
                             if(qPoint.inclusionID<0)
@@ -553,7 +569,7 @@ namespace model
             {
                 
                 //Add line tension contribution
-                if (parentSegment.network().alphaLineTension>0.0 && !parentSegment.hasZeroBurgers() && parentSegment.chordLength()>FLT_EPSILON)
+                if (parentSegment.network().alphaLineTension>0.0 && !parentSegment.hasZeroBurgers() && parentSegment.chordLength()>std::numeric_limits<float>::epsilon())
                 {
                     //Add the line tension contribution due to only non -zero segments
                     //                    for (const auto &ll : parentSegment.loopLinks())
@@ -668,7 +684,7 @@ namespace model
     { /*\returns The segment-integrated nodal velocity vector int N^T*v dL
        */
         VectorNdof Fq(VectorNdof::Zero());
-        if(parentSegment.chordLength()>FLT_EPSILON)
+        if(parentSegment.chordLength()>std::numeric_limits<float>::epsilon())
         {
             QuadratureDynamicType::integrate(this->size(),this,Fq,&DislocationQuadraturePointContainerType::nodalVelocityLinearKernel);
         }

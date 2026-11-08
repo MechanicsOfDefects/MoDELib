@@ -1,4 +1,5 @@
 #include <FluxStreamlineTrace.h>
+#include <LoopSeedTracker.h>
 #include <iostream>
 #include <stdexcept>
 #include <cmath>
@@ -14,6 +15,55 @@ int main(int argc,char** argv)
 {
     try
     {
+        {
+        LoopSeedTracker tracker;
+        const Eigen::Vector3d zero=Eigen::Vector3d::Zero(),normal=Eigen::Vector3d::UnitZ();
+        std::vector<LoopSeedNode> square{{10,{0,0,0},zero},{20,{4,0,0},zero},{30,{4,4,0},zero},{40,{0,4,0},zero}};
+        const auto first=tracker.seeds(0,7,square,normal,4,0.2);
+        require(first.size()==16,"Initial loop seed count incorrect");
+        require((first[0].second-Eigen::Vector3d(2,0,0.2)).norm()<1.e-12,"Origin did not start at lowest ID");
+        auto split=square;
+        split.insert(split.begin()+1,LoopSeedNode{100,{2,0,0},zero});
+        const auto subdivided=tracker.seeds(5,7,split,normal,4,0.2);
+        for(size_t i=0;i<first.size();++i)
+        {
+            require((first[i].second-subdivided[i].second).norm()<1.e-12,"Segment subdivision changed seeds");
+        }
+        auto remeshed=square;
+        remeshed[0].id=50;
+        remeshed[0].position.x()=0.1;
+        remeshed[2].id=1;
+        const auto next=tracker.seeds(10,7,remeshed,normal,4,0.2);
+        require(next.size()==first.size(),"Remeshing changed persistent seed count");
+        LoopSeedTracker reference;
+        auto expectedNodes=remeshed;
+        expectedNodes[0].id=0;
+        const auto expected=reference.seeds(10,7,expectedNodes,normal,4,0.2);
+        for(size_t i=0;i<next.size();++i)
+        {
+            require((next[i].second-expected[i].second).norm()<1.e-12,"Origin did not snap to closest node");
+        }
+        const auto revisited=tracker.seeds(0,7,square,normal,4,0.2);
+        for(size_t i=0;i<first.size();++i)
+        {
+            require((first[i].second-revisited[i].second).norm()==0,"Revisited frame changed seeds");
+        }
+        for(auto& node:remeshed)
+        {
+            node.shift=Eigen::Vector3d(10,0,0);
+        }
+        const auto periodic=tracker.seeds(20,7,remeshed,normal,4,0.2);
+        for(size_t i=0;i<next.size();++i)
+        {
+            require((periodic[i].second-next[i].second-Eigen::Vector3d(10,0,0)).norm()<1.e-12,"Periodic mapping changed unwrapped origin");
+        }
+        auto grown=square;
+        for(auto& node:grown)
+        {
+            node.position*=2;
+        }
+        require(tracker.seeds(30,7,grown,normal,4,0.2).size()==first.size(),"Loop growth reshuffled seed count");
+        }
         require(argc==2,"Expected repository path");
         const std::string path=std::string(argv[1])+"/Library/Meshes/unitCube24.msh";
         const Eigen::Vector3d seed(0.031,0.071,0.093);

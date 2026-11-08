@@ -8,6 +8,7 @@
 #ifndef model_DislocationNode_cpp_
 #define model_DislocationNode_cpp_
 
+#include <limits>
 #include <DislocationNode.h>
 #include <PlanesIntersection.h>
 #include <OneSidedMotion.h>
@@ -58,7 +59,7 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
         }
     }
     const double tempNorm(temp.norm());
-    return tempNorm>FLT_EPSILON? (temp/tempNorm).eval() : VectorDim::Zero();
+    return tempNorm>std::numeric_limits<float>::epsilon()? (temp/tempNorm).eval() : VectorDim::Zero();
 }
 
     template <int dim>
@@ -105,7 +106,7 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
         {// Detect if the PlanarDislocationNode is sligtly outside the boundary
             int faceID;
             const double baryMin(temp.second->pos2bary(X).minCoeff(&faceID));
-            const bool isApproxOnBoundary(std::fabs(baryMin)<1.0e3*FLT_EPSILON && temp.second->child(faceID).isBoundarySimplex());
+            const bool isApproxOnBoundary(std::fabs(baryMin)<1.0e3*std::numeric_limits<float>::epsilon() && temp.second->child(faceID).isBoundarySimplex());
             if(!isApproxOnBoundary)
             {
                 std::cout<<"PlanarDislocationNode "<<this->sID<<" @ "<<X.transpose()<<std::endl;
@@ -199,8 +200,8 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
 //        {
 //            //Need to cap the max velocity based on the time step
 //            const double vmax=this->network().timeIntegrator.dxMax/this->network().timeIntegrator.dtMax;
-//            assert(fabs(vmax)>FLT_EPSILON && "Max velocity should be greater than 0");
-//            if (velocity.norm()>=FLT_EPSILON && velocity.norm()>fabs(vmax))
+//            assert(fabs(vmax)>std::numeric_limits<float>::epsilon() && "Max velocity should be greater than 0");
+//            if (velocity.norm()>=std::numeric_limits<float>::epsilon() && velocity.norm()>fabs(vmax))
 //            {
 //                const double velredFac(velocity.norm()/fabs(vmax));
 //                assert(velredFac>=1.0 && "Velocity reduction factor must be greater than 1");
@@ -213,7 +214,7 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
 //        {
 //            if(!isBoundaryNode())
 //            {
-//                const double filterThreshold=0.05*velocity.norm()*vOld.norm()+FLT_EPSILON;
+//                const double filterThreshold=0.05*velocity.norm()*vOld.norm()+std::numeric_limits<float>::epsilon();
 //                
 //                if(velocity.dot(vOld)<-filterThreshold)
 //                {
@@ -305,7 +306,7 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
     {
         VerboseDislocationNode(1, "  Setting P for Network Node " << this->tag() << std::endl;);
 
-        if((SplineNodeType::get_P()-newP).norm()>FLT_EPSILON)   //Check with the base classs
+        if((SplineNodeType::get_P()-newP).norm()>std::numeric_limits<float>::epsilon())   //Check with the base classs
         {
             const auto simplex=get_includingSimplex(newP,p_Simplex);
             SplineNodeType::set_P(newP);
@@ -313,7 +314,7 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
             
         }
         
-        return (this->get_P()-newP).norm()<FLT_EPSILON;
+        return (this->get_P()-newP).norm()<std::numeric_limits<float>::epsilon();
     }
 
 
@@ -376,7 +377,7 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
         VectorDim temp(this->neighbors().size()? std::get<1>(this->neighbors().begin()->second)->chord().normalized() : VectorDim::Zero());
         for (const auto& neighborIter : this->neighbors())
         {
-            if(std::get<1>(neighborIter.second)->chord().normalized().cross(temp).norm()>FLT_EPSILON)
+            if(std::get<1>(neighborIter.second)->chord().normalized().cross(temp).norm()>std::numeric_limits<float>::epsilon())
             {
                 temp.setZero();
             }
@@ -524,7 +525,7 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
             _outNormal += face->outNormal();
         }
         const double _outNormalNorm(_outNormal.norm());
-        if (_outNormalNorm > FLT_EPSILON)
+        if (_outNormalNorm > std::numeric_limits<float>::epsilon())
         {
             _outNormal /= _outNormalNorm;
         }
@@ -551,7 +552,7 @@ typename DislocationNode<dim>::VectorDim DislocationNode<dim>::climbDirection() 
                 P.col(k)=plane->P;
                 ++k;
             }
-            PlanesIntersection<dim> pInt(N,P,FLT_EPSILON);
+            PlanesIntersection<dim> pInt(N,P,std::numeric_limits<float>::epsilon());
 
             const std::pair<bool,VectorDim> snapped(pInt.snap(x));
             if(snapped.first)

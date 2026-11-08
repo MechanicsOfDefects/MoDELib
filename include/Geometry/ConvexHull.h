@@ -13,7 +13,7 @@
 #include <map>
 #include <set>
 #include <vector>
-#include <cfloat>
+#include <limits>
 
 namespace model
 {
@@ -84,7 +84,7 @@ namespace model
         typedef HullPoint<2,T> HullPointType;
         typedef std::vector<HullPointType> HullPointContainerType;
         static constexpr int dim=2;
-        static constexpr double tol=FLT_EPSILON;
+        static constexpr double tol=std::numeric_limits<float>::epsilon();
         
     private:
         

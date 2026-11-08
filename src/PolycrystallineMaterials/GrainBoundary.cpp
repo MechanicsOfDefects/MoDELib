@@ -9,7 +9,7 @@
 #define model_GrainBoundary_cpp_
 
 #include <numbers>
-#include <cfloat> // FLT_EPSILON
+#include <limits>
 #include <vector>
 #include <deque>
 #include <Eigen/Core>
@@ -22,7 +22,7 @@
 //#include <LineMeshIntersection.h>
 //#include <CSL.h>
 //#include <DSCL.h>
-//#include <DislocationDynamics/StressStraight.h>
+//#include <DislocationDynamics/StraightDislocationSegment.h>
 //#include <GlidePlane.h>
 #include <MeshPlane.h>
 #include <GrainBoundary.h>
@@ -43,7 +43,7 @@ namespace model
         // Determine _crystallographicRotationAxis as the eigenvector of R corresponding to eigenvalue=1
         for(unsigned int j=0;j<dim;++j)
         {
-            if(fabs(es.eigenvalues()(j).real()-1.0)<FLT_EPSILON && fabs(es.eigenvalues()(j).imag())<FLT_EPSILON)
+            if(fabs(es.eigenvalues()(j).real()-1.0)<std::numeric_limits<float>::epsilon() && fabs(es.eigenvalues()(j).imag())<std::numeric_limits<float>::epsilon())
             {
                 for(unsigned int d=0;d<dim;++d)
                 {
@@ -53,11 +53,11 @@ namespace model
             }
         }
         const double axisNorm(_crystallographicRotationAxis.norm());
-        assert(axisNorm>FLT_EPSILON);
+        assert(axisNorm>std::numeric_limits<float>::epsilon());
         _crystallographicRotationAxis/=axisNorm;
         
         _rotationAxis=grain(grainBndID.first).C2G*_crystallographicRotationAxis;
-        assert((_rotationAxis-grain(grainBndID.second).C2G*_crystallographicRotationAxis).norm()<FLT_EPSILON && "rotationAxis inconsistency.");
+        assert((_rotationAxis-grain(grainBndID.second).C2G*_crystallographicRotationAxis).norm()<std::numeric_limits<float>::epsilon() && "rotationAxis inconsistency.");
         
         cosTheta=0.5*(R.trace()-1.0);
         
@@ -100,7 +100,7 @@ namespace model
             const VectorDimD outNormal=tet.second->nda.col(faceID);
             const double outNorm(outNormal.norm());
             const size_t rID=tet.second->region->regionID;
-            assert(outNorm>FLT_EPSILON && "Simplex normal has zero norm.");
+            assert(outNorm>std::numeric_limits<float>::epsilon() && "Simplex normal has zero norm.");
             assert(rID==grainFirst.grainID || rID==grainSecond.grainID);
             OutNormalContainerType::emplace(rID,outNormal/outNorm);
         }

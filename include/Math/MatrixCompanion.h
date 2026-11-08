@@ -10,7 +10,7 @@
 
 #include <Eigen/Dense>
 #include <assert.h>
-#include <cfloat>
+#include <limits>
 
 
 namespace model
@@ -61,11 +61,11 @@ namespace model
         static Eigen::MatrixXd getCM(const VectorNcoeff& coeffsIN)
         {
             
-            //assert(std::fabs(coeffsIN(0))>FLT_EPSILON && "COEFFICIENT OF HIGHEST DEGREE CANNOT BE 0");
+            //assert(std::fabs(coeffsIN(0))>std::numeric_limits<float>::epsilon() && "COEFFICIENT OF HIGHEST DEGREE CANNOT BE 0");
             
             Eigen::MatrixXd temp;
             
-            if ( std::fabs(coeffsIN(0))>FLT_EPSILON)
+            if ( std::fabs(coeffsIN(0))>std::numeric_limits<float>::epsilon())
             {
                 temp=MatrixPorder::Zero();
                 temp.row(0)=coeffsIN.template segment<pOrder>(1)/(-coeffsIN(0));
@@ -120,7 +120,7 @@ namespace model
         /**********************************************************************/
         static MatrixPorder getCM(const VectorNcoeff& coeffsIN)
         {
-            assert(std::fabs(coeffsIN(0))>FLT_EPSILON && "COEFFICIENT OF HIGHEST DEGREE CANNOT BE 0");
+            assert(std::fabs(coeffsIN(0))>std::numeric_limits<float>::epsilon() && "COEFFICIENT OF HIGHEST DEGREE CANNOT BE 0");
             MatrixPorder temp(MatrixPorder::Zero());
             temp.row(0)=coeffsIN.segment<pOrder>(1)/(-coeffsIN(0));
             return temp;

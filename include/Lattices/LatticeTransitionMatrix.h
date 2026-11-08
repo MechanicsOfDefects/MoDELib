@@ -8,7 +8,7 @@
 #ifndef model_LatticeTransitionMatrix_h_
 #define model_LatticeTransitionMatrix_h_
 
-#include <cfloat> // FLT_EPSILON
+#include <limits>
 #include <Eigen/Dense>
 //#include <RoundEigen.h>
 #include <SmithDecomposition.h>
@@ -27,7 +27,7 @@ namespace model
     struct LatticeTransitionMatrix : public RationalMatrix<dim>
     {
         static_assert(dim>0,"dim must be > 0.");
-        //        static constexpr double roundTol=FLT_EPSILON;
+        //        static constexpr double roundTol=std::numeric_limits<float>::epsilon();
         typedef Eigen::Matrix<  double,dim,1> VectorDimD;
         typedef Eigen::Matrix<long int,dim,1> VectorDimI;
         typedef Eigen::Matrix<double,dim,dim> MatrixDimD;

@@ -9,6 +9,7 @@
 #ifndef model_HEXlattice_cpp_
 #define model_HEXlattice_cpp_
 
+#include <limits>
 #include <HEXlattice.h>
 #include <DislocationMobilitySelector.h>
 #include <GlidePlaneNoise.h>
@@ -127,7 +128,7 @@ namespace model
 
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-dBasal)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-dBasal)<std::numeric_limits<float>::epsilon())
                 {
                     const auto& b1(planeBase.second->primitiveVectors.first);
                     const auto& b2(planeBase.second->primitiveVectors.second);
@@ -157,7 +158,7 @@ namespace model
 
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-dBasal)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-dBasal)<std::numeric_limits<float>::epsilon())
                 {
                     const auto& b1(planeBase.second->primitiveVectors.first);
                     const auto& b2(planeBase.second->primitiveVectors.second);
@@ -187,7 +188,7 @@ namespace model
 
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-dPrismatic)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-dPrismatic)<std::numeric_limits<float>::epsilon())
                 {
                     const auto& b(planeBase.second->primitiveVectors.first);
 
@@ -212,7 +213,7 @@ namespace model
 
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-dPyramidal)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-dPyramidal)<std::numeric_limits<float>::epsilon())
                 {
                     const auto& b(planeBase.second->primitiveVectors.first);
 
@@ -257,7 +258,7 @@ namespace model
 //        SlipSystemContainerType temp;
 //        for(const auto& planeBase : plN)
 //        {
-//            if(std::fabs(planeBase.second->planeSpacing()-dBasal)<FLT_EPSILON)
+//            if(std::fabs(planeBase.second->planeSpacing()-dBasal)<std::numeric_limits<float>::epsilon())
 //            {
 //                const auto& a1(planeBase.second->primitiveVectors.first);
 //                const auto& a2(planeBase.second->primitiveVectors.second);
@@ -297,7 +298,7 @@ namespace model
 //                
 //            }
 //            
-//            if(std::fabs(planeBase.second->planeSpacing()-dPrismatic)<FLT_EPSILON)
+//            if(std::fabs(planeBase.second->planeSpacing()-dPrismatic)<std::numeric_limits<float>::epsilon())
 //            {
 //                const auto& b(planeBase.second->primitiveVectors.first);
 //                std::vector<RationalLatticeDirection<3>> slipDirs;
@@ -315,7 +316,7 @@ namespace model
 //                }
 //            }
 //            
-//            if(std::fabs(planeBase.second->planeSpacing()-dPyramidal)<FLT_EPSILON)
+//            if(std::fabs(planeBase.second->planeSpacing()-dPyramidal)<std::numeric_limits<float>::epsilon())
 //            {
 //                const auto& b(planeBase.second->primitiveVectors.first);
 //                std::vector<RationalLatticeDirection<3>> slipDirs;

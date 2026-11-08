@@ -9,6 +9,7 @@
 #define model_DislocationLoop_cpp_
 
 
+#include <limits>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <algorithm>
 #include <DislocationLoop.h>
@@ -229,7 +230,7 @@ namespace model
     double DislocationLoop<dim>::currentAreaRate() const
     {
         const VectorDim area=currentAreaVector();
-        if(area.norm()<=FLT_EPSILON)
+        if(area.norm()<=std::numeric_limits<float>::epsilon())
         {
             return 0.0;
         }
@@ -287,24 +288,24 @@ namespace model
         double temp(0.0);
         const double posNorm((x-planePoint).norm());
         const double dotProd((x-planePoint).dot(rhN));
-        if(std::fabs(dotProd)>FLT_EPSILON*posNorm)
+        if(std::fabs(dotProd)>std::numeric_limits<float>::epsilon()*posNorm)
         {// x is outside the plane of the loop
             const VectorDim s(sgn(dotProd)*rhN); // s points along +n for points above, and along -n for points below
             for(const auto& pair : polygonSegments)
             {
                 VectorDim e1(pair.first-x);
                 const double e1Norm(e1.norm());
-                if(e1Norm>FLT_EPSILON)
+                if(e1Norm>std::numeric_limits<float>::epsilon())
                 {
                     e1/=e1Norm;
                     VectorDim Y1(pair.second-x);
                     const double Y1norm(Y1.norm());
-                    if(Y1norm>FLT_EPSILON)
+                    if(Y1norm>std::numeric_limits<float>::epsilon())
                     {
                         Y1/=Y1norm;
                         VectorDim e3(e1.cross(Y1));
                         const double e3Norm(e3.norm());
-                        if(e3Norm>FLT_EPSILON)
+                        if(e3Norm>std::numeric_limits<float>::epsilon())
                         {// e1 and Y1 are not align. If they are the projection on the unit sphere is a point and therefore there is no contribution to solid angle
                             e3/=e3Norm; // normalize e3
                             const VectorDim e2(e3.cross(e1));
@@ -335,7 +336,7 @@ namespace model
         double temp(0.0);
         if(glidePlane)
         {
-            if(_slippedArea>FLT_EPSILON)
+            if(_slippedArea>std::numeric_limits<float>::epsilon())
             {// a right-handed normal for the loop can be determined
                 temp+=_patches.solidAngle(x);
             }
@@ -356,7 +357,7 @@ namespace model
                 rhN0+= 0.5*(pair.first-planePoint0).cross(pair.second-pair.first);
             }
             const double rhN0norm(rhN0.norm());
-            if(rhN0norm>FLT_EPSILON)
+            if(rhN0norm>std::numeric_limits<float>::epsilon())
             {
                 temp+=planarSolidAngle(x,planePoint0,rhN0/rhN0norm,triangle0);
             }
@@ -372,7 +373,7 @@ namespace model
                 rhN1+= 0.5*(pair.first-planePoint1).cross(pair.second-pair.first);
             }
             const double rhN1norm(rhN1.norm());
-            if(rhN1norm>FLT_EPSILON)
+            if(rhN1norm>std::numeric_limits<float>::epsilon())
             {
                 temp+=planarSolidAngle(x,planePoint1,rhN1/rhN1norm,triangle1);
             }
@@ -546,7 +547,7 @@ namespace model
                     }
             }
             _slippedArea=nA.norm();
-            _rightHandedUnitNormal= _slippedArea>FLT_EPSILON? (nA/_slippedArea).eval() : VectorDim::Zero();
+            _rightHandedUnitNormal= _slippedArea>std::numeric_limits<float>::epsilon()? (nA/_slippedArea).eval() : VectorDim::Zero();
             const double nnDot(_rightHandedUnitNormal.dot(glidePlane->unitNormal));
 //            _rightHandedNormal= nnDot>=0.0? glidePlane->n : ReciprocalLatticeDirection<dim>(glidePlane->n*(-1));
             _rightHandedNormal.reset(nnDot>=0.0? new ReciprocalLatticeDirectionType(glidePlane->n) : new ReciprocalLatticeDirection<dim>(glidePlane->n*(-1)));
@@ -573,7 +574,7 @@ namespace model
                     nA.setZero();
                 }
                 _slippedArea=nA.norm();
-                _rightHandedUnitNormal= _slippedArea>FLT_EPSILON? (nA/_slippedArea).eval() : VectorDim::Zero();
+                _rightHandedUnitNormal= _slippedArea>std::numeric_limits<float>::epsilon()? (nA/_slippedArea).eval() : VectorDim::Zero();
 //                _rightHandedNormal= grain.reciprocalLatticeDirection(_rightHandedUnitNormal);
                 _rightHandedNormal.reset(new ReciprocalLatticeDirectionType(grain.reciprocalLatticeDirection(_rightHandedUnitNormal)));
                 VerboseDislocationLoop(3,"non-glide _rightHandedUnitNormal= "<<_rightHandedUnitNormal.transpose()<<std::endl;);

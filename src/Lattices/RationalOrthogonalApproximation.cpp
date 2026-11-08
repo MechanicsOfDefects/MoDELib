@@ -8,6 +8,7 @@
 #ifndef model_RationalOrthogonalApproximation_cpp_
 #define model_RationalOrthogonalApproximation_cpp_
 
+#include <limits>
 #include <RationalOrthogonalApproximation.h>
 
 namespace model
@@ -45,7 +46,7 @@ namespace model
         {
             for (int j = 0; j < 3; ++j)
             {
-                if (std::fabs(R(i, j) * n2 - std::round(R(i, j) * n2)) > FLT_EPSILON)
+                if (std::fabs(R(i, j) * n2 - std::round(R(i, j) * n2)) > std::numeric_limits<float>::epsilon())
                 {
                     std::cout << i << " " << j << std::endl;
                     std::cout << R(i, j) * n2 << std::endl;

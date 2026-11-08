@@ -8,7 +8,7 @@
 #ifndef model_PlanesIntersection_H_
 #define model_PlanesIntersection_H_
 
-#include <cfloat>
+#include <limits>
 #include <vector>
 #include <Eigen/Dense>
 #include <Eigen/SVD>
@@ -28,7 +28,7 @@ namespace model
         const SVDsolverType svd;
         
         
-        PlanesIntersection(const MatrixDimDynamic& N, const MatrixDimDynamic& P, const double& tol=FLT_EPSILON);
+        PlanesIntersection(const MatrixDimDynamic& N, const MatrixDimDynamic& P, const double& tol=std::numeric_limits<float>::epsilon());
         
         std::pair<bool,VectorDim> snap(const VectorDim& x) const;
 

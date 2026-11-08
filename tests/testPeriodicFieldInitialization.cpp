@@ -62,7 +62,7 @@ int main(int argc, char** argv)
                         {
                             f << imageCount << ' ';
                         }
-                        f << ";\nEwaldLengthFactor=0.5;\n";
+                        f << ";\n";
                     }
                     std::ofstream p(input / "polycrystal.txt");
                     const double length = 200.0 / std::sqrt(3.0);
@@ -94,12 +94,10 @@ int main(int argc, char** argv)
                     coefficients.insert(key);
                 }
                 require(coefficients.size() == expected, "Duplicate periodic shift");
-                require(rank == 0 ? base.dislocationDynamics().EwaldLength == 0.0 : base.dislocationDynamics().EwaldLength > 0.0,
-                        "Ewald initialization depends on domain flag or image count");
             }
         }
         std::filesystem::remove_all(folder);
-        std::cout << "PASS: image and Ewald initialization for zero, one, two and three periodic directions\n";
+        std::cout << "PASS: periodic image initialization for zero, one, two and three periodic directions\n";
         return 0;
     }
     catch(const std::exception& error)

@@ -8,7 +8,7 @@
 #ifndef model_Plane_CPP_
 #define model_Plane_CPP_
 
-#include <cfloat>
+#include <limits>
 #include <tuple>
 #include <Eigen/Dense>
 #include <Plane.h>
@@ -22,7 +22,7 @@ namespace model
     /* init */,unitNormal(n.normalized())
     /* init */,L2G(LocalToGlobal<dim>::getL2G(unitNormal))
     {
-        if(n.norm()<FLT_EPSILON)
+        if(n.norm()<std::numeric_limits<float>::epsilon())
         {
             std::cout<<"Plane: n="<<n.transpose()<<std::endl;
             throw std::runtime_error("Plane must have non-zero normal");
@@ -32,7 +32,7 @@ namespace model
     template <int dim>
     bool Plane<dim>::contains(const VectorDim& P0) const
     {
-        return fabs((P0-P).dot(unitNormal))<FLT_EPSILON;
+        return fabs((P0-P).dot(unitNormal))<std::numeric_limits<float>::epsilon();
     }
 
     template <int dim>
@@ -69,7 +69,7 @@ namespace model
     typename Plane<dim>::VectorLowerDim Plane<dim>::localPosition(const VectorDim& point) const
     {
         const VectorDim pointLocal(L2G.transpose()*(point-P));
-        if(fabs(pointLocal(dim-1))>FLT_EPSILON)
+        if(fabs(pointLocal(dim-1))>std::numeric_limits<float>::epsilon())
         {
             std::cout<<"point="<<point.transpose()<<std::endl;
             std::cout<<"P="<<P.transpose()<<std::endl;
@@ -90,7 +90,7 @@ namespace model
     typename Plane<dim>::VectorLowerDim Plane<dim>::localDirection(const VectorDim& dir) const
     {
         const VectorDim dirLocal(L2G.transpose()*dir);
-        if(fabs(dirLocal(dim-1))>FLT_EPSILON)
+        if(fabs(dirLocal(dim-1))>std::numeric_limits<float>::epsilon())
         {
             std::cout<<"dir="<<dir.transpose()<<std::endl;
             std::cout<<"L2G=\n"<<L2G<<std::endl;
@@ -120,7 +120,7 @@ namespace model
     typename LocalToGlobal<2>::MatrixDim LocalToGlobal<2>::getL2G(VectorDim y)
     {
         const double yNorm(y.norm());
-        if(yNorm<FLT_EPSILON)
+        if(yNorm<std::numeric_limits<float>::epsilon())
         {
             throw std::runtime_error("LocalToGlobal<2>::getL2G input vector has zero norm.");
         }
@@ -136,16 +136,16 @@ namespace model
     typename LocalToGlobal<3>::MatrixDim LocalToGlobal<3>::getL2G(VectorDim z)
     {
         const double zNorm(z.norm());
-        if(zNorm<FLT_EPSILON)
+        if(zNorm<std::numeric_limits<float>::epsilon())
         {
             throw std::runtime_error("LocalToGlobal<3>::getL2G input vector has zero norm.");
         }
-        assert(zNorm>FLT_EPSILON);
+        assert(zNorm>std::numeric_limits<float>::epsilon());
         z/=zNorm;
         
         VectorDim x(VectorDim::UnitX().cross(z));
         double xNorm(x.norm());
-        if(xNorm>FLT_EPSILON)
+        if(xNorm>std::numeric_limits<float>::epsilon())
         {
             x=x/xNorm;
         }
@@ -153,7 +153,7 @@ namespace model
         {
             x=VectorDim::UnitY().cross(z);
             xNorm=x.norm();
-            if(xNorm>FLT_EPSILON)
+            if(xNorm>std::numeric_limits<float>::epsilon())
             {
                 x=x/xNorm;
             }
@@ -161,7 +161,7 @@ namespace model
             {
                 x=VectorDim::UnitZ().cross(z);
                 xNorm=x.norm();
-                if(xNorm>FLT_EPSILON)
+                if(xNorm>std::numeric_limits<float>::epsilon())
                 {
                     x=x/xNorm;
                 }
@@ -172,9 +172,9 @@ namespace model
             }
         }
         
-        assert(std::fabs(x.norm()-1.0)<FLT_EPSILON);
-        assert(std::fabs(z.norm()-1.0)<FLT_EPSILON);
-        assert(fabs(x.dot(z)<FLT_EPSILON));
+        assert(std::fabs(x.norm()-1.0)<std::numeric_limits<float>::epsilon());
+        assert(std::fabs(z.norm()-1.0)<std::numeric_limits<float>::epsilon());
+        assert(fabs(x.dot(z)<std::numeric_limits<float>::epsilon()));
         MatrixDim temp(Eigen::Matrix3d::Identity());
         temp.col(2)=z;
         temp.col(0)=x;

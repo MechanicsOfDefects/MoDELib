@@ -8,7 +8,7 @@
 #ifndef model_Grain_H_
 #define model_Grain_H_
 
-#include <cfloat> // FLT_EPSILON
+#include <limits>
 #include <Eigen/Core>
 #include <SimplicialMesh.h>
 #include <Polyhedron.h>
@@ -43,7 +43,7 @@ namespace model
         
     public:
         
-        static constexpr double roundTol=FLT_EPSILON;
+        static constexpr double roundTol=std::numeric_limits<float>::epsilon();
         
         const MeshRegionType& region;
         const size_t& grainID;

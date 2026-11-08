@@ -8,6 +8,7 @@
 #ifndef model_LatticePlane_cpp_
 #define model_LatticePlane_cpp_
 
+#include <limits>
 #include <LatticeModule.h>
 namespace model
 {
@@ -119,7 +120,7 @@ namespace model
         }
         const double hd(P.dot(r.cartesian()));
         const long int h(std::lround(hd));
-        return std::make_pair(fabs(hd - h) < FLT_EPSILON, h);
+        return std::make_pair(fabs(hd - h) < std::numeric_limits<float>::epsilon(), h);
     }
 
     std::pair<bool, long int> LatticePlane::computeHeight(const ReciprocalLatticeDirection<dim> &r,

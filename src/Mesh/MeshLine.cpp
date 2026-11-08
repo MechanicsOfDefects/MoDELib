@@ -9,7 +9,7 @@
 #define model_MeshLine_cpp_
 
 #include <numbers>
-#include <cfloat>
+#include <limits>
 #include <map>
 #include <tuple>
 #include <vector>
@@ -29,7 +29,7 @@ namespace model
                                                                const VectorDim& lineD)
     {
         const double dNorm(lineD.norm());
-        if(dNorm<FLT_EPSILON)
+        if(dNorm<std::numeric_limits<float>::epsilon())
         {
             throw std::runtime_error("Line direction has zero norm");
         }

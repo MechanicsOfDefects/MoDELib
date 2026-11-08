@@ -8,6 +8,7 @@
 #ifndef model_DislocationCrossSlip_cpp_
 #define model_DislocationCrossSlip_cpp_
 
+#include <limits>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <numbers>
 #include <memory>
@@ -128,7 +129,7 @@ namespace model
                 midpoint+=0.5*length*(a+b);
                 branchLength+=length;
             }
-            if(branchLength<=FLT_EPSILON)
+            if(branchLength<=std::numeric_limits<float>::epsilon())
             {
                 continue;
             }
@@ -149,7 +150,7 @@ namespace model
                 const VectorDim delta=intersection.P+(node->get_P()-intersection.P).dot(intersection.d)*intersection.d-node->get_P();
                 const VectorDim target=net->get_P()+delta;
                 const auto prior=targets.find(net->sID);
-                if(reservedNodes.count(net->sID) || (prior!=targets.end() && (prior->second-target).norm()>FLT_EPSILON))
+                if(reservedNodes.count(net->sID) || (prior!=targets.end() && (prior->second-target).norm()>std::numeric_limits<float>::epsilon()))
                 {
                     valid=false;
                     break;
@@ -164,7 +165,7 @@ namespace model
                     normals.push_back(DN.nodalVelocityConstraints.row(row));
                 }
                 if(!target.allFinite() || !net->isMovableTo(target) ||
-                   (oneSidedMotion<dim>(delta,normals,net->physicalBoundaryNormals())-delta).norm()>FLT_EPSILON)
+                   (oneSidedMotion<dim>(delta,normals,net->physicalBoundaryNormals())-delta).norm()>std::numeric_limits<float>::epsilon())
                 {
                     valid=false;
                     break;
@@ -227,7 +228,7 @@ namespace model
                 {
                     alignedLength+=std::abs((branch.first[k]->get_P()-branch.first[k-1]->get_P()).dot(intersection.d));
                 }
-                if(alignedLength+FLT_EPSILON<branch.thermal->length)
+                if(alignedLength+std::numeric_limits<float>::epsilon()<branch.thermal->length)
                 {
                     valid=false;
                 }
@@ -272,7 +273,7 @@ namespace model
                 for(const auto* link : parent->linkSequence())
                 {
                     if(link->source->networkNode==anchor->networkNode &&
-                       (link->source->get_P()-anchor->get_P()).norm()<FLT_EPSILON)
+                       (link->source->get_P()-anchor->get_P()).norm()<std::numeric_limits<float>::epsilon())
                     {
                         live=link->source;
                         break;
@@ -323,12 +324,12 @@ namespace model
                         const auto source=link->source;
                         const auto sink=link->sink;
                         const double chord=(sink->get_P()-source->get_P()).norm();
-                        if(distance<=offset+FLT_EPSILON)
+                        if(distance<=offset+std::numeric_limits<float>::epsilon())
                         {
                             selected=source;
                             break;
                         }
-                        if(chord>FLT_EPSILON && distance<offset+chord-FLT_EPSILON)
+                        if(chord>std::numeric_limits<float>::epsilon() && distance<offset+chord-std::numeric_limits<float>::epsilon())
                         {
                             const double u=(distance-offset)/chord;
                             const auto a=source->networkNode;

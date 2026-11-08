@@ -1,0 +1,46 @@
+Box-based ewaldFMM
+==================
+
+Production ewaldFMM uses the same leaf partition for the short and long fields.
+Short P2P includes every source in the target leaf and its 26 adjacent leaves.
+There is no independent radius test, particle-pair list, or cutoff traversal.
+The sparse climb short operator uses exactly the same stencil as concentration
+field evaluation. Stress point queries and batch evaluation use this rule too.
+Long-field self and neighbor interactions use interpolation-node translations;
+there is no long-kernel particle-to-particle fallback inside the prepared tree.
+An external stress query outside that tree is rejected and requires new bounds.
+
+Input interface:
+  DefectiveCrystal.txt: fmmTreeDepth=2;
+  DD.txt: ewaldWidthFactor=0.125;
+The user selects the uniform dyadic tree depth in both FMM modes. In ewaldFMM,
+h=min(leaf widths)*ewaldWidthFactor. For a cube this is simply boxSize*factor.
+The factor is read only in ewaldFMM, defaults to 0.125, and must satisfy
+0 < factor < 1. The derived h must remain >=4*coreSize; an incompatible
+combination raises an error rather than silently changing depth or width.
+Actual depth, leaf dimensions, factor and h are printed at initialization.
+The old fmmEwaldWidth, fmmBoxWidthFactor and fmmShortCutoff inputs are retired
+in ewaldFMM, with a migration message. Plain FMM retains its preconditioner.
+
+At fixed depth, increasing the factor makes the long field smoother but also
+leaves a larger short-field tail beyond the fixed neighbor stencil. Decreasing
+it makes the short tail more local but makes long-field interpolation harder.
+The number of selected short pairs is unchanged: the boxes determine it.
+Check interpolation order and source quadrature against direct references.
+In anisotropic diffusion, decay is in the normalized diffusion metric; a
+physical-box stencil does not impose a uniform metric cutoff. Strong
+anisotropy needs its own convergence study.
+
+Checks:
+  fmmRegistry: independent cell-adjacency reference, diagonal/edge neighbors,
+    no duplicates, short-pair accounting, all-box long interpolation.
+  screenedDislocationAssembly: sparse climb vs independent stencil assembly,
+    projected concentration vs climb operator, scalar vs batch stress.
+  dislocationFieldSampling: depth/factor input validation and mode isolation;
+    real network integration, direct concentration
+    comparison at interpolation order six (same Ewald width), plan reuse.
+    Order four gives about 2.18% concentration error in this fixture, exceeding
+    its 2% threshold; the test tolerance has not been relaxed.
+
+These checks do not establish production benchmark speed or error for every
+box-width ratio. Periodic long-field corrections remain a separate feature.

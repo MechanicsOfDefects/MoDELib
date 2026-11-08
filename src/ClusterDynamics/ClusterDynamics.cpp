@@ -9,6 +9,7 @@
 #define model_ClusterDynamics_cpp_
 
 #ifdef _OPENMP
+#include <limits>
 #include <ClusterDynamics/ClusterDynamicsBase.h>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <omp.h>
@@ -19,6 +20,9 @@
 //#include <ExternalAndInternalBoundary.h>
 //#include <Fix.h>
 #include <DislocationNetwork.h>
+#include <DislocationDynamics/DislocationConcentrationSources.h>
+#include <DislocationDynamics/DislocationFieldBase.h>
+#include <Utilities/SolverStageTimer.h>
 #include <MicrostructureGenerator.h>
 
 namespace model
@@ -101,8 +105,8 @@ typename ClusterDynamics<dim>::UniformControllerContainerType ClusterDynamics<di
 //    /* init */,dV(this->microstructures.ddBase.fe->template domain<EntireDomain,dVorder,GaussLegendre>())
 //    /* init */,mBWF((test(this->mobileGrad),-this->microstructures.ddBase.poly.Omega*this->mobileFlux)*dV)
 //    /* init */,dmBWF((test(grad(mobileClustersIncrement)),-this->microstructures.ddBase.poly.Omega*(FluxMatrix<dim>(this->cdp)*grad(mobileClustersIncrement)))*dV)
-//    /* init */,mSolver(true,FLT_EPSILON)
-////    /* init */,mSolver(mBWF,true,FLT_EPSILON)
+//    /* init */,mSolver(true,std::numeric_limits<float>::epsilon())
+////    /* init */,mSolver(mBWF,true,std::numeric_limits<float>::epsilon())
 //    /* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G))*dV)->globalVector())
     ///* init */,cascadeGlobalProduction(((test(clusterDynamicsFEM->mobileClusters),make_constant(this->cdp.G.transpose().eval()))*dV)->globalVector())
     {
@@ -141,9 +145,59 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
         periodicNodes.insert(pair.sink);
     }
     const auto dn=this->microstructures.template getUniqueTypedMicrostructure<DislocationNetwork<dim>>();
-    const bool useInfluence=solvedQuantityBoundaryCache && dn && dn->climbSolver;
+    const bool accelerated=dn && dn->ddBase.fmmContext->usesFMM();
+    const bool useInfluence=(solvedQuantityBoundaryCache||accelerated) && dn && dn->climbSolver;
+    if(accelerated&&!solvedQuantityBoundaryCache)
+    {
+        solvedQuantityConcentrationEvaluator.reset();
+        solvedQuantitySourceIDs.clear();solvedQuantityTargetRows.clear();
+    }
     Eigen::MatrixXd discreteConcentration;
-    if(useInfluence)
+    if(useInfluence && accelerated)
+    {
+        const auto context=dn->ddBase.fmmContext;
+        if(dn->ddBase.periodicLatticeBasis.cols()!=0)throw std::runtime_error("Periodic DD concentration FMM is not implemented");
+        if(!solvedQuantityConcentrationEvaluator)
+        {
+            SolverStageTimer timer("CD DD concentration FMM preparation");
+            solvedQuantitySourceIDs.resize(dn->networkNodes().size());
+            for(const auto& entry:dn->networkNodes())
+            {
+                const auto node=entry.second.lock();
+                if(!node||node->gID()>=solvedQuantitySourceIDs.size())throw std::logic_error("Invalid DD concentration node index");
+                solvedQuantitySourceIDs[node->gID()]=entry.first;
+            }
+            std::vector<ConcentrationTarget> targets;
+            for(const auto& node:fem.mobileClusters->fe().nodes())
+            {
+                if(!cdp.computeReactions&&!fem.sinkNormals.count(node.gID)&&!periodicNodes.count(node.gID))continue;
+                solvedQuantityTargetRows.emplace(node.gID,targets.size());
+                ConcentrationTarget target;for(int c=0;c<3;++c)target.position[c]=node.P0[c];
+                for(const auto* grain:dn->pointGrains(node.P0,&node,nullptr,nullptr))target.grains.push_back(grain->grainID);
+                targets.push_back(std::move(target));
+            }
+            const auto& settings=dn->multipoleSettings;
+            ScreenedDislocationOptions options;options.segmentSplits=dn->segmentSplits();options.coreType=settings.coreType;options.segmentChebyshevOrder=settings.ewaldSegmentChebyshevOrder;options.segmentTableResolution=settings.ewaldSegmentTableResolution;options.screened=context->usesEwaldFMM();
+            options.coreWidth=DislocationFieldBase<dim>::a;options.screenWidth=settings.ewaldWidth;
+            options.interpolationOrder=context->interpolationOrder;
+            auto sources=concentrationSources(*dn,dn->climbSolver->CD->cdp,false);
+            solvedQuantityConcentrationEvaluator=std::make_shared<DislocationConcentrationEvaluator>(context->manager,context->boxTree,
+                solvedQuantitySourceIDs.size(),mSize,sources,targets,options,true);
+            ++solvedQuantityInfluenceBuilds;
+        }
+        SolverStageTimer timer("CD DD concentration FMM evaluation");
+        if(dn->networkNodes().size()!=solvedQuantitySourceIDs.size())throw std::logic_error("DD topology changed during CD coupling");
+        Eigen::MatrixXd velocities(solvedQuantitySourceIDs.size(),mSize);
+        for(std::size_t i=0;i<solvedQuantitySourceIDs.size();++i)
+        {
+            const auto found=dn->networkNodes().find(solvedQuantitySourceIDs[i]);
+            if(found==dn->networkNodes().end()||found->second.expired())throw std::logic_error("DD source changed during CD coupling");
+            velocities.row(i)=found->second.lock()->climbVelocityScalar.matrix();
+        }
+        discreteConcentration.resize(solvedQuantityTargetRows.size(),mSize);
+        for(int species=0;species<mSize;++species)discreteConcentration.col(species)=solvedQuantityConcentrationEvaluator->evaluate(species,velocities.col(species));
+    }
+    else if(useInfluence)
     {
         if(solvedQuantityInfluence.empty())
         {
@@ -352,6 +406,7 @@ void ClusterDynamics<dim>::applyBoundaryConditions()
             if(context.iteration==0)
             {
                 solvedQuantitySinkConcentrations.clear();
+                solvedQuantityConcentrationEvaluator.reset();
                 solvedQuantityInfluence.clear();
                 solvedQuantitySourceIDs.clear();
                 solvedQuantityTargetRows.clear();

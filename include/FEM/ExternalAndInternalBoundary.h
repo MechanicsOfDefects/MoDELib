@@ -8,6 +8,7 @@
 #ifndef model_ExternalAndInternalBoundary_H_
 #define model_ExternalAndInternalBoundary_H_
 
+#include <limits>
 #include <deque>
 #include <utility>      // std::pair, std::make_pair
 #include <Eigen/Dense>
@@ -34,7 +35,7 @@ namespace model
         template <typename NodeType>
         bool operator()(const NodeType& node) const
         {
-            return node.normalTensor().squaredNorm()>FLT_EPSILON;
+            return node.normalTensor().squaredNorm()>std::numeric_limits<float>::epsilon();
         }
 //
 //        template <typename FiniteElementType, int qOrder, template <short unsigned int, size_t> class QuadratureRule>

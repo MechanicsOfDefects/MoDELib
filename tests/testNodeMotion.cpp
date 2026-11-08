@@ -59,7 +59,7 @@ int main(int argc, char** argv)
             {
                 std::ofstream f(input / "DefectiveCrystal.txt");
                 f << "physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
-                  << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0;\nEwaldLengthFactor=0;\n";
+                  << "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0;\n";
                 std::ofstream p(input / "polycrystal.txt");
                 p << std::setprecision(17) << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\n"
                   << "C2G1=1 0 0 0 1 0 0 0 1;\nF=" << length << " 0 0 0 " << length << " 0 0 0 " << length

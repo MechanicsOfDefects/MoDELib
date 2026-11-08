@@ -8,7 +8,7 @@
 #ifndef model_GrainBoundary_H_
 #define model_GrainBoundary_H_
 
-#include <cfloat> // FLT_EPSILON
+#include <limits>
 #include <vector>
 #include <deque>
 #include <Eigen/Core>
@@ -21,7 +21,7 @@
 //#include <LineMeshIntersection.h>
 //#include <CSL.h>
 //#include <DSCL.h>
-//#include <DislocationDynamics/StressStraight.h>
+//#include <DislocationDynamics/StraightDislocationSegment.h>
 //#include <GlidePlane.h>
 #include <MeshPlane.h>
 

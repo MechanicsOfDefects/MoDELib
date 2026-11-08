@@ -11,7 +11,7 @@
 #include <set>
 #include <map>
 #include <utility> // for std::pair
-#include <cfloat> // for FLT_EPSILON
+#include <limits>
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
 #include <Eigen/Jacobi>
@@ -196,7 +196,7 @@ namespace model
         }
         
         //		/*********************************************************************/
-        //		std::pair<bool,double> isOnSpline(const Eigen::Matrix<double,2,1>& P, const double& tol=FLT_EPSILON) const {
+        //		std::pair<bool,double> isOnSpline(const Eigen::Matrix<double,2,1>& P, const double& tol=std::numeric_limits<float>::epsilon()) const {
         //
         //			std::pair<bool,double> temp=std::make_pair(false,-1.0);
         //			MatrixPolyDeg M=Mx*P(0)+My*P(1)+M0;
@@ -332,7 +332,7 @@ namespace model
             
             //            std::cout<<"conditionNumber"<<condNumber<<std::endl;
             
-            if (condNumber<1.0/FLT_EPSILON)
+            if (condNumber<1.0/std::numeric_limits<float>::epsilon())
             {
                 // Assemble the matrix C=inv(B)*A
                 EigenSizeMatrixType C(Eigen::Matrix<double, eigenSize,eigenSize>::Zero());
@@ -464,7 +464,7 @@ namespace model
                         std::map<double,const int>::const_iterator first = last;
                         std::map<double,const int>::const_iterator next = last;
                         next++;
-                        last = sMap.upper_bound(first->first+FLT_EPSILON); // jump to the first element grater than current + FLT_EPSILON
+                        last = sMap.upper_bound(first->first+std::numeric_limits<float>::epsilon()); // jump to the first element grater than current + std::numeric_limits<float>::epsilon()
                         //                        std::cout<<"first="<<&first<<std::endl;
                         //                        std::cout<<"next="<<&next<<std::endl;
                         //                        std::cout<<"last="<<&last<<std::endl;
@@ -516,11 +516,11 @@ namespace model
     
     // Declare static data members;
     template<short unsigned int polyDegree>
-    double PlanarSplineImplicitization<polyDegree>::compTol=FLT_EPSILON;
+    double PlanarSplineImplicitization<polyDegree>::compTol=std::numeric_limits<float>::epsilon();
     
     // Declare static data members;
     template<short unsigned int polyDegree>
-    double PlanarSplineImplicitization<polyDegree>::physTol=DBL_MAX;
+    double PlanarSplineImplicitization<polyDegree>::physTol=std::numeric_limits<double>::max();
     
     
     

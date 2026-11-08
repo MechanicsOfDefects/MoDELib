@@ -82,6 +82,39 @@ int main()
             require(output==x+y && stressCalls==1,"Ordering or frozen stress cache failed");
             require(registry.groups.size()==3,"Incorrect SCC groups");
         }
+        // A slowly contracting, differently scaled CD/DD-like pair. Plain
+        // iteration cannot meet this tolerance in 30 sweeps; Anderson must.
+        for(const size_t depth : {size_t(0),size_t(5)})
+        {
+            double concentration=0.0,velocity=0.0;
+            SolvedQuantityRegistry slow;
+            auto c=scalar("Concentration",concentration,[&]() {return 0.94*velocity/1.e-9+1.0;});
+            auto v=scalar("Velocity",velocity,[&]() {return 1.e-9*concentration;});
+            c.dependencies={{"Velocity","",true,{}}};
+            v.dependencies={{"Concentration","",true,{}}};
+            v.absoluteTolerance=[]() -> Eigen::VectorXd {return Eigen::VectorXd::Constant(1,1.e-22);};
+            slow.add(c);slow.add(v);
+            slow.options.andersonDepth=depth;
+            slow.options.relativeTolerance=1.e-10;
+            slow.options.maxIterations=30;
+            slow.finalize();
+            if(depth==0)
+            {
+                fails([&]() {slow.solve(0);},"did not converge");
+                require(concentration==0.0 && velocity==0.0,"Plain solve rollback failed");
+            }
+            else
+            {
+                slow.solve(0);
+                require(std::abs(concentration-1.0/0.06)<1.e-8,"Anderson fixed point incorrect");
+                require(std::abs(velocity-1.e-9/0.06)<1.e-17,"Anderson unit scaling failed");
+                require(slow.groups.front().iterations<10,"Anderson did not accelerate slow mode");
+                // New solve must discard old history.
+                concentration=0;velocity=0;
+                slow.solve(1);
+                require(slow.groups.front().iterations<10,"Anderson history reset failed");
+            }
+        }
         double x=0,y=0;
         SolvedQuantityRegistry failure;
         auto a=scalar("A",x,[&]() {return y+1.0;});

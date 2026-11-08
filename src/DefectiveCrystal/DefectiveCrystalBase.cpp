@@ -11,6 +11,7 @@
 #ifndef model_DefectiveCrystalBase_CPP_
 #define model_DefectiveCrystalBase_CPP_
 
+#include <limits>
 #include <ElasticDeformation/ElasticDeformationBase.h>
 #include <ClusterDynamics/ClusterDynamicsBase.h>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
@@ -101,7 +102,7 @@ namespace model
     /* init */,fe(simulationParameters.useFEM ? new FiniteElement<ElementType>(meshOwner) : nullptr)
     /* init */,activePhysics(parsePhysics(simulationParameters.physics))
     /* init */,fmmContext(std::make_shared<FMMContext<dim>>(mesh.xMin(),mesh.xMax(),simulationParameters.traitsIO.dcFile))
-    /* init */,dislocationDynamicsBase(hasPhysics("DislocationDynamics") ? std::make_shared<DislocationDynamicsBase<dim>>(meshOwner,polyOwner,periodicLatticeBasis,simulationParameters.traitsIO.dcFile) : nullptr)
+    /* init */,dislocationDynamicsBase(hasPhysics("DislocationDynamics") ? std::make_shared<DislocationDynamicsBase<dim>>(meshOwner,polyOwner) : nullptr)
     /* init */,clusterDynamicsBase(hasPhysics("ClusterDynamics") ? std::make_shared<ClusterDynamicsBase<dim>>(*this) : nullptr)
     /* init */,elasticDeformationBase(hasPhysics("ElasticDeformation") ? std::make_shared<ElasticDeformationBase<dim>>(*this) : nullptr)
     {
@@ -118,7 +119,7 @@ namespace model
                 {
                     const Eigen::Matrix<double,Eigen::Dynamic,1> pd(periodicLatticeReciprocalBasis.transpose()*face.second->periodicFacePair.first);
                     const Eigen::Matrix<double,Eigen::Dynamic,1> pn(pd.array().round());
-                    if((pd-pn).norm()>FLT_EPSILON*pd.norm())
+                    if((pd-pn).norm()>std::numeric_limits<float>::epsilon()*pd.norm())
                     {
                         std::cout<<"region="<<region.second->regionID<<std::endl;
                         std::cout<<"face="<<face.second->sID<<std::endl;

@@ -14,30 +14,6 @@
 namespace model
 {
 
-template <int dim>
-double getEwaldLength(const std::vector<Eigen::Matrix<double,dim,1>>& periodicBasis,const double& EwaldLengthFactor)
-{
-    
-    if(periodicBasis.size())
-    {
-        // Compute generalized volume of periodic lattice cell
-        Eigen::MatrixXd B(Eigen::MatrixXd::Zero(3,periodicBasis.size()));
-        for(size_t k=0;k<periodicBasis.size();++k)
-        {
-            B.col(k)=periodicBasis[k];
-        }
-        const double vol(sqrt((B.transpose()*B).determinant())/CTM::factorial(periodicBasis.size()));
-//        std::cout<<"vol="<<vol<<std::endl;
-//        std::cout<<"edge="<<std::pow(vol,1.0/periodicBasis.size())<<std::endl;
-//        std::cout<<"elength="<<EwaldLengthFactor*std::pow(vol,1.0/periodicBasis.size())<<std::endl;
-        return EwaldLengthFactor*std::pow(vol,1.0/periodicBasis.size());
-    }
-    else
-    {
-        return 0.0;
-    }
-}
-
     VTKsegments::VTKsegments(const std::string& folderName) :
     ///* init */ traitsIO(folderName)
     /* init */ perser(folderName+"/inputFiles/vtkSegments.txt")
@@ -66,23 +42,23 @@ double getEwaldLength(const std::vector<Eigen::Matrix<double,dim,1>>& periodicBa
         return *this;
     }
 
-    // const std::vector<StressStraight<3>>& VTKsegments::segments() const
+    // const std::vector<StraightDislocationSegment<3>>& VTKsegments::segments() const
     // {
     //     return *this;
     // }
 
-    // std::vector<StressStraight<3>>& VTKsegments::segments()
+    // std::vector<StraightDislocationSegment<3>>& VTKsegments::segments()
     // {
     //     return *this;
     // }
 
 
-    const std::map<std::pair<int,int>,StressStraight<3>> &VTKsegments::segments() const
+    const std::map<std::pair<int,int>,StraightDislocationSegment<3>> &VTKsegments::segments() const
     {
         return *this;
     }
 
-    std::map<std::pair<int,int>,StressStraight<3>> &VTKsegments::segments()
+    std::map<std::pair<int,int>,StraightDislocationSegment<3>> &VTKsegments::segments()
     {
         return *this;
     }
@@ -280,9 +256,6 @@ double VTKsegments::latticeParameter() const
                     {
                         cellVectors.emplace_back(cellMatrix.row(d)*1.0e-10/material.b_SI);
                     }
-                    EwaldLength=getEwaldLength(cellVectors,perser.readScalar<double>("EwaldLengthFactor",true));
-                    std::cout<<"Ewald Length"<<std::endl;
-                    std::cout<<EwaldLength<<std::endl;
                 }
                 
                 if(line.find("PBC_FLAGS")!=std::string::npos) //if POINTS is read, read npos
@@ -529,9 +502,8 @@ double VTKsegments::latticeParameter() const
                             const std::pair<int,int> sourceSink=std::make_pair(sourceID,sinkID);
                             
                             // std::cout<<"Ewald1"<<std::endl;
-                            // std::cout<<EwaldLength<<std::endl;
 
-                            const std::pair<std::pair<int,int>,StressStraight<3>> temp=std::make_pair(sourceSink,StressStraight<3>(material, sourceP, sinkP, Burgers, EwaldLength));
+                            const std::pair<std::pair<int,int>,StraightDislocationSegment<3>> temp=std::make_pair(sourceSink,StraightDislocationSegment<3>(material, sourceP, sinkP, Burgers));
                             segments().insert(temp
                                         //std::piecewise_construct,
                                         //std::make_tuple(sourceID,sinkID),
@@ -541,7 +513,7 @@ double VTKsegments::latticeParameter() const
 
                             // segments().emplace(std::piecewise_construct,
                             //             std::make_tuple(sourceID,sinkID),
-                            //             std::make_tuple(material, sourceP, sinkP, Burgers, EwaldLength)
+                            //             std::make_tuple(material, sourceP, sinkP, Burgers)
                             //             );
 
                             // const VectorDim chord(sinkP - sourceP);
@@ -566,9 +538,8 @@ double VTKsegments::latticeParameter() const
                             const VectorDim &sinkP(nodes()[sourceID]);
                             const std::pair<int,int> sourceSink=std::make_pair(sinkID,sourceID);
                             // std::cout<<"Ewald2"<<std::endl;
-                            // std::cout<<EwaldLength<<std::endl;
 
-                            const std::pair<std::pair<int,int>,StressStraight<3>> temp=std::make_pair(sourceSink,StressStraight<3>(material, sourceP, sinkP, -Burgers, EwaldLength));
+                            const std::pair<std::pair<int,int>,StraightDislocationSegment<3>> temp=std::make_pair(sourceSink,StraightDislocationSegment<3>(material, sourceP, sinkP, -Burgers));
                                 segments().insert(temp
                                         //std::piecewise_construct,
                                         //std::make_tuple(sinkID,sourceID),
@@ -579,7 +550,7 @@ double VTKsegments::latticeParameter() const
 
                             //  segments().emplace(std::piecewise_construct,
                             //             std::make_tuple(sinkID,sourceID),
-                            //             std::make_tuple(material, sourceP, sinkP, -Burgers, EwaldLength)
+                            //             std::make_tuple(material, sourceP, sinkP, -Burgers)
                             //             );
 
                              segIDmap[std::make_pair(sinkID,sourceID)].first=k;      

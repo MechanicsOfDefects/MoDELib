@@ -9,6 +9,7 @@
 #define model_EshelbyInclusionBase_cpp_
 
 
+#include <limits>
 #include <InclusionMicrostructure/EshelbyInclusionBase.h>
 
 namespace model
@@ -58,7 +59,7 @@ namespace model
     /* init */,eTNorm(eT.norm())
     /* init */,pT(2.0*mu*(eT+nu/(1.0-2.0*nu)*eT.trace()*MatrixDim::Identity()))
     {
-        assert((_eT-_eT.transpose()).norm()<FLT_EPSILON && "eT is not symmetric.");
+        assert((_eT-_eT.transpose()).norm()<std::numeric_limits<float>::epsilon() && "eT is not symmetric.");
     }
 
     template <int dim>

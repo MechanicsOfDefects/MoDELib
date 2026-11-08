@@ -8,6 +8,7 @@
 #ifndef model_DislocationJunctionFormation_cpp_
 #define model_DislocationJunctionFormation_cpp_
 
+#include <limits>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <utility> // for std::pair
 #include <algorithm>
@@ -16,7 +17,7 @@
 #include <SegmentSegmentDistance.h>
 #include <SweepPlane.h>
 #include <TypeTraits.h>
-#include <DislocationDynamics/StressStraight.h>
+#include <DislocationDynamics/StraightDislocationSegment.h>
 
 #include <DislocationJunctionFormation.h>
 
@@ -60,23 +61,23 @@ namespace model
                 const VectorDim chordB(linkB->sink->get_P() - linkB->source->get_P());
                 const double LB(chordB.norm());
                 
-                if (LA > FLT_EPSILON && LB > FLT_EPSILON)
+                if (LA > std::numeric_limits<float>::epsilon() && LB > std::numeric_limits<float>::epsilon())
                 {
-                    if (ssd.dMin > FLT_EPSILON)
+                    if (ssd.dMin > std::numeric_limits<float>::epsilon())
                     {
-                        StressStraight<dim> stressA(DN.ddBase.poly,ssd.x0 - infiniteLineLength / LA * chordA,
+                        StraightDislocationSegment<dim> stressA(DN.ddBase.poly,ssd.x0 - infiniteLineLength / LA * chordA,
                                                     ssd.x0 + infiniteLineLength / LA * chordA,
-                                                    linkA->burgers(),DN.ddBase.dislocationDynamics().EwaldLength);
+                                                    linkA->burgers());
                         
-                        StressStraight<dim> stressB(DN.ddBase.poly,ssd.x1 - infiniteLineLength / LB * chordB,
+                        StraightDislocationSegment<dim> stressB(DN.ddBase.poly,ssd.x1 - infiniteLineLength / LB * chordB,
                                                     ssd.x1 + infiniteLineLength / LB * chordB,
-                                                    linkB->burgers(),DN.ddBase.dislocationDynamics().EwaldLength);
+                                                    linkB->burgers());
                         
                         VerboseJunctions(3, "Non-intersecting pair" << std::endl;);
                         const VectorDim forceOnA = (stressB.stress(ssd.x0) * linkA->burgers()).cross(chordA);
                         const VectorDim forceOnB = (stressA.stress(ssd.x1) * linkB->burgers()).cross(chordB);
                         const VectorDim dxShift(ssd.x1 - ssd.x0);
-                        if (forceOnA.dot(dxShift) > FLT_EPSILON && forceOnB.dot(dxShift) < -FLT_EPSILON)
+                        if (forceOnA.dot(dxShift) > std::numeric_limits<float>::epsilon() && forceOnB.dot(dxShift) < -std::numeric_limits<float>::epsilon())
                         {
                             VerboseJunctions(3, "attractive pair 1" << std::endl;);
                             isValidJunction = true; // for non-parallel lines this neglects the energy of rotation
@@ -211,9 +212,9 @@ namespace model
             const auto facesB=linkB->meshFaces();
             // Boundary merging requires a common physical face, not merely a
             // boundary label on one segment or parallel faces elsewhere.
-            if(linkA->chord().norm()>FLT_EPSILON && linkB->chord().norm()>FLT_EPSILON &&
-               linkA->chord().normalized().cross(linkB->chord().normalized()).norm()<FLT_EPSILON &&
-               linkA->glidePlaneNormal().cross(linkB->glidePlaneNormal()).norm()<FLT_EPSILON)
+            if(linkA->chord().norm()>std::numeric_limits<float>::epsilon() && linkB->chord().norm()>std::numeric_limits<float>::epsilon() &&
+               linkA->chord().normalized().cross(linkB->chord().normalized()).norm()<std::numeric_limits<float>::epsilon() &&
+               linkA->glidePlaneNormal().cross(linkB->glidePlaneNormal()).norm()<std::numeric_limits<float>::epsilon())
             {
                 for(const auto* face : linkA->meshFaces())
                 {
@@ -248,13 +249,13 @@ namespace model
                     const double cosTheta=(intersectionIsSourceSource||intersectionIsSinkSink)? linkA->chord().normalized().dot(linkB->chord().normalized()) : ((intersectionIsSourceSink ||intersectionIsSinkSource)? -linkA->chord().normalized().dot(linkB->chord().normalized()) : -1.0);
                     if(cosTheta<0.7)
                     {// links are either disconnected, or connected to a node and forming a large angle at that node. Reduce tolerance
-                        currentcCollisionTOL=FLT_EPSILON;
+                        currentcCollisionTOL=std::numeric_limits<float>::epsilon();
                     }
                     break;
                 }
                 else
                 {// segments on parallel (non-coincident) planes
-                    currentcCollisionTOL=FLT_EPSILON;
+                    currentcCollisionTOL=std::numeric_limits<float>::epsilon();
                 }
             }
             
@@ -359,8 +360,8 @@ namespace model
         auto Nfar = t >= 0.5 ? L->source : L->sink;
         VerboseJunctions(4, "Nclose=" << Nclose->sID << " (GP Size)=> " << Nclose->glidePlanes().size() << std::endl;);
         VerboseJunctions(4, "Nfar=" << Nfar->sID << " (GP Size)=> " << Nfar->glidePlanes().size() << std::endl;);
-        //            if(t>FLT_EPSILON && t<1.0-FLT_EPSILON && !Nclose->isBoundaryNode() && !Nfar->isBoundaryNode()) //This condition is the problem It needs to be enabled
-        if (t > FLT_EPSILON && t < 1.0 - FLT_EPSILON)
+        //            if(t>std::numeric_limits<float>::epsilon() && t<1.0-std::numeric_limits<float>::epsilon() && !Nclose->isBoundaryNode() && !Nfar->isBoundaryNode()) //This condition is the problem It needs to be enabled
+        if (t > std::numeric_limits<float>::epsilon() && t < 1.0 - std::numeric_limits<float>::epsilon())
         { // intersection point is not an end node
             if ((Nclose->get_P() - x).norm() > DN.networkRemesher.Lmin)
             { // far enough from Nclose
@@ -431,7 +432,7 @@ namespace model
                 physicalEndpoint=physicalEndpoint || ln->isPhysicalBoundaryNode();
             }
             if (!Nclose->isBoundaryNode() ||
-                (physicalEndpoint && (Nclose->get_P()-x).norm()<=FLT_EPSILON))
+                (physicalEndpoint && (Nclose->get_P()-x).norm()<=std::numeric_limits<float>::epsilon()))
             {
                 VerboseJunctions(4, "JunctionNode case f" << std::endl;);
                 return std::make_pair(Nclose, false);
@@ -626,7 +627,7 @@ namespace model
                         for (size_t s = 0; s < gr->slipSystems().size(); ++s)
                         {
                             const auto &slipSystem(gr->slipSystems().at(s));
-                            if ((slipSystem->s.cartesian() - link->burgers()).norm() < FLT_EPSILON && fabs(slipSystem->n.cartesian().normalized().dot(unitChord)) < FLT_EPSILON)
+                            if ((slipSystem->s.cartesian() - link->burgers()).norm() < std::numeric_limits<float>::epsilon() && fabs(slipSystem->n.cartesian().normalized().dot(unitChord)) < std::numeric_limits<float>::epsilon())
                             {
                                 VerboseJunctions(3, "glissDeq, emplacing" << std::endl;);
                                 
@@ -646,7 +647,7 @@ namespace model
             // Earlier seeds may already have consumed this periodic continuation.
             if(!link || link->hasZeroBurgers() || !link->isSessile() ||
                link->isBoundarySegment() || link->isGrainBoundarySegment() ||
-               (link->burgers()-slip->s.cartesian()).norm()>FLT_EPSILON)
+               (link->burgers()-slip->s.cartesian()).norm()>std::numeric_limits<float>::epsilon())
             {
                 continue;
             }
@@ -715,7 +716,7 @@ namespace model
                     {
                         if(path[k]->networkNode!=candidate[k]->networkNode ||
                            (path[k]->periodicPlanePatch()->shift-originShift-
-                            candidate[k]->periodicPlanePatch()->shift+shift).norm()>FLT_EPSILON)
+                            candidate[k]->periodicPlanePatch()->shift+shift).norm()>std::numeric_limits<float>::epsilon())
                         {
                             valid=false;
                             break;
@@ -751,7 +752,7 @@ namespace model
                 const auto* node=path[k];
                 const VectorDim shift=node->periodicPlanePatch()->shift-originShift;
                 const VectorDim position=node->networkNode->get_P()-shift;
-                if(std::abs((position-glidePlane->P).dot(glidePlane->unitNormal))>FLT_EPSILON)
+                if(std::abs((position-glidePlane->P).dot(glidePlane->unitNormal))>std::numeric_limits<float>::epsilon())
                 {
                     valid=false;
                     break;
@@ -792,7 +793,7 @@ namespace model
                     {
                         const VectorDim orientedB=(segment->source==node->networkNode? 1.0 : -1.0)*segment->burgers();
                         if(segment->isBoundarySegment() || segment->isGrainBoundarySegment() ||
-                           (orientedB-link->burgers()).norm()>FLT_EPSILON ||
+                           (orientedB-link->burgers()).norm()>std::numeric_limits<float>::epsilon() ||
                            !physicalLinks.insert(segment.get()).second)
                         {
                             valid=false;

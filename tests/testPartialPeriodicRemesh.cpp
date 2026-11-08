@@ -1,3 +1,4 @@
+#include <limits>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <MicrostructureGenerator.h>
 #include <DislocationNetwork.h>
@@ -63,7 +64,7 @@ int main(int argc, char** argv)
             const bool periodic=scenario<2;
             {
                 std::ofstream f(input/"DefectiveCrystal.txt");
-                f<<"physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize="<<(full ? "0 0 0" : "0")<<";\nEwaldLengthFactor=0;\n";
+                f<<"physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize="<<(full ? "0 0 0" : "0")<<";\n";
                 std::ofstream p(input/"polycrystal.txt");
                 p<<std::setprecision(17)<<"materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\nC2G2=0.8 0 0.6 0 1 0 -0.6 0 0.8;\nF="<<length<<" 0 0 0 "<<length<<" 0 0 0 "<<length<<";\nX0=0 0 0;\nperiodicFaceIDs=";
                 if(periodic)
@@ -146,7 +147,7 @@ int main(int argc, char** argv)
                 network.insertLoop(collapsed,ring);
                 ring.clear();
                 network.updateGeometry();
-                require(collapsed->slippedArea()<FLT_EPSILON,"Fixture is not collapsed");
+                require(collapsed->slippedArea()<std::numeric_limits<float>::epsilon(),"Fixture is not collapsed");
                 collapsed.reset();
                 network.networkRemesher.remove0AreaLoopAcrossBnd();
                 require(!network.loops().get(collapsedID),"Collapsed periodic loop was retained");
@@ -193,7 +194,7 @@ int main(int argc, char** argv)
                 network.insertLoop(seed,ring);
                 ring.clear();
                 network.updateGeometry();
-                require(seed->slippedArea()<FLT_EPSILON,"Expected zero-area physical seed");
+                require(seed->slippedArea()<std::numeric_limits<float>::epsilon(),"Expected zero-area physical seed");
                 network.networkRemesher.remove0AreaLoopAcrossBnd();
                 require(seed->isLoop() && seed->loopLinks().size()==3,"Cleanup removed physical boundary anchors");
             }

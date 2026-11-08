@@ -14,7 +14,7 @@
 #include <SplineBase.h>
 #include <QuadratureDynamic.h>
 #include <QuadPowDynamic.h>
-#include <DislocationDynamics/StressStraight.h>
+#include <DislocationDynamics/StraightDislocationSegment.h>
 #include <SegmentSegmentDistance.h>
 #include <DislocationDynamics/StraightDislocationSegment.h>
 #include <InclusionMicrostructure/EshelbyInclusionBase.h>

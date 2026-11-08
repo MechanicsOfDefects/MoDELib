@@ -8,7 +8,7 @@
 #ifndef model_NumericPrecision_H_
 #define model_NumericPrecision_H_
 
-#include <cfloat>
+#include <limits>
 
 namespace model
 {
@@ -16,20 +16,20 @@ namespace model
     template<typename T>
     struct NumericPrecision
     {
-        static constexpr T epsilon=DBL_EPSILON;
+        static constexpr T epsilon=std::numeric_limits<double>::epsilon();
     };
 
     template<>
     struct NumericPrecision<double>
     {
-        static constexpr double epsilon=DBL_EPSILON;
+        static constexpr double epsilon=std::numeric_limits<double>::epsilon();
     };
 
     
     template<>
     struct NumericPrecision<float>
     {
-        static constexpr double epsilon=FLT_EPSILON;
+        static constexpr double epsilon=std::numeric_limits<float>::epsilon();
     };
 
 } // namespace model

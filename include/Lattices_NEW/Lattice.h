@@ -7,6 +7,7 @@
 #ifndef model_Lattice_h_
 #define model_Lattice_h_
 
+#include <limits>
 #include <LatticeModule.h>
 #include <StaticID.h>
 #include <BestRationalApproximation.h>
@@ -16,7 +17,7 @@ namespace model
     template <int dim>
     class Lattice : public StaticID<Lattice<dim>>
     {
-        static constexpr double roundTol=FLT_EPSILON;
+        static constexpr double roundTol=std::numeric_limits<float>::epsilon();
         typedef typename LatticeCore<dim>::VectorDimD VectorDimD;
         typedef typename LatticeCore<dim>::MatrixDimD MatrixDimD;
         typedef typename LatticeCore<dim>::VectorDimI VectorDimI;

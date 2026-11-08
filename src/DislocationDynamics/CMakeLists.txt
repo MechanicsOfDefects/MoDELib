@@ -23,7 +23,6 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationVelocitySolverBase.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationNucleation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/StraightDislocationSegment.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/StressStraight.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationDynamicsBase.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationLoopPatches.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationFieldBase.cpp
@@ -37,3 +36,12 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/CrossSlipBranch.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DislocationIOConversions.cpp
 )
+
+target_sources(MoDELib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/DislocationFieldEvaluator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ScreenedDislocationAssembly.cpp)
+if(MODELIB_ENABLE_KOKKOS)
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/DislocationFieldEvaluator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ScreenedDislocationAssembly.cpp
+        TARGET_DIRECTORY MoDELib PROPERTIES COMPILE_DEFINITIONS MODELIB_FIELD_EVALUATOR_KOKKOS)
+    target_link_libraries(MoDELib PRIVATE MoDELib::Kokkos)
+endif()

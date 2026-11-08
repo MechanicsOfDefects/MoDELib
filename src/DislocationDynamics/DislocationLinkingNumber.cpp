@@ -1,3 +1,4 @@
+#include <limits>
 #include <DislocationDynamics/DislocationLinkingNumber.h>
 #include <DislocationNetwork.h>
 
@@ -156,7 +157,7 @@ std::pair<double,bool> DislocationLinkingNumber<dim>::linkingNumber(const LoopTy
                     if(SegmentSegmentDistance<dim>(link1->source->get_P(),
                                                    link1->sink->get_P(),
                                                    link2->source->get_P(),
-                                                   link2->sink->get_P()).dMin<FLT_EPSILON)
+                                                   link2->sink->get_P()).dMin<std::numeric_limits<float>::epsilon())
                     {
                         loopsTouch=true;
                     }

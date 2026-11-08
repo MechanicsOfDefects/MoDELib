@@ -25,7 +25,7 @@
 #include <TextFileParser.h>
 #include <GlidePlaneModule.h>
 #include <DefectiveCrystal/DefectiveCrystalTraitsIO.h>
-#include <DislocationDynamics/StressStraight.h>
+#include <DislocationDynamics/StraightDislocationSegment.h>
 #include <DislocationQuadraturePoint.h>
 #include <QuadratureDynamic.h>
 #include <SplineSegmentBase.h>
@@ -38,7 +38,7 @@ namespace model
 
     class VTKsegments :    public std::deque<Eigen::Matrix<double, 3, 1>>
             /*               */,
-                            public std::map<std::pair<int,int>,StressStraight<3>>
+                            public std::map<std::pair<int,int>,StraightDislocationSegment<3>>
             /*               */,
                             public std::vector<DislocationQuadraturePoint<3, 0>>
         {
@@ -47,7 +47,7 @@ namespace model
     
     
 //      public std::vector<Eigen::Matrix<double,3,1>>
-//     /*               */,public std::vector<StressStraight<3>>
+//     /*               */,public std::vector<StraightDislocationSegment<3>>
 //     /*               */,public std::vector<DislocationQuadraturePoint<3,0>>
     
 
@@ -69,7 +69,6 @@ namespace model
 //        VectorDimI getPbcFlags(const std::string& filename) const;
         
         MatrixDim cellMatrix;
-        double EwaldLength;
         VectorDimI pbcFlags;
         std::vector<VectorDim> periodicShifts;
         
@@ -97,8 +96,8 @@ namespace model
         
         // const std::vector<VectorDim>& nodes() const;
         // std::vector<VectorDim>& nodes();
-        // const std::vector<StressStraight<3>>& segments() const;
-        // std::vector<StressStraight<3>>& segments();
+        // const std::vector<StraightDislocationSegment<3>>& segments() const;
+        // std::vector<StraightDislocationSegment<3>>& segments();
         // const std::vector<DislocationQuadraturePoint<3,0>>& quadraturePoints() const;
         // std::vector<DislocationQuadraturePoint<3,0>>& quadraturePoints();
 
@@ -107,8 +106,8 @@ namespace model
 
         const std::deque<VectorDim> &nodes() const;
         std::deque<VectorDim> &nodes();
-        const std::map<std::pair<int,int>,StressStraight<3>> &segments() const;
-        std::map<std::pair<int,int>,StressStraight<3>>&segments();
+        const std::map<std::pair<int,int>,StraightDislocationSegment<3>> &segments() const;
+        std::map<std::pair<int,int>,StraightDislocationSegment<3>>&segments();
         const std::vector<DislocationQuadraturePoint<3, 0>> &quadraturePoints() const;
         std::vector<DislocationQuadraturePoint<3, 0>> &quadraturePoints();
 

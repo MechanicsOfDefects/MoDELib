@@ -8,7 +8,7 @@
 #ifndef model_LineLineIntersection_CPP_
 #define model_LineLineIntersection_CPP_
 
-#include <cfloat>
+#include <limits>
 #include <tuple>
 #include <map>
 #include <stdexcept>
@@ -46,11 +46,11 @@ namespace model
         
         const double normD0(D0.norm());
         const double normD1(D1.norm());
-        if(normD0<FLT_EPSILON)
+        if(normD0<std::numeric_limits<float>::epsilon())
         {
             throw std::runtime_error("Norm of line direction D0 is close to singular. norm(D0)="+std::to_string(normD0)+"\n");
         }
-        if(normD1<FLT_EPSILON)
+        if(normD1<std::numeric_limits<float>::epsilon())
         {
             throw std::runtime_error("Norm of line direction D1 is close to singular. norm(D1)="+std::to_string(normD1)+"\n");
         }
@@ -59,9 +59,9 @@ namespace model
         const VectorDimD d1(D1/normD1);
         const VectorDimD A0A1(A1-A0);
         
-        if(normD0<FLT_EPSILON && normD1<FLT_EPSILON)
+        if(normD0<std::numeric_limits<float>::epsilon() && normD1<std::numeric_limits<float>::epsilon())
         {// both lines are degenerate
-            if(A0A1.squaredNorm()<FLT_EPSILON)
+            if(A0A1.squaredNorm()<std::numeric_limits<float>::epsilon())
             {
                 return std::make_tuple(INCIDENT,0.5*(A0+A1),0.5*(A0+A1),0.0,0.0);
             }
@@ -70,11 +70,11 @@ namespace model
                 return std::make_tuple(SKEW,A0,A1,0.0,0.0);
             }
         }
-        else if(normD0<FLT_EPSILON && normD1>=FLT_EPSILON)
+        else if(normD0<std::numeric_limits<float>::epsilon() && normD1>=std::numeric_limits<float>::epsilon())
         {// line0 is degenerate
             const double u1 = -A0A1.dot(d1);
             const VectorDimD x(A1+u1*d1);
-            if((x-A0).squaredNorm()<FLT_EPSILON)
+            if((x-A0).squaredNorm()<std::numeric_limits<float>::epsilon())
             {
                 return std::make_tuple(INCIDENT,0.5*(A0+x),0.5*(A0+x),0.0,u1);
             }
@@ -83,11 +83,11 @@ namespace model
                 return std::make_tuple(SKEW,A0,x,0.0,u1);
             }
         }
-        else if(normD0>=FLT_EPSILON && normD1<FLT_EPSILON)
+        else if(normD0>=std::numeric_limits<float>::epsilon() && normD1<std::numeric_limits<float>::epsilon())
         {// line1 is degenerate
             const double u0 = A0A1.dot(d0);
             const VectorDimD x(A0+u0*d0);
-            if((x-A1).squaredNorm()<FLT_EPSILON)
+            if((x-A1).squaredNorm()<std::numeric_limits<float>::epsilon())
             {
                 return std::make_tuple(INCIDENT,0.5*(A1+x),0.5*(A1+x),u0,0.0);
             }
@@ -108,13 +108,13 @@ namespace model
             const double det(1.0-d0d1*d0d1);
             const double num0=d0.dot(A0A1)-d0d1*d1.dot(A0A1);
             const double num1=d0d1*d0.dot(A0A1)-d1.dot(A0A1);
-            if(fabs(det)>FLT_EPSILON)
+            if(fabs(det)>std::numeric_limits<float>::epsilon())
             {
                 const double u0=num0/det;
                 const double u1=num1/det;
                 const VectorDimD x0(A0+u0*d0);
                 const VectorDimD x1(A1+u1*d1);
-                if((x0-x1).squaredNorm()<FLT_EPSILON)
+                if((x0-x1).squaredNorm()<std::numeric_limits<float>::epsilon())
                 {
                     return std::make_tuple(INCIDENT,x0,x1,u0,u1);
                 }
@@ -126,11 +126,11 @@ namespace model
             else
             {// A solution could not be found. This means parallel or coincident lines
                 const double A0A1norm(A0A1.norm());
-                if(A0A1norm<FLT_EPSILON) // this condition is unnecessary
+                if(A0A1norm<std::numeric_limits<float>::epsilon()) // this condition is unnecessary
                 {
                     return std::make_tuple(COINCIDENT,A0,A1,0.0,0.0);
                 }
-                else if(fabs(fabs(d0.dot(A0A1))-A0A1norm)<FLT_EPSILON)
+                else if(fabs(fabs(d0.dot(A0A1))-A0A1norm)<std::numeric_limits<float>::epsilon())
                 {// coi
                     return std::make_tuple(COINCIDENT,A0,A1,0.0,0.0);
                 }
@@ -138,7 +138,7 @@ namespace model
                 {
                     return std::make_tuple(PARALLEL,A0,A1,0.0,0.0);
                 }
-//                        if(fabs(num0)<FLT_EPSILON && fabs(num1)<FLT_EPSILON)
+//                        if(fabs(num0)<std::numeric_limits<float>::epsilon() && fabs(num1)<std::numeric_limits<float>::epsilon())
 //                        {
 //                            return std::make_tuple(COINCIDENT,0.5*(A0+A1),D0);
 //                        }

@@ -18,6 +18,7 @@
 #endif
 
 #include <vector>
+#include <DislocationDynamics/ScreenedDislocationAssembly.h>
 #include <CoupledClimbSolve.h>
 
 #include <DislocationDynamicsModule.h>
@@ -47,6 +48,8 @@ namespace model
         std::vector<Eigen::VectorXd> Fc;
         std::vector<std::unique_ptr<CoupledClimbSolve>> coupledSolvers;
         size_t cachedNodeCount=0;
+        std::shared_ptr<ScreenedClimbAssembly> screenedAssembly;
+        void computeClimbScalarVelocitiesFMM(bool rebuild);
 
         ForceVectorMatrixType clusterForceVector(const NetworkLinkType& networkLink) const;
         ForceVectorMatrixType clusterForceKernel(const int& k,const NetworkLinkType& networkLink) const;
@@ -63,6 +66,10 @@ namespace model
         public:
         
         GalerkinClimbSolver(const DislocationNetwork<dim>&,const ClusterDynamics<dim>* const );
+        // Explicit preparation only: leaves the current velocity solve unchanged.
+        ClimbAssemblySnapshot screenedAssemblySnapshot() const;
+        std::unique_ptr<ScreenedClimbAssembly> assembleScreened(
+            const ScreenedDislocationOptions&) const;
         Eigen::VectorXd getNodeVelocities() const override;
         void computeClimbScalarVelocities(const bool& updateStiffness) override;
         

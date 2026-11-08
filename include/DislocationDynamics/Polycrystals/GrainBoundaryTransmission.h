@@ -8,6 +8,7 @@
 #ifndef model_GrainBoundaryTransmission_H_
 #define model_GrainBoundaryTransmission_H_
 
+#include <limits>
 #include <deque>
 #include <utility>
 #include <math.h>
@@ -238,13 +239,13 @@ namespace model
 //                                for(size_t ssID=0;ssID<grain.second->slipSystems().size();++ssID)
 //                                {
 //                                    const auto& slipSystem(grain.second->slipSystems()[ssID]);
-////                                    if(grainBoundary->glidePlane(grain.second->grainID).unitNormal.cross(slipSystem->n.cartesian().normalized()).norm()>FLT_EPSILON) // slip plane is not GB plane
-//                                        if(grainBoundary->outNormal(grain.second->grainID).cross(slipSystem->n.cartesian().normalized()).norm()>FLT_EPSILON // slip plane is not GB plane
-//                                           //&& slipSystem->n.cartesian().normalized().cross(glidePlaneNormal).norm()>FLT_EPSILON
+////                                    if(grainBoundary->glidePlane(grain.second->grainID).unitNormal.cross(slipSystem->n.cartesian().normalized()).norm()>std::numeric_limits<float>::epsilon()) // slip plane is not GB plane
+//                                        if(grainBoundary->outNormal(grain.second->grainID).cross(slipSystem->n.cartesian().normalized()).norm()>std::numeric_limits<float>::epsilon() // slip plane is not GB plane
+//                                           //&& slipSystem->n.cartesian().normalized().cross(glidePlaneNormal).norm()>std::numeric_limits<float>::epsilon()
 //                                           ) // NOT SAME PLANE, REMOVE THIS
 //
 //                                    {
-//                                        if(fabs(slipSystem->n.cartesian().normalized().dot(unitChord))<FLT_EPSILON )
+//                                        if(fabs(slipSystem->n.cartesian().normalized().dot(unitChord))<std::numeric_limits<float>::epsilon() )
 //                                        {// slip plane cointains chord -> direct or indirect (offset) transmit
 //                                            const std::pair<bool,long int> temp=LatticePlane::computeHeight(slipSystem->n,0.5*(link.second->source->get_P()+link.second->sink->get_P()));
 //                                            if(temp.first)

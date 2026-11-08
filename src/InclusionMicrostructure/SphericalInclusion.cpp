@@ -9,6 +9,7 @@
 #define model_SphericalInclusion_cpp_
 
 
+#include <limits>
 #include <InclusionMicrostructure/SphericalInclusion.h>
 
 namespace model
@@ -72,7 +73,7 @@ namespace model
     typename SphericalInclusion<dim>::MatrixDim SphericalInclusion<dim>::stress(const VectorDim& x) const
     {
         
-        if(this->eTNorm>FLT_EPSILON)
+        if(this->eTNorm>std::numeric_limits<float>::epsilon())
         {
             const VectorDim r(x-C);
             const double R2(r.squaredNorm());

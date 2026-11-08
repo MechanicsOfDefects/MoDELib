@@ -1,0 +1,51 @@
+Short-range particle neighbor search
+====================================
+Headers: include/FMM/ShortRangeParticleNeighbors.h and
+include/FMM/KokkosShortRangeParticleNeighbors.h.
+
+The host snapshot hashes original source IDs into Cartesian cells of side rc,
+independent of the FMM depth. Each target searches nearby cells, retaining
+only pairs with squared distance <= rc^2. CSR rows store (source ID,image ID),
+with image translations stored once. Original particle order and tensor
+weights are unchanged; the list introduces no network/topology modifications.
+Neighbor rows are sorted by image/source for deterministic accumulation.
+
+Pass mesh.periodicBasis() to enable exactly the active periodic directions.
+An empty 3x0 basis selects free space. Image bounds are derived using the
+left inverse of the periodic basis, the source/target bounding boxes, and rc.
+This supports skew generators and more than one replica in a direction.
+Dependent bases and impractically large image ranges throw; image ranges are
+never silently truncated. No infinite long-range periodic sum is implemented.
+
+The Kokkos evaluator reads uploaded CSR rows and rechecks the actual cutoff,
+with one worker per target, six-component accumulation, no atomics. Upload
+is blocking; evaluation is asynchronous until the caller fences/downloads.
+The host list is a geometry snapshot: reconstruct it after ANY position,
+ordering, or topology change, even if point counts are unchanged. Buffer
+shape validation cannot detect same-size geometry changes. No stale-list
+reuse or Verlet skin is implemented. Current benchmarks rebuild every call.
+Production forces remain unchanged pending long-range FMM integration.
+
+Tests: shortRangeParticleNeighbors compares every retained source-image
+identity and resulting stress against an independent fixed replica cube.
+Cases include 0/1/2/3 periodic directions, skew cells, opposite corners,
+cutoffs larger than a cell, rebuilt moved targets, exact cutoff inclusion,
+empty sets, zero cutoff and dependent-basis rejection. The Cai and Lazar
+kernel regression tests also pass.
+
+Benchmark target: benchmarkLazarNeighbors tutorial frame [targets=1024] [repeats=9]
+Two modes: free space, then the actual mesh periodic basis. Same polycrystal
+source and target sampling as prior benchmarks, ell=2,h=8,rc=12h=96.
+12 OpenMP CPU threads, 1024 targets, 11 timed evaluations after warmup.
+Build/upload are single timings; eval_median_ms is the fenced median. total_ms
+adds build + upload + median evaluation. Original particle sampling and
+source/target upload are excluded in both methods. brute_single_ms measures
+one Kokkos all-pair scan with the same image shifts and distance cutoff.
+The full short-range untruncated sum is NOT the reference here; cutoff error
+was measured separately in LazarCutoff.txt. No FMM or long-range stress is
+included in these timings. No GPU performance claims.
+
+NEIGHBORS frame=0 periodic_rank=0 sources=44160 targets=1024 images=1 candidates=61399 pairs=31185 build_ms=2.2033340000e+00 upload_ms=2.0095900000e-01 eval_median_ms=1.7287500000e-01 total_ms=2.5771680000e+00 brute_single_ms=1.2709792000e+01 relative_error=0.0000000000e+00
+NEIGHBORS frame=0 periodic_rank=3 sources=44160 targets=1024 images=27 candidates=61399 pairs=31185 build_ms=2.7038750000e+00 upload_ms=1.7733300000e-01 eval_median_ms=1.7108300000e-01 total_ms=3.0522910000e+00 brute_single_ms=2.8603841700e+02 relative_error=0.0000000000e+00
+NEIGHBORS frame=1000 periodic_rank=0 sources=54216 targets=1024 images=1 candidates=52951 pairs=27801 build_ms=2.8507920000e+00 upload_ms=1.7708300000e-01 eval_median_ms=1.8008300000e-01 total_ms=3.2079580000e+00 brute_single_ms=1.6648583000e+01 relative_error=0.0000000000e+00
+NEIGHBORS frame=1000 periodic_rank=3 sources=54216 targets=1024 images=27 candidates=53004 pairs=27814 build_ms=3.1013330000e+00 upload_ms=2.0204200000e-01 eval_median_ms=1.5850000000e-01 total_ms=3.4618750000e+00 brute_single_ms=3.4024091700e+02 relative_error=0.0000000000e+00

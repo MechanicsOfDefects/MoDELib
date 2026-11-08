@@ -72,6 +72,15 @@ namespace model
         {
             solvedQuantities.options.relaxation=input.readScalar<double>("solvedQuantityRelaxation",true);
         }
+        if(!input.readStringVector("solvedQuantityAndersonDepth").empty())
+        {
+            const int depth=input.readScalar<int>("solvedQuantityAndersonDepth",true);
+            if(depth<0 || depth>20)
+            {
+                throw std::runtime_error("solvedQuantityAndersonDepth must be between 0 and 20.");
+            }
+            solvedQuantities.options.andersonDepth=depth;
+        }
         for(const auto& physics : microstructures())
         {
             physics->registerSolvedQuantities(solvedQuantities);

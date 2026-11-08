@@ -8,7 +8,7 @@
 #ifndef model_LineSimplexIntersection_CPP_
 #define model_LineSimplexIntersection_CPP_
 
-#include <cfloat>
+#include <limits>
 #include <tuple>
 #include <map>
 #include <Eigen/Dense>
@@ -53,11 +53,11 @@ namespace model
 //        
 //        VectorDim n(v12.cross(v13)); // right-handed norm to triangle P1->P2->P3
 //        const double nNorm(n.norm());
-//        assert(nNorm>FLT_EPSILON && "n has zero norm");
+//        assert(nNorm>std::numeric_limits<float>::epsilon() && "n has zero norm");
 //        n/=nNorm; // normalize
 //        const double nDots(n.dot(s));
 //        
-//        if(std::fabs(nDots)>FLT_EPSILON) // s in not parallel to triangle
+//        if(std::fabs(nDots)>std::numeric_limits<float>::epsilon()) // s in not parallel to triangle
 //        {
 //            MatrixDim M(MatrixDim::Zero());
 //            M.col(0)=v12;

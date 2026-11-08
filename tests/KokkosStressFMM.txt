@@ -1,0 +1,140 @@
+Update 2026-11-03: cached translations and experimental near interpolation
+=========================================================================
+The baseline measurements below are retained as historical reference.
+New default: Lazar M2L caches seven geometric/material coefficients for each
+interpolation-node pair, shared by box level and integer displacement.
+This factors the tensor mapping instead of storing 54 entries per node pair.
+The cache budget is 256 MiB; excess classes use the original kernel evaluation.
+setTranslationCacheBudget(0) disables it. Kernel type/ell/h/material changes
+invalidate the cache; source-strength changes do not. The cache belongs to the
+geometry plan and is recreated on plan rebuild, not shared between time steps.
+First evaluation includes cache construction; steady-state medians exclude it.
+General kernels without the prepared-translation interface remain uncached.
+
+setInterpolateNear(true) enables experimental SOURCE interpolation in near
+leaves, using exact target positions and existing source moments. Leaves with
+no more than p^3 particles still use direct summation. Default remains FALSE.
+This is not an accuracy-controlled near-field accelerator. The tutorial's
+coarse leaves do not resolve h=8: combined relative RMS errors are 65--76%.
+Therefore this option must NOT be enabled for production on these inputs.
+Even the broad-screen synthetic fixture only converges slowly; smoothness
+alone does not guarantee accuracy at low order with signed tensor sources.
+More local refinement or a separately validated near representation is needed.
+No change to production forces, periodic correction, or the physical core.
+
+Validation: all four stress/FMM/neighbor regression tests pass, including
+cached/uncached agreement, budget fallback, changed kernel parameters, constant
+and cubic near interpolation reproduction, Lazar order convergence, and
+switching back to direct near evaluation. Approximation accuracy is reported
+separately from these implementation checks. No GPU measurements.
+
+Benchmark: same frame 0 and 1000 fixtures, 1024 targets, depth 2, ell=2,h=8,
+rc=96, 12 OpenMP CPU threads, nine repetitions after the first call.
+mode=0: uncached M2L + direct near; mode=1: cached M2L + direct near;
+mode=2: cached M2L + experimental interpolated near.
+upward/downward/near_last_ms are stage timings of the LAST repetition, not
+stage medians; median_ms is the median complete evaluation time.
+setup_ms excludes lazy cache preparation, which is included in first_ms.
+Short-range evaluation and initial sampling/uploads remain excluded.
+At order 4, cached M2L reduces the downward stage roughly from 11 to 4--5 ms.
+The direct near stage remains about 66--85 ms and dominates total evaluation.
+The faster experimental near result is inaccurate and is not a usable speedup.
+
+FMM_BENCH frame=0 depth=2 order=3 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 mode=0 cache_bytes=0 first_ms=7.3465417000e+01 setup_ms=6.0069580000e+00 median_ms=7.3050833000e+01 direct_single_ms=1.3753716600e+02 upward_last_ms=8.1962500000e-01 downward_last_ms=2.0558750000e+00 near_last_ms=6.7631667000e+01 relative_long=5.7694941460e-04 relative_total=4.0199632217e-04 max_error_over_long_rms=2.3720399463e-03
+FMM_BENCH frame=0 depth=2 order=3 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 mode=1 cache_bytes=7756560 first_ms=7.6034125000e+01 setup_ms=5.3918330000e+00 median_ms=7.0124541000e+01 direct_single_ms=1.3753716600e+02 upward_last_ms=8.0812500000e-01 downward_last_ms=9.1958300000e-01 near_last_ms=6.6542417000e+01 relative_long=5.7694941460e-04 relative_total=4.0199632217e-04 max_error_over_long_rms=2.3720399463e-03
+FMM_BENCH frame=0 depth=2 order=3 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 mode=2 cache_bytes=7756560 first_ms=3.5193340000e+00 setup_ms=5.3707920000e+00 median_ms=3.0024580000e+00 direct_single_ms=1.3753716600e+02 upward_last_ms=7.3075000000e-01 downward_last_ms=7.5429100000e-01 near_last_ms=1.5284170000e+00 relative_long=9.4118495070e-01 relative_total=6.5546919263e-01 max_error_over_long_rms=3.5819652727e+00
+FMM_BENCH frame=0 depth=2 order=4 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 mode=0 cache_bytes=0 first_ms=7.7542542000e+01 setup_ms=6.1588750000e+00 median_ms=8.1828208000e+01 direct_single_ms=1.3753716600e+02 upward_last_ms=1.5083750000e+00 downward_last_ms=1.1248792000e+01 near_last_ms=7.4965250000e+01 relative_long=1.6856859551e-04 relative_total=1.1813415580e-04 max_error_over_long_rms=1.0649634467e-03
+FMM_BENCH frame=0 depth=2 order=4 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 mode=1 cache_bytes=43581440 first_ms=8.5657541000e+01 setup_ms=6.2128750000e+00 median_ms=7.3262125000e+01 direct_single_ms=1.3753716600e+02 upward_last_ms=1.4964170000e+00 downward_last_ms=4.8001670000e+00 near_last_ms=6.6394250000e+01 relative_long=1.6856859551e-04 relative_total=1.1813415580e-04 max_error_over_long_rms=1.0649634467e-03
+FMM_BENCH frame=0 depth=2 order=4 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 mode=2 cache_bytes=43581440 first_ms=1.1029833000e+01 setup_ms=5.9607080000e+00 median_ms=8.7142500000e+00 direct_single_ms=1.3753716600e+02 upward_last_ms=1.4489590000e+00 downward_last_ms=3.7285410000e+00 near_last_ms=3.3115000000e+00 relative_long=1.0854074187e+00 relative_total=7.5591148485e-01 max_error_over_long_rms=1.5621016556e+01
+FMM_BENCH frame=1000 depth=2 order=3 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 mode=0 cache_bytes=0 first_ms=8.7813292000e+01 setup_ms=7.3841660000e+00 median_ms=9.0733958000e+01 direct_single_ms=1.6105312500e+02 upward_last_ms=9.2120800000e-01 downward_last_ms=2.1927920000e+00 near_last_ms=8.3741292000e+01 relative_long=7.1668897184e-04 relative_total=4.9238426448e-04 max_error_over_long_rms=2.9858382937e-03
+FMM_BENCH frame=1000 depth=2 order=3 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 mode=1 cache_bytes=7634088 first_ms=9.2549333000e+01 setup_ms=6.3872080000e+00 median_ms=8.5669750000e+01 direct_single_ms=1.6105312500e+02 upward_last_ms=9.4887500000e-01 downward_last_ms=9.2004200000e-01 near_last_ms=8.5152500000e+01 relative_long=7.1668897184e-04 relative_total=4.9238426448e-04 max_error_over_long_rms=2.9858382937e-03
+FMM_BENCH frame=1000 depth=2 order=3 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 mode=2 cache_bytes=7634088 first_ms=4.0003340000e+00 setup_ms=6.6618340000e+00 median_ms=3.6099160000e+00 direct_single_ms=1.6105312500e+02 upward_last_ms=8.8458400000e-01 downward_last_ms=8.7279100000e-01 near_last_ms=1.5149590000e+00 relative_long=9.8383419788e-01 relative_total=6.7565911450e-01 max_error_over_long_rms=5.7792327606e+00
+FMM_BENCH frame=1000 depth=2 order=4 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 mode=0 cache_bytes=0 first_ms=1.0491808300e+02 setup_ms=7.7854580000e+00 median_ms=9.7618542000e+01 direct_single_ms=1.6105312500e+02 upward_last_ms=1.7526670000e+00 downward_last_ms=1.1528666000e+01 near_last_ms=8.5683167000e+01 relative_long=1.8295387334e-04 relative_total=1.2620606197e-04 max_error_over_long_rms=8.8568283823e-04
+FMM_BENCH frame=1000 depth=2 order=4 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 mode=1 cache_bytes=42893312 first_ms=9.6149584000e+01 setup_ms=7.5557500000e+00 median_ms=8.8262709000e+01 direct_single_ms=1.6105312500e+02 upward_last_ms=1.8705420000e+00 downward_last_ms=4.1316250000e+00 near_last_ms=8.0734958000e+01 relative_long=1.8295387334e-04 relative_total=1.2620606197e-04 max_error_over_long_rms=8.8568283823e-04
+FMM_BENCH frame=1000 depth=2 order=4 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 mode=2 cache_bytes=42893312 first_ms=1.2690375000e+01 setup_ms=7.2456250000e+00 median_ms=1.0051375000e+01 direct_single_ms=1.6105312500e+02 upward_last_ms=2.2143330000e+00 downward_last_ms=4.6629590000e+00 near_last_ms=3.7902080000e+00 relative_long=1.0965102045e+00 relative_total=7.5304121197e-01 max_error_over_long_rms=9.3395661204e+00
+
+Historical baseline (before the above changes)
+==============================================
+Kokkos interpolation stress FMM
+===============================
+Implementation: include/FMM/KokkosStressFMM.h
+KokkosStressFMM<ExecutionSpace> plan(execution, tree, sourcePositions,
+                                  targetPositions, interpolationOrder);
+plan.evaluate(execution,kernel,sourcePositions,sourceTensors,targetPositions,
+              outputStresses,sourceCount,targetCount);
+
+Free-space only. No implicit periodic image summation, periodic root operator,
+or zero-mode choice. Do not substitute this for the periodic long-range field
+until that separate operator is implemented and validated. The short-range
+neighbor evaluator separately supports active periodic directions.
+Production forces have NOT been switched to this path.
+
+Uses the existing BoxTree geometry and BoxParticleIndex assignment, without
+modifying the network, junction ownership, or periodic topology. Sources and
+targets remain distinct arrays. Chebyshev-Lobatto tensor interpolation of
+order p=2..6 means p^3 nodes per box. Nine source-tensor coefficients and six
+symmetric stress coefficients per interpolation node.
+
+Passes:
+ P2M: source tensors deposited with cardinal interpolation weights.
+ M2M: child coefficients transferred to parent cardinal basis.
+ M2L: actual long-range stress kernel evaluated between interpolation nodes.
+ L2L: parent local stress interpolated to child nodes.
+ L2P: local stress interpolated to target positions.
+ Near: exact direct LONG-range kernel for unresolved neighboring leaf pairs.
+The near contribution is required in addition to the short-range cutoff sum.
+No near-field interpolation compression or approximate exponentials yet.
+No compressed/cached M2L matrices yet: kernel translations are evaluated each
+call. This is a baseline FMM, not a fully optimized implementation.
+
+A dual box traversal accepts pairs when center distance exceeds 1.01 times
+the same-level box diagonal; otherwise it descends both boxes or adds a
+leaf near pair. Physical sphere separation is used for rectangular roots.
+Empty source/target boxes are pruned. Each source-target pair contributes
+at one accepted level or through near evaluation, never both.
+
+Plan construction builds geometry, lists, weights, and device arrays.
+Rebuild on ANY source/target motion, reordering, topology, or tree change.
+Tree revision changes are detected; same-sized particle movement cannot be
+detected from the device views. Tree must outlive the plan. Source tensor
+strengths can change without rebuilding geometry; moments and locals reset
+on every evaluation. Plans own mutable work arrays, are noncopyable and must
+not be evaluated concurrently. Evaluation fences before returning.
+Memory scales with all uniform-tree boxes times p^3, not just occupied boxes;
+large depth/order combinations can consume substantial memory.
+
+Validation: kokkosStressFMM plus caiStressParticles, lazarStressParticles,
+shortRangeParticleNeighbors all pass. Constant-field conservation checks
+interaction coverage and transfer partition of unity. Depth 0 equals direct.
+Random signed tensor sources test order convergence (depth 2 order 2 error
+0.0680, order 4 0.00230, order 6 9.72e-5), depth 3 multilevel passes, endpoints,
+coincident source/target convention, repeat/reset, changed strengths, empty
+sources, invalid order, and stale tree rejection. These checks use the same
+regularized particle model as the direct sum.
+
+Benchmark target: benchmarkLazarFMM tutorial frame [targets=1024] [repeats=9]
+Measured on M2 Max, Kokkos OpenMP 12 CPU threads, 1024 target samples,
+source density 0.1, ell=2,h=8, rc=12h, depth 2, five timed calls after warmup.
+Setup includes lists, interpolation weights, device allocation/upload.
+median_ms includes all FMM evaluation passes, including exact long near field.
+Direct long-range reference is a single timed all-pair call. Source/target
+sampling and their initial upload are outside both measurements.
+relative_long = aggregate RMS error / direct long-range RMS.
+relative_total compares FMM long + cutoff short with direct FULL Lazar stress.
+max_error_over_long_rms is a worst absolute target error divided by aggregate
+long-range RMS, not maximum pointwise relative error. Short-range neighbor
+construction/evaluation is NOT included in the FMM timings. The total error
+includes the cutoff error but does not measure source quadrature error.
+These figures do not yet establish end-to-end simulation speedup, particularly
+against direct evaluation of the unsplit full kernel. GPU execution untested.
+
+FMM_BENCH frame=0 depth=2 order=2 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 setup_ms=5.1604580000e+00 median_ms=7.0414584000e+01 direct_single_ms=1.3630029200e+02 relative_long=3.0012031514e-03 relative_total=2.0901303273e-03 max_error_over_long_rms=8.3468016985e-03
+FMM_BENCH frame=0 depth=2 order=3 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 setup_ms=5.8307090000e+00 median_ms=7.0715709000e+01 direct_single_ms=1.3630029200e+02 relative_long=5.7694941460e-04 relative_total=4.0199632217e-04 max_error_over_long_rms=2.3720399463e-03
+FMM_BENCH frame=0 depth=2 order=4 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 setup_ms=6.5540000000e+00 median_ms=7.9559958000e+01 direct_single_ms=1.3630029200e+02 relative_long=1.6856859551e-04 relative_total=1.1813415580e-04 max_error_over_long_rms=1.0649634467e-03
+FMM_BENCH frame=0 depth=2 order=5 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 setup_ms=7.1897080000e+00 median_ms=1.0679908300e+02 direct_single_ms=1.3630029200e+02 relative_long=4.9316965437e-05 relative_total=3.6688101992e-05 max_error_over_long_rms=2.3589383458e-04
+FMM_BENCH frame=0 depth=2 order=6 sources=44160 targets=1024 far_box_pairs=756 near_box_pairs=434 setup_ms=8.5300000000e+00 median_ms=1.6674737500e+02 direct_single_ms=1.3630029200e+02 relative_long=1.1437691685e-05 relative_total=1.4304848075e-05 max_error_over_long_rms=6.4104690439e-05
+FMM_BENCH frame=1000 depth=2 order=2 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 setup_ms=6.2972080000e+00 median_ms=8.2319625000e+01 direct_single_ms=1.5773279100e+02 relative_long=3.5435825178e-03 relative_total=2.4336632583e-03 max_error_over_long_rms=1.1587895914e-02
+FMM_BENCH frame=1000 depth=2 order=3 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 setup_ms=7.5064170000e+00 median_ms=8.6826625000e+01 direct_single_ms=1.5773279100e+02 relative_long=7.1668897184e-04 relative_total=4.9238426448e-04 max_error_over_long_rms=2.9858382937e-03
+FMM_BENCH frame=1000 depth=2 order=4 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 setup_ms=8.1153330000e+00 median_ms=9.5897875000e+01 direct_single_ms=1.5773279100e+02 relative_long=1.8295387334e-04 relative_total=1.2620606197e-04 max_error_over_long_rms=8.8568283823e-04
+FMM_BENCH frame=1000 depth=2 order=5 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 setup_ms=8.6904160000e+00 median_ms=1.2026391600e+02 direct_single_ms=1.5773279100e+02 relative_long=5.2508946824e-05 relative_total=3.8195921109e-05 max_error_over_long_rms=2.5617213345e-04
+FMM_BENCH frame=1000 depth=2 order=6 sources=54216 targets=1024 far_box_pairs=755 near_box_pairs=435 setup_ms=1.0471916000e+01 median_ms=1.8916270900e+02 direct_single_ms=1.5773279100e+02 relative_long=1.3102148995e-05 relative_total=1.4344901204e-05 max_error_over_long_rms=8.5122321795e-05

@@ -9,6 +9,7 @@
 #define model_DislocationLoopPatches_cpp_
 
 
+#include <limits>
 #include <DislocationDynamics/DislocationLoopPatches.h>
 #include <Polygon2D.h>
 
@@ -117,7 +118,7 @@ namespace model
         double temp(0.0);
         const VectorDim rhA(orientedArea());
         const double rhAnorm(rhA.norm());
-        if(rhAnorm>FLT_EPSILON)
+        if(rhAnorm>std::numeric_limits<float>::epsilon())
         {
             const VectorDim rhN(rhA/rhAnorm);
             for(const auto& patch : globalPatches())
@@ -127,7 +128,7 @@ namespace model
                     const VectorDim& planePoint(patch.second[0]);
                     const double posNorm((x-planePoint).norm());
                     const double dotProd((x-planePoint).dot(rhN));
-                    if(std::fabs(dotProd)>FLT_EPSILON*posNorm)
+                    if(std::fabs(dotProd)>std::numeric_limits<float>::epsilon()*posNorm)
                     {// x is outside the plane of the loop
                         const VectorDim s(sgn(dotProd)*rhN); // s points along +n for points above, and along -n for points below
                         for(size_t k=0;k<patch.second.size();++k)
@@ -136,17 +137,17 @@ namespace model
                             
                             VectorDim e1(patch.second[k]-x);
                             const double e1Norm(e1.norm());
-                            if(e1Norm>FLT_EPSILON)
+                            if(e1Norm>std::numeric_limits<float>::epsilon())
                             {
                                 e1/=e1Norm;
                                 VectorDim Y1(patch.second[k1]-x);
                                 const double Y1norm(Y1.norm());
-                                if(Y1norm>FLT_EPSILON)
+                                if(Y1norm>std::numeric_limits<float>::epsilon())
                                 {
                                     Y1/=Y1norm;
                                     VectorDim e3(e1.cross(Y1));
                                     const double e3Norm(e3.norm());
-                                    if(e3Norm>FLT_EPSILON)
+                                    if(e3Norm>std::numeric_limits<float>::epsilon())
                                     {// e1 and Y1 are not align. If they are the projection on the unit sphere is a point and therefore there is no contribution to solid angle
                                         e3/=e3Norm; // normalize e3
                                         const VectorDim e2(e3.cross(e1));

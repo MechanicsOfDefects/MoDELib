@@ -111,7 +111,7 @@ Numerical behavior and limitations
 - Very large coordinates relative to semiaxes, underflow-scale far stresses,
   and subtraction of nearly equal huge global coordinates are not guaranteed.
 - Unlike the supplied sphere, small nonzero eigenstrains are not discarded
-  using FLT_EPSILON. Exact-zero eigenstress returns zero.
+  using std::numeric_limits<float>::epsilon(). Exact-zero eigenstress returns zero.
 - stress() tracks the base's public eT and refreshes the interior cache when
   it changes; exterior calls recompute eigenstress. If eT is changed,
   this class honors it even if base pT/eTNorm are stale. Other MoDELib code can

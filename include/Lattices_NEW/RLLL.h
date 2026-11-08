@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <iomanip>
-#include <cfloat> // FLT_EPSILON
+#include <limits>
 #include <Eigen/Dense>
 
 namespace model

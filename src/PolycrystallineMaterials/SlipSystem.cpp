@@ -9,6 +9,7 @@
 #ifndef model_SLIPSYSTEM_cpp_
 #define model_SLIPSYSTEM_cpp_
 
+#include <limits>
 #include <memory>
 #include <assert.h>
 #include <LatticeModule.h>
@@ -55,7 +56,7 @@ namespace model
             throw std::runtime_error("SlipSystem: MOBILITY CANNOT BE A NULLPTR.");
         }
         
-        if((G2Lfull*G2Lfull.transpose()-MatrixDim::Identity()).squaredNorm()>FLT_EPSILON)
+        if((G2Lfull*G2Lfull.transpose()-MatrixDim::Identity()).squaredNorm()>std::numeric_limits<float>::epsilon())
         {
             throw std::runtime_error("G2Lfull is not orthogonal.");
         }

@@ -8,6 +8,7 @@
 #ifndef model_CSL_cpp_
 #define model_CSL_cpp_
 
+#include <limits>
 #include <LatticeModule.h>
 #include <CSL.h>
 
@@ -63,7 +64,7 @@ namespace model
 
         const MatrixDimD C1 = A.latticeBasis * (sd.matrixX() * M).template cast<double>();
         const MatrixDimD C2 = B.latticeBasis * (sd.matrixV() * N).template cast<double>();
-        assert((C1 - C2).norm() < FLT_EPSILON && "CSL calculation failed.");
+        assert((C1 - C2).norm() < std::numeric_limits<float>::epsilon() && "CSL calculation failed.");
 
         if (useRLLL)
         {
@@ -90,10 +91,10 @@ namespace model
         { //verify that CSL can be obtained as multiple of A and B
 
             const MatrixDimD tempA(A_in.reciprocalBasis.transpose() * this->latticeBasis);
-            assert((tempA - tempA.array().round().matrix()).norm() < FLT_EPSILON && "CSL is not a multiple of A");
+            assert((tempA - tempA.array().round().matrix()).norm() < std::numeric_limits<float>::epsilon() && "CSL is not a multiple of A");
 
             const MatrixDimD tempB(B_in.reciprocalBasis.transpose() * this->latticeBasis);
-            assert((tempB - tempB.array().round().matrix()).norm() < FLT_EPSILON && "CSL is not a multiple of B");
+            assert((tempB - tempB.array().round().matrix()).norm() < std::numeric_limits<float>::epsilon() && "CSL is not a multiple of B");
         }
         //            update(useRLLL);
     }

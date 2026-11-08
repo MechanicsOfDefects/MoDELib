@@ -2,7 +2,7 @@
 #define model_ConstrainedVelocitySolve_H_
 #include <PeriodicVelocityConstraints.h>
 #include <Eigen/SparseQR>
-#include <cfloat>
+#include <limits>
 #include <set>
 
 namespace model
@@ -25,7 +25,7 @@ namespace model
             Eigen::VectorXd result = Eigen::VectorXd::Zero(force.size());
             for (Eigen::Index k = 0; k < force.size(); ++k)
             {
-                if (std::abs(diagonal(k)) > FLT_EPSILON)
+                if (std::abs(diagonal(k)) > std::numeric_limits<float>::epsilon())
                 {
                     result(k) = force(k) / diagonal(k);
                 }
@@ -35,7 +35,7 @@ namespace model
         std::vector<Eigen::Triplet<double>> triplets;
         for (Eigen::Index k = 0; k < diagonal.size(); ++k)
         {
-            if (std::abs(diagonal(k)) > FLT_EPSILON)
+            if (std::abs(diagonal(k)) > std::numeric_limits<float>::epsilon())
             {
                 triplets.emplace_back(k, k, diagonal(k));
             }

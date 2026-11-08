@@ -9,6 +9,7 @@
 #ifndef model_NetworkLinkActor_cpp_
 #define model_NetworkLinkActor_cpp_
 
+#include <limits>
 #include <DislocationNetwork.h>
 #include <numbers>
 #include <map>
@@ -254,7 +255,7 @@ namespace model
 //                        
 //                        const auto chord(configFields.configIO.nodes()[itSink->second].P-configFields.configIO.nodes()[itSource->second].P);
 //                        const double burgersNorm(link.second.b.norm());
-//                        if(burgersNorm>FLT_EPSILON)
+//                        if(burgersNorm>std::numeric_limits<float>::epsilon())
 //                        {
 //                            Eigen::Matrix<int,3,1> colorVector=computeColor(link.second.b,chord,link.second.n);
 //                            unsigned char lineClr[3]={(unsigned char) colorVector(0),(unsigned char) colorVector(1),(unsigned char) colorVector(2)};
@@ -340,7 +341,7 @@ namespace model
 
 //    Eigen::Matrix<int,3,1> NetworkLinkActor::vector2Clr(VectorDim clrVector) const
 //    {
-//        float clrTol=100.0*FLT_EPSILON;
+//        float clrTol=100.0*std::numeric_limits<float>::epsilon();
 //        if(clrVector(0)<-clrTol)
 //        {// first component not zero but begative, flip color
 //            clrVector*=-1.0;
@@ -394,7 +395,7 @@ namespace model
                 
             case 2:
             {
-//                const bool isSessile= planeNormal.squaredNorm()<FLT_EPSILON || fabs(burgers.dot(planeNormal))>FLT_EPSILON;
+//                const bool isSessile= planeNormal.squaredNorm()<std::numeric_limits<float>::epsilon() || fabs(burgers.dot(planeNormal))>std::numeric_limits<float>::epsilon();
 //                const bool isSessile((slipSystem));
                 clrVector(0)= slipSystem? 1.0 : 0.1;
                 clrVector(1)= slipSystem? 0.5 : 0.4;

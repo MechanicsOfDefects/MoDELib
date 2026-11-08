@@ -9,6 +9,7 @@
 #define model_MeshRegionBoundary_cpp_
 
 
+#include <limits>
 #include <MeshRegionBoundary.h>
 #include <PolyhedralMesh.h>
 #include <MeshModule.h>
@@ -30,8 +31,8 @@ namespace model
                && neighborRgnIDs.find(regionBndID.second)!=neighborRgnIDs.end()
                && allSimplices.find(neighbor)!=allSimplices.end())   // neighbor found in allSimplices
             {
-                if(   (newStart->outNormal(regionBndID.first)-neighbor->outNormal(regionBndID.first)).norm()<FLT_EPSILON
-                   && (newStart->outNormal(regionBndID.second)-neighbor->outNormal(regionBndID.second)).norm()<FLT_EPSILON
+                if(   (newStart->outNormal(regionBndID.first)-neighbor->outNormal(regionBndID.first)).norm()<std::numeric_limits<float>::epsilon()
+                   && (newStart->outNormal(regionBndID.second)-neighbor->outNormal(regionBndID.second)).norm()<std::numeric_limits<float>::epsilon()
                    )
                 {// same plane
                     allSimplices.erase(neighbor);

@@ -8,7 +8,8 @@
 #ifndef model_DSCL_cpp_
 #define model_DSCL_cpp_
 
-#include <LatticeModule.h> // FLT_EPSILON
+#include <limits>
+#include <LatticeModule.h> // std::numeric_limits<float>::epsilon()
 #include <DSCL.h>
 
 namespace model
@@ -62,7 +63,7 @@ namespace model
 
         const MatrixDimD D1 = A.latticeBasis * sd.matrixX().template cast<double>() * N.template cast<double>().inverse();
         const MatrixDimD D2 = B.latticeBasis * sd.matrixV().template cast<double>() * M.template cast<double>().inverse();
-        assert((D1 - D2).norm() < FLT_EPSILON && "DSCL calculation failed.");
+        assert((D1 - D2).norm() < std::numeric_limits<float>::epsilon() && "DSCL calculation failed.");
 
         if (useRLLL)
         {
@@ -88,10 +89,10 @@ namespace model
         { //verify that A and B are multiples of DSCL
 
             const MatrixDimD tempA(this->reciprocalBasis.transpose() * A_in.latticeBasis);
-            assert((tempA - tempA.array().round().matrix()).norm() < FLT_EPSILON && "A is not a multiple of DSCL");
+            assert((tempA - tempA.array().round().matrix()).norm() < std::numeric_limits<float>::epsilon() && "A is not a multiple of DSCL");
 
             const MatrixDimD tempB(this->reciprocalBasis.transpose() * B_in.latticeBasis);
-            assert((tempB - tempB.array().round().matrix()).norm() < FLT_EPSILON && "B is not a multiple of DSCL");
+            assert((tempB - tempB.array().round().matrix()).norm() < std::numeric_limits<float>::epsilon() && "B is not a multiple of DSCL");
         }
     }
 

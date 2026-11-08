@@ -8,8 +8,7 @@
 #ifndef model_SegmentSegmentDistance_H_
 #define model_SegmentSegmentDistance_H_
 
-#include <cfloat>
-#include <cfloat>
+#include <limits>
 #include <deque>
 #include <map>
 #include <tuple>
@@ -33,7 +32,7 @@ namespace model
         typedef std::tuple<VectorDim,double,double> IntersectionPointType;
         typedef std::deque<IntersectionPointType> IntersectionContainerType;
         
-        static constexpr double tol=100*DBL_EPSILON;
+        static constexpr double tol=100*std::numeric_limits<double>::epsilon();
         
         /**********************************************************************/
         static long double limitRange(const long double& v);
@@ -95,7 +94,7 @@ namespace model
         /**********************************************************************/
         IntersectionContainerType intersectionSegment() const;
 
-        bool isIntersecting(const double tolerance = FLT_EPSILON) const;
+        bool isIntersecting(const double tolerance = std::numeric_limits<float>::epsilon()) const;
     };
 }
 #endif

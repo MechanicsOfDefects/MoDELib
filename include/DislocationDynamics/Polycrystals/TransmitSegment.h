@@ -10,7 +10,7 @@
 #define model_TRANSMITSEGMENT_H
 
 #include <math.h> // isfinite
-#include <float.h>
+#include <limits>
 #include <list>
 #include <stdlib.h> // rand()
 #include <ctime>
@@ -90,7 +90,7 @@ namespace model
                     for(const auto& slipSystem : gb->grain(otherGrainID).slipSystems())
                     {
                         //                const std::pair<LatticeVectorType,LatticeVectorType>& primitiveVectors(gb->latticePlane(ds.grain.grainID).n.primitiveVectors);
-                        if(fabs(slipSystem.n.cartesian().dot(chord))<FLT_EPSILON) // slip system contains chord
+                        if(fabs(slipSystem.n.cartesian().dot(chord))<std::numeric_limits<float>::epsilon()) // slip system contains chord
                         {
                             const VectorDim pkForce=(ds.midPointStress()*slipSystem.s.cartesian()).cross(-chord.normalized());
                             
@@ -100,7 +100,7 @@ namespace model
                                 
                                 const double theta=acos(gb->rotationAxis().normalized().dot(chord.normalized()));
                                 
-                                assert(theta>FLT_EPSILON && "PARALLEL DISLOCATION AND GB-DISLOCATION");
+                                assert(theta>std::numeric_limits<float>::epsilon() && "PARALLEL DISLOCATION AND GB-DISLOCATION");
                                 
                                 const double R=0.5*(gb->grainBoundaryType().dislocationSpacing/sin(theta));
                                 

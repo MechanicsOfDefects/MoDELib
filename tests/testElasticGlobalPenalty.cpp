@@ -229,7 +229,7 @@ void physicsIntegration(const std::filesystem::path& root,int rank,bool rotated,
         {
             dc<<"0 ";
         }
-        dc<<";\nEwaldLengthFactor=0;\n";
+        dc<<";\n";
         const auto matrixText=[](const Eigen::Matrix3d& matrix)
         {
             std::ostringstream result;

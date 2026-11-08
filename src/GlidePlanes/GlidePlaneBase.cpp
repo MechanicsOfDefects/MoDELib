@@ -8,6 +8,7 @@
 #ifndef model_GlidePlaneBase_cpp_
 #define model_GlidePlaneBase_cpp_
 
+#include <limits>
 #include <map>
 #include <LatticeModule.h>
 #include <GlidePlaneBase.h>
@@ -40,7 +41,7 @@ typename GlidePlaneBase::VectorDimD GlidePlaneBase::snapToPlane(const VectorDimD
     //            return LatticeVectorType(p,primitiveVectors.first.covBasis,primitiveVectors.second.contraBasis);
     VectorDimD cn(this->cartesian());
     const double cnNorm(cn.norm());
-    assert(cnNorm > FLT_EPSILON);
+    assert(cnNorm > std::numeric_limits<float>::epsilon());
     cn /= cnNorm;
     return P - P.dot(cn) * cn;
 }
@@ -49,13 +50,13 @@ typename GlidePlaneBase::MatrixDim GlidePlaneBase::getG2L(const VectorDimD& x,co
 {
     //    const double xNorm(x.norm());
     //    const double zNorm(z.norm());
-    //    if(xNorm<FLT_EPSILON || zNorm<FLT_EPSILON)
+    //    if(xNorm<std::numeric_limits<float>::epsilon() || zNorm<std::numeric_limits<float>::epsilon())
     //    {
     //        throw std::runtime_error("GlidePlaneBase: cannot cumpute G2L from zero vectors.");
     //    }
-    //    assert(xNorm>FLT_EPSILON);
-    //    assert(zNorm>FLT_EPSILON);
-    //    assert(fabs(x.dot(z)<FLT_EPSILON*xNorm*zNorm));
+    //    assert(xNorm>std::numeric_limits<float>::epsilon());
+    //    assert(zNorm>std::numeric_limits<float>::epsilon());
+    //    assert(fabs(x.dot(z)<std::numeric_limits<float>::epsilon()*xNorm*zNorm));
     //    Eigen::Matrix3d temp(Eigen::Matrix3d::Identity());
     //    temp.col(2)=z/zNorm;
     //    temp.col(0)=x/xNorm;
@@ -65,7 +66,7 @@ typename GlidePlaneBase::MatrixDim GlidePlaneBase::getG2L(const VectorDimD& x,co
     temp.row(2)=z.normalized();
     temp.row(0)=x.normalized();
     temp.row(1)=temp.row(2).cross(temp.row(0));
-    if((temp*temp.transpose()-Eigen::Matrix3d::Identity()).norm()>FLT_EPSILON)
+    if((temp*temp.transpose()-Eigen::Matrix3d::Identity()).norm()>std::numeric_limits<float>::epsilon())
     {
         std::cout<<"x1="<<temp.row(0)<<std::endl;
         std::cout<<"x2="<<temp.row(1)<<std::endl;
@@ -74,7 +75,7 @@ typename GlidePlaneBase::MatrixDim GlidePlaneBase::getG2L(const VectorDimD& x,co
         std::cout<<"temp*temp^T="<<temp*temp.transpose()<<std::endl;
         throw std::runtime_error("GlidePlaneBase: G2L is not orthogonal.");
     }
-    if(std::fabs(temp.determinant()-1.0)>FLT_EPSILON)
+    if(std::fabs(temp.determinant()-1.0)>std::numeric_limits<float>::epsilon())
     {
         throw std::runtime_error("GlidePlaneBase: G2L is not proper.");
     }
@@ -86,7 +87,7 @@ typename GlidePlaneBase::MatrixDim GlidePlaneBase::getG2L(const VectorDimD& x,co
 typename GlidePlaneBase::VectorLowerDimD GlidePlaneBase::localSlipVector(const VectorDimD& b) const
 {
     const VectorDimD bL(G2L*b);
-    if(std::fabs(bL(2))>FLT_EPSILON)
+    if(std::fabs(bL(2))>std::numeric_limits<float>::epsilon())
     {
         throw std::runtime_error("SLIP VECTOR NOT ON GlidePlaneBase");
     }
@@ -99,7 +100,7 @@ double GlidePlaneBase::misfitEnergy(const VectorDimD& b) const
     if(gammaSurface)
     {
         //        const VectorDimD bL(G2L*b);
-        //        if(std::fabs(bL(2))>FLT_EPSILON)
+        //        if(std::fabs(bL(2))>std::numeric_limits<float>::epsilon())
         //        {
         //            throw std::runtime_error("SLIP VECTOR NOT ON GlidePlaneBase");
         //        }

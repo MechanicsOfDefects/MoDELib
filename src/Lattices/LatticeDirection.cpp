@@ -8,6 +8,7 @@
 #ifndef model_LatticeDirection_cpp_
 #define model_LatticeDirection_cpp_
 
+#include <limits>
 #include <LatticeModule.h>
 namespace model
 {
@@ -47,7 +48,7 @@ namespace model
     {
         VectorDimD dc(this->cartesian());
         const double dNorm(dc.norm());
-        assert(dNorm > FLT_EPSILON);
+        assert(dNorm > std::numeric_limits<float>::epsilon());
         dc /= dNorm;
         return dP.dot(dc) * dc;
     }

@@ -99,7 +99,7 @@ fs::path fixture(const fs::path& root,int rank,int reactions,bool source,const s
     {
         dc<<"0 ";
     }
-    dc<<";\nEwaldLengthFactor=0;\n";
+    dc<<";\n";
     return folder;
 }
 template<class Trial>

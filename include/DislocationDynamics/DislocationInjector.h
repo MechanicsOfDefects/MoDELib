@@ -11,6 +11,7 @@
 
 
 
+#include <limits>
 namespace model
 {
     template <int dim>
@@ -41,7 +42,7 @@ namespace model
                                                                   const SimplicialMesh<dim>& mesh)
         {
             
-            assert(std::fabs(plane.unitNormal.dot(d))<FLT_EPSILON);
+            assert(std::fabs(plane.unitNormal.dot(d))<std::numeric_limits<float>::epsilon());
             assert(plane.contains(P0));
             
             const double maxSize=std::max(mesh.xMax(0)-mesh.xMin(0),std::max(mesh.xMax(1)-mesh.xMin(1),mesh.xMax(2)-mesh.xMin(2)));
@@ -63,7 +64,7 @@ namespace model
                 
                 if(nIntersections==0)
                 {
-                    if(ssi.dMin>FLT_EPSILON) // no intersection
+                    if(ssi.dMin>std::numeric_limits<float>::epsilon()) // no intersection
                     {
                         
                     }
@@ -75,9 +76,9 @@ namespace model
                 }
                 else if(nIntersections==1)
                 {
-                    if(ssi.dMin>FLT_EPSILON)
+                    if(ssi.dMin>std::numeric_limits<float>::epsilon())
                     {// no intersection
-                        if((pair->P0-nodePos.back()).norm()>FLT_EPSILON)
+                        if((pair->P0-nodePos.back()).norm()>std::numeric_limits<float>::epsilon())
                         {
                             nodePos.push_back(pair->P0);
                         }
@@ -85,11 +86,11 @@ namespace model
                     else
                     {// intersection
                         const VectorDim X((ssi.x0+ssi.x1)*0.5);
-                        if((X-nodePos.back()).norm()>FLT_EPSILON)
+                        if((X-nodePos.back()).norm()>std::numeric_limits<float>::epsilon())
                         {
                             nIntersections++;
                             nodePos.push_back(pair->P0);
-                            if((X-pair->P0).norm()>FLT_EPSILON)
+                            if((X-pair->P0).norm()>std::numeric_limits<float>::epsilon())
                             {
                                 nodePos.push_back(X);
                             }

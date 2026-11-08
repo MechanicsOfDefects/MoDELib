@@ -21,6 +21,11 @@ namespace model
     {
         double targetDensity;
         int numberOfSides;
+        // Positive: choose max(8,ceil(2*pi*radius/length)); zero: fixed numberOfSides.
+        // Both radius and length are in Burgers-vector units.
+        double targetSegmentLength;
+        void validateDiscretization() const;
+        size_t sidesForRadius(double radius) const;
         double radiusDistributionMean;
         double radiusDistributionStd;
         bool areVacancyLoops;

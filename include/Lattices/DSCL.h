@@ -8,7 +8,7 @@
 #ifndef model_DSCL_h_
 #define model_DSCL_h_
 
-#include <cfloat> // FLT_EPSILON
+#include <limits>
 #include <Eigen/Dense>
 #include <SmithDecomposition.h>
 #include <Lattice.h>

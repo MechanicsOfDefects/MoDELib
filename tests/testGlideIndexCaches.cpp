@@ -1,3 +1,4 @@
+#include <limits>
 #include <DislocationNetwork.h>
 #include <DefectiveCrystal/DefectiveCrystal.h>
 #include <PeriodicVelocityConstraints.h>
@@ -55,13 +56,13 @@ Eigen::VectorXd referenceVelocity(Network& network,const Triplets& triplets,cons
     Eigen::VectorXd velocity=Eigen::VectorXd::Zero(Z.cols());
     for(Eigen::Index k=0;k<diagonal.size();++k)
     {
-        if(std::abs(diagonal(k))>FLT_EPSILON)
+        if(std::abs(diagonal(k))>std::numeric_limits<float>::epsilon())
         {
             velocity(k)=force(k)/diagonal(k);
         }
         else
         {
-            require(std::abs(force(k))<=FLT_EPSILON,"Force on a zero-mass degree of freedom");
+            require(std::abs(force(k))<=std::numeric_limits<float>::epsilon(),"Force on a zero-mass degree of freedom");
         }
     }
     return Z*velocity;
@@ -248,7 +249,7 @@ int main(int argc, char** argv)
         const double length=3671.9477120460206;
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
-            f << "physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
+            f << "physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\n";
             std::ofstream p(input / "polycrystal.txt");
             p << std::setprecision(17) << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\n"
               << "C2G2=0.8 0 0.6 0 1 0 -0.6 0 0.8;\nF=" << length << " 0 0 0 " << length << " 0 0 0 " << length

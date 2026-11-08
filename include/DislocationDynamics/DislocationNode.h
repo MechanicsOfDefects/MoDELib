@@ -10,6 +10,7 @@
 
 //#include <PlanarDislocationNode.h>
 
+#include <ClusterDynamics/ClusterDynamicsParameters.h>
 #include <DislocationDynamicsModule.h>
 #include <PlaneLineIntersection.h>
 #ifndef NDEBUG

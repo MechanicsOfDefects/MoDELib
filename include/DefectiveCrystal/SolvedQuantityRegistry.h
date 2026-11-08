@@ -15,6 +15,7 @@ namespace model
         size_t maxIterations=100;
         double relativeTolerance=1.e-3;
         double relaxation=1.0;
+        size_t andersonDepth=5; // Zero disables acceleration; history is local to each group solve.
         void validate() const;
     };
 

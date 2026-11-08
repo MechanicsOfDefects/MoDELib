@@ -7,6 +7,7 @@
 #ifndef model_RLLL_cpp_
 #define model_RLLL_cpp_
 
+#include <limits>
 #include <RLLL.h>
 
 namespace model
@@ -134,14 +135,14 @@ namespace model
         }
 
         const double err = (B0.lu().solve(B) - U.cast<double>()).norm() / U.cast<double>().norm();
-        if (err > FLT_EPSILON)
+        if (err > std::numeric_limits<float>::epsilon())
         {
-            std::cout << "RLLL relative error= " << std::setprecision(15) << std::scientific << err << " > " << FLT_EPSILON << std::endl;
+            std::cout << "RLLL relative error= " << std::setprecision(15) << std::scientific << err << " > " << std::numeric_limits<float>::epsilon() << std::endl;
             assert(false && "Relative error too large. RLLL failed.");
         }
 
         const double absDetU(fabs(U.cast<double>().determinant()));
-        if (fabs(absDetU - 1.0) > FLT_EPSILON)
+        if (fabs(absDetU - 1.0) > std::numeric_limits<float>::epsilon())
         {
             std::cout << "|det(U)|= " << std::setprecision(15) << std::scientific << absDetU << std::endl;
             assert(false && "U is not unimodular. RLLL failed.");

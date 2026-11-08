@@ -9,6 +9,7 @@
 #define model_PolyhedronInclusion_cpp_
 
 
+#include <limits>
 #include <InclusionMicrostructure/PolyhedronInclusion.h>
 #include <numbers>
 
@@ -723,7 +724,7 @@ double PolyhedronInclusion<dim>::eshelbyTensorComponent(const int&i,const int&j,
     template <int dim>
     typename PolyhedronInclusion<dim>::MatrixDim PolyhedronInclusion<dim>::strain(const VectorDim& x) const
     {
-        return this->eTNorm>FLT_EPSILON? voigtTraits.v2m(eshelbyTensorVoigt(x)*voigtTraits.m2v(this->eT,true),true) : MatrixDim::Zero();
+        return this->eTNorm>std::numeric_limits<float>::epsilon()? voigtTraits.v2m(eshelbyTensorVoigt(x)*voigtTraits.m2v(this->eT,true),true) : MatrixDim::Zero();
     }
 
     template <int dim>

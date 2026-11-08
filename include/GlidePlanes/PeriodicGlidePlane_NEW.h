@@ -9,6 +9,7 @@
 #define model_PeriodicGlidePlane_H_
 
 
+#include <limits>
 #include <memory>
 #include <string>
 #include <list>
@@ -423,7 +424,7 @@ std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename
                         { // loop over outer boundaries and holes
                             
                             SegmentSegmentDistance<dim - 1> ssd(startPoint.first, endPoint.first, *bndEdge->source, *bndEdge->sink);
-                            if (ssd.isIntersecting(FLT_EPSILON))
+                            if (ssd.isIntersecting(std::numeric_limits<float>::epsilon()))
                             { // intersection with current boundary found
                                 PlaneSegmentIntersection<dim-1> psi(0.5*(*bndEdge->source+*bndEdge->sink),bndEdge->outNormal,startPoint.first,endPoint.first);
                                 if(   psi.type==PlaneSegmentIntersection<dim-1>::INCIDENT
@@ -550,12 +551,12 @@ std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename
     //
     //                                        const auto chord(endPointTemp.first-startPointTemp.first);
     //                                        const double chordNorm(chord.norm());
-    //                                        if(chordNorm>FLT_EPSILON)
+    //                                        if(chordNorm>std::numeric_limits<float>::epsilon())
     //                                        {
     //                                            LineLineIntersection<dim-1> lli(line.P,line.d,startPointTemp.first,chord/chordNorm);
     //                                            if(   lli.type==LineLineIntersection<dim-1>::INCIDENT
-    //                                               && lli.u1/chordNorm > 0.0-FLT_EPSILON // intersection inside finite line segment
-    //                                               && lli.u1/chordNorm < 1.0+FLT_EPSILON)// intersection inside finite line segment
+    //                                               && lli.u1/chordNorm > 0.0-std::numeric_limits<float>::epsilon() // intersection inside finite line segment
+    //                                               && lli.u1/chordNorm < 1.0+std::numeric_limits<float>::epsilon())// intersection inside finite line segment
     //                                            {
     //                                                lineBounds=std::make_pair(std::min(0.0,lli.u0),std::max(0.0,lli.u0));
     //                                                break;
@@ -574,14 +575,14 @@ std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename
     //                                    { // loop over outer boundaries and holes
     //                                        const auto chord(*bndEdge->sink-*bndEdge->source);
     //                                        const double chordNorm(chord.norm());
-    //                                        if(chordNorm>FLT_EPSILON)
+    //                                        if(chordNorm>std::numeric_limits<float>::epsilon())
     //                                        {
     //                                            LineLineIntersection<dim-1> lli(line.P,line.d,*bndEdge->source,chord/chordNorm);
     //                                            if(   lli.type==LineLineIntersection<dim-1>::INCIDENT
     //                                               && lli.u0 > lineBounds.first // intersection inside lineBounds
     //                                               && lli.u0 < lineBounds.second // intersection inside lineBounds
-    //                                               && lli.u1/chordNorm > 0.0-FLT_EPSILON // intersection inside finite line segment
-    //                                               && lli.u1/chordNorm < 1.0+FLT_EPSILON)// intersection inside finite line segment
+    //                                               && lli.u1/chordNorm > 0.0-std::numeric_limits<float>::epsilon() // intersection inside finite line segment
+    //                                               && lli.u1/chordNorm < 1.0+std::numeric_limits<float>::epsilon())// intersection inside finite line segment
     //                                            {
     //                                                possibleEdges.insert(bndEdge);
     //                                            }
@@ -608,7 +609,7 @@ std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename
                                 {
                                     const auto& edge0(*crossdEdges.begin());
                                     const auto& edge1(*crossdEdges.rbegin());
-                                    if(   (edge0.first-edge1.first).norm()>FLT_EPSILON // 2d intersection not coincident
+                                    if(   (edge0.first-edge1.first).norm()>std::numeric_limits<float>::epsilon() // 2d intersection not coincident
                                        || edge0.second==edge1.second // same edge twice
                                        || edge0.second->patch!=edge1.second->patch // edges in different patches
                                        )
@@ -703,7 +704,7 @@ std::vector<std::tuple<typename PeriodicGlidePlane<dim>::VectorLowerDim,typename
     //                        for (const auto &pair : crossdEdges) //HOW IS THIS IN THE RIGHT ORDER???
     //                        { // loop over crossed patches
     //                            assert((pair.second.size()>0 && pair.second.size()<=2) && "At max two periodic plane edges can be intersected (2D geometry constraint)");
-    //                            if (pair.second.size()==2 && (pair.second.begin()->first-pair.second.rbegin()->first).norm()<FLT_EPSILON)
+    //                            if (pair.second.size()==2 && (pair.second.begin()->first-pair.second.rbegin()->first).norm()<std::numeric_limits<float>::epsilon())
     //                            {// Two intersectoins at the same position (intersectoin at corner)
     //                                // pair.second.size() cannot be 4 even for diagonally opposite ends since we are looping over the untwineed edges for the intersection.
     //                                //Need to check that two subsequen links are at the same 2D position

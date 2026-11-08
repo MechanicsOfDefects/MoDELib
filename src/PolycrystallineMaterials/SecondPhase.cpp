@@ -9,6 +9,7 @@
 #ifndef model_SecondPhase_cpp_
 #define model_SecondPhase_cpp_
 
+#include <limits>
 #include <memory>
 //#include <LatticePlaneBase.h>
 //#include <LatticeVector.h>
@@ -39,7 +40,7 @@ namespace model
         if(gammaIter!=gsMap.end())
         {
             const VectorDim bL(gpb->G2L*b);
-            if(std::fabs(bL(2))>FLT_EPSILON)
+            if(std::fabs(bL(2))>std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("SLIP VECTOR NOT ON GlidePlaneBase");
             }

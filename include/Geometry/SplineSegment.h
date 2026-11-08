@@ -9,6 +9,7 @@
 #ifndef model_SplineSegment_H_
 #define model_SplineSegment_H_
 
+#include <limits>
 #include <math.h>
 #include <Eigen/Dense>
 
@@ -126,7 +127,7 @@ namespace model
         /* init */,_chord(sinkP-sourceP)
         /* init */,_chordLength2(_chord.squaredNorm())
         /* init */,_chordLength(sqrt(_chordLength2))
-        /* init */,_unitDirection(_chordLength>FLT_EPSILON? (_chord/_chordLength).eval() : VectorDim::Zero())
+        /* init */,_unitDirection(_chordLength>std::numeric_limits<float>::epsilon()? (_chord/_chordLength).eval() : VectorDim::Zero())
         {/*! Constructor with Nodes and flow
           */
             
@@ -138,7 +139,7 @@ namespace model
             _chord=sinkP-sourceP;
             _chordLength2=_chord.squaredNorm();
             _chordLength=sqrt(_chordLength2);
-            _unitDirection=_chordLength>FLT_EPSILON? (_chord/_chordLength).eval() : VectorDim::Zero();
+            _unitDirection=_chordLength>std::numeric_limits<float>::epsilon()? (_chord/_chordLength).eval() : VectorDim::Zero();
         }
         
         /**********************************************************************/
@@ -318,7 +319,7 @@ namespace model
             //    for (int k=0;k<2*Ncoeff-3;++k)
             for (size_t k=0;k<mc.rootSize;++k)
             {
-                if (std::fabs(mc.root(k).imag())<FLT_EPSILON && mc.root(k).real()>0.0 && mc.root(k).real()<1.0 )
+                if (std::fabs(mc.root(k).imag())<std::numeric_limits<float>::epsilon() && mc.root(k).real()>0.0 && mc.root(k).real()<1.0 )
                 {
                     
                     VectorDim P(this->get_r(mc.root(k).real()));

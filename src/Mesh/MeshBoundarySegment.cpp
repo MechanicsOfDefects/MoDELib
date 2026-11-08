@@ -8,14 +8,13 @@
 #ifndef model_MeshBoundarySegment_cpp_
 #define model_MeshBoundarySegment_cpp_
 
-#include <cfloat>
+#include <limits>
 #include <set>
 #include <Eigen/Dense>
 #include <FiniteLineSegment.h>
 
 #include <MeshModule.h>
 #include <PolyhedralMesh.h>
-#include <limits>
 #include <algorithm>
 
 namespace model
@@ -49,7 +48,7 @@ namespace model
             temp+=face->outNormal();
         }
         const double tempNorm(temp.norm());
-        return tempNorm>FLT_EPSILON? (temp/tempNorm).eval() : VectorDim::Zero();
+        return tempNorm>std::numeric_limits<float>::epsilon()? (temp/tempNorm).eval() : VectorDim::Zero();
     }
 
 template <int dim>
@@ -62,7 +61,7 @@ typename MeshBoundarySegment<dim>::VectorDim MeshBoundarySegment<dim>::regionBou
         temp+=face->outNormal(k);
     }
     const double tempNorm(temp.norm());
-    return tempNorm>FLT_EPSILON? (temp/tempNorm).eval() : VectorDim::Zero();
+    return tempNorm>std::numeric_limits<float>::epsilon()? (temp/tempNorm).eval() : VectorDim::Zero();
 }
 
 
@@ -107,7 +106,7 @@ typename MeshBoundarySegment<dim>::VectorDim MeshBoundarySegment<dim>::regionBou
                     scale=std::max(scale,incidence.source()->position.norm());
                 }
             }
-            const double tolerance=std::max(double(FLT_EPSILON),64*std::numeric_limits<double>::epsilon()*scale);
+            const double tolerance=std::max(double(std::numeric_limits<float>::epsilon()),64*std::numeric_limits<double>::epsilon()*scale);
             auto distance=[&](const std::shared_ptr<Polyhedron<dim,0>>& vertex)
             {
                 auto found=distances.find(vertex->key);

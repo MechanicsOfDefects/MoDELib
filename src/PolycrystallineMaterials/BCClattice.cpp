@@ -9,6 +9,7 @@
 #ifndef model_BCClattice_cpp_
 #define model_BCClattice_cpp_
 
+#include <limits>
 #include <BCClattice.h>
 #include <DislocationMobilitySelector.h>
 #include <GlidePlaneNoise.h>
@@ -74,7 +75,7 @@ namespace model
             
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-d110)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-d110)<std::numeric_limits<float>::epsilon())
                 {// a {110} plane
                     const auto& a1(planeBase.second->primitiveVectors.first);
                     const auto& a3(planeBase.second->primitiveVectors.second);
@@ -102,7 +103,7 @@ namespace model
             
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-d110)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-d110)<std::numeric_limits<float>::epsilon())
                 {// a {110} plane
                     const auto& a1(planeBase.second->primitiveVectors.first);
                     const auto& a3(planeBase.second->primitiveVectors.second);
@@ -154,7 +155,7 @@ namespace model
                 std::map<const GlidePlaneBase*,std::shared_ptr<GammaSurface>> gsMap;
                 for(const auto& pn : plN)
                 {
-                    if(std::abs(pn.second->planeSpacing()-d110)<FLT_EPSILON)
+                    if(std::abs(pn.second->planeSpacing()-d110)<std::numeric_limits<float>::epsilon())
                     {
                         gsMap.emplace(pn.second.get(),gammaSurface110);
                     }
@@ -182,7 +183,7 @@ namespace model
                 std::map<const GlidePlaneBase*,std::shared_ptr<GammaSurface>> gsMap;
                 for(const auto& pn : plN)
                 {
-                    if(std::abs(pn.second->planeSpacing()-d110)<FLT_EPSILON)
+                    if(std::abs(pn.second->planeSpacing()-d110)<std::numeric_limits<float>::epsilon())
                     {
                         gsMap.emplace(pn.second.get(),gammaSurface110);
                     }
@@ -234,7 +235,7 @@ namespace model
 //                std::map<const GlidePlaneBase*,std::shared_ptr<GammaSurface>> gsMap;
 //                for(const auto& pn : plN)
 //                {
-//                    if(std::abs(pn.second->planeSpacing()-d110)<FLT_EPSILON)
+//                    if(std::abs(pn.second->planeSpacing()-d110)<std::numeric_limits<float>::epsilon())
 //                    {
 //                        gsMap.emplace(pn.second.get(),gammaSurface110);
 //                    }
@@ -262,7 +263,7 @@ namespace model
 //                std::map<const GlidePlaneBase*,std::shared_ptr<GammaSurface>> gsMap;
 //                for(const auto& pn : plN)
 //                {
-//                    if(std::abs(pn.second->planeSpacing()-d110)<FLT_EPSILON)
+//                    if(std::abs(pn.second->planeSpacing()-d110)<std::numeric_limits<float>::epsilon())
 //                    {
 //                        gsMap.emplace(pn.second.get(),gammaSurface110);
 //                    }

@@ -11,6 +11,7 @@
 #define model_PolyhedronInclusion_cpp_
 
 
+#include <limits>
 #include <InclusionMicrostructure/PolyhedronInclusion.h>
 #include <numbers>
 
@@ -195,11 +196,11 @@ double PolyhedronInclusion<dim>::Phi_u_II_a(double a, double b, double le)//corr
         //std::cout << " xx= " << xx << ", asin(xx)= " << asin(xx) <<std::endl;
         if (temp > 1.0)
         {
-            temp = 1.0-DBL_EPSILON;//使用 DBL_EPSILON 代替 FLT_EPSILON，以匹配 double 类型的精度
+            temp = 1.0-std::numeric_limits<double>::epsilon();//使用 std::numeric_limits<double>::epsilon() 代替 std::numeric_limits<float>::epsilon()，以匹配 double 类型的精度
         }
         else if (temp < -1.0)
         {
-            temp = -1.0+DBL_EPSILON;
+            temp = -1.0+std::numeric_limits<double>::epsilon();
         }
         return -a / abs(a) * atan(le / b) + asin(temp);//保证atanh函数在[-1,1]区间内
     }
@@ -222,11 +223,11 @@ double PolyhedronInclusion<dim>::Phi_u_II_b(double a, double b, double le)//corr
     auto adjust_temp = [](double temp) {
         if (temp >= 1.0)
         {
-            return 1.0-DBL_EPSILON;//使用 DBL_EPSILON 代替 FLT_EPSILON，以匹配 double 类型的精度
+            return 1.0-std::numeric_limits<double>::epsilon();//使用 std::numeric_limits<double>::epsilon() 代替 std::numeric_limits<float>::epsilon()，以匹配 double 类型的精度
         }
         else if (temp <= -1.0)
         {
-            return -1.0+DBL_EPSILON;
+            return -1.0+std::numeric_limits<double>::epsilon();
         }
         return temp;//保证atanh函数在(-1,1)区间内
     };   
@@ -346,11 +347,11 @@ double PolyhedronInclusion<dim>::Psi_I1_a_a_b(double a, double b, double le)//co
     auto adjust_temp = [](double temp) {
         if (temp >= 1.0)
         {
-            return 1.0-DBL_EPSILON;//使用 DBL_EPSILON 代替 FLT_EPSILON，以匹配 double 类型的精度
+            return 1.0-std::numeric_limits<double>::epsilon();//使用 std::numeric_limits<double>::epsilon() 代替 std::numeric_limits<float>::epsilon()，以匹配 double 类型的精度
         }
         else if (temp <= -1.0)
         {
-            return -1.0+DBL_EPSILON;
+            return -1.0+std::numeric_limits<double>::epsilon();
         }
         return temp;//保证atanh函数在(-1,1)区间内
     }; 
@@ -478,11 +479,11 @@ double PolyhedronInclusion<dim>::Psi_I1_b_b_b(double a, double b, double le)// c
     auto adjust_temp = [](double temp) {
         if (temp >= 1.0)
         {
-            return 1.0-DBL_EPSILON;//使用 DBL_EPSILON 代替 FLT_EPSILON，以匹配 double 类型的精度
+            return 1.0-std::numeric_limits<double>::epsilon();//使用 std::numeric_limits<double>::epsilon() 代替 std::numeric_limits<float>::epsilon()，以匹配 double 类型的精度
         }
         else if (temp <= -1.0)
         {
-            return -1.0+DBL_EPSILON;
+            return -1.0+std::numeric_limits<double>::epsilon();
         }
         return temp;//保证atanh函数在(-1,1)区间内
     }; 
@@ -867,7 +868,7 @@ double PolyhedronInclusion<dim>::eshelbyTensorComponent(const int&i,const int&j,
     template <int dim>
     typename PolyhedronInclusion<dim>::MatrixDim PolyhedronInclusion<dim>::strain(const VectorDim& x) const
     {
-        return this->eTNorm>FLT_EPSILON? voigtTraits.v2m(eshelbyTensorVoigt(x)*voigtTraits.m2v(this->eT,true),true) : MatrixDim::Zero();
+        return this->eTNorm>std::numeric_limits<float>::epsilon()? voigtTraits.v2m(eshelbyTensorVoigt(x)*voigtTraits.m2v(this->eT,true),true) : MatrixDim::Zero();
         //std::cout<<"eshelbyTensor"<<eshelbyTensorVoigt(x)<<std::endl;
     }
 

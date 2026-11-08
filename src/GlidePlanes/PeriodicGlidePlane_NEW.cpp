@@ -8,6 +8,7 @@
 #ifndef model_PeriodicGlidePlane_cpp_
 #define model_PeriodicGlidePlane_cpp_
 
+#include <limits>
 #include <numbers>
 #include <memory>
 #include <math.h>
@@ -33,7 +34,7 @@ namespace model
     /* init */,meshIntersection(meshIntersection_in)
     /* init */,edgeID(edgeID_in)
     /* init */,deltaShift(meshIntersection->periodicShift())
-    /* init */,isPeriodicEdge(deltaShift.squaredNorm()>FLT_EPSILON && periodicFacesInSameGrain(meshIntersection_in))
+    /* init */,isPeriodicEdge(deltaShift.squaredNorm()>std::numeric_limits<float>::epsilon() && periodicFacesInSameGrain(meshIntersection_in))
     /* init */,outNormal(patch->glidePlane->localDirection(meshIntersection->regionBoundaryNormal(patch->glidePlane->grain.grainID)).normalized())
     /* init */,next(nullptr)
     /* init */,prev(nullptr)
@@ -832,7 +833,7 @@ namespace model
             for(const auto& bndEdge : patchBoundary.untwinnedEdges())
             {// loop over outer boundaries and holes
                 SegmentSegmentDistance<dim-1> ssd(P0,insideReferencePoint,*bndEdge->source,*bndEdge->sink);
-                if(ssd.dMin<FLT_EPSILON)
+                if(ssd.dMin<std::numeric_limits<float>::epsilon())
                 {// intersection with current boundary found
                     //                    std::cout<<ssd.x0.transpose()<<std::endl;
                     crossdEdges.insert(bndEdge);
@@ -844,7 +845,7 @@ namespace model
                 case 1:
                 {
                     assert(lastPatch.get()==(*crossdEdges.begin())->patch);
-                    if((*crossdEdges.begin())->deltaShift.squaredNorm()<FLT_EPSILON)
+                    if((*crossdEdges.begin())->deltaShift.squaredNorm()<std::numeric_limits<float>::epsilon())
                     {
                         return std::make_pair(VectorDim::Zero(),false);
                     }
@@ -858,7 +859,7 @@ namespace model
                 {
                     assert(lastPatch.get()==(*crossdEdges.begin())->patch);
                     assert((*crossdEdges.begin())->patch==(*crossdEdges.rbegin())->patch);
-                    if(((*crossdEdges.begin())->deltaShift+(*crossdEdges.rbegin())->deltaShift).squaredNorm()<FLT_EPSILON)
+                    if(((*crossdEdges.begin())->deltaShift+(*crossdEdges.rbegin())->deltaShift).squaredNorm()<std::numeric_limits<float>::epsilon())
                     {
                         return std::make_pair(VectorDim::Zero(),false);
                     }

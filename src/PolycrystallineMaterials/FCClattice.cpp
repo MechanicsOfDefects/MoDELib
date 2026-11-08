@@ -9,6 +9,7 @@
 #ifndef model_FCClattice_cpp_
 #define model_FCClattice_cpp_
 
+#include <limits>
 #include <FCClattice.h>
 #include <DislocationMobilitySelector.h>
 #include <GlidePlaneNoise.h>
@@ -107,7 +108,7 @@ namespace model
             const double d111(lat.reciprocalLatticeDirection(lat.C2G*(VectorDimD()<<1.0,1.0,1.0).finished()).planeSpacing());
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-d111)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-d111)<std::numeric_limits<float>::epsilon())
                 {// a {111} plane
                     const auto& a1(planeBase.second->primitiveVectors.first);
                     const auto& a3(planeBase.second->primitiveVectors.second);
@@ -140,7 +141,7 @@ namespace model
             const double d111(lat.reciprocalLatticeDirection(lat.C2G*(VectorDimD()<<1.0,1.0,1.0).finished()).planeSpacing());
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-d111)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-d111)<std::numeric_limits<float>::epsilon())
                 {// a {111} plane
                     const auto& a1(planeBase.second->primitiveVectors.first);
                     const auto& a3(planeBase.second->primitiveVectors.second);
@@ -173,7 +174,7 @@ namespace model
             const double d111(lat.reciprocalLatticeDirection(lat.C2G*(VectorDimD()<<1.0,1.0,1.0).finished()).planeSpacing());
             for(const auto& planeBase : plN)
             {
-                if(std::fabs(planeBase.second->planeSpacing()-d111)<FLT_EPSILON)
+                if(std::fabs(planeBase.second->planeSpacing()-d111)<std::numeric_limits<float>::epsilon())
                 {// a {111} plane
                     const auto& a1(planeBase.second->primitiveVectors.first);
                     const auto& a3(planeBase.second->primitiveVectors.second);
@@ -207,7 +208,7 @@ namespace model
 //        
 //        for(const auto& planeBase : plN)
 //        {
-//            if(std::fabs(planeBase.second->planeSpacing()-d111)<FLT_EPSILON)
+//            if(std::fabs(planeBase.second->planeSpacing()-d111)<std::numeric_limits<float>::epsilon())
 //            {// a {111} plane
 //                const auto& a1(planeBase.second->primitiveVectors.first);
 //                const auto& a3(planeBase.second->primitiveVectors.second);
@@ -320,11 +321,11 @@ namespace model
                 std::map<const GlidePlaneBase*,std::shared_ptr<GammaSurface>> gsMap;
                 for(const auto& pn : plN)
                 {
-                    if(std::abs(pn.second->planeSpacing()-d111)<FLT_EPSILON)
+                    if(std::abs(pn.second->planeSpacing()-d111)<std::numeric_limits<float>::epsilon())
                     {// a 111 plane
                         gsMap.emplace(pn.second.get(),gammaSurface111);
                     }
-                    else if(std::abs(pn.second->planeSpacing()-d100)<FLT_EPSILON)
+                    else if(std::abs(pn.second->planeSpacing()-d100)<std::numeric_limits<float>::epsilon())
                     {
                         gsMap.emplace(pn.second.get(),gammaSurface100);
                     }

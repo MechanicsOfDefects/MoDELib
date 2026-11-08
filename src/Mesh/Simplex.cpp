@@ -12,7 +12,7 @@
 #include <set>
 #include <map>
 #include <vector>
-#include <float.h>
+#include <limits>
 #include <Eigen/Dense>
 
 #include <MeshModule.h>
@@ -246,7 +246,7 @@ const Eigen::Matrix<double,dim,dim+1> Simplex<dim,dim>::get_nda() const
     Eigen::Matrix<double,dim,dim> F(vP.template block<dim,dim>(0,0));
     F.colwise() -= vP.col(dim);
     const double jFabs(std::fabs(F.determinant()));
-    if(jFabs<DBL_EPSILON)
+    if(jFabs<std::numeric_limits<double>::epsilon())
     {
         std::cout<<this->xID<<", volume="<<jFabs<<std::endl;
         std::cout<<F<<std::endl;
@@ -398,7 +398,7 @@ void Simplex<dim,dim>::convexDelaunaynSearch(const bool& searchAllRegions,
         /*      */<<this->xID<<"\n";
 #endif
         
-        if (baryMin>=-FLT_EPSILON)
+        if (baryMin>=-std::numeric_limits<float>::epsilon())
         {
             lastSearched.first=true;
         }
@@ -436,12 +436,12 @@ Eigen::Matrix<double,dim+1,1> Simplex<dim,dim>::faceLineIntersection(const Eigen
     
     //
     // Check that baricentric coordinates sum to 1
-    assert(std::fabs(bary0.sum()-1.0)<=FLT_EPSILON && "bary0 must sum to 1");
-    assert(std::fabs(bary1.sum()-1.0)<=FLT_EPSILON && "bary1 must sum to 1");
+    assert(std::fabs(bary0.sum()-1.0)<=std::numeric_limits<float>::epsilon() && "bary0 must sum to 1");
+    assert(std::fabs(bary1.sum()-1.0)<=std::numeric_limits<float>::epsilon() && "bary1 must sum to 1");
     
     Eigen::Matrix<double,dim+1,1> temp(bary0*0.5+bary1*0.5);
     const double den(bary1(faceID)-bary0(faceID));
-    if (std::fabs(den)>DBL_EPSILON) // non-parallel points
+    if (std::fabs(den)>std::numeric_limits<double>::epsilon()) // non-parallel points
     {
         double u(-bary0(faceID)/den); // interpolate linearly
         

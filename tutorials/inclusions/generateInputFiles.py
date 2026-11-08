@@ -88,7 +88,7 @@ microstructureFileLocal='inputFiles/microstructureFile'+str(microstructureFileID
 microstructureFiles.append('microstructureFile'+str(microstructureFileID)+'.txt')
 print("\033[1;32mCreating  microstructureFile"+str(microstructureFileID)+"\033[0m")
 shutil.copy2(microstructureFileTemplate,microstructureFileLocal) # target filename is /dst/dir/file.ext
-setInputVariable(microstructureFileLocal,'targetDensity_SI','1e12')
+setInputVariable(microstructureFileLocal,'targetDensity_SI','1e13')
 setInputVariable(microstructureFileLocal,'radiusDistributionMean_SI','1e-07')
 setInputVariable(microstructureFileLocal,'radiusDistributionStd_SI','0e-07')
 setInputVector(microstructureFileLocal,'allowedGrainIDs',np.array([-1]),'set of grain IDs where loops are allowed. Use -1 for all grains')

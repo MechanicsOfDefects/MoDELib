@@ -1,8 +1,11 @@
 #include <DefectiveCrystal/SolvedQuantityRegistry.h>
+#include <Eigen/QR>
 #include <algorithm>
 #include <cmath>
 #include <chrono>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <set>
 #include <stdexcept>
 
@@ -22,7 +25,7 @@ namespace model
 
     void SolvedQuantityOptions::validate() const
     {
-        if(maxIterations==0 || !std::isfinite(relativeTolerance) || relativeTolerance<0.0
+        if(andersonDepth>20 || maxIterations==0 || !std::isfinite(relativeTolerance) || relativeTolerance<0.0
            || !std::isfinite(relaxation) || relaxation<=0.0 || relaxation>1.0)
         {
             throw std::runtime_error("Invalid SolvedQuantity convergence options.");
@@ -48,6 +51,26 @@ namespace model
             }
             saved.push_back(c->state());
         }
+        // Accelerate the complete (possibly damped) sequential sweep, not each physics.
+        Eigen::Index stateSize=0;
+        for(const auto& state : saved) stateSize+=state.size();
+        const auto gather=[&]() -> Eigen::VectorXd
+        {
+            Eigen::VectorXd result(stateSize);
+            Eigen::Index offset=0;
+            for(size_t i=0;i<contributions.size();++i)
+            {
+                const Eigen::VectorXd state=contributions[i]->state();
+                if(state.size()!=saved[i].size()) throw std::runtime_error("Coupled state size changed during solve.");
+                result.segment(offset,state.size())=state;
+                offset+=state.size();
+            }
+            return result;
+        };
+        std::vector<Eigen::VectorXd> residualHistory,imageHistory;
+        Eigen::VectorXd scales=Eigen::VectorXd::Ones(stateSize);
+        double previousResidual=0.0;
+        bool acceleratedLast=false;
         std::string worst;
         Eigen::Index worstComponent=-1;
         double worstDelta=0.0;
@@ -56,6 +79,7 @@ namespace model
         {
             for(size_t iteration=0;iteration<options.maxIterations;++iteration)
             {
+                const Eigen::VectorXd sweepBefore=gather();
                 error=0.0;
                 worst.clear();
                 worstComponent=-1;
@@ -73,11 +97,21 @@ namespace model
                     {
                         throw std::runtime_error("Invalid convergence state for "+c->name);
                     }
+                    Eigen::Index controlling=-1,maxAbsoluteComponent=-1;
+                    double contributionError=0.0,maxAbsoluteUpdate=0.0,controllingTolerance=0.0;
                     for(Eigen::Index k=0;k<after.size();++k)
                     {
                         const double delta=std::abs(after(k)-before(k));
                         const double tolerance=absolute(k)+options.relativeTolerance*std::max(std::abs(after(k)),std::abs(before(k)));
                         const double e=tolerance>0.0? delta/tolerance : (delta==0.0? 0.0 : INFINITY);
+                        if(controlling<0 || e>contributionError)
+                        {
+                            controlling=k;contributionError=e;controllingTolerance=tolerance;
+                        }
+                        if(maxAbsoluteComponent<0 || delta>maxAbsoluteUpdate)
+                        {
+                            maxAbsoluteComponent=k;maxAbsoluteUpdate=delta;
+                        }
                         if(worstComponent<0 || e>error)
                         {
                             error=e;
@@ -87,6 +121,29 @@ namespace model
                             worstTolerance=tolerance;
                         }
                     }
+                    const Eigen::VectorXd update=after-before;
+                    const double updateNorm=update.stableNorm();
+                    const double beforeNorm=before.stableNorm(),afterNorm=after.stableNorm();
+                    const double fieldNorm=std::max(beforeNorm,afterNorm);
+                    const double relativeUpdate=fieldNorm>0.0?updateNorm/fieldNorm:(updateNorm==0.0?0.0:INFINITY);
+                    std::ostringstream diagnostic;
+                    diagnostic<<std::scientific<<std::setprecision(8)
+                              <<"  Coupling diagnostic "<<c->provider<<":"<<c->name
+                              <<" (unrelaxed): ||update||2="<<updateNorm
+                              <<", ||before||2="<<beforeNorm<<", ||after||2="<<afterNorm
+                              <<", relative L2 update="<<relativeUpdate
+                              <<", max |update|="<<maxAbsoluteUpdate
+                              <<" at component "<<maxAbsoluteComponent;
+                    if(controlling>=0)
+                    {
+                        diagnostic<<", normalized max="<<contributionError
+                                  <<" at component "<<controlling
+                                  <<", before="<<before(controlling)<<", after="<<after(controlling)
+                                  <<", signed update="<<update(controlling)
+                                  <<", tolerance="<<controllingTolerance;
+                    }
+                    diagnostic<<", relaxation="<<options.relaxation;
+                    std::cout<<diagnostic.str()<<std::endl;
                     // Test the unrelaxed discrepancy; damping must not fake convergence.
                     if(options.relaxation!=1.0)
                     {
@@ -105,6 +162,73 @@ namespace model
                 if(error<=1.0)
                 {
                     return;
+                }
+                if(options.andersonDepth && stateSize && iteration+1<options.maxIterations)
+                {
+                    const Eigen::VectorXd image=gather();
+                    const Eigen::VectorXd residual=image-sweepBefore;
+                    // Fix one scale per contribution for this solve: units and large
+                    // blocks must not dominate the least squares or change its metric.
+                    if(iteration==0)
+                    {
+                        Eigen::Index offset=0;
+                        for(size_t i=0;i<contributions.size();++i)
+                        {
+                            const Eigen::Index n=saved[i].size();
+                            const double scale=std::max({sweepBefore.segment(offset,n).stableNorm(),
+                                image.segment(offset,n).stableNorm(),
+                                contributions[i]->absoluteTolerance().stableNorm()});
+                            scales.segment(offset,n).setConstant(scale>0.0?scale:1.0);
+                            offset+=n;
+                        }
+                    }
+                    const Eigen::VectorXd scaled=residual.cwiseQuotient(scales);
+                    const double norm=scaled.stableNorm();
+                    const bool restart=acceleratedLast && norm>2.0*previousResidual;
+                    acceleratedLast=false;
+                    if(restart)
+                    {
+                        residualHistory.clear();imageHistory.clear();
+                        std::cout<<"  Anderson acceleration restarted: sweep residual grew; using ordinary sweep."<<std::endl;
+                    }
+                    if(!restart && !residualHistory.empty())
+                    {
+                        const Eigen::Index m=residualHistory.size();
+                        Eigen::MatrixXd differences(stateSize,m);
+                        for(Eigen::Index j=0;j<m;++j) differences.col(j)=residualHistory[j]-scaled;
+                        Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(differences);
+                        qr.setThreshold(1.e-10);
+                        const Eigen::VectorXd alpha=qr.solve(-scaled);
+                        const double last=1.0-alpha.sum();
+                        Eigen::VectorXd candidate=last*image;
+                        for(Eigen::Index j=0;j<m;++j) candidate+=alpha(j)*imageHistory[j];
+                        // Bound extrapolation and reject degenerate/nonfinite fits.
+                        if(qr.rank()>0 && alpha.allFinite() && candidate.allFinite()
+                           && alpha.lpNorm<1>()+std::abs(last)<=100.0
+                           && (scaled+differences*alpha).stableNorm()<norm)
+                        {
+                            Eigen::Index offset=0;
+                            for(size_t i=0;i<contributions.size();++i)
+                            {
+                                contributions[i]->restore(candidate.segment(offset,saved[i].size()));
+                                offset+=saved[i].size();
+                            }
+                            acceleratedLast=true;
+                            std::cout<<"  Anderson acceleration applied after iteration "<<iterations
+                                     <<" (history="<<m<<", rank="<<qr.rank()<<")."<<std::endl;
+                        }
+                        else
+                        {
+                            residualHistory.clear();imageHistory.clear();
+                            std::cout<<"  Anderson acceleration skipped: unreliable extrapolation; history reset."<<std::endl;
+                        }
+                    }
+                    residualHistory.push_back(scaled);imageHistory.push_back(image);
+                    if(residualHistory.size()>options.andersonDepth)
+                    {
+                        residualHistory.erase(residualHistory.begin());imageHistory.erase(imageHistory.begin());
+                    }
+                    previousResidual=norm;
                 }
             }
             throw std::runtime_error("SolvedQuantityGroup did not converge after "+std::to_string(iterations)

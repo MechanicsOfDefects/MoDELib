@@ -8,6 +8,7 @@
 #ifndef model_Polycrystal_cpp_
 #define model_Polycrystal_cpp_
 
+#include <limits>
 #include <filesystem>
 #include <string>       // std::string
 #include <iostream>     // std::cout
@@ -89,7 +90,7 @@ namespace model
         for(const auto& grain : grains)
         {
             const double omg(grain.second->latticeBasis.determinant());
-            if(std::fabs(omg-omg0)>FLT_EPSILON)
+            if(std::fabs(omg-omg0)>std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("grains have different atomic volume");
             }

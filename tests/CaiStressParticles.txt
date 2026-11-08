@@ -1,0 +1,51 @@
+Cai particle stress: asymmetric versus six-component accumulation
+================================================================
+Implementation: include/DislocationDynamics/CaiStressParticleKernel.h
+Unscreened, isotropic, positive-core Cai kernel using r=field-source and
+row-major weighted source tensor Q=b tensor t dL. No Ewald screen, cutoff,
+periodic images or FMM is applied. Existing production force paths are unchanged.
+Reference: Cai et al., JMPS 54 (2006), Eq. (33), DOI 10.1016/j.jmps.2005.09.005.
+
+The kernel accumulates xx,xy,xz,yy,yz,zz directly and writes a full
+symmetric nine-component output. The asymmetric particle variant was removed
+after the comparison recorded below. One Kokkos worker owns a target
+and visits sources in identical order, without atomics or reductions across sources.
+
+Validation (testCaiStressParticles):
+- Numerical integration versus existing analytical StraightDislocationSegment with screening
+  disabled: screw, edge and mixed Burgers vectors, core radii 0.2, 1, 3,
+  on-line, near-endpoint, near-field and far-field targets.
+- Random general Q tensors: separation and Burgers sign reversal,
+  rotation covariance, finite coincident-point value.
+- Kokkos output versus host evaluation, six-component accumulation, empty sources.
+Largest segment error / max(1, norm(reference)): 1.66e-12.
+
+Build: cmake --build build --target testCaiStressParticles benchmarkCaiStressParticles -j4
+Test: ctest --test-dir build -R '^caiStressParticles$' --output-on-failure
+Run: OMP_NUM_THREADS=12 OMP_PROC_BIND=false build/tests/benchmarkCaiStressParticles tutorials/polycrystal 1000 1024 11
+Arguments: tutorial, frame, target sample count (default 1024), repeats (default 9).
+The benchmark is read-only and loads real network data; all sources are used.
+Targets are selected at evenly spaced indices across the target array.
+Warmup and a finite-output check precede repeated kernel timing.
+Each measurement fences the execution space. Setup, uploads, downloads, tree
+assignment and file reads are excluded. The benchmark is not an automatic
+CTest simulation benchmark because it depends on user-generated saved frames.
+
+Historical comparison before removing the asymmetric variant, 2026-10-31:
+Alternating-order timing was used for that comparison. Apple M2 Max, Clang 20 -O3, Kokkos 4.7 OpenMP.
+Milliseconds, medians of 11 repetitions, 1024 targets per frame:
+Frame  Sources Threads   Asymmetric S   Six components    Time reduction
+1000   54216   12        51.156         40.375            21.1%
+1000   54216    1       382.583        292.239            23.6%
+0      44160   12        42.551         34.030            20.0%
+12-thread frame-1000 ranges: S 48.777-55.702 ms; six 38.002-44.583 ms.
+Frame 1000 Frobenius relative difference between forms: 5.65e-15;
+maximum absolute component difference: 2.17e-16.
+Frame 0 relative difference: 3.72e-15.
+
+Conclusion: six-component accumulation wins on this CPU/backend/compiler.
+This does not establish a GPU winner or explain the compiler's register/vector
+behavior. Only the six-component implementation is now retained.
+Tutorial inputs were copied to a temporary directory to supply fmmTreeDepth=2
+in DefectiveCrystal.txt (saved tutorial had it only in DD.txt). Original inputs
+and saved frames were not modified. No physical force calculation was advanced.

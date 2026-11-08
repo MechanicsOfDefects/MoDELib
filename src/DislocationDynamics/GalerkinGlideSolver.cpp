@@ -8,6 +8,7 @@
 #ifndef model_GalerkinGlideSolver_cpp_
 #define model_GalerkinGlideSolver_cpp_
 
+#include <limits>
 #include <GalerkinGlideSolver.h>
 #include <PeriodicVelocityConstraints.h>
 #include <TerminalColors.h>
@@ -101,11 +102,11 @@ namespace model
         Eigen::VectorXd velocity=Eigen::VectorXd::Zero(dim*nUnconstrained);
         for(Eigen::Index k=0;k<diagonal.size();++k)
         {
-            if(std::fabs(diagonal(k))>FLT_EPSILON)
+            if(std::fabs(diagonal(k))>std::numeric_limits<float>::epsilon())
             {
                 velocity(k)=force(k)/diagonal(k);
             }
-            else if(std::fabs(force(k))>FLT_EPSILON)
+            else if(std::fabs(force(k))>std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("Nonzero glide force on a zero-mass degree of freedom.");
             }

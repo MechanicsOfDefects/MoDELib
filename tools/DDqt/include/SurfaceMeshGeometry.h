@@ -1,6 +1,7 @@
 /* This file is part of MoDELib, distributed under GNU GPL v2. */
 #ifndef model_SurfaceMeshGeometry_H_
 #define model_SurfaceMeshGeometry_H_
+#include <limits>
 #include <SimplicialMesh.h>
 #include <Eigen/Dense>
 #include <array>
@@ -289,7 +290,7 @@ namespace model
                             if(std::abs(traces[k].normal.dot(p - traces[k].point)) <= tolerance)
                             {
                                 const double distance = std::abs(traces[k].normal.dot(center - p));
-                                // Stay outside the relative FLT_EPSILON dead band used
+                                // Stay outside the relative std::numeric_limits<float>::epsilon() dead band used
                                 // by the dislocation solid-angle evaluation.
                                 if(distance > tolerance)
                                 {

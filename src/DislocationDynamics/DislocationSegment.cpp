@@ -1,3 +1,5 @@
+#include <DislocationDynamics/DislocationFieldSampling.h>
+#include <DislocationDynamics/StraightDislocationSegmentCai.h>
 /* This file is part of MoDELib, the Mechanics Of Defects Evolution Library.
  *
  *
@@ -8,6 +10,8 @@
 #ifndef model_DislocationSegment_cpp_
 #define model_DislocationSegment_cpp_
 
+#include <limits>
+#include <DislocationDynamics/StraightDislocationSegmentHelmholtz.h>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <DislocationSegment.h>
 #include <PlanesIntersection.h>
@@ -23,9 +27,16 @@ namespace model
     // /* init */,ConfinedDislocationObjectType(this->source->get_P(),this->sink->get_P())
     /* init */,Burgers(VectorDim::Zero())
     /* init */,BurgersNorm(Burgers.norm())
-    /* init */,straight(this->network().ddBase.poly,this->source->get_P(),this->sink->get_P(),Burgers,this->chordLength(),this->unitDirection(),this->network().ddBase.dislocationDynamics().EwaldLength)
+    /* init */,straight(this->network().ddBase.poly,this->source->get_P(),this->sink->get_P(),Burgers,this->chordLength(),this->unitDirection())
     /* init */,_slipSystem(nullptr)
     {
+        const auto& settings=this->network().multipoleSettings;
+        double extent=2*(this->network().ddBase.mesh.xMax()-this->network().ddBase.mesh.xMin()).norm();
+        for(const auto& shift:this->network().ddBase.periodicShifts)
+        {
+            extent=std::max(extent,2*shift.norm());
+        }
+        straight.setCore(settings.coreType,settings.ewaldSegmentChebyshevOrder,settings.ewaldSegmentTableResolution,extent,this->network().ddBase.fmmContext->usesEwaldFMM(),settings.ewaldWidth);
         VerboseDislocationSegment(1,"Constructing DislocationSegment "<<this->tag()<<std::endl);
     }
     
@@ -41,7 +52,7 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
     {
         const VectorDim temp(this->burgers().cross(this->chord()));
         const double tempNorm(temp.norm());
-        return tempNorm<FLT_EPSILON? VectorDim::Zero() : (temp/tempNorm).eval();
+        return tempNorm<std::numeric_limits<float>::epsilon()? VectorDim::Zero() : (temp/tempNorm).eval();
     }
 }
 
@@ -88,7 +99,7 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
                     {//Possible planar glissile junction, we'll pick the first slip system that has the same burgers
                         for(const auto& gpss : (*gps.begin())->slipSystems())
                         {
-                            if((gpss->s.cartesian()-burgers()).norm()<FLT_EPSILON)
+                            if((gpss->s.cartesian()-burgers()).norm()<std::numeric_limits<float>::epsilon())
                             {
                                 _slipSystem=gpss;
                                 break;
@@ -284,7 +295,7 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
     template <int dim>
     bool DislocationSegment<dim>::hasZeroBurgers() const
     {
-        return BurgersNorm<FLT_EPSILON;
+        return BurgersNorm<std::numeric_limits<float>::epsilon();
     }
     
     template <int dim>
@@ -375,7 +386,7 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
                         {
                             const size_t globalJ=pairJ.first*dim+dJ;
                             
-                            if (std::fabs(tempKqq(localI,localJ))>FLT_EPSILON)
+                            if (std::fabs(tempKqq(localI,localJ))>std::numeric_limits<float>::epsilon())
                             {
                                 kqqT.emplace_back(globalI,globalJ,tempKqq(localI,localJ));
                             }
@@ -427,11 +438,11 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
         }
         else
         {
-            if (maxVelocity > FLT_EPSILON)
+            if (maxVelocity > std::numeric_limits<float>::epsilon())
             {
                 const double avgV((0.5 * (this->source->get_V() + this->sink->get_V())).norm());
 
-                if (avgV >= FLT_EPSILON)
+                if (avgV >= std::numeric_limits<float>::epsilon())
                 {
                     const double velRat(maxVelocity / avgV);
                     std::map<double, int> temp;
@@ -547,7 +558,7 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
             _outNormal += face->outNormal();
         }
         const double _outNormalNorm(_outNormal.norm());
-        if (_outNormalNorm > FLT_EPSILON)
+        if (_outNormalNorm > std::numeric_limits<float>::epsilon())
         {
             _outNormal /= _outNormalNorm;
         }
@@ -571,7 +582,7 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
                 // crystal lattice. Across grains, compare global unit normals.
                 const bool parallel=&plane->n.lattice==&otherPlane->n.lattice?
                     plane->n.cross(otherPlane->n).base().squaredNorm()==0 :
-                    plane->unitNormal.cross(otherPlane->unitNormal).norm()<FLT_EPSILON;
+                    plane->unitNormal.cross(otherPlane->unitNormal).norm()<std::numeric_limits<float>::epsilon();
                 if(parallel)
                 { // parallel planes
                     pp.emplace_back(plane, otherPlane);
@@ -598,7 +609,7 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
                 ++k;
             }
 
-            PlanesIntersection<dim> pInt(N,P,FLT_EPSILON);
+            PlanesIntersection<dim> pInt(N,P,std::numeric_limits<float>::epsilon());
             const std::pair<bool,VectorDim> snapped(pInt.snap(x));
             if(snapped.first)
             {
@@ -620,17 +631,24 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
     }
 
     template <int dim>
+    void DislocationSegment<dim>::prepareConcentrationKernels(const ClusterDynamicsParameters<dim>& icp) const
+    {
+                std::call_once(concentrationKernelOnce,[&]()
+                {
+                    for(int k=0;k<mSize;++k)
+                    {
+                        concentrationKernels[k]=straight.core().concentration(icp.invD.at((*this->grains().begin())->grainID)[k].inverse(),true);
+                    }
+                });
+    }
+
+    template <int dim>
     typename DislocationSegment<dim>::ConcentrationMatrixType DislocationSegment<dim>::concentrationMatrices(const VectorDim& x,const ClusterDynamicsParameters<dim>& icp) const
     {
         ConcentrationMatrixType M(ConcentrationMatrixType::Zero());
-        if(this->grains().size() == 1 && this->chordLength()>FLT_EPSILON)
+        if(this->grains().size() == 1 && this->chordLength()>std::numeric_limits<float>::epsilon())
         {
-            const auto& Dinv(icp.invD.at((*this->grains().begin())->grainID));
-            const auto& Ddet(icp.detD.at((*this->grains().begin())->grainID));
             const VectorDim bCt(burgers().cross(this->unitDirection()));
-            Eigen::Array<double,mSize,1> a(Eigen::Array<double,mSize,1>::Zero());
-            Eigen::Array<double,mSize,1> b(Eigen::Array<double,mSize,1>::Zero());
-            Eigen::Array<double,mSize,1> c(Eigen::Array<double,mSize,1>::Zero());
             const double bxtSource(bCt.dot(this->source->climbDirection()));
             const double bxtSink  (bCt.dot(this->sink->climbDirection()));
             
@@ -638,33 +656,25 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
             if(this->loopLinks().size()==1)
             {
                 const auto loop((*this->loopLinks().begin())->loop);
-                if(loop->burgers().dot(loop->rightHandedUnitNormal())>FLT_EPSILON)
+                if(loop->burgers().dot(loop->rightHandedUnitNormal())>std::numeric_limits<float>::epsilon())
                 {// vacancy loop
                     bias=icp.discreteDislocationBias.row(0);
                 }
-                else if(loop->burgers().dot(loop->rightHandedUnitNormal())<-FLT_EPSILON)
+                else if(loop->burgers().dot(loop->rightHandedUnitNormal())<-std::numeric_limits<float>::epsilon())
                 {
                     bias=icp.discreteDislocationBias.row(1);
                 }
             }
 
-            for(const auto& shift : this->network().ddBase.periodicShifts)
+            prepareConcentrationKernels(icp);
+            for(const auto& shift:this->network().ddBase.periodicShifts)
             {
-                for(size_t k=0; k<mSize; k++)
+                for(int k=0;k<mSize;++k)
                 {
-                    a(k) = this->chord().dot( Dinv[k]*this->chord() );
-                    b(k) =-2.0*(x+shift-this->source->get_P()).dot( Dinv[k]*this->chord()  );
-                    c(k) = (x+shift-this->source->get_P()).dot( Dinv[k]*(x+shift-this->source->get_P()) )+ DislocationFieldBase<dim>::a2/pow(Ddet(k),1.0/3.0);
+                    const Eigen::Vector2d values=concentrationKernels[k]->concentrationIntegrals(this->source->get_P(),this->sink->get_P(),x+shift);
+                    M(k,0)+=bxtSource*values[0]/bias(k);
+                    M(k,1)+=bxtSink*values[1]/bias(k);
                 }
-                const Eigen::Array<double,mSize,1> ba(b/a);
-                const Eigen::Array<double,mSize,1> ca(c/a);
-                const Eigen::Array<double,mSize,1> sqbca(sqrt(1.0+ba+ca));
-                const Eigen::Array<double,mSize,1> sqca(sqrt(ca));
-                const Eigen::Array<double,mSize,1> logTerm(log((2.0*sqbca+2.0+ba)/(2.0*sqca+ba)));
-                const Eigen::Array<double,mSize,1> I0((1.0+0.5*ba)*logTerm-sqbca+sqca);
-                const Eigen::Array<double,mSize,1> I1(     -0.5*ba*logTerm+sqbca-sqca);
-                M.col(0)+=bxtSource*this->chordLength()/(4.0*M_PI)*(I0/bias/sqrt(a*Ddet)).matrix();
-                M.col(1)+=bxtSink*  this->chordLength()/(4.0*M_PI)*(I1/bias/sqrt(a*Ddet)).matrix();
             }
         }
         return M;
@@ -691,36 +701,33 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
             throw std::out_of_range("Mobile species index");
         }
         MobileClusterFluxSource result;
-        if(this->grains().size()!=1 || this->chordLength()<=FLT_EPSILON)
+        if(this->grains().size()!=1 || this->chordLength()<=std::numeric_limits<float>::epsilon())
         {
             return result;
         }
-        const auto grainID=(*this->grains().begin())->grainID;
-        const auto& inverse=icp.invD.at(grainID);
-        const auto& determinant=icp.detD.at(grainID);
         const VectorDim bCrossT=burgers().cross(this->unitDirection());
         Eigen::Array<double,mSize,1> bias(Eigen::Array<double,mSize,1>::Ones());
         if(this->loopLinks().size()==1)
         {
             const auto loop=(*this->loopLinks().begin())->loop;
             const double sign=loop->burgers().dot(loop->rightHandedUnitNormal());
-            if(sign>FLT_EPSILON)
+            if(sign>std::numeric_limits<float>::epsilon())
             {
                 bias=icp.discreteDislocationBias.row(0);
             }
-            else if(sign<-FLT_EPSILON)
+            else if(sign<-std::numeric_limits<float>::epsilon())
             {
                 bias=icp.discreteDislocationBias.row(1);
             }
         }
+        prepareConcentrationKernels(icp);
+        result.kernel=concentrationKernels[k];
+        result.factor=1/(bias(k)*icp.omega);
         result.source=this->source->get_P();
         result.d=this->chord().template cast<long double>();
-        result.inv=inverse[k].template cast<long double>();
-        result.a=result.d.dot(result.inv*result.d);
-        result.core=DislocationFieldBase<dim>::a2/std::cbrt(static_cast<long double>(determinant(k)));
         result.qA=bCrossT.dot(this->source->climbDirection())*this->source->climbVelocityScalar(k);
         result.qB=bCrossT.dot(this->sink->climbDirection())*this->sink->climbVelocityScalar(k);
-        result.factor=this->chordLength()/(4.0L*M_PI*std::sqrt(static_cast<long double>(determinant(k)))*bias(k)*icp.omega);
+
         return result;
     }
 
@@ -736,31 +743,11 @@ typename DislocationSegment<dim>::VectorDim DislocationSegment<dim>::climbDirect
         // Same endpoint kernel as direct evaluation; all source data is immutable.
         for(const auto& shift:shifts)
         {
-            const WideVector r=(x+shift-source).template cast<long double>();
-            const long double u0=d.dot(inv*r)/a;
-            const WideVector perpendicular=r-u0*d;
-            const long double h2=(perpendicular.dot(inv*perpendicular)+core)/a;
-            const long double h=std::sqrt(h2);
-            const long double t0=-u0;
-            const long double t1=1-u0;
-            const long double R0=std::hypot(t0,h);
-            const long double R1=std::hypot(t1,h);
-            long double j0;
-            if(t0*t1>0)
+            if(!kernel)
             {
-                j0=(t1+t0)/(R0*R1*(t1*R0+t0*R1));
+                throw std::logic_error("Missing segment flux kernel");
             }
-            else
-            {
-                j0=(t1/R1-t0/R0)/h2;
-            }
-            const long double j1=(t1+t0)/((R1+R0)*R0*R1);
-            const long double j2=std::asinh(t1/h)-std::asinh(t0/h)-h2*j0;
-            const long double delta=qB-qA;
-            const long double center=qA+delta*u0;
-            const WideVector integral=(perpendicular*(center*j0+delta*j1)
-                                      -d*(center*j1+delta*j2))/(a*std::sqrt(a));
-            flux+=(factor*integral).template cast<double>();
+            flux+=factor*kernel->flux(source,source+d.template cast<double>(),x+shift,double(qA),double(qB));
         }
         return flux;
     }

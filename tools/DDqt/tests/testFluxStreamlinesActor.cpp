@@ -129,8 +129,8 @@ int main(int argc,char** argv)
             omp_set_dynamic(0);
             omp_set_num_threads(1);
 #endif
-            widget.compute();
-            require(actor->GetVisibility() && data->GetNumberOfLines()>0,"Analytical DD flux produced no streamlines");
+            widget.updateFrame(1);
+            require(actor->GetVisibility() && data->GetNumberOfLines()>0,"Frame change did not recompute enabled streamlines");
             auto serial=vtkSmartPointer<vtkPolyData>::New();
             serial->DeepCopy(data);
 #ifdef _OPENMP
@@ -210,6 +210,7 @@ int main(int argc,char** argv)
             widget.invalidate();
             require(!actor->GetVisibility() && data->GetNumberOfLines()==0,"Frame change retained stale streamlines");
             group->setChecked(false);
+            widget.updateFrame(2);
             require(!actor->GetVisibility(),"Disabled streamlines remained visible");
         }
         fs::remove_all(folder);

@@ -8,6 +8,7 @@
 #ifndef model_DislocationNetworkRemesh_cpp_
 #define model_DislocationNetworkRemesh_cpp_
 
+#include <limits>
 #include <DislocationNetworkRemesh.h>
 
 #include <DislocationNetwork.h>
@@ -66,8 +67,8 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
             const double magnitude=area.norm();
             // rightHandedUnitNormal still holds the last committed timestep.
             // Do not call updateGeometry here: it would overwrite that history.
-            const bool flipped=magnitude>FLT_EPSILON &&
-                current->rightHandedUnitNormal().dot(area/magnitude)<-FLT_EPSILON;
+            const bool flipped=magnitude>std::numeric_limits<float>::epsilon() &&
+                current->rightHandedUnitNormal().dot(area/magnitude)<-std::numeric_limits<float>::epsilon();
             if(current->isIsolated() && (flipped || magnitude<absoluteAreaThreshold))
             {
                 loopIDs.push_back(loop.second.lock()->sID);
@@ -283,7 +284,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
                         //
 
                         SegmentSegmentDistance<dim - 1> ssd1(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.first->source, *bndNode->periodicPlaneEdge.first->sink);
-                        if (ssd1.dMin < FLT_EPSILON)
+                        if (ssd1.dMin < std::numeric_limits<float>::epsilon())
                         {
                             //                    VerboseDislocationLoopNode(3,"dMin= "<<ssd.dMin<<std::endl;);
                             if (bndNode->periodicPlaneEdge.second)
@@ -291,7 +292,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
                                 SegmentSegmentDistance<dim - 1> ssd2(pPrevLocal, pNextLocal, *bndNode->periodicPlaneEdge.second->source, *bndNode->periodicPlaneEdge.second->sink);
                                 const VectorLowerDim ssd1Pos(0.5 * (ssd1.x0 + ssd1.x1));
                                 const VectorLowerDim ssd2Pos(0.5 * (ssd2.x0 + ssd2.x1));
-                                assert((ssd1Pos - ssd2Pos).norm() < FLT_EPSILON && "The two positions must match ");
+                                assert((ssd1Pos - ssd2Pos).norm() < std::numeric_limits<float>::epsilon() && "The two positions must match ");
                             }
                             bndNode->set_P(VectorLowerDim(0.5 * (ssd1.x0 + ssd1.x1)));
                         }
@@ -376,7 +377,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
             {
                 VectorDim expandPoint(Lij->get_r(expand_at));
                 
-                if ((expandPoint - source->get_P()).squaredNorm() > FLT_EPSILON && (expandPoint - sink->get_P()).squaredNorm() > FLT_EPSILON)
+                if ((expandPoint - source->get_P()).squaredNorm() > std::numeric_limits<float>::epsilon() && (expandPoint - sink->get_P()).squaredNorm() > std::numeric_limits<float>::epsilon())
                 {
                     
                     const auto newNetNode(DN.networkNodes().create(expandPoint, 0.5 * (source->get_V() + sink->get_V()),0.5 * (source->climbVelocityScalar + sink->climbVelocityScalar) ,0.5 * (source->velocityReduction() + sink->velocityReduction())));
@@ -463,7 +464,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
                                     //                                                        std::cout<<"node size="<<tempNode->sID<<std::endl;
                                     if (tempNode != *pair.second.begin())
                                     {
-                                        if ((tempNode->get_P() - (*pair.second.begin())->get_P()).norm() < FLT_EPSILON)
+                                        if ((tempNode->get_P() - (*pair.second.begin())->get_P()).norm() < std::numeric_limits<float>::epsilon())
                                         {
                                             const NetNodePairType contractPair(tempNode->sID < (*pair.second.begin())->sID ? std::make_pair(tempNode, *pair.second.begin()) : std::make_pair(*pair.second.begin(), tempNode));
                                             //                                                                std::cout<<"contract pair="<<contractPair.first->sID<<" "<<contractPair.second->sID<<std::endl;
@@ -516,7 +517,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
             }
         }
         const VectorDim chord=link->sink->get_P()-link->source->get_P();
-        if(chord.norm()<=FLT_EPSILON)
+        if(chord.norm()<=std::numeric_limits<float>::epsilon())
         {
             return true;
         }
@@ -528,7 +529,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
         const auto sinkPlanes=link->sink->glidePlanes();
         return sourcePlanes.size()==dim-1 && sourcePlanes==sinkPlanes &&
             chord.squaredNorm()+chord.dot(link->sink->get_V()-link->source->get_V())*
-                DN.ddBase.simulationParameters.dt<FLT_EPSILON;
+                DN.ddBase.simulationParameters.dt<std::numeric_limits<float>::epsilon();
     }
 
     template <int dim>
@@ -586,7 +587,7 @@ void DislocationNetworkRemesh<dim>::removeCollapsedLoops()
         for(const auto& entry : DN.loops())
         {
             const auto loop=entry.second.lock();
-            if(loop->glidePlane && loop->currentAreaVector().norm()<FLT_EPSILON)
+            if(loop->glidePlane && loop->currentAreaVector().norm()<std::numeric_limits<float>::epsilon())
             {
                 size_t anchors=0;
                 size_t periodicSubdivisions=0;

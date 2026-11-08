@@ -8,6 +8,7 @@
 #ifndef model_MeshedDislocationLoop_cpp_
 #define model_MeshedDislocationLoop_cpp_
 
+#include <limits>
 #include <numbers>
 #include <MeshedDislocationLoop.h>
 #include <TriangularMesh.h>
@@ -103,7 +104,7 @@ namespace model
                                 const auto& pointK(originalBndPts[k]);
                                 const auto& pointK1(originalBndPts[k1]);
                                 SegmentSegmentDistance<2> ssd(localLineOrigin-2.0*L*localLineDir,localLineOrigin+2.0*L*localLineDir,pointK,pointK1);
-                                if(ssd.dMin<FLT_EPSILON)
+                                if(ssd.dMin<std::numeric_limits<float>::epsilon())
                                 {
                                     patchLineIntersections.emplace(ssd.t,0.5*(ssd.x0+ssd.x1));
                                 }
@@ -237,13 +238,13 @@ void MeshedDislocationLoop::update()
             const auto& tri(triangles[triID]);
             const auto nA(triangleAreaVector(tri));
             const double triangleArea(nA.norm());
-            if(triangleArea>FLT_EPSILON)
+            if(triangleArea>std::numeric_limits<float>::epsilon())
             {
                 const VectorDim triangleNormal(nA/triangleArea);
                 const VectorDim& planePoint(points[tri(0)]);
                 const double posNorm((x-planePoint).norm());
                 const double dotProd((x-planePoint).dot(triangleNormal));
-                if(std::fabs(dotProd)>FLT_EPSILON*posNorm)
+                if(std::fabs(dotProd)>std::numeric_limits<float>::epsilon()*posNorm)
                 {
                     const VectorDim s(sgn(dotProd)*triangleNormal); // s points along +n for points above, and along -n for points below
                     for(int k=0;k<tri.size();++k)
@@ -251,17 +252,17 @@ void MeshedDislocationLoop::update()
                         const size_t k1(k+1<tri.size()? k+1 : 0);
                         VectorDim e1(points[tri(k)]-x);
                         const double e1Norm(e1.norm());
-                        if(e1Norm>FLT_EPSILON)
+                        if(e1Norm>std::numeric_limits<float>::epsilon())
                         {
                             e1/=e1Norm;
                             VectorDim Y1(points[tri(k1)]-x);
                             const double Y1norm(Y1.norm());
-                            if(Y1norm>FLT_EPSILON)
+                            if(Y1norm>std::numeric_limits<float>::epsilon())
                             {
                                 Y1/=Y1norm;
                                 VectorDim e3(e1.cross(Y1));
                                 const double e3Norm(e3.norm());
-                                if(e3Norm>FLT_EPSILON)
+                                if(e3Norm>std::numeric_limits<float>::epsilon())
                                 {// e1 and Y1 are not align. If they are the projection on the unit sphere is a point and therefore there is no contribution to solid angle
                                     e3/=e3Norm; // normalize e3
                                     const VectorDim e2(e3.cross(e1));

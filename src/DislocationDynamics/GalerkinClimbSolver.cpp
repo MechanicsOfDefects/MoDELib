@@ -8,7 +8,10 @@
 #ifndef model_GalerkinClimbSolver_cpp_
 #define model_GalerkinClimbSolver_cpp_
 
+#include <DislocationDynamics/DislocationFieldBase.h>
+#include <limits>
 #include <deque>
+#include <Utilities/SolverStageTimer.h>
 
 
 #include <ClusterDynamics/ClusterDynamicsParameters.h>
@@ -18,6 +21,7 @@
 #include <EqualIteratorRange.h>
 
 #include <DislocationNetwork.h>
+#include <DislocationDynamics/DislocationConcentrationSources.h>
 
 namespace model
 {
@@ -75,6 +79,54 @@ namespace model
         return K;
     }
 
+    template<int dim>
+    ClimbAssemblySnapshot GalerkinClimbSolver<dim>::screenedAssemblySnapshot() const
+    {
+        if(!this->CD)throw std::logic_error("Screened climb requires ClusterDynamics");
+        if(this->DN.ddBase.periodicLatticeBasis.cols()!=0)
+            throw std::logic_error("Screened climb periodic correction is not implemented");
+        ClimbAssemblySnapshot snapshot;
+        snapshot.nodeCount=this->DN.networkNodes().size();snapshot.speciesCount=mSize;
+        snapshot.rhs.assign(mSize,Eigen::VectorXd::Zero(snapshot.nodeCount));
+        const auto& cdp=this->CD->cdp;
+        for(const auto& item:this->DN.networkLinks())
+        {
+            const auto link=item.second.lock();
+            if(!link)throw std::logic_error("Expired link during climb assembly");
+            if(link->hasZeroBurgers()||link->isBoundarySegment()||link->isGrainBoundarySegment()||
+               link->chordLength()<=std::numeric_limits<float>::epsilon())continue;
+            const std::array<std::size_t,2> nodes{link->source->gID(),link->sink->gID()};
+            if(nodes[0]>=snapshot.nodeCount||nodes[1]>=snapshot.nodeCount)throw std::logic_error("Noncontiguous climb node indices");
+            if(link->isSessile())
+            {
+                if(link->quadraturePoints().empty())throw std::logic_error("Update segment quadrature fields before assembling climb RHS");
+                const auto force=clusterForceVector(*link);
+                for(int species=0;species<mSize;++species){snapshot.rhs[species](nodes[0])+=force(0,species);snapshot.rhs[species](nodes[1])+=force(1,species);}
+                const auto bxt=link->burgers().cross(link->chord());
+                for(const auto& qp:link->quadraturePoints())
+                {
+                    ClimbQuadratureMap map;map.nodes=nodes;
+                    for(int c=0;c<3;++c)map.position[c]=qp.r[c];
+                    map.weights={qp.weight*(1-qp.abscissa)*bxt.dot(link->source->climbDirection()),
+                                 qp.weight*qp.abscissa*bxt.dot(link->sink->climbDirection())};
+                    snapshot.targets.push_back(map);
+                }
+            }
+        }
+        snapshot.channels=concentrationSources(this->DN,cdp,true);
+        return snapshot;
+    }
+    template<int dim>
+    std::unique_ptr<ScreenedClimbAssembly> GalerkinClimbSolver<dim>::assembleScreened(
+        const ScreenedDislocationOptions& options) const
+    {
+        auto snapshot=screenedAssemblySnapshot();
+        const auto context=this->DN.ddBase.fmmContext;
+        auto sharedOptions=options;
+        sharedOptions.segmentSplits=this->DN.segmentSplits();
+        return std::make_unique<ScreenedClimbAssembly>(context->manager,context->boxTree,snapshot,sharedOptions);
+    }
+
     template <int dim>
     Eigen::VectorXd GalerkinClimbSolver<dim>::getNodeVelocitiesPipe() const
     {
@@ -86,21 +138,66 @@ namespace model
     void GalerkinClimbSolver<dim>::computeClimbScalarVelocities(const bool& updateStiffness)
     {
         std::cout<<", climbSolver "<<std::flush;
-        computeClimbScalarVelocitiesBulk(updateStiffness);
+        if(this->DN.ddBase.fmmContext->usesFMM())computeClimbScalarVelocitiesFMM(updateStiffness);
+        else computeClimbScalarVelocitiesBulk(updateStiffness);
+    }
+
+    template<int dim>
+    void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesFMM(bool updateStiffness)
+    {
+        const auto context=this->DN.ddBase.fmmContext;
+        if(this->DN.ddBase.periodicLatticeBasis.cols()!=0)throw std::runtime_error("Periodic FMM climb is not implemented; set multipoleMode=none");
+        const auto count=this->DN.networkNodes().size();
+        if(updateStiffness||!screenedAssembly||cachedNodeCount!=count)
+        {
+            SolverStageTimer stage("FMM climb sparse assembly and long-range plans");
+            ScreenedDislocationOptions options;options.segmentSplits=this->DN.segmentSplits();options.coreType=this->DN.multipoleSettings.coreType;options.segmentChebyshevOrder=this->DN.multipoleSettings.ewaldSegmentChebyshevOrder;options.segmentTableResolution=this->DN.multipoleSettings.ewaldSegmentTableResolution;options.screened=context->usesEwaldFMM();options.coreWidth=DislocationFieldBase<dim>::a;options.screenWidth=this->DN.multipoleSettings.ewaldWidth;
+            options.shortCutoff=this->DN.multipoleSettings.preconditionerCutoff;options.interpolationOrder=context->interpolationOrder;
+            std::shared_ptr<ScreenedClimbAssembly> next=assembleScreened(options);
+            const auto Z=periodicClimbVelocityMap<dim>(this->DN);
+            std::vector<std::unique_ptr<CoupledClimbSolve>> solvers;
+            for(int species=0;species<mSize;++species)
+            {
+                auto solver=std::make_unique<CoupledClimbSolve>();
+                solver->computeOperator([next,species](const Eigen::VectorXd& v){return next->apply(species,v);},next->shortMatrix(species),Z);
+                solvers.push_back(std::move(solver));
+            }
+            screenedAssembly=std::move(next);coupledSolvers=std::move(solvers);cachedNodeCount=count;
+        }
+        // Concentrations change within the coupled iteration; geometry/maps do not.
+        Fc.assign(mSize,Eigen::VectorXd::Zero(count));
+        for(const auto& entry:this->DN.networkLinks())
+        {
+            const auto link=entry.second.lock();
+            if(!link||link->hasZeroBurgers()||!link->isSessile()||link->isBoundarySegment()||link->isGrainBoundarySegment()||link->chordLength()<=std::numeric_limits<float>::epsilon())continue;
+            const auto force=clusterForceVector(*link);
+            for(int s=0;s<mSize;++s){Fc[s](link->source->gID())+=force(0,s);Fc[s](link->sink->gID())+=force(1,s);}
+        }
+        this->scalarVelocities().assign(count,Eigen::Array<double,1,mSize>::Zero());
+        for(int s=0;s<mSize;++s)
+        {
+            SolverStageTimer stage("FMM climb species "+std::to_string(s)+" GMRES");
+            const auto v=coupledSolvers[s]->solve(Fc[s]);
+            for(std::size_t i=0;i<count;++i)this->scalarVelocities()[i](s)=v(i);
+        }
     }
 
     template <int dim>
     void GalerkinClimbSolver<dim>::computeClimbScalarVelocitiesBulk(const bool& updateStiffness)
     {
         const size_t nodeCount(this->DN.networkNodes().size());
-        Fc.assign(mSize,Eigen::VectorXd::Zero(nodeCount));
         const bool rebuild=updateStiffness || coupledSolvers.size()!=mSize || cachedNodeCount!=nodeCount;
+        std::cout<<"\n  Climb system: nodes="<<nodeCount<<", species="<<mSize
+                 <<", matrices="<<(rebuild?"rebuild":"reuse")<<std::flush;
+        SolverStageTimer stage("Climb RHS/dense matrix allocation");
+        Fc.assign(mSize,Eigen::VectorXd::Zero(nodeCount));
         std::vector<Eigen::MatrixXd> matrices;
         if(rebuild)
         {
             matrices.assign(mSize,Eigen::MatrixXd::Zero(nodeCount,nodeCount));
         }
 
+        stage.start("Climb field/source preparation and RHS assembly");
         using NetworkLinkPtrType=std::shared_ptr<NetworkLinkType>;
         struct SourceData
         {
@@ -141,7 +238,7 @@ namespace model
             const bool isActive(!link->hasZeroBurgers()
                                 && !link->isBoundarySegment()
                                 && !link->isGrainBoundarySegment()
-                                && link->chordLength()>FLT_EPSILON);
+                                && link->chordLength()>std::numeric_limits<float>::epsilon());
             // clusterStiffnessKernel returned zero for all other sources.
             if(isActive && link->grains().size()==1)
             {
@@ -178,8 +275,10 @@ namespace model
                 Fc[kc](field.i1)+=field.force(1,kc);
             }
         }
+        std::cout<<"\n  Climb interactions: field segments="<<fields.size()<<", source segments="<<sources.size()<<std::flush;
         if(rebuild)
         {
+            stage.start("Climb dense interaction assembly (OpenMP)");
 #ifdef _OPENMP
 #pragma omp parallel for schedule(guided)
 #endif
@@ -215,6 +314,7 @@ namespace model
                     }
                 }
             }
+            stage.start("Climb constraint map and local sparsity pattern");
             const auto Z=periodicClimbVelocityMap<dim>(this->DN);
             // Topologically local preconditioner: self and immediate segment
             // neighbors. Every other interaction remains in the dense operator.
@@ -231,6 +331,7 @@ namespace model
             std::vector<std::unique_ptr<CoupledClimbSolve>> next;
             for(int kc=0;kc<mSize;++kc)
             {
+                stage.start("Climb species "+std::to_string(kc)+" local matrix construction");
                 std::vector<Eigen::Triplet<double>> entries;
                 for(const auto& ij : pattern)
                 {
@@ -239,15 +340,19 @@ namespace model
                 SparseMatrixType local(nodeCount,nodeCount);
                 local.setFromTriplets(entries.begin(),entries.end());
                 auto solver=std::make_unique<CoupledClimbSolve>();
+                stage.finish();
+                std::cout<<"\n  Climb species "<<kc<<" operator setup"<<std::flush;
                 solver->compute(matrices[kc],local,Z);
                 next.emplace_back(std::move(solver));
             }
             coupledSolvers=std::move(next);
             cachedNodeCount=nodeCount;
         }
+        stage.finish();
         std::vector<Eigen::Array<double,1,mSize>> nodeV(nodeCount,Eigen::Array<double,1,mSize>::Zero());
         for(int kc=0;kc<mSize;++kc)
         {
+            SolverStageTimer speciesTimer("Climb species "+std::to_string(kc)+" linear solve");
             const Eigen::VectorXd constrained=coupledSolvers[kc]->solve(Fc[kc]);
             for(size_t n=0;n<nodeCount;++n)
             {

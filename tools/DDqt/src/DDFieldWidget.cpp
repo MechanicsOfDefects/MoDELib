@@ -9,6 +9,7 @@
 #ifndef model_DDFieldWidget_cpp_
 #define model_DDFieldWidget_cpp_
 
+#include <limits>
 #include <sstream>      // std::ostringstream
 #include <string>
 #include <iostream>
@@ -304,9 +305,14 @@ DDFieldWidget::DDFieldWidget(vtkGenericOpenGLRenderWindow* const renWin_in,
 
 }
 
+void DDFieldWidget::updateFrame(size_t frame)
+{
+    fluxStreamlines->updateFrame(frame);
+    compute();
+}
+
 void DDFieldWidget::compute()
 {
-    fluxStreamlines->invalidate();
     if(groupBox)
     {
         if(groupBox->layout())
@@ -680,7 +686,7 @@ void DDPlaneField::resetPlane()
             {
                 normalEdit->setStyleSheet("background-color: white");
                 const double nNorm(N.norm());
-                if(P.allFinite() && N.allFinite() && nNorm>FLT_EPSILON)
+                if(P.allFinite() && N.allFinite() && nNorm>std::numeric_limits<float>::epsilon())
                 {
                     try
                     {
@@ -891,7 +897,7 @@ void DDLineField::resetLine()
                 directionEdit->setStyleSheet("background-color: white");
 //                std::cout<<"d="<<N.transpose()<<std::endl;
                 const double nNorm(N.norm());
-                if(nNorm>FLT_EPSILON)
+                if(nNorm>std::numeric_limits<float>::epsilon())
                 {
                     const VectorDim unitDir(N/nNorm);
                     line.reset(new MeshLine<3>(defectiveCrystal.ddBase.mesh,P,unitDir));

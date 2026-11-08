@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
         (inputs / "DefectiveCrystal.txt").write_text(
             f"physics={physics};\nfmmTreeDepth=2;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
             "outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\n"
-            "periodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n")
+            "periodicImageSize=0 0 0;\n")
         (inputs / "polycrystal.txt").write_text(
             "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\n"
             "C2G1=1 0 0 0 1 0 0 0 1;\n"
@@ -71,7 +71,6 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
     del base
     gc.collect()
     assert context.boxCount(2) == 64
-    assert np.isfinite(dd.EwaldLength)
     assert plane.planeBaseID() == periodic.referencePlane.planeBaseID()
     del dd
     gc.collect()
@@ -79,10 +78,15 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
     del plane, periodic
 
     # CD context methods and ownership, without constructing DD factories.
-    shutil.copy(root / "tests/spatialCDtest/inputFiles/Zr4_Fitted.txt", inputs / "Zr4_Fitted.txt")
+    species_counts = (model.ClusterDynamicsBase.mobileSpeciesCount,
+                      model.ClusterDynamicsBase.immobileSpeciesCount)
+    materials = {(1, 0): "Zr_BMD19.txt", (4, 8): "Zr4_Fitted.txt"}
+    if species_counts not in materials:
+        raise AssertionError(f"No CD fixture for compiled species counts {species_counts}")
+    shutil.copy(root / "Library/Materials" / materials[species_counts], inputs / "cdMaterial.txt")
     configure("ClusterDynamics", 123.456)
     poly = inputs / "polycrystal.txt"
-    poly.write_text(poly.read_text().replace("W.txt", "Zr4_Fitted.txt").replace("=300", "=553"))
+    poly.write_text(poly.read_text().replace("W.txt", "cdMaterial.txt").replace("=300", "=553"))
     base = model.DefectiveCrystalBase(str(folder))
     cd = base.clusterDynamicsBase
     assert cd is base.clusterDynamics()
@@ -90,7 +94,9 @@ with tempfile.TemporaryDirectory(prefix="modelib-python-bases-") as directory:
     assert base.dislocationDynamicsBase is None
     del base
     gc.collect()
-    assert np.isfinite(cd.equilibriumMobileConcentration(0.)).all()
+    concentration = cd.equilibriumMobileConcentration(0.)
+    assert concentration.size == species_counts[0]
+    assert np.isfinite(concentration).all()
     assert np.isfinite(cd.getDlocal()).all()
 print("PASS: Python base API, activation, and lifetimes")
 

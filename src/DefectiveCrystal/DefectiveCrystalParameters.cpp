@@ -8,7 +8,7 @@
 #ifndef model_DefectiveCrystalParameters_cpp_
 #define model_DefectiveCrystalParameters_cpp_
 
-#include <cfloat>
+#include <limits>
 #include <DefectiveCrystal/DefectiveCrystalParameters.h>
 
 namespace model
@@ -104,9 +104,9 @@ namespace model
                 throw std::runtime_error("Nsteps MUST BE >= 0.");
             }
 
-            if (dtMax < FLT_EPSILON)
+            if (dtMax < std::numeric_limits<float>::epsilon())
             {
-                throw std::runtime_error("dtMax must be > FLT_EPSILON.");
+                throw std::runtime_error("dtMax must be > std::numeric_limits<float>::epsilon().");
             }
             
             manageRestart();

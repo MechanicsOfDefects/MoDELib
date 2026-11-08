@@ -19,7 +19,7 @@ P0=np.array([0.0,0.0,0.0])
 P1=np.array([1.0,0.0,0.0])
 b=np.array([1.0,0.0,0.0])
 x=np.array([1.0,1.0,1.0])
-ss=pyMoDELib.StressStraight(mat,P0,P1,b,0.0)
+ss=pyMoDELib.StraightDislocationSegment(mat,P0,P1,b)
 start_time = time.perf_counter() # Use perf_counter() for high resolution
 for i in range(0,10000000):
     sigma=ss.stress(x)

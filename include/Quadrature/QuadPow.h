@@ -11,7 +11,7 @@
 
 #include <assert.h>
 #include <math.h>
-#include <float.h>
+#include <limits>
 #include <Eigen/Dense>
 
 
@@ -30,7 +30,7 @@ namespace model
           */
             const Eigen::Matrix<double,1,qOrder> abscissas=QuadratureRule<1,qOrder>::abcsissasAndWeights().template block<1,qOrder>(0,0);
             
-            if ( abscissas.squaredNorm() < FLT_EPSILON)
+            if ( abscissas.squaredNorm() < std::numeric_limits<float>::epsilon())
             {
                 std::cout<<"norm of quadrature="<<abscissas.squaredNorm()<<std::endl;
 				assert(0);

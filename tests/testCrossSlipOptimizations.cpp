@@ -1,3 +1,4 @@
+#include <limits>
 #include <DislocationNetwork.h>
 #include <DefectiveCrystal/DefectiveCrystal.h>
 #include <CrossSlipModels.h>
@@ -26,7 +27,7 @@ std::pair<bool,int> legacyBase(const Network::NetworkLinkType& link,
            && !link.isGrainBoundarySegment()
            && link.loopLinks().size()==1
            && link.unitDirection().cross(link.burgers().normalized()).norm()<=model.sinCrossSlip
-           && link.chordLength()>FLT_EPSILON
+           && link.chordLength()>std::numeric_limits<float>::epsilon()
            && (!enforceRemeshLength || link.chordLength()>2.0*link.network().networkRemesher.Lmin)
            && link.grains().size()==1
            )
@@ -70,7 +71,7 @@ std::pair<bool,std::pair<int,int>> legacySelection(const Network::NetworkLinkTyp
                 if(ssMap.size())
                 {
                     const auto& crossSlipSystem(grain.slipSystems().at(ssMap.rbegin()->second));
-                    if(slipSystem->unitNormal.cross(crossSlipSystem->unitNormal).squaredNorm()>FLT_EPSILON
+                    if(slipSystem->unitNormal.cross(crossSlipSystem->unitNormal).squaredNorm()>std::numeric_limits<float>::epsilon()
                        && ssMap.rbegin()->first>1.1*pkGlide)
                     {// highest glide PK-force is not on current slip system
                         return std::make_pair(true,std::make_pair(grain.grainID,ssMap.rbegin()->second));
@@ -169,7 +170,7 @@ int main(int argc, char** argv)
         const double length=3671.9477120460206;
         {
             std::ofstream f(input / "DefectiveCrystal.txt");
-            f << "physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
+            f << "physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\n";
             std::ofstream p(input / "polycrystal.txt");
             p << std::setprecision(17) << "materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\n"
               << "C2G2=0.8 0 0.6 0 1 0 -0.6 0 0.8;\nF=" << length << " 0 0 0 " << length << " 0 0 0 " << length

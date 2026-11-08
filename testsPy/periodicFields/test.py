@@ -10,7 +10,7 @@ import pyMoDELib
 
 compute=True
 #periodicImageCases=np.array([[1,1,1,0],[1,1,1,1],[2,2,2,2],[4,4,4,2]])
-periodicImageCases=np.array([[4,4,4,2]])
+periodicImageCases=np.array([[4,4,4]])
 
 if compute:
     ###########################################################
@@ -80,8 +80,6 @@ if compute:
         if os.path.exists(fLabes):
             os.remove(fLabes)
         periodicImageSize=np.array(periodicImageCases[k,:3]).astype(int)
-        EwaldLengthFactor=periodicImageCases[k,3]
-        setInputVariable('inputFiles/'+DDfile,'EwaldLengthFactor',str(EwaldLengthFactor))
         setInputVector('inputFiles/'+DDfile,'periodicImageSize',periodicImageSize,'number of periodic images along each period vector')
         print("BEFORE DDBASE")
         ddBase=pyMoDELib.DefectiveCrystalBase(simulationDir)
@@ -142,7 +140,7 @@ if compute:
         data[:,5]=S23
         data[:,6]=S13
         data[:,7]=S12
-        outFileName='data'+'_'+str(periodicImageSize[0])+'_'+str(periodicImageSize[1])+'_'+str(periodicImageSize[2])+'_'+str(EwaldLengthFactor)+'.txt'
+        outFileName='data'+'_'+str(periodicImageSize[0])+'_'+str(periodicImageSize[1])+'_'+str(periodicImageSize[2])+'.txt'
         np.savetxt(outFileName, data)
         
 ###########################################################
@@ -150,8 +148,7 @@ if compute:
 dataDict=dict()
 for k in range(0,np.size(periodicImageCases,0)):
     periodicImageSize=np.array(periodicImageCases[k,:3]).astype(int)
-    EwaldLengthFactor=periodicImageCases[k,3]
-    key=str(periodicImageSize[0])+'_'+str(periodicImageSize[1])+'_'+str(periodicImageSize[2])+'_'+str(EwaldLengthFactor)
+    key=str(periodicImageSize[0])+'_'+str(periodicImageSize[1])+'_'+str(periodicImageSize[2])
     FileName='data_'+key+'.txt'
     dataDict[key]=np.loadtxt(FileName);
     

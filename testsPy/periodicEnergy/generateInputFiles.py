@@ -21,7 +21,6 @@ setInputVariable('inputFiles/'+DDfile,'Nsteps','1')  # number of simulation step
 #setInputVector('inputFiles/'+DDfile,'nodalVelocityConstraints',np.array([0.0,1.0,0.0]),'Velocty constrained in the x direction')
 setInputVariable('inputFiles/'+DDfile,'quadPerLength','1.0')
 setInputVector('inputFiles/'+DDfile,'periodicImageSize',np.array([0,2,0]),'n of images in each direction')
-setInputVariable('inputFiles/'+DDfile,'EwaldLengthFactor','1.0')
 setInputVariable('inputFiles/'+DDfile,'maxJunctionIterations','0')
 setInputVariable('inputFiles/'+DDfile,'remeshFrequency','0')
 

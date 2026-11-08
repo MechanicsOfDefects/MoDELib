@@ -8,7 +8,7 @@
 #ifndef model_SegmentSegmentDistance_CPP_
 #define model_SegmentSegmentDistance_CPP_
 
-#include <cfloat>
+#include <limits>
 #include <deque>
 #include <map>
 #include <tuple>
@@ -153,7 +153,7 @@ namespace model
 
         IntersectionContainerType temp;
 
-        if (dMin < FLT_EPSILON)
+        if (dMin < std::numeric_limits<float>::epsilon())
         { // an intersection exists
 
             if (D1 < tol || D2 < tol)
@@ -184,7 +184,7 @@ namespace model
                     auto iter2 = ms.begin();
                     std::advance(iter2, 2);
 
-                    if ((iter1->second - iter2->second).norm() > FLT_EPSILON)
+                    if ((iter1->second - iter2->second).norm() > std::numeric_limits<float>::epsilon())
                     {
                         temp.emplace_back(iter1->second.template cast<double>(), iter1->first, (iter1->second - C).dot(d2) / D2);
                         temp.emplace_back(iter2->second.template cast<double>(), iter2->first, (iter2->second - C).dot(d2) / D2);

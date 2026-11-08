@@ -20,7 +20,6 @@ setInputVariable('inputFiles/'+DCfile,'maxResolveSteps','0')  # number of simula
 setInputVariable('inputFiles/'+DCfile,'dtMax','1e25')
 setInputVariable('inputFiles/'+DCfile,'outputFrequency','100')  # output frequency
 setInputVector('inputFiles/'+DCfile,'periodicImageSize',np.array([2,2,2]),'n of images in each direction')
-setInputVariable('inputFiles/'+DCfile,'EwaldLengthFactor','1.0')
 
 # Make a local copy of DD parameters file and modify that copy if necessary
 DDfile='DD.txt'

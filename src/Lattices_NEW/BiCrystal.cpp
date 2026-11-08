@@ -7,6 +7,7 @@
 #ifndef model_BiCrystal_cpp_
 #define model_BiCrystal_cpp_
 
+#include <limits>
 #include <LatticeModule.h>
 
 namespace model
@@ -72,7 +73,7 @@ namespace model
 
             const auto C1(A.latticeBasis*(sd.matrixX()*M).template cast<double>());
             const auto C2(B.latticeBasis*(sd.matrixV()*N).template cast<double>());
-            if ((C1-C2).norm()>FLT_EPSILON)
+            if ((C1-C2).norm()>std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("CSL calculation failed.\n");
             }
@@ -98,7 +99,7 @@ namespace model
                         
             const auto D1(A.latticeBasis*sd.matrixX().template cast<double>()*N.template cast<double>().inverse());
             const auto D2(B.latticeBasis*sd.matrixV().template cast<double>()*M.template cast<double>().inverse());
-            if ((D1-D2).norm()>FLT_EPSILON)
+            if ((D1-D2).norm()>std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("DSCL calculation failed.\n");
             }
@@ -136,13 +137,13 @@ namespace model
             {//verify that CSL can be obtained as multiple of A and B
                 
                 const MatrixDimD tempA(A.reciprocalBasis.transpose()*csl.latticeBasis);
-                if ((tempA-tempA.array().round().matrix()).norm()>FLT_EPSILON)
+                if ((tempA-tempA.array().round().matrix()).norm()>std::numeric_limits<float>::epsilon())
                 {
                     throw std::runtime_error("CSL is not a multiple of lattice A\n");
                 }
                 
                 const MatrixDimD tempB(B.reciprocalBasis.transpose()*csl.latticeBasis);
-                if ((tempB-tempB.array().round().matrix()).norm()>FLT_EPSILON)
+                if ((tempB-tempB.array().round().matrix()).norm()>std::numeric_limits<float>::epsilon())
                 {
                     throw std::runtime_error("CSL is not a multiple of lattice B\n");
                 }
@@ -152,13 +153,13 @@ namespace model
             {//verify that A and B are multiples of DSCL
                 
                 const MatrixDimD tempA(dscl.reciprocalBasis.transpose()*A.latticeBasis);
-                if ((tempA-tempA.array().round().matrix()).norm()>FLT_EPSILON)
+                if ((tempA-tempA.array().round().matrix()).norm()>std::numeric_limits<float>::epsilon())
                 {
                     throw std::runtime_error("Lattice A is not a multiple of the DSCL\n");
                 }
                 
                 const MatrixDimD tempB(dscl.reciprocalBasis.transpose()*B.latticeBasis);
-                if ((tempB-tempB.array().round().matrix()).norm()>FLT_EPSILON)
+                if ((tempB-tempB.array().round().matrix()).norm()>std::numeric_limits<float>::epsilon())
                 {
                     throw std::runtime_error("Lattice B is not a multiple of the DSCL\n");
                 }

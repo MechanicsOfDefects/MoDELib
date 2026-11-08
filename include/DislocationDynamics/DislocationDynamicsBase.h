@@ -11,11 +11,8 @@ namespace model
         const std::shared_ptr<const Polycrystal<dim>> polyOwner;
         GlidePlaneFactory<dim> glidePlaneFactory;
         PeriodicGlidePlaneFactory<dim> periodicGlidePlaneFactory;
-        const double EwaldLength;
         DislocationDynamicsBase(std::shared_ptr<const SimplicialMesh<dim>> mesh,
-                                std::shared_ptr<const Polycrystal<dim>> poly,
-                                const Eigen::Matrix<double,dim,Eigen::Dynamic>& basis,
-                                const std::string& inputFile);
+                                std::shared_ptr<const Polycrystal<dim>> poly);
         DislocationDynamicsBase(const DislocationDynamicsBase&)=delete;
         DislocationDynamicsBase& operator=(const DislocationDynamicsBase&)=delete;
     };

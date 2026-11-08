@@ -1,0 +1,74 @@
+Cai source quadrature accuracy on polycrystal saved frames
+=========================================================
+Date: 2026-10-31. Core radius a=2 in Burgers-vector units.
+Current sampling: UniformOpen, quadPerLength=0.1. Source and target geometry
+is straight (DislocationSegment inherits SplineSegment<dim,0>).
+
+Build: cmake --build build --target benchmarkCaiQuadratureAccuracy -j4
+Run: OMP_NUM_THREADS=12 OMP_PROC_BIND=false build/tests/benchmarkCaiQuadratureAccuracy tutorials/polycrystal 1000 1024
+Arguments: tutorial folder, frame, number of sampled targets (default 1024).
+
+Method:
+- Select 1024 evenly spaced indices from the actual mobility target array at
+  the original density. Keep exactly these targets fixed for every density.
+- Sum unscreened analytical StraightDislocationSegment over every unique nonzero-Burgers
+  network segment, including stationary/boundary sources. No periodic images,
+  applied stress, FEM correction, line tension, or screening in either sum.
+- Compare with the six-component particle sum at source densities
+  0.1, 0.2, 0.4, 0.8, 1.6. Geometry and Burgers vectors are identical.
+- Relative L2 = sqrt(sum_target ||error||_F^2 / sum_target ||reference||_F^2).
+  Pointwise percentiles use ||error||_F/max(||reference||_F,1e-30).
+  Absolute errors are in normalized stress units (shear modulus).
+- Near contribution includes segments whose closest point is within 10*a of
+  the target. Near/far error norms are normalized by the TOTAL reference norm;
+  they are not relative errors of the near/far fields themselves and do not add.
+- Source construction and stress evaluation are repeated, but no simulation is
+  advanced. Saved frames and tutorial files remain unchanged. A temporary copy
+  of inputs supplies fmmTreeDepth=2 in DefectiveCrystal.txt as required currently.
+
+Findings:
+At source density 0.1, aggregate error is 35.91% (frame 0) and 37.73% (frame 1000).
+Frame-1000 median pointwise error is 0.689%, p95 29.92%, max 68.97%.
+Nearly all aggregate error comes from the near-segment contributions.
+Uniform refinement is not monotonic for under-resolved near-core targets:
+frame-1000 aggregate error increases to 59.53% at density 0.2 before falling.
+At density 1.6 aggregate errors are 0.111% and 0.0961%, respectively; frame-1000
+worst sampled target still has 1.126% error, with 908995 source particles.
+These are sampled-target observations, not bounds over all targets or frames.
+
+The existing analytical segment method does not have this source quadrature
+error; its quadPerLength sets mobility evaluation/integration points. Reusing
+that density for source integration is a new approximation. No production
+physics has been switched to it. Uniform source density 0.1 is not an adequate
+replacement. Near-field refinement or analytical local correction should be
+validated before deployment, rather than globally multiplying source count.
+
+Raw results:
+CAI_ACCURACY frame=0 density=1.00000000e-01 core=2.00000000e+00 sources=44160 targets=1024 relative_L2=3.59131683e-01 median_relative=4.66472625e-04 p95_relative=7.97346095e-02 max_relative=4.85635529e-01 rms_absolute=2.72812552e-03 max_absolute=5.51512717e-02 near_error_over_total_ref=3.59124708e-01 far_error_over_total_ref=1.83309729e-03
+CAI_ACCURACY frame=0 density=2.00000000e-01 core=2.00000000e+00 sources=88320 targets=1024 relative_L2=8.75144364e-02 median_relative=1.17348536e-04 p95_relative=1.96334212e-02 max_relative=1.19592244e-01 rms_absolute=6.64798955e-04 max_absolute=7.41843539e-03 near_error_over_total_ref=8.75135150e-02 far_error_over_total_ref=4.53462833e-04
+CAI_ACCURACY frame=0 density=4.00000000e-01 core=2.00000000e+00 sources=176640 targets=1024 relative_L2=1.88815916e-02 median_relative=2.93344664e-05 p95_relative=4.84703281e-03 max_relative=2.75163828e-02 rms_absolute=1.43433048e-04 max_absolute=8.09271786e-04 near_error_over_total_ref=1.88812218e-02 far_error_over_total_ref=1.13048645e-04
+CAI_ACCURACY frame=0 density=8.00000000e-01 core=2.00000000e+00 sources=353280 targets=1024 relative_L2=4.49999783e-03 median_relative=7.33344459e-06 p95_relative=1.20768918e-03 max_relative=6.55761908e-03 rms_absolute=3.41840042e-05 max_absolute=1.92864274e-04 near_error_over_total_ref=4.49990073e-03 far_error_over_total_ref=2.82462945e-05
+CAI_ACCURACY frame=0 density=1.60000000e+00 core=2.00000000e+00 sources=706560 targets=1024 relative_L2=1.11046549e-03 median_relative=1.83334768e-06 p95_relative=3.01663031e-04 max_relative=1.61812671e-03 rms_absolute=8.43559448e-06 max_absolute=4.75916461e-05 near_error_over_total_ref=1.11044043e-03 far_error_over_total_ref=7.07693916e-06
+CAI_ACCURACY frame=1000 density=1.00000000e-01 core=2.00000000e+00 sources=54216 targets=1024 relative_L2=3.77254159e-01 median_relative=6.89360133e-03 p95_relative=2.99154861e-01 max_relative=6.89733828e-01 rms_absolute=2.61567098e-03 max_absolute=5.84572648e-02 near_error_over_total_ref=3.77222607e-01 far_error_over_total_ref=2.86066687e-03
+CAI_ACCURACY frame=1000 density=2.00000000e-01 core=2.00000000e+00 sources=111607 targets=1024 relative_L2=5.95302408e-01 median_relative=1.73720056e-03 p95_relative=1.15118688e+00 max_relative=4.08976953e+01 rms_absolute=4.12749654e-03 max_absolute=3.79338437e-02 near_error_over_total_ref=5.95298560e-01 far_error_over_total_ref=6.39893864e-04
+CAI_ACCURACY frame=1000 density=4.00000000e-01 core=2.00000000e+00 sources=225755 targets=1024 relative_L2=1.13548697e-01 median_relative=4.15533492e-04 p95_relative=1.13381844e-01 max_relative=8.31956696e+00 rms_absolute=7.87283650e-04 max_absolute=7.74821319e-03 near_error_over_total_ref=1.13549099e-01 far_error_over_total_ref=1.86970108e-04
+CAI_ACCURACY frame=1000 density=8.00000000e-01 core=2.00000000e+00 sources=453343 targets=1024 relative_L2=3.93792366e-03 median_relative=1.04016800e-04 p95_relative=1.29294406e-02 max_relative=8.41404360e-02 rms_absolute=2.73033773e-05 max_absolute=3.29934513e-04 near_error_over_total_ref=3.93577691e-03 far_error_over_total_ref=1.13381809e-04
+CAI_ACCURACY frame=1000 density=1.60000000e+00 core=2.00000000e+00 sources=908995 targets=1024 relative_L2=9.61010973e-04 median_relative=2.47304449e-05 p95_relative=2.27945853e-03 max_relative=1.12557962e-02 rms_absolute=6.66311677e-06 max_absolute=8.13844557e-05 near_error_over_total_ref=9.54883914e-04 far_error_over_total_ref=1.07454217e-04
+
+CPU timing comparison (2026-10-31)
+==================================
+Frame 1000, same 1024 targets, 4182 nonzero-Burgers physical segments,
+12 CPU threads. Analytical: OpenMP static parallel loop over targets and
+existing StraightDislocationSegment::stress. Particles: Kokkos OpenMP target loop.
+Seven alternating-order measurements after warmup; medians reported.
+Identical unscreened physical problem and core a=2. No construction, upload,
+download or accuracy-diagnostic work included in timing.
+The current benchmark reproduces this comparison for each source density.
+Analytical evaluation costs about 41-44 ms. Uniform particle sampling at
+density 1.6 costs 680 ms (16.15x) for aggregate error 0.0961%.
+These are direct all-source CPU sums, not FMM or Ewald performance.
+CAI_TIMING frame=1000 density=1.000000000000000e-01 threads=12 segments=4182 sources=54216 targets=1024 analytical_median_ms=4.409033300000000e+01 particle_median_ms=3.892279200000000e+01 ratio=8.827965077968452e-01
+CAI_TIMING frame=1000 density=2.00000000e-01 threads=12 segments=4182 sources=111607 targets=1024 analytical_median_ms=4.33101250e+01 particle_median_ms=8.45402500e+01 ratio=1.95197428e+00
+CAI_TIMING frame=1000 density=4.00000000e-01 threads=12 segments=4182 sources=225755 targets=1024 analytical_median_ms=4.16502090e+01 particle_median_ms=1.58255625e+02 ratio=3.79963580e+00
+CAI_TIMING frame=1000 density=8.00000000e-01 threads=12 segments=4182 sources=453343 targets=1024 analytical_median_ms=4.13324170e+01 particle_median_ms=3.45391583e+02 ratio=8.35643323e+00
+CAI_TIMING frame=1000 density=1.60000000e+00 threads=12 segments=4182 sources=908995 targets=1024 analytical_median_ms=4.20813750e+01 particle_median_ms=6.79635625e+02 ratio=1.61505090e+01

@@ -8,6 +8,7 @@
 #ifndef model_DislocationLoopLink_cpp_
 #define model_DislocationLoopLink_cpp_
 
+#include <limits>
 #include <DislocationLoopLink.h>
 
 namespace model
@@ -26,7 +27,7 @@ namespace model
     template <int dim>
     bool DislocationLoopLink<dim>::hasNetworkLink() const
     {
-        // return !((this->source->get_P()-this->sink->get_P()).squaredNorm()<FLT_EPSILON
+        // return !((this->source->get_P()-this->sink->get_P()).squaredNorm()<std::numeric_limits<float>::epsilon()
         // /*    */ && this->source->periodicPlaneEdge
         // /*    */ &&   this->sink->periodicPlaneEdge
         // /*    */ && this->source->loop()->sID==this->sink->loop()->sID);

@@ -8,7 +8,7 @@
 #ifndef model_PlanePlaneIntersection_H_
 #define model_PlanePlaneIntersection_H_
 
-#include <cfloat>
+#include <limits>
 #include <tuple>
 #include <map>
 #include <Eigen/Dense>
@@ -55,12 +55,12 @@ namespace model
                               const VectorDimD& n1,
                               const VectorDimD& p2,
                               const VectorDimD& n2,
-                               const double& tolerance=FLT_EPSILON);
+                               const double& tolerance=std::numeric_limits<float>::epsilon());
 
         /**********************************************************************/
         PlanePlaneIntersection(const Plane<dim>& plane0,
                               const Plane<dim>& plane1,
-                               const double& tolerance=FLT_EPSILON);
+                               const double& tolerance=std::numeric_limits<float>::epsilon());
         
     };
     

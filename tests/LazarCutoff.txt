@@ -1,0 +1,50 @@
+Lazar short-range cutoff study
+==============================
+Build target: benchmarkLazarCutoff
+Usage: benchmarkLazarCutoff tutorial frame [targets=1024]
+Kokkos OpenMP, 12 threads. Same source/target sampling as the existing Cai/Lazar
+benchmarks. Physical length ell=2, numerical screening length h=8 in Burgers
+units. Source density 0.1, 1024 targets at evenly spaced array indices.
+No neighbor lists: each test still scans all sources and applies a spherical
+particle-distance cutoff. Retained fraction is not a timing speedup.
+No periodic replicas, FEM corrections, external fields, or FMM.
+Production force evaluation is unchanged.
+
+Reference: untruncated short-range particle stress. Truncated total stress is
+short_truncated + long_untruncated; its error equals short_truncated-short_full.
+relative_short = sqrt(sum_target ||error||_F^2 / sum_target ||short_full||_F^2).
+relative_full = sqrt(sum_target ||error||_F^2 / sum_target ||full||_F^2).
+max_absolute = largest target Frobenius error.
+max_over_full_rms = max_absolute / sqrt(sum_target ||full||_F^2 / target_count).
+This last metric is NOT a maximum pointwise relative error.
+All nine matrix entries are included, counting symmetric off-diagonals twice.
+A full=short+long reconstruction check is required before reporting errors.
+
+These measurements isolate particle cutoff error. They do not validate the
+source quadrature density, accuracy for other networks/parameters, or infinite
+periodic-image summation. Provisional cutoff 12h: aggregate error <=1.19e-5,
+max error / full RMS <=1.08e-4, retained pairs 0.0501--0.0690 percent for these
+two frames. No universal error tolerance or production default is set here.
+
+CUTOFF_SETUP frame=0 sources=44160 targets=1024 ell=2.0000000000e+00 h=8.0000000000e+00 full_rms=5.5524286114e-03 split_relative_error=5.1316334568e-15
+CUTOFF frame=0 rc_over_h=2.0000000000e+00 retained=5125 retained_fraction=1.1333520862e-04 relative_short=1.5596788041e-01 relative_full=7.9555282825e-02 rms_absolute=4.4172502855e-04 max_absolute=1.7565906813e-03 max_over_full_rms=3.1636438831e-01
+CUTOFF frame=0 rc_over_h=3.0000000000e+00 retained=7239 retained_fraction=1.6008460003e-04 relative_short=7.8076953769e-02 relative_full=3.9825085285e-02 rms_absolute=2.2112594299e-04 max_absolute=1.0645028391e-03 max_over_full_rms=1.9171841975e-01
+CUTOFF frame=0 rc_over_h=4.0000000000e+00 retained=9389 retained_fraction=2.0763010219e-04 relative_short=3.4369414442e-02 relative_full=1.7530971628e-02 rms_absolute=9.7339468454e-05 max_absolute=9.0850996390e-04 max_over_full_rms=1.6362388920e-01
+CUTOFF frame=0 rc_over_h=5.0000000000e+00 retained=13368 retained_fraction=2.9562245245e-04 relative_short=1.3539534346e-02 relative_full=6.9061750495e-03 rms_absolute=3.8346043940e-05 max_absolute=2.1012680361e-04 max_over_full_rms=3.7844125215e-02
+CUTOFF frame=0 rc_over_h=6.0000000000e+00 retained=15578 retained_fraction=3.4449480582e-04 relative_short=5.7284414972e-03 relative_full=2.9219335561e-03 rms_absolute=1.6223827478e-05 max_absolute=1.5397817615e-04 max_over_full_rms=2.7731680482e-02
+CUTOFF frame=0 rc_over_h=8.0000000000e+00 retained=20028 retained_fraction=4.4290293818e-04 relative_short=1.0468168483e-03 relative_full=5.3395487721e-04 rms_absolute=2.9647463374e-06 max_absolute=2.1689045794e-05 max_over_full_rms=3.9062268625e-03
+CUTOFF frame=0 rc_over_h=1.0000000000e+01 retained=26370 retained_fraction=5.8315111243e-04 relative_short=1.4249774304e-04 relative_full=7.2684505423e-05 rms_absolute=4.0357552752e-07 max_absolute=2.3556219230e-06 max_over_full_rms=4.2425073565e-04
+CUTOFF frame=0 rc_over_h=1.2000000000e+01 retained=31185 retained_fraction=6.8963092306e-04 relative_short=2.3232762379e-05 relative_full=1.1850446239e-05 rms_absolute=6.5798756756e-08 max_absolute=5.9748517447e-07 max_over_full_rms=1.0760789851e-04
+CUTOFF frame=0 rc_over_h=1.6000000000e+01 retained=42921 retained_fraction=9.4916302225e-04 relative_short=5.9803942934e-07 relative_full=3.0504483241e-07 rms_absolute=1.6937396552e-09 max_absolute=1.7079138116e-08 max_over_full_rms=3.0759761740e-06
+CUTOFF frame=0 rc_over_h=2.0000000000e+01 retained=55537 retained_fraction=1.2281556060e-03 relative_short=1.3489138680e-08 relative_full=6.8804694908e-09 rms_absolute=3.8203315660e-11 max_absolute=2.7877408710e-10 max_over_full_rms=5.0207595020e-08
+CUTOFF_SETUP frame=1000 sources=54216 targets=1024 ell=2.0000000000e+00 h=8.0000000000e+00 full_rms=4.8374428385e-03 split_relative_error=8.7869117330e-15
+CUTOFF frame=1000 rc_over_h=2.0000000000e+00 retained=4344 retained_fraction=7.8246043603e-05 relative_short=1.8435779587e-01 relative_full=9.6430307602e-02 rms_absolute=4.6647610092e-04 max_absolute=4.3784613052e-03 max_over_full_rms=9.0511897535e-01
+CUTOFF frame=1000 rc_over_h=3.0000000000e+00 retained=6717 retained_fraction=1.2098956604e-04 relative_short=7.7925128854e-02 relative_full=4.0759568152e-02 rms_absolute=1.9717208106e-04 max_absolute=1.7438605667e-03 max_over_full_rms=3.6049223215e-01
+CUTOFF frame=1000 rc_over_h=4.0000000000e+00 retained=9002 retained_fraction=1.6214799367e-04 relative_short=3.2895428751e-02 relative_full=1.7206304177e-02 rms_absolute=8.3234512917e-05 max_absolute=7.6110756367e-04 max_over_full_rms=1.5733675603e-01
+CUTOFF frame=1000 rc_over_h=5.0000000000e+00 retained=11306 retained_fraction=2.0364865768e-04 relative_short=1.4255878726e-02 relative_full=7.4566891199e-03 rms_absolute=3.6071307382e-05 max_absolute=4.3487576529e-04 max_over_full_rms=8.9897861290e-02
+CUTOFF frame=1000 rc_over_h=6.0000000000e+00 retained=13602 retained_fraction=2.4500522217e-04 relative_short=5.5542716311e-03 relative_full=2.9052209013e-03 rms_absolute=1.4053840043e-05 max_absolute=1.0049494970e-04 max_over_full_rms=2.0774395287e-02
+CUTOFF frame=1000 rc_over_h=8.0000000000e+00 retained=18275 retained_fraction=3.2917735885e-04 relative_short=8.6657407704e-04 relative_full=4.5327079559e-04 rms_absolute=2.1926715640e-06 max_absolute=2.6860498766e-05 max_over_full_rms=5.5526234962e-03
+CUTOFF frame=1000 rc_over_h=1.0000000000e+01 retained=22968 retained_fraction=4.1370974436e-04 relative_short=1.3674248478e-04 relative_full=7.1524612273e-05 rms_absolute=3.4599622341e-07 max_absolute=3.3479069190e-06 max_over_full_rms=6.9208195958e-04
+CUTOFF frame=1000 rc_over_h=1.2000000000e+01 retained=27801 retained_fraction=5.0076387160e-04 relative_short=2.1736143102e-05 relative_full=1.1369321029e-05 rms_absolute=5.4998440588e-08 max_absolute=4.0339228436e-07 max_over_full_rms=8.3389571273e-05
+CUTOFF frame=1000 rc_over_h=1.6000000000e+01 retained=37864 retained_fraction=6.8202306515e-04 relative_short=4.9929668002e-07 relative_full=2.6116244345e-07 rms_absolute=1.2633583917e-09 max_absolute=1.3176892335e-08 max_over_full_rms=2.7239375792e-06
+CUTOFF frame=1000 rc_over_h=2.0000000000e+01 retained=48379 retained_fraction=8.7142388202e-04 relative_short=1.1518181490e-08 relative_full=6.0247074382e-09 rms_absolute=2.9144177851e-11 max_absolute=2.7697457880e-10 max_over_full_rms=5.7256403446e-08

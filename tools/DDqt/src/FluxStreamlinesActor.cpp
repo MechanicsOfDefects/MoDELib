@@ -7,6 +7,8 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <limits>
+#include <cstdint>
+#include <tuple>
 #include <QDoubleSpinBox>
 #include <QSpinBox>
 #include <QPushButton>
@@ -70,7 +72,7 @@ namespace model
             controls::field(grid,row,label,edit,help);
             return edit;
         };
-        spacing=number(3,"Seed spacing [b]",100,"Spacing along each nonzero-Burgers segment. Four offset seeds surround each sample.");
+        spacing=number(3,"Seed spacing [b]",100,"Initial spacing around each loop. Sample counts and fractional arc positions persist across frames; changing spacing resets them. Four offset seeds surround each sample.");
         offset=number(4,"Seed offset [b]",10,"Radial distance from the dislocation chord. Seeds outside the mesh are skipped. Use an offset larger than the core width.");
         step=number(5,"Step length [b]",10,"Maximum arclength step. Reduce to check trajectory convergence; tetrahedron faces are crossed through mesh connectivity.");
         length=number(6,"Trace length [b]",1000,"Maximum length per seed and tracing direction, including periodic wraps.");
@@ -164,6 +166,16 @@ namespace model
         data->Modified();
     }
 
+    void FluxStreamlinesActor::updateFrame(size_t frame)
+    {
+        frameID=frame;
+        invalidate();
+        if(group->isChecked())
+        {
+            compute();
+        }
+    }
+
     void FluxStreamlinesActor::invalidate()
     {
         data->Initialize();
@@ -236,25 +248,58 @@ namespace model
                 }
                 return sample;
             };
-            struct Segment { Eigen::Vector3d a,b; size_t count; };
-            std::vector<Segment> segments;
-            size_t total=0;
-            for(const auto& entry : dn->networkLinks())
+            struct Candidate
             {
-                const auto owned=entry.second.lock();
-                if(!owned)
+                uint64_t priority;
+                size_t loop,id;
+                Eigen::Vector3d position;
+            };
+            std::vector<Candidate> candidates;
+            const auto hash=[](uint64_t value)
+            {
+                value+=0x9e3779b97f4a7c15ULL;
+                value=(value^(value>>30))*0xbf58476d1ce4e5b9ULL;
+                value=(value^(value>>27))*0x94d049bb133111ebULL;
+                return value^(value>>31);
+            };
+            for(const auto& entry:dn->loops())
+            {
+                const auto loop=entry.second.lock();
+                if(!loop)
                 {
                     continue;
                 }
-                const auto& link=*owned;
-                const Eigen::Vector3d a=link.source->get_P(),b=link.sink->get_P();
-                if(link.burgers().squaredNorm()>0.0 && (b-a).norm()>0.0)
+                std::vector<LoopSeedNode> contour;
+                for(const auto* link:loop->linkSequence())
                 {
-                    const size_t count=static_cast<size_t>(std::min(1.e6,std::max(1.0,std::ceil((b-a).norm()/spacing->value()))));
-                    segments.push_back({a,b,count});
-                    total+=4*count;
+                    const auto networkLink=link->networkLink();
+                    bool owner=networkLink && !networkLink->hasZeroBurgers();
+                    if(networkLink)
+                    {
+                        for(const auto* shared:networkLink->loopLinks())
+                        {
+                            if(shared->loop->sID<loop->sID)
+                            {
+                                owner=false;
+                            }
+                        }
+                    }
+                    const Eigen::Vector3d position=link->source->get_P();
+                    contour.push_back({link->source->sID,position,
+                        link->source->networkNode->get_P()-position,owner});
+                }
+                const auto loopSeeds=seedTracker.seeds(frameID,loop->sID,contour,
+                    loop->rightHandedUnitNormal(),spacing->value(),offset->value());
+                for(const auto& seed:loopSeeds)
+                {
+                    candidates.push_back({hash(hash(loop->sID)^seed.first),loop->sID,seed.first,seed.second});
                 }
             }
+            std::sort(candidates.begin(),candidates.end(),[](const Candidate& a,const Candidate& b)
+            {
+                return std::tie(a.priority,a.loop,a.id)<std::tie(b.priority,b.loop,b.id);
+            });
+            const size_t total=candidates.size();
             const size_t used=std::min(total,static_cast<size_t>(seedLimit->value()));
             auto points=vtkSmartPointer<vtkPoints>::New();
             points->SetDataTypeToDouble();
@@ -277,22 +322,9 @@ namespace model
             };
             std::vector<TraceJob> jobs;
             jobs.reserve(2*used);
-            size_t segmentID=0,base=0;
             for(size_t seed=0;seed<used;++seed)
             {
-                const size_t index=static_cast<size_t>((static_cast<long double>(seed)+0.5L)*total/used);
-                while(index>=base+4*segments[segmentID].count)
-                {
-                    base+=4*segments[segmentID].count;
-                    ++segmentID;
-                }
-                const auto& segment=segments[segmentID];
-                const size_t local=index-base;
-                const Eigen::Vector3d tangent=(segment.b-segment.a).normalized();
-                const Eigen::Vector3d u=tangent.unitOrthogonal(),v=tangent.cross(u);
-                const double angle=(seed%4)*1.5707963267948966;
-                const Eigen::Vector3d x=segment.a+(double(local/4)+0.5)/segment.count*(segment.b-segment.a)+
-                    offset->value()*(std::cos(angle)*u+std::sin(angle)*v);
+                const Eigen::Vector3d x=candidates[seed].position;
                 for(const int sign : {1,-1})
                 {
                     if((direction->currentIndex()==0 && sign<0) || (direction->currentIndex()==1 && sign>0))
@@ -358,7 +390,7 @@ namespace model
             updateColors();
             actor->GetProperty()->SetLineWidth(width->value());
             actor->SetVisibility(lines->GetNumberOfCells()>0);
-            status->setText(QString("%1 / %2 seeds; %3 trace pieces. %4 range: %5 to %6. Click Compute again after changing settings or frames.")
+            status->setText(QString("%1 / %2 seeds; %3 trace pieces. %4 range: %5 to %6. Settings apply with Compute; enabled traces update with frames.")
                 .arg(used).arg(total).arg(lines->GetNumberOfCells()).arg("Flux magnitude")
                 .arg(range[0],0,'g',4).arg(range[1],0,'g',4));
         }

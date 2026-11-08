@@ -14,6 +14,7 @@
 //#include <SimpleNullSpaceSolver.h>
 //#include <FixedDirichletSolver.h>
 //#include <DefectiveCrystal/UniformController.h>
+#include <limits>
 #include <Eigen/Dense>
 #include <EvalFunction.h>
 #include <ClusterDynamics/ClusterDynamicsParameters.h>
@@ -56,7 +57,7 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
 //        Eigen::Array<double,1,mSize> rn(Eigen::Array<double,1,mSize>::Zero());
 //        for(int k=0;k<mSize;k++)
 //        {
-//            if(fabs(cdp.msVector(k)-1)<FLT_EPSILON || fabs(cdp.msVector(k)+1)<FLT_EPSILON)
+//            if(fabs(cdp.msVector(k)-1)<std::numeric_limits<float>::epsilon() || fabs(cdp.msVector(k)+1)<std::numeric_limits<float>::epsilon())
 //            {
 //                rn(k)=pow(3.0*cdp.omega/4.0/M_PI,1.0/3.0);
 //            }
@@ -86,7 +87,7 @@ struct SecondOrderReaction : public EvalFunction<SecondOrderReaction<TrialFuncti
 //                            tempR2[k](key.second,key.first)  -= pair.second*M_PI*M_PI*pow(rn(key.second),4.0)*(Dlocal[key.second](0,0))/cdp.omega/cdp.omega*cin(key.first);
 //                        }
 //                    }
-//                    else if( fabs(cdp.msVector(key.first)+cdp.msVector(key.second)-cdp.msVector(k))<FLT_EPSILON )
+//                    else if( fabs(cdp.msVector(key.first)+cdp.msVector(key.second)-cdp.msVector(k))<std::numeric_limits<float>::epsilon() )
 //                    {// (key.first, key.second) generate k_specie
 //                        if( cdp.msVector(key.second)>1.0 )
 //                        { // 3D mobile + 1D immobile

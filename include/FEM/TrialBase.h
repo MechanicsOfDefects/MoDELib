@@ -12,7 +12,7 @@
 
 #include <type_traits>
 #include <map>
-#include <cfloat>
+#include <limits>
 #include <Eigen/Dense>
 #include <TypeTraits.h>
 #include <TerminalColors.h>
@@ -221,7 +221,7 @@ namespace model
                         {
                             const auto temp=state->conditions.emplace(dofPerNode*(pNode->gID)+dof,value(dof));
 
-                            if(!(temp.second || std::abs(temp.first->second-value(dof))<FLT_EPSILON ))
+                            if(!(temp.second || std::abs(temp.first->second-value(dof))<std::numeric_limits<float>::epsilon() ))
                             {
                                 std::cout<<"FEM node "<<pNode->gID<<", dof "<<dof<<std::endl;
                                 std::cout<<"exising dirichlet-condition= "<<temp.first->second<<std::endl;

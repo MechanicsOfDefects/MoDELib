@@ -8,7 +8,7 @@
 #ifndef model_LatticeVector_h_
 #define model_LatticeVector_h_
 
-#include <cfloat> // FLT_EPSILON
+#include <limits>
 #include <Eigen/Dense>
 #include <Lattice.h>
 #include <ReciprocalLatticeVector.h>
@@ -30,7 +30,7 @@ namespace model
         BaseType& base();
         const BaseType& base() const;
  
-        static constexpr double roundTol=FLT_EPSILON;
+        static constexpr double roundTol=std::numeric_limits<float>::epsilon();
         typedef Eigen::Matrix<  double,dim,1> VectorDimD;
         typedef Eigen::Matrix<long int,dim,1> VectorDimI;
         typedef Eigen::Matrix<double,dim,dim> MatrixDimD;

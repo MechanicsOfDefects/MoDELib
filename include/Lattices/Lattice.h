@@ -8,8 +8,8 @@
 #ifndef model_Lattice_h_
 #define model_Lattice_h_
 
-#include <iomanip> // FLT_EPSILON
-#include <cfloat> // FLT_EPSILON
+#include <iomanip> // std::numeric_limits<float>::epsilon()
+#include <limits>
 #include <Eigen/Dense>
 #include <StaticID.h>
 #include <LatticeVector.h>
@@ -28,7 +28,7 @@ namespace model
     {
         
     public:
-        static constexpr double roundTol=FLT_EPSILON;
+        static constexpr double roundTol=std::numeric_limits<float>::epsilon();
         typedef Eigen::Matrix<  double,dim,1> VectorDimD;
         typedef Eigen::Matrix<long int,dim,1> VectorDimI;
         typedef Eigen::Matrix<double,dim,dim> MatrixDimD;

@@ -9,6 +9,8 @@
 #   USE_PYBIND11        ON/OFF  build pyMoDELib and the Python solver hooks (needs Python 3 and pybind11)
 #   BUILD_TOOLS         ON/OFF  build DDomp, microstructureGenerator, DDqt and pyMoDELib
 #   BUILD_DDQT          ON/OFF  build the DDqt viewer (needs Qt 6 and VTK)
+#   MODELIB_ENABLE_KOKKOS ON/OFF build the portable field backend (Kokkos 4.7 or 5.x)
+#   Kokkos_ROOT        optional Kokkos installation prefix (or use CMAKE_PREFIX_PATH)
 #   MODELIB_MARCH       value of -march, "native" by default; use e.g. x86-64-v2 for portable binaries
 #   MODELIB_CD_MSIZE    number of mobile cluster-dynamics species (4 by default)
 #   MODELIB_CD_ISIZE    number of immobile cluster-dynamics fields (8 by default, 0 for none)
@@ -28,6 +30,39 @@ project(MoDELib VERSION 2.0.0 LANGUAGES C CXX)
 option(USE_PYBIND11 "enables pybind11" ON)
 option(BUILD_TOOLS "builds tools" ON)
 option(BUILD_TESTS "builds tests" ON)
+option(MODELIB_ENABLE_KOKKOS "build optional portable field-evaluation backend" ON)
+if(MODELIB_ENABLE_KOKKOS)
+    # Use platform-independent CMake package discovery, including
+    # Kokkos_ROOT, Kokkos_DIR and CMAKE_PREFIX_PATH. Do not download dependencies.
+    # Check the version explicitly: a request for major 4 can reject major 5
+    # with Kokkos's same-major package compatibility policy.
+    find_package(Kokkos CONFIG REQUIRED)
+    # Some Apple Kokkos packages export the build SDK's C headers through
+    # LIBDL. Explicitly adding them precedes compiler wrappers (stddef.h etc.)
+    # and can mix SDKs. The selected sysroot already supplies these headers.
+    if(APPLE AND TARGET Kokkos::LIBDL)
+        foreach(_modelib_include_property INTERFACE_INCLUDE_DIRECTORIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES)
+            get_target_property(_modelib_dl_includes Kokkos::LIBDL ${_modelib_include_property})
+            if(_modelib_dl_includes)
+                list(FILTER _modelib_dl_includes EXCLUDE REGEX "MacOSX[^/]*\\.sdk/usr/include/?$")
+                set_property(TARGET Kokkos::LIBDL PROPERTY ${_modelib_include_property} "${_modelib_dl_includes}")
+            endif()
+        endforeach()
+        unset(_modelib_include_property)
+        unset(_modelib_dl_includes)
+    endif()
+    if(NOT DEFINED Kokkos_VERSION OR Kokkos_VERSION VERSION_LESS "4.7" OR
+       NOT Kokkos_VERSION VERSION_LESS "6.0")
+        message(FATAL_ERROR "MoDELib requires Kokkos 4.7 or 5.x; found '${Kokkos_VERSION}'")
+    endif()
+    message(STATUS "MoDELib Kokkos: ${Kokkos_VERSION} (${Kokkos_DIR})")
+    # Keep accelerator dependencies out of the topology library and its clients.
+    add_library(MoDELibKokkos INTERFACE)
+    add_library(MoDELib::Kokkos ALIAS MoDELibKokkos)
+    target_include_directories(MoDELibKokkos INTERFACE "${PROJECT_SOURCE_DIR}/include")
+    target_link_libraries(MoDELibKokkos INTERFACE Kokkos::kokkos)
+    target_compile_features(MoDELibKokkos INTERFACE cxx_std_20)
+endif()
 option(MODELIB_ENABLE_ASSERTIONS "keep assertions enabled, including optimized builds" OFF)
 if(MODELIB_ENABLE_ASSERTIONS)
     if(MSVC)

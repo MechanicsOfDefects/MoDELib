@@ -1,3 +1,4 @@
+#include <limits>
 #include <DislocationNetwork.h>
 #include <DislocationQuadraturePoint.h>
 #include <DefectiveCrystal/DefectiveCrystalConfigIO.h>
@@ -24,7 +25,7 @@ template<short unsigned int dim>
     DislocationLoopIO<dim>::DislocationLoopIO(const DislocationLoop<dim>& dL) :
         /* init */ sID(dL.sID)
         /* init */,B(dL.flow().cartesian())
-        /* init */,N(dL.glidePlane? (dL.slippedArea()>FLT_EPSILON? dL.rightHandedUnitNormal() : dL.glidePlane->unitNormal) : VectorDim::Zero())
+        /* init */,N(dL.glidePlane? (dL.slippedArea()>std::numeric_limits<float>::epsilon()? dL.rightHandedUnitNormal() : dL.glidePlane->unitNormal) : VectorDim::Zero())
         /* init */,P(dL.glidePlane? dL.glidePlane->P : (*dL.loopLinks().begin())->source->get_P() )
         /* init */,grainID(dL.grain.grainID)
         /* init */,loopType(dL.loopType)

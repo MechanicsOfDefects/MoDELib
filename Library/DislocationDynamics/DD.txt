@@ -83,3 +83,12 @@ verboseNodeContraction=0;
 verboseCrossSlip=0;
 outputSegmentPairDistances=0;
 outputDislocationStiffnessAndForce=0;
+
+# DD multipole settings (shared by stress and climb). Physical width is coreSize above.
+ewaldWidthFactor=.125; # ewaldFMM only: h = smallest leaf width * factor; 0 < factor < 1, h >=4*coreSize
+ewaldSegmentChebyshevOrder=8; # ewaldFMM short segment stress: coefficients per coordinate (4..16)
+ewaldSegmentTableResolution=64; # patches per coordinate (4..256)
+fmmSourcePointsPerLength=0.2; # both FMM modes: source quadrature density in 1/b
+climbPreconditionerCutoff=64; # plain FMM only: diffusion-metric local preconditioner radius, not an operator cutoff
+
+coreType=Helmholtz; # Physical core for all DD fields: Cai or Helmholtz; ewaldFMM requires Helmholtz

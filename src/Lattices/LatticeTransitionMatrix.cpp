@@ -7,8 +7,9 @@
 
 #ifndef model_LatticeTransitionMatrix_cpp_
 #define model_LatticeTransitionMatrix_cpp_
+#include <limits>
 #include <LatticeModule.h>
-#include <LatticeTransitionMatrix.h> // FLT_EPSILON
+#include <LatticeTransitionMatrix.h> // std::numeric_limits<float>::epsilon()
 
 namespace model
 {
@@ -34,17 +35,17 @@ namespace model
         // Check that R is a proper rotation
         const MatrixDimD RRT = R * R.transpose();
         const double RRTmInorm = (RRT - Eigen::Matrix<double, dim, dim>::Identity()).norm() / Eigen::Matrix<double, dim, dim>::Identity().norm();
-        if (RRTmInorm > FLT_EPSILON)
+        if (RRTmInorm > std::numeric_limits<float>::epsilon())
         {
             std::cout << "R=" << std::endl
                       << R << std::endl;
             std::cout << "R*R^T=" << std::endl
                       << RRT << std::endl;
-            std::cout << "norm(R*R^T-I)/norm(I)=" << RRTmInorm << ", tol=" << FLT_EPSILON << std::endl;
+            std::cout << "norm(R*R^T-I)/norm(I)=" << RRTmInorm << ", tol=" << std::numeric_limits<float>::epsilon() << std::endl;
             assert(0 && "R IS NOT ORTHOGONAL.");
         }
         // make sure that C2G is proper
-        assert(std::fabs(R.determinant() - 1.0) < FLT_EPSILON && "R IS NOT PROPER.");
+        assert(std::fabs(R.determinant() - 1.0) < std::numeric_limits<float>::epsilon() && "R IS NOT PROPER.");
 
         // Compute the transition matrix T=inv(A)*B
         const MatrixDimD T = A.reciprocalBasis.transpose() * B.latticeBasis;

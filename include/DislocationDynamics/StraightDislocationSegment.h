@@ -13,11 +13,15 @@
 #endif
 
 #include <Eigen/Dense>
+#include <memory>
+#include <DislocationDynamics/CoreType.h>
+#include <DislocationDynamics/StraightDislocationSegmentBase.h>
 #include <PolycrystallineMaterialBase.h>
 #include <DislocationDynamics/DislocationFieldBase.h>
 
 namespace model
 {
+    namespace helmholtzSegment { class Evaluator; }
     
     
     template <int dim>
@@ -27,9 +31,22 @@ namespace model
         typedef Eigen::Matrix<Scalar,dim,dim> MatrixDim;
         typedef Eigen::Matrix<Scalar,dim,1>   VectorDim;
         
-        MatrixDim nonSymmStress_kernel(const VectorDim& r) const;
-        VectorDim displacement_kernel(const VectorDim& r) const;
-        double elasticInteractionEnergy_kernel(const VectorDim& z,const VectorDim& tA,const VectorDim& bA) const;
+        // Owned snapshots share immutable geometry so copies retain valid references.
+        struct Geometry
+        {
+            VectorDim p0,p1,burgers,tangent;
+            double length;
+            Geometry(const VectorDim& start,const VectorDim& end,const VectorDim& burgersIn)
+                : p0(start),p1(end),burgers(burgersIn),tangent(VectorDim::Zero()),length((end-start).norm())
+            {
+                if(length>0)
+                {
+                    tangent=(end-start)/length;
+                }
+            }
+        };
+        std::shared_ptr<const Geometry> ownedGeometry;
+
         
     public:
         
@@ -39,25 +56,32 @@ namespace model
         const VectorDim& b;
         const double& length;
         const VectorDim& t;
-        const double& EwaldLength;
         
     private:
 
         VectorDim bCt;
+        std::shared_ptr<const StraightDislocationSegmentBase> core_;
         
     public:
 
+        // Standalone snapshot (geometry owned); material must outlive the segment.
+        StraightDislocationSegment(const PolycrystallineMaterialBase& mat,
+                                   const VectorDim& start,const VectorDim& end,const VectorDim& burgers);
+
+        // Live network view; updateGeometry() refreshes cached products after motion.
         StraightDislocationSegment(const PolycrystallineMaterialBase& mat,
                                    const VectorDim& _P0,
                                    const VectorDim& _P1,
                                    const VectorDim& _b,
                                    const double& _length,
-                                   const VectorDim& _t,
-                                   const double& EwaldLength_in);
+                                   const VectorDim& _t);
 
+        void setCore(CoreType core,int order,int resolution,double maxDistance,bool ewald=false,double ewaldWidth=0);
+        const StraightDislocationSegmentBase& core() const { return *core_; }
         void updateGeometry();
-        MatrixDim nonSymmStress(const VectorDim& x) const;
         MatrixDim stress(const VectorDim& x) const;
+        // The supplied evaluator selects full/screened Helmholtz and shares cached tables.
+        MatrixDim stress(const VectorDim& x,const helmholtzSegment::Evaluator& kernel) const;
         VectorDim displacement(const VectorDim& x) const;        
         double elasticInteractionEnergy(const VectorDim& xA,const VectorDim& tA,const VectorDim& bA) const;
         

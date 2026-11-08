@@ -9,6 +9,7 @@
 #ifndef model_CubicFluoriteCrystal_cpp_
 #define model_CubicFluoriteCrystal_cpp_
 
+#include <limits>
 #include <CubicFluoriteCrystal.h>
 #include <DislocationMobilitySelector.h>
 #include <GlidePlaneNoise.h>
@@ -98,7 +99,7 @@ typename CubicFluoriteCrystal<3>::SlipSystemContainerType CubicFluoriteCrystal<3
         const double d111(lat.reciprocalLatticeDirection(lat.C2G*(VectorDimD()<<1.0,1.0,1.0).finished()).planeSpacing());
         for(const auto& planeBase : plN)
         {
-            if(std::fabs(planeBase.second->planeSpacing()-d111)<FLT_EPSILON)
+            if(std::fabs(planeBase.second->planeSpacing()-d111)<std::numeric_limits<float>::epsilon())
             {// a {111} plane
                 const auto& a1(planeBase.second->primitiveVectors.first);
                 const auto& a3(planeBase.second->primitiveVectors.second);
@@ -131,7 +132,7 @@ typename CubicFluoriteCrystal<3>::SlipSystemContainerType CubicFluoriteCrystal<3
         const double d110(lat.reciprocalLatticeDirection(lat.C2G*(VectorDimD()<<1.0,1.0,0.0).finished()).planeSpacing());
         for(const auto& planeBase : plN)
         {
-            if(std::fabs(planeBase.second->planeSpacing()-d110)<FLT_EPSILON)
+            if(std::fabs(planeBase.second->planeSpacing()-d110)<std::numeric_limits<float>::epsilon())
             {// a {111} plane
                 const auto b1(planeBase.second->primitiveVectors.first);
                 
@@ -154,7 +155,7 @@ typename CubicFluoriteCrystal<3>::SlipSystemContainerType CubicFluoriteCrystal<3
         const double d100(lat.reciprocalLatticeDirection(lat.C2G*(VectorDimD()<<1.0,0.0,0.0).finished()).planeSpacing());
         for(const auto& planeBase : plN)
         {
-            if(std::fabs(planeBase.second->planeSpacing()-d100)<FLT_EPSILON)
+            if(std::fabs(planeBase.second->planeSpacing()-d100)<std::numeric_limits<float>::epsilon())
             {// a {111} plane
                 const auto& b1(planeBase.second->primitiveVectors.first);
                 const auto& b2(planeBase.second->primitiveVectors.second);
@@ -175,7 +176,7 @@ typename CubicFluoriteCrystal<3>::SlipSystemContainerType CubicFluoriteCrystal<3
     
 //    for(const auto& planeBase : plN)
 //    {
-//        if(std::fabs(planeBase.second->planeSpacing()-d111)<FLT_EPSILON)
+//        if(std::fabs(planeBase.second->planeSpacing()-d111)<std::numeric_limits<float>::epsilon())
 //        {// a {111} plane
 //            const auto& a1(planeBase.second->primitiveVectors.first);
 //            const auto& a3(planeBase.second->primitiveVectors.second);
@@ -203,7 +204,7 @@ typename CubicFluoriteCrystal<3>::SlipSystemContainerType CubicFluoriteCrystal<3
 //            }
 //        }
 //        
-//        if(std::fabs(planeBase.second->planeSpacing()-d110)<FLT_EPSILON)
+//        if(std::fabs(planeBase.second->planeSpacing()-d110)<std::numeric_limits<float>::epsilon())
 //        {// a {110} plane
 //            const auto& a1(planeBase.second->primitiveVectors.first);
 //            const auto b1(a1);
@@ -223,7 +224,7 @@ typename CubicFluoriteCrystal<3>::SlipSystemContainerType CubicFluoriteCrystal<3
 //            }
 //        }
 //        
-//        if(std::fabs(planeBase.second->planeSpacing()-d100)<FLT_EPSILON)
+//        if(std::fabs(planeBase.second->planeSpacing()-d100)<std::numeric_limits<float>::epsilon())
 //        {// a {100} plane
 //            const auto& a1(planeBase.second->primitiveVectors.first);
 //            const auto& a2(planeBase.second->primitiveVectors.second);

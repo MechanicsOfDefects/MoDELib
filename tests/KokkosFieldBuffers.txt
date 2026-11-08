@@ -1,0 +1,49 @@
+Portable field-evaluator backend
+================================
+The optional MoDELib::Kokkos target provides Kokkos 4.7 or 5.x (C++20) headers and linkage.
+It does not change the topology library, DDomp, DDqt, or force evaluation yet.
+KokkosDislocationFieldBuffers uses double precision. It is a transport/storage
+layer, not an implemented elastic or FMM kernel.
+
+Install Kokkos using your system package manager or build it with the desired
+execution backend. Standard CMake package discovery is used on all platforms.
+If Kokkos is in a standard search prefix:
+  cmake -S . -B build -DMODELIB_ENABLE_KOKKOS=ON
+For a custom installation:
+  cmake -S . -B build -DMODELIB_ENABLE_KOKKOS=ON -DKokkos_ROOT=/path/to/kokkos/install
+Alternatively set CMAKE_PREFIX_PATH to the installation prefix or Kokkos_DIR to
+the directory containing KokkosConfig.cmake. No package-manager-specific paths
+are hardcoded. Remove stale cached paths when switching installations.
+
+  cmake --build build --target testKokkosDislocationFieldBuffers
+  ctest --test-dir build -R kokkosDislocationFieldBuffers --output-on-failure
+
+Tested dependency: Kokkos 5.2.2, OpenMP and Serial, MacPorts Clang 20.
+Kokkos 4.7 is accepted; validation against MacPorts awaits its installation.
+Select CUDA, HIP, or SYCL when building Kokkos; use its required compiler/toolchain
+for the consuming target too. GPU execution has not been validated on this Mac.
+No dependency downloads or global installation occur during MoDELib configuration.
+MODELIB_ENABLE_KOKKOS defaults to ON. Set it to OFF explicitly for builds
+without Kokkos. Existing CMake caches retain their previously selected value.
+
+Application lifetime:
+  Kokkos::ScopeGuard runtime(argc, argv);
+  // Construct buffers after runtime; destroy them before runtime leaves scope.
+  model::KokkosDislocationFieldBuffers<3> buffers;
+  buffers.uploadSources(cpu.sources());
+  buffers.uploadTargets(cpu.targets());
+  // Launch kernels on buffers.executionSpace(), using active counts.
+  // Input views are read-only. stresses() is the output view.
+  buffers.downloadStresses(results);
+
+The library never initializes/finalizes a runtime owned by an embedding caller.
+Views include spare capacity: only sourceCount()/targetCount() entries are active.
+Do not retain views across buffer growth, and use the supplied execution space
+(or explicitly synchronize external work) before uploads/downloads. Uploads and
+downloads are blocking at the host boundary; device kernels can be chained on
+that execution space without intermediate host fences. Source updates are
+separate from target updates, so target-only batches reuse resident sources.
+Each update clears active results. CPU topology/bindings remain in the CPU
+snapshot and are never copied to the device. Results correspond to target order.
+LayoutLeft provides contiguous points within each tensor/vector component.
+Capacity grows geometrically and is retained for smaller and empty snapshots.

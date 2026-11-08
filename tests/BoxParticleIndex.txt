@@ -1,0 +1,61 @@
+Box particle assignment
+=======================
+BoxParticleIndex<dim> builds separate CSR-style source and target indices.
+Offsets delimit ranges in permutation; entries are ORIGINAL point indices.
+Leaf numbers match BoxTree::boxes(tree.depth()). Original arrays, ownership,
+Burgers tensors and target scatter bindings are unchanged. Counting-sort order
+within each leaf is stable. Cost is O(sources + targets + leaves).
+
+Input is component arrays of positions (std::array<std::vector<double>,dim>).
+Cells are half-open, with the root upper boundary included in the final cell,
+matching BoxTree::locate. Nonfinite/outside points are rejected, not wrapped:
+periodic replicas will need explicit image shifts in future interaction lists.
+Failed rebuilds preserve the previous index. matches(tree) checks tree identity
+and revision; callers MUST rebuild after changing point positions/order/count,
+even if the tree itself did not change. The tree must outlive its host index.
+
+KokkosBoxParticleIndex uploads offsets and original point indices. Views are
+read-only to callers. Application owns Kokkos initialization. This version
+assigns on the host; upload allocates device index storage on every call.
+There are no force kernels, interaction lists, or production force changes.
+
+Build: cmake --build build --target testBoxParticleIndex benchmarkDislocationLeafAssignment -j4
+Test: ctest --test-dir build -R '^boxParticleIndex$' --output-on-failure
+Benchmark: OMP_NUM_THREADS=12 OMP_PROC_BIND=false build/tests/benchmarkDislocationLeafAssignment tutorials/polycrystal 0 30
+Arguments: tutorial folder, saved frame, optional repeat count (default 20).
+Benchmark loads but does not advance or write the simulation. Both sampling
+and assignment are repeated; assignment verifies every point against locate.
+Input fmmTreeDepth must be in inputFiles/DefectiveCrystal.txt.
+
+Measured 2026-10-31, Apple M2 Max, Clang 20 -O3, Kokkos 4.7 OpenMP, 12 threads.
+Assignment is serial; upload is to host execution-space memory, NOT a GPU.
+Depth 2 (64 leaves), quadPerLength=0.1, 30 repeats; milliseconds per rebuild:
+Frame  Links Sources Targets Sampling Assignment Upload(points+indices)
+0      2070  44160   44160   5.604    1.507      0.778
+1000   5569  54216   50342   6.835    1.777      0.815
+First assignment: 1.471 / 1.831 ms. First upload: 1.855 / 2.026 ms.
+Mesh/configuration loading and one-time tree construction are excluded.
+Tutorial input was copied to a temporary folder and fmmTreeDepth=2 added to
+DefectiveCrystal.txt, since the saved tutorial still has it only in DD.txt.
+Original tutorial settings/configuration files were not changed.
+
+Network-owned evaluator
+=======================
+DislocationNetwork<dim>::fieldEvaluator owns a DislocationFieldEvaluator<dim>.
+Its implementation is split into .h/.cpp with explicit dimension-3 instantiation.
+The evaluator shares the FMMContext tree and owns the CPU buffers, leaf index,
+and lazy Kokkos storage behind an implementation pointer. No Kokkos headers or
+initialization are required to construct a network. Application code must own
+Kokkos initialization if upload() is used and destroy the network or call
+releaseDevice() before Kokkos finalization.
+
+Call fieldEvaluator.rebuild(sourceDensity,targetDensity,purpose) after geometry
+updates and before consuming the snapshot. This samples unique network links
+and builds both indices transactionally, returning separate phase timings.
+A successful rebuild discards stale device data; a failed rebuild retains the
+old snapshot. Tree changes invalidate leafIndex()/upload(). Geometry changes
+require an explicit rebuild; snapshots do not track arbitrary node edits.
+buffers()/leafIndex() are const accessors. clear() drops the snapshot/device.
+With Kokkos disabled, host rebuilds still work and upload() reports an error.
+The benchmark now uses this network-owned evaluator. No production force solve
+calls the evaluator yet; kernels and result scattering remain future work.

@@ -18,6 +18,7 @@
 // https://www.codeproject.com/Articles/48575/How-to-Define-a-Template-Class-in-a-h-File-and-Imp
 
 #ifdef _OPENMP
+#include <DislocationDynamics/DislocationMultipoleSettings.h>
 #include <optional>
 #include <omp.h>
 #endif
@@ -70,6 +71,8 @@
 #else
 #define VerboseDislocationNetwork(N,x)
 #endif
+
+#include <DislocationDynamics/DislocationFieldEvaluator.h>
 
 namespace model
 {
@@ -125,6 +128,11 @@ namespace model
     public:
 
         DefectiveCrystalBase<dim>& ddBase;
+        const DislocationMultipoleSettings multipoleSettings;
+        DislocationFieldEvaluator<dim> fieldEvaluator;
+        mutable SegmentSplitCache segmentSplitCache;
+        std::shared_ptr<const SegmentSplitSnapshot> segmentSplits() const;
+        void prepareFMMStress();
         DislocationNetworkRemesh<dim> networkRemesher;
         DislocationJunctionFormation<dim> junctionsMaker;
         const std::shared_ptr<BaseCrossSlipModel<dim>> crossSlipModel;

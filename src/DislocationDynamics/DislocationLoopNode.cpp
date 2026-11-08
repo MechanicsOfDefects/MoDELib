@@ -8,6 +8,7 @@
 #ifndef model_DislocationLoopNode_cpp_
 #define model_DislocationLoopNode_cpp_
 
+#include <limits>
 #include <DislocationLoopNode.h>
 
 namespace model
@@ -170,8 +171,8 @@ namespace model
         {
             SegmentSegmentDistance<3> ssd(periodicPlaneEdge.first->meshIntersection->P0,periodicPlaneEdge.first->meshIntersection->P1,
             periodicPlaneEdge.second->meshIntersection->P0,periodicPlaneEdge.second->meshIntersection->P1);
-            assert(ssd.dMin<FLT_EPSILON &&  "The two periodic plane edges must intersect");
-            assert((periodicPlaneEdge.first->patch->shift-periodicPlaneEdge.second->patch->shift).norm()<FLT_EPSILON && "Two patch shifts must match ");
+            assert(ssd.dMin<std::numeric_limits<float>::epsilon() &&  "The two periodic plane edges must intersect");
+            assert((periodicPlaneEdge.first->patch->shift-periodicPlaneEdge.second->patch->shift).norm()<std::numeric_limits<float>::epsilon() && "Two patch shifts must match ");
             localPosition=0.5 * (ssd.x0 + ssd.x1);
         }
         globalPosition = localPosition - periodicPlaneEdge.first->patch->shift;
@@ -286,7 +287,7 @@ namespace model
 
                 return deltaArea / loopArea < relAreaTh;
             }
-            else if (loopArea > FLT_EPSILON && loopAreaRate < 0.0)
+            else if (loopArea > std::numeric_limits<float>::epsilon() && loopAreaRate < 0.0)
             {
                 VerboseDislocationLoopNode(2, "  DislocationLoopNode " << this->tag() << " removable (small loop)" << std::endl;);
                 return true;
@@ -448,7 +449,7 @@ namespace model
         
         if(periodicPlaneEdge.first)
         {
-            isMovable=(isMovable && ((X-this->get_P()).squaredNorm()<FLT_EPSILON));
+            isMovable=(isMovable && ((X-this->get_P()).squaredNorm()<std::numeric_limits<float>::epsilon()));
         }
         
         if(isMovable && this->loop()->glidePlane)

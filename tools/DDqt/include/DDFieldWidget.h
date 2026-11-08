@@ -220,6 +220,7 @@ namespace model
 
    public slots:
         void compute();
+        void updateFrame(size_t frame);
 
     public:
         

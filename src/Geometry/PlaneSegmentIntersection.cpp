@@ -8,6 +8,7 @@
 #ifndef model_PlaneSegmentIntersection_CPP_
 #define model_PlaneSegmentIntersection_CPP_
 
+#include <limits>
 #include <tuple>
 #include <Eigen/Dense>
 #include <Plane.h>
@@ -26,7 +27,7 @@ namespace model
                                          const VectorDimD& v1)
     {
         const double nNorm(Normal.norm());
-        assert(nNorm>FLT_EPSILON && "PLANE MUST HAVE NON-ZERO NORMAL");
+        assert(nNorm>std::numeric_limits<float>::epsilon() && "PLANE MUST HAVE NON-ZERO NORMAL");
         const VectorDimD n(Normal/nNorm);
 
         // check intersection of v0->v1 with plane
@@ -35,10 +36,10 @@ namespace model
         // (v0+u(v1-v0)-P0).n=0
         // u=(P0-v0).n/(v1-v0).n;
         const double edgeNorm=(v1-v0).norm();
-        if(edgeNorm<FLT_EPSILON)
+        if(edgeNorm<std::numeric_limits<float>::epsilon())
         {// segment is degenerate (point)
             const VectorDimD vM(0.5*(v0+v1));
-            if(fabs((P0-vM).dot(n))<FLT_EPSILON)
+            if(fabs((P0-vM).dot(n))<std::numeric_limits<float>::epsilon())
             {
                 return std::make_tuple(INCIDENT,vM,vM);
             }
@@ -52,21 +53,21 @@ namespace model
             const double den=(v1-v0).dot(n);
             const double num=(P0-v0).dot(n);
 
-            if (fabs(den/edgeNorm)>FLT_EPSILON)
+            if (fabs(den/edgeNorm)>std::numeric_limits<float>::epsilon())
             {
                 // edge intersects plane
                 const double u=num/den;
                 
-                if(fabs(u)<FLT_EPSILON)
+                if(fabs(u)<std::numeric_limits<float>::epsilon())
                 {
                     return std::make_tuple(INCIDENT,v0,v0);
                 }
-                else if (u>=FLT_EPSILON && u<=1.0-FLT_EPSILON)
+                else if (u>=std::numeric_limits<float>::epsilon() && u<=1.0-std::numeric_limits<float>::epsilon())
                 {
                     const VectorDimD x((1.0-u)*v0 + u*v1);
                     return std::make_tuple(INCIDENT,x,x);
                 }
-                else if (fabs(1.0-u)<FLT_EPSILON)
+                else if (fabs(1.0-u)<std::numeric_limits<float>::epsilon())
                 {
                     return std::make_tuple(INCIDENT,v1,v1);
                 }
@@ -79,8 +80,8 @@ namespace model
             else
             {
                 const double P0v0norm=(P0-v0).norm();
-                const double numCheck= (P0v0norm<FLT_EPSILON)? 0.0 : num/P0v0norm;
-                if (fabs(numCheck)>FLT_EPSILON)
+                const double numCheck= (P0v0norm<std::numeric_limits<float>::epsilon())? 0.0 : num/P0v0norm;
+                if (fabs(numCheck)>std::numeric_limits<float>::epsilon())
                 {// edge is parallel to plane, no intersection
                     return std::make_tuple(PARALLEL,VectorDimD::Zero(),VectorDimD::Zero());
 

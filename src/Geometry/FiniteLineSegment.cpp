@@ -8,7 +8,7 @@
 #ifndef model_FiniteLineSegment_CPP_
 #define model_FiniteLineSegment_CPP_
 
-#include <cfloat>
+#include <limits>
 #include <tuple>
 #include <map>
 #include <Eigen/Dense>
@@ -43,7 +43,7 @@ namespace model
         
         const VectorDim chord(P1-P0);
         const double chordNorm2(chord.squaredNorm());
-        if(chordNorm2>FLT_EPSILON)
+        if(chordNorm2>std::numeric_limits<float>::epsilon())
         {
             const double u=(x-P0).dot(chord)/chordNorm2;
             if(u<0.0)
@@ -80,7 +80,7 @@ namespace model
         
         const VectorDim chord(P1-P0);
         const double chordNorm2(chord.squaredNorm());
-        if(chordNorm2>FLT_EPSILON)
+        if(chordNorm2>std::numeric_limits<float>::epsilon())
         {
             const double u=(x-P0).dot(chord)/chordNorm2;
             return P0 + u * chord;
@@ -112,7 +112,7 @@ namespace model
     template <int dim>
     bool FiniteLineSegment<dim>::contains(const VectorDim& x) const
     {
-        return distanceTo(x)<FLT_EPSILON;
+        return distanceTo(x)<std::numeric_limits<float>::epsilon();
     }
 
     /**********************************************************************/
@@ -126,7 +126,7 @@ namespace model
     template <int dim>
     bool FiniteLineSegment<dim>::hasZeroLength() const
     {
-        return length()<FLT_EPSILON;
+        return length()<std::numeric_limits<float>::epsilon();
     }
 
     /**********************************************************************/

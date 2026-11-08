@@ -2,15 +2,22 @@
 #ifndef model_FMMContext_H_
 #define model_FMMContext_H_
 #include <FMM/BoxTree.h>
+#include <FMM/FMMManager.h>
 #include <string>
 namespace model
 {
-    // Shared geometry for all physics. Kernel registration will be added when
-    // concrete operators are introduced; no force or energy kernels yet.
+    enum class MultipoleMode { none, ewaldFMM, FMM };
+
+    // Shared geometry and host registry for independently registered physics kernels.
     template<int dim>
     struct FMMContext
     {
         using Vector = typename BoxTree<dim>::Vector;
+        const std::shared_ptr<FMMManager> manager=std::make_shared<FMMManager>();
+        const MultipoleMode multipoleMode;
+        bool usesFMM() const { return multipoleMode != MultipoleMode::none; }
+        bool usesEwaldFMM() const { return multipoleMode == MultipoleMode::ewaldFMM; }
+        const int interpolationOrder;
         const unsigned fmmTreeDepth;
         const std::shared_ptr<BoxTree<dim>> boxTree;
         FMMContext(const Vector& lower, const Vector& upper, const std::string& inputFile);

@@ -181,7 +181,7 @@ namespace model
                             if(pliA.type==PlaneLineIntersection<3>::INCIDENT && pliB.type==PlaneLineIntersection<3>::INCIDENT)
                             {
                                 const VectorDimD AB(pliB.P-pliA.P);
-                                if((AB-faceAshift).norm()<FLT_EPSILON)
+                                if((AB-faceAshift).norm()<std::numeric_limits<float>::epsilon())
                                 {
 
                                     GlidePlaneKey<3> parallelGlidePlaneKey(planeIndex+dipoleHeight, slipSystem.n);
@@ -211,7 +211,7 @@ namespace model
                                                            slipSystem.s.cartesian(),prismaticGlidePlane->referencePlane->unitNormal,
                                                            P0,grainID,DislocationLoopIO<3>::SESSILELOOP);
                                         
-                                        if(std::fabs(glideStep)>FLT_EPSILON)
+                                        if(std::fabs(glideStep)>std::numeric_limits<float>::epsilon())
                                         {
                                             const int halfNodeNumber(dipoleNodes/2);
                                             if(halfNodeNumber < 0)

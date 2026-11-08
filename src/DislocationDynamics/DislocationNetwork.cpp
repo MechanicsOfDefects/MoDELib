@@ -8,6 +8,7 @@
 #ifndef model_DislocationNetwork_CPP_
 #define model_DislocationNetwork_CPP_
 
+#include <limits>
 #include <DislocationDynamics/DislocationDynamicsBase.h>
 #include <PeriodicContourTopology.h>
 #include <numbers>
@@ -15,6 +16,7 @@
 #include <DislocationNetwork.h>
 #include <DislocationNucleation.h>
 #include <algorithm>
+#include <Utilities/SolverStageTimer.h>
 
 
 namespace model
@@ -26,6 +28,9 @@ namespace model
     /* init */ MicrostructureBase<dim>("DislocationDynamics",mc)
     /* init */,glideStepsSinceLastClimb(0)
     /* init */,ddBase(this->microstructures.ddBase)
+    /* init */,multipoleSettings(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt",ddBase.fmmContext->multipoleMode,
+        (ddBase.fmmContext->boxTree->upper()-ddBase.fmmContext->boxTree->lower()).minCoeff()/(1u<<ddBase.fmmContext->fmmTreeDepth))
+    /* init */,fieldEvaluator(*this,ddBase.fmmContext->boxTree)
     /* init */,networkRemesher(*this)
     /* init */,junctionsMaker(*this)
     /* init */,crossSlipModel(DislocationCrossSlip<dim>::getModel(ddBase.poly,ddBase.simulationParameters.traitsIO))
@@ -50,6 +55,20 @@ namespace model
     /* init */,subcyclingBins(getSubCyclingSet(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readArray<int>("subcyclingBins",true)))
     /* init */,verboseDislocationNode(TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseDislocationNode",true))
     {
+        if(computeElasticEnergyPerLength && multipoleSettings.coreType==CoreType::Helmholtz)
+        {
+            throw std::invalid_argument("computeElasticEnergyPerLength requires coreType=Cai; Helmholtz energy is not implemented");
+        }
+        std::cout<<"DD coreType="<<(multipoleSettings.coreType==CoreType::Cai?"Cai":"Helmholtz")<<std::endl;
+        if(ddBase.fmmContext->usesEwaldFMM())
+        {
+            const auto& context=*ddBase.fmmContext;
+            const auto widths=(context.boxTree->upper()-context.boxTree->lower())/(1u<<context.fmmTreeDepth);
+            std::cout<<"Ewald box stencil: depth="<<context.fmmTreeDepth<<", leaf widths="<<widths.transpose()
+                     <<", ewaldWidthFactor="<<multipoleSettings.ewaldWidthFactor
+                     <<", Ewald width="<<multipoleSettings.ewaldWidth
+                     <<"; h=min(leaf widths)*ewaldWidthFactor; same and adjacent leaves only."<<std::endl;
+        }
         assert(velocityReductionFactor>0.0 && velocityReductionFactor<=1.0);
         LoopNetworkType::verboseLevel=TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseLoopNetwork",true);
         verboseDislocationNetwork=TextFileParser(ddBase.simulationParameters.traitsIO.inputFilesFolder+"/DD.txt").readScalar<int>("verboseDislocationNetwork",true);
@@ -149,7 +168,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
                 // Use that recorded discrepancy as the reconstruction uncertainty.
                 // Match updateBoundaryNodes' geometric tolerance: a valid
                 // committed boundary node must remain loadable from its snapshot.
-                const double tolerance=std::max(double(FLT_EPSILON),
+                const double tolerance=std::max(double(std::numeric_limits<float>::epsilon()),
                     1.e-8*(ddBase.mesh.xMax()-ddBase.mesh.xMin()).norm())
                     +(position-netNode->get_P()).norm();
                 const auto matches=[&](int index)
@@ -249,8 +268,11 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
         
         this->loopLinks().clear(); // erase base network to clear current config
         addConfiguration(evl);
-        
-        //        // Create Loops
+        if(ddBase.fmmContext->usesFMM()) {
+    prepareFMMStress();
+  }
+
+  //        // Create Loops
         //        std::deque<std::shared_ptr<LoopType>> tempLoops; // keep loops alive during setConfiguration
         //        size_t loopNumber=1;
         //        for(const auto& loop : evl.loops())
@@ -336,6 +358,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
     template <int dim>
     void DislocationNetwork<dim>::updateGeometry()
     {
+        fieldEvaluator.clear();
         VerboseDislocationNetwork(2,"DislocationNetwork::updateGeometry"<<std::endl;);
         for(auto& loop : this->loops())
         {// copmute slipped areas and right-handed normal // TODO: PARALLELIZE THIS LOOP
@@ -639,7 +662,7 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
                         if(intersect.size()==1)
                         {
                             //                            const int grainID((*intersect.begin())->region.regionID);
-                            //                            StressStraight<3> ss(ddBase.poly,segment->source->get_P(),segment->sink->get_P(),segment->burgers(),ddBase.dislocationDynamics().EwaldLength);
+                            //                            StraightDislocationSegment<3> ss(ddBase.poly,segment->source->get_P(),segment->sink->get_P(),segment->burgers());
                             //                            for(const auto& shift : ddBase.periodicShifts)
                             //                            {
                             temp+=segment->clusterConcentration(x,climbSolver->CD->cdp);
@@ -669,7 +692,10 @@ std::set<int> DislocationNetwork<dim>::getSubCyclingSet(const std::vector<int> &
       *
       * Note:
       */
-        MatrixDim temp(MatrixDim::Zero());
+        if(ddBase.fmmContext->usesFMM()) {
+    return fieldEvaluator.fmmStressAt(x);
+  }
+  MatrixDim temp(MatrixDim::Zero());
         for(const auto& link : this->networkLinks())
         {// sum stress field per segment
             if(   !link.second.lock()->hasZeroBurgers()
@@ -849,10 +875,12 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
     stress.provider=this->tag;
     stress.name="Stress";
     stress.quantities={"Stress"};
-    stress.update=[](const SolvedQuantityContext&)
+    stress.update=[this](const SolvedQuantityContext&)
     {
-        // The segment stress evaluator reads the current geometry directly.
-    };
+        if(ddBase.fmmContext->usesFMM()&&!fieldEvaluator.hasFMMStress()) {
+      prepareFMMStress();
+    }
+  };
     registry.add(std::move(stress));
     SolvedQuantityContribution velocity;
     velocity.provider=this->tag;
@@ -891,11 +919,48 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
 }
 
 
+    template<int dim>
+    std::shared_ptr<const SegmentSplitSnapshot> DislocationNetwork<dim>::segmentSplits() const
+    {
+        std::vector<SegmentSplitSnapshot::Endpoints> geometry;
+        geometry.reserve(this->networkLinks().size());
+        for(const auto& item:this->networkLinks())
+        {
+            const auto segment=item.second.lock();
+            if(!segment)
+            {
+                throw std::logic_error("Expired network segment in split cache");
+            }
+            geometry.emplace_back(segment->source->get_P(),segment->sink->get_P());
+        }
+        return segmentSplitCache.get(*ddBase.fmmContext->boxTree,geometry);
+    }
+
+    template<int dim>
+    void DislocationNetwork<dim>::prepareFMMStress()
+    {
+        const auto context=ddBase.fmmContext;
+        if(!context->usesFMM()) {
+    return;
+  }
+  if(ddBase.periodicLatticeBasis.cols()!=0) {
+    throw std::runtime_error("FMM modes currently supports free space only; use multipoleMode=none for periodic analytical segments");
+  }
+  ScreenedDislocationOptions options;
+        options.coreType=multipoleSettings.coreType;options.screened=context->usesEwaldFMM();options.coreWidth=DislocationFieldBase<dim>::a;options.screenWidth=multipoleSettings.ewaldWidth;options.interpolationOrder=context->interpolationOrder;
+        options.segmentShortRange=true;options.segmentChebyshevOrder=multipoleSettings.ewaldSegmentChebyshevOrder;options.segmentTableResolution=multipoleSettings.ewaldSegmentTableResolution;
+        fieldEvaluator.rebuild(multipoleSettings.sourceDensity,multipoleSettings.sourceDensity,DislocationTargetPurpose::glide);
+        fieldEvaluator.prepareFMMStress(ddBase.poly.mu,ddBase.poly.nu,options);
+    }
+
     template <int dim>
     void DislocationNetwork<dim>::solve()
     {
-        
-        const bool isClimbingStep(isClimbStep());
+        if(ddBase.fmmContext->usesFMM()&&!fieldEvaluator.hasFMMStress()) {
+    prepareFMMStress();
+  }
+
+  const bool isClimbingStep(isClimbStep());
         if(isClimbingStep)
         {
             std::cout<<" climbStep"<<std::flush;
@@ -927,7 +992,7 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
             velocityBinMap.emplace(binVal, 0);
         }
         
-        std::cout <<" creating qPoints "<< std::flush;
+        SolverStageTimer quadratureTimer("DD quadrature creation");
         for (const auto &links : this->networkLinks())
         {
             
@@ -942,7 +1007,7 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
             }
         }
         
-        std::cout <<" ,updating qPoints (" << nThreads << " threads) " << std::flush;
+        quadratureTimer.start("DD quadrature field/force update ("+std::to_string(nThreads)+" OpenMP threads)");
     #ifdef _OPENMP
     {
         // Topology is fixed during field evaluation. Preserve container order
@@ -987,6 +1052,7 @@ void DislocationNetwork<dim>::registerSolvedQuantities(SolvedQuantityRegistry& r
         }
     #endif
         
+        quadratureTimer.finish();
         Eigen::VectorXd X(Eigen::VectorXd::Zero(0));
         if(isClimbingStep)
         {

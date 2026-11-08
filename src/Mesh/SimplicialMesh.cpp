@@ -8,6 +8,7 @@
 #ifndef model_SimplicialMesh_cpp_
 #define model_SimplicialMesh_cpp_
 
+#include <limits>
 #include <chrono>
 #include <sstream>
 #include <fstream>
@@ -424,7 +425,7 @@ namespace model
             // Do not overwrite a successful result while checking another face.
             for(int k=0;k<dim+1 && !lastSearched.first;++k)
             {
-                if(bary(k)<=FLT_EPSILON)
+                if(bary(k)<=std::numeric_limits<float>::epsilon())
                 {
                     //                        for(typename Simplex<dim,dim-1>::ParentContainerType::const_iterator pIter=temp.second->child(k).parentBegin();
                     //                            /*                                                            */ pIter!=temp.second->child(k).parentEnd();++pIter)

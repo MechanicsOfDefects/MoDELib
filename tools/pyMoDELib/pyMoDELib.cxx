@@ -37,7 +37,8 @@
 #include <DefectiveCrystal/DefectiveCrystalParameters.h>
 #include <SimplicialMesh.h>
 #include <PolycrystallineMaterialBase.h>
-#include <DislocationDynamics/StressStraight.h>
+#include <DislocationDynamics/StraightDislocationSegment.h>
+#include <DislocationDynamics/StraightDislocationSegmentHelmholtz.h>
 #include <BCClattice.h>
 #include <FCClattice.h>
 #include <HEXlattice.h>
@@ -228,10 +229,18 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def_readonly("crystalStructure", &PolycrystallineMaterialBase::crystalStructure)
     ;
     
-    py::class_<StressStraight<3,double>>(m,"StressStraight")
-        .def(py::init<const PolycrystallineMaterialBase&,const VectorDim&,const VectorDim&, const VectorDim&,
-             const double&>())
-        .def("stress",&StressStraight<3,double>::stress)
+    py::class_<helmholtzSegment::Evaluator>(m,"StraightDislocationSegmentHelmholtz")
+        .def(py::init<double,double,double,double,int,int,double,bool>(),
+             py::arg("coreWidth"),py::arg("ewaldWidth"),py::arg("mu"),py::arg("nu"),
+             py::arg("order"),py::arg("resolution"),py::arg("maxDistance"),py::arg("full")=false)
+    ;
+    py::class_<StraightDislocationSegment<3>>(m,"StraightDislocationSegment")
+        .def(py::init<const PolycrystallineMaterialBase&,const VectorDim&,const VectorDim&,const VectorDim&>(),
+             py::keep_alive<1,2>())
+        .def("stress",py::overload_cast<const VectorDim&>(&StraightDislocationSegment<3>::stress,py::const_))
+        .def("stress",py::overload_cast<const VectorDim&,const helmholtzSegment::Evaluator&>(
+             &StraightDislocationSegment<3>::stress,py::const_))
+        .def("displacement",&StraightDislocationSegment<3>::displacement)
     ;
     
     
@@ -364,7 +373,6 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def("boxCount", [](const FMMContext<3>& context, unsigned level) { return context.boxTree->boxes(level).size(); })
     ;
     py::class_<DislocationDynamicsBase<3>,std::shared_ptr<DislocationDynamicsBase<3>>>(m,"DislocationDynamicsBase")
-        .def_readonly("EwaldLength", &DislocationDynamicsBase<3>::EwaldLength)
         .def("glidePlane", [](DislocationDynamicsBase<3>& base, const Eigen::Vector3d& point,
                               const Eigen::Vector3d& normal, size_t grainID)
         {
@@ -387,6 +395,14 @@ PYBIND11_MODULE(pyMoDELib,m)
         })
     ;
     py::class_<ClusterDynamicsBase<3>,std::shared_ptr<ClusterDynamicsBase<3>>>(m,"ClusterDynamicsBase")
+        .def_property_readonly_static("mobileSpeciesCount", [](py::object)
+        {
+            return ClusterDynamicsBase<3>::mSize;
+        })
+        .def_property_readonly_static("immobileSpeciesCount", [](py::object)
+        {
+            return ClusterDynamicsBase<3>::iSize;
+        })
         .def_readonly("useClusterDynamicsFEM", &ClusterDynamicsBase<3>::useClusterDynamicsFEM)
         .def("equilibriumMobileConcentration", &ClusterDynamicsBase<3>::equilibriumMobileConcentration)
         .def("boundaryMobileConcentration", &ClusterDynamicsBase<3>::boundaryMobileConcentration)
@@ -655,6 +671,8 @@ PYBIND11_MODULE(pyMoDELib,m)
         .def(py::init<const std::string&>())
         .def_readwrite("targetDensity", &FrankLoopsDensitySpecification::targetDensity)
         .def_readwrite("numberOfSides", &FrankLoopsDensitySpecification::numberOfSides)
+        .def_readwrite("targetSegmentLength", &FrankLoopsDensitySpecification::targetSegmentLength)
+        .def("sidesForRadius", &FrankLoopsDensitySpecification::sidesForRadius)
         .def_readwrite("radiusDistributionMean", &FrankLoopsDensitySpecification::radiusDistributionMean)
         .def_readwrite("radiusDistributionStd", &FrankLoopsDensitySpecification::radiusDistributionStd)
         .def_readwrite("areVacancyLoops", &FrankLoopsDensitySpecification::areVacancyLoops)

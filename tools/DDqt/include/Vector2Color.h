@@ -10,7 +10,7 @@
 #define model_Vector2Color_H_
 
 
-#include <cfloat>
+#include <limits>
 #include <Eigen/Dense>
 
 namespace model
@@ -20,7 +20,7 @@ namespace model
         
         static Eigen::Matrix<int,3,1> v2c(Eigen::Matrix<double,3,1> clrVector)
         {
-            float clrTol=100.0*FLT_EPSILON;
+            float clrTol=100.0*std::numeric_limits<float>::epsilon();
             if(clrVector(0)<-clrTol)
             {// first component not zero but begative, flip color
                 clrVector*=-1.0;

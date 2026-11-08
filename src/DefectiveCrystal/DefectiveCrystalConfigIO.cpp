@@ -14,7 +14,7 @@
 #include <chrono>
 #include <iostream>     // std::cout
 #include <fstream>      // std::ifstream
-#include <cfloat>      // std::ifstream
+#include <limits>
 #include <DefectiveCrystal/DefectiveCrystalBaseIO.h>
 #include <DislocationDynamics/DislocationLoopIO.h>
 #include <DislocationDynamics/DislocationLoopNodeIO.h>
@@ -308,7 +308,7 @@ typename DefectiveCrystalConfigIO<dim>::DispMatrixType& DefectiveCrystalConfigIO
             assert(loopSinkIter!=loopNodeMap().end());
             
             
-            //                const bool arePeriodicBoundaryNodes((loopSourceIter->second->P-loopSinkIter->second->P).norm()<FLT_EPSILON
+            //                const bool arePeriodicBoundaryNodes((loopSourceIter->second->P-loopSinkIter->second->P).norm()<std::numeric_limits<float>::epsilon()
             //                                                    && loopSourceIter->second->edgeID>=0
             //                                                    &&   loopSinkIter->second->edgeID>=0
             //                                                    && loopSourceIter->second->loopID==loopSinkIter->second->loopID);
@@ -340,7 +340,7 @@ typename DefectiveCrystalConfigIO<dim>::DispMatrixType& DefectiveCrystalConfigIO
                 {
                     // std::cout<<" Adding link "<<link.sourceID<<"=>"<<link.sinkID<<" with normal "<<loopIter->second->N.transpose()<<"and burgres "<<loopIter->second->B.transpose();
                     
-                    if(iter->second.n.cross(loop.N).norm()>FLT_EPSILON)
+                    if(iter->second.n.cross(loop.N).norm()>std::numeric_limits<float>::epsilon())
                     {
                         iter->second.n.setZero();
                     }

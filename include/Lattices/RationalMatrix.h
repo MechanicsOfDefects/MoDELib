@@ -9,8 +9,8 @@
 #define model_RationalMatrix_h_
 
 #include <iomanip>
-#include <cfloat> // FLT_EPSILON
-#include <assert.h> // FLT_EPSILON
+#include <limits>
+#include <assert.h> // std::numeric_limits<float>::epsilon()
 #include <utility>
 #include <Eigen/Dense>
 //#include <RoundEigen.h>

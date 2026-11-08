@@ -8,6 +8,7 @@
 #ifndef model_BoundarySimplex_H_
 #define model_BoundarySimplex_H_
 
+#include <limits>
 namespace model
 {
     
@@ -58,7 +59,7 @@ namespace model
                 }
             }
             const double tempNorm(temp.norm());
-            return (tempNorm>FLT_EPSILON)? (temp/tempNorm).eval() : Eigen::Matrix<double,dim,1>::Zero();
+            return (tempNorm>std::numeric_limits<float>::epsilon())? (temp/tempNorm).eval() : Eigen::Matrix<double,dim,1>::Zero();
         }
         
         /**********************************************************************/
@@ -71,7 +72,7 @@ namespace model
                     temp+=parent.second->outNormal(rID);
             }
             const double tempNorm(temp.norm());
-            return (tempNorm>FLT_EPSILON)? (temp/tempNorm).eval() : Eigen::Matrix<double,dim,1>::Zero();
+            return (tempNorm>std::numeric_limits<float>::epsilon())? (temp/tempNorm).eval() : Eigen::Matrix<double,dim,1>::Zero();
         }
         
     };
@@ -130,7 +131,7 @@ namespace model
                 }
             }
             const double tempNorm(temp.norm());
-            return (tempNorm>FLT_EPSILON)? (temp/tempNorm).eval() : Eigen::Matrix<double,dim,1>::Zero();
+            return (tempNorm>std::numeric_limits<float>::epsilon())? (temp/tempNorm).eval() : Eigen::Matrix<double,dim,1>::Zero();
         }
         
     };

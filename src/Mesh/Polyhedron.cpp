@@ -1,3 +1,4 @@
+#include <limits>
 #include <MeshModule.h>
 #include <PolyhedralMesh.h>
 #include <ConvexHull.h>
@@ -19,7 +20,7 @@ namespace model
                 && allSimplices.find(std::vector<size_t>(neighbor->xID.begin(), neighbor->xID.end())) !=
                        allSimplices.end()) // neighbor found in allSimplices
             {
-                if ((newStart->outNormal() - neighbor->outNormal()).norm() < FLT_EPSILON)
+                if ((newStart->outNormal() - neighbor->outNormal()).norm() < std::numeric_limits<float>::epsilon())
                 { // same plane
                     allSimplices.erase(std::vector<size_t>(neighbor->xID.begin(), neighbor->xID.end()));
                     newFace->insert(neighbor);
@@ -83,7 +84,7 @@ namespace model
             result += faces().at(id)->outNormal();
         }
         const double norm = result.norm();
-        return norm > FLT_EPSILON ? (result / norm).eval() : VectorDim::Zero();
+        return norm > std::numeric_limits<float>::epsilon() ? (result / norm).eval() : VectorDim::Zero();
     }
 
     template <int dim, int order>
@@ -125,7 +126,7 @@ namespace model
 
         for (const auto &simplex : *this)
         { // Make sure all simplices belong to face
-            if (fabs((this->c - simplex->center()).dot(this->n)) > FLT_EPSILON)
+            if (fabs((this->c - simplex->center()).dot(this->n)) > std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("simplex does not belong to PlanarMeshFace.");
             }

@@ -1,3 +1,4 @@
+#include <limits>
 #include <DefectiveCrystal/DefectiveCrystalBase.h>
 #include <DislocationNetwork.h>
 #include <DefectiveCrystal/MicrostructureContainer.h>
@@ -36,7 +37,7 @@ int main(int argc,char** argv)
         std::filesystem::copy_file(root/"Library/Meshes/poly30_periodicXYZ.msh",input/"poly30_periodicXYZ.msh");
         {
             std::ofstream out(input/"DefectiveCrystal.txt");
-            out<<"physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n";
+            out<<"physics=DislocationDynamics;\nfmmTreeDepth=0;\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\noutputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\n";
         }
         model::DefectiveCrystalBase<3> base(folder.string());
         model::MicrostructureContainer<3> container(base);
@@ -73,7 +74,7 @@ int main(int argc,char** argv)
                         {
                             found=found || (pair.first==source && pair.second==target.get());
                         }
-                        require(found==(source->unitNormal.cross(target->unitNormal).norm()<FLT_EPSILON),
+                        require(found==(source->unitNormal.cross(target->unitNormal).norm()<std::numeric_limits<float>::epsilon()),
                             "Cross-grain plane comparison used crystal coordinates");
                         ++crossGrainChecks;
                     }

@@ -8,6 +8,7 @@
 #ifndef model_ReciprocalLatticeVector_cpp_
 #define model_ReciprocalLatticeVector_cpp_
 
+#include <limits>
 #include <iostream>
 #include <LatticeModule.h>
 
@@ -138,7 +139,7 @@ ReciprocalLatticeVector<dim>::ReciprocalLatticeVector(const VectorDimI &d,
         assert(base().squaredNorm() > 0 && "A null ReciprocalLatticeVector cannot be used to compute planeIndexOfPoint");
         const double hd(cartesian().dot(P));
         const long int h(std::lround(hd));
-        if (fabs(hd - h) > FLT_EPSILON)
+        if (fabs(hd - h) > std::numeric_limits<float>::epsilon())
         {
             std::cout << "P=" << P.transpose() << std::endl;
             std::cout << "r=" << this->cartesian().transpose() << std::endl;

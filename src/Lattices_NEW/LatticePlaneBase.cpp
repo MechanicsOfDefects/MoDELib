@@ -8,6 +8,7 @@
 #ifndef model_LatticePlaneBase_cpp_
 #define model_LatticePlaneBase_cpp_
 
+#include <limits>
 #include <map>
 #include <LatticeModule.h>
 #include <LatticePlaneBase.h>
@@ -41,7 +42,7 @@ namespace model
         //            return LatticeVectorType(p,primitiveVectors.first.covBasis,primitiveVectors.second.contraBasis);
         VectorDimD cn(this->cartesian());
         const double cnNorm(cn.norm());
-        assert(cnNorm > FLT_EPSILON);
+        assert(cnNorm > std::numeric_limits<float>::epsilon());
         cn /= cnNorm;
         return P - P.dot(cn) * cn;
     }

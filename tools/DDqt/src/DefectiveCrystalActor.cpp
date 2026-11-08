@@ -361,7 +361,7 @@ namespace model
             glidePlanes->updateConfiguration();
             quadrature->updateConfiguration(auxIO());
             chartActor->updateConfiguration(frameID);
-            ddField->compute();
+            ddField->updateFrame(frameID);
         }
 
         bool DefectiveCrystalActor::updateConfiguration(const size_t& frameID)

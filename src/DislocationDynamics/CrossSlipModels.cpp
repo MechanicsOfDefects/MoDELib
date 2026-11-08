@@ -9,6 +9,7 @@
 #ifndef model_CrossSlipModels_cpp
 #define model_CrossSlipModels_cpp
 
+#include <limits>
 #include <DislocationNetwork.h>
 #include <CrossSlipModels.h>
 
@@ -35,7 +36,7 @@ namespace model
            && !link.isGrainBoundarySegment()
            && link.loopLinks().size()==1
            && link.unitDirection().cross(link.burgers().normalized()).norm()<=sinCrossSlip
-           && link.chordLength()>FLT_EPSILON
+           && link.chordLength()>std::numeric_limits<float>::epsilon()
            && (!enforceRemeshLength || link.chordLength()>2.0*link.network().networkRemesher.Lmin)
            )
         {
@@ -102,7 +103,7 @@ namespace model
                 if(best)
                 {
                     const auto& crossSlipSystem(grain.slipSystems().at(best->second));
-                    if(slipSystem->unitNormal.cross(crossSlipSystem->unitNormal).squaredNorm()>FLT_EPSILON
+                    if(slipSystem->unitNormal.cross(crossSlipSystem->unitNormal).squaredNorm()>std::numeric_limits<float>::epsilon()
                        && best->first>1.1*pkGlide)
                     {// highest glide PK-force is not on current slip system
                         return std::make_pair(true,std::make_pair(grain.grainID,best->second));
@@ -178,7 +179,7 @@ namespace model
 //        {
 //            const auto& slipSystem(grain.singleCrystal->slipSystems()[s]);
 //            if(((*link.loopLinks().begin())->loop->slipSystem()->s-slipSystem->s).squaredNorm()==0
-//               && slipSystem->unitNormal.cross(link.glidePlaneNormal()).squaredNorm()>FLT_EPSILON) // not current slip system
+//               && slipSystem->unitNormal.cross(link.glidePlaneNormal()).squaredNorm()>std::numeric_limits<float>::epsilon()) // not current slip system
 //            {
 //                if(link.slipSystem()->mobility && slipSystem->mobility)
 //                {
@@ -293,7 +294,7 @@ namespace model
         {
             const auto& slipSystem(grain.slipSystems().at(s));
             if(((*link.loopLinks().begin())->loop->slipSystem()->s-slipSystem->s).squaredNorm()==0
-               && slipSystem->unitNormal.cross(link.glidePlaneNormal()).squaredNorm()>FLT_EPSILON) // not current slip system
+               && slipSystem->unitNormal.cross(link.glidePlaneNormal()).squaredNorm()>std::numeric_limits<float>::epsilon()) // not current slip system
             {
 
                 if(link.slipSystem()->mobility && slipSystem->mobility)

@@ -1,3 +1,4 @@
+#include <limits>
 #include "ClusterPeriodicFixture.h"
 
 // Compare endpoint flux with both the concentration derivative and direct
@@ -50,7 +51,7 @@ void checkSegmentFlux(DislocationNetwork<3>& network,const ClusterDynamicsParame
                 {
                     const auto loop=(*segment->loopLinks().begin())->loop;
                     const double sign=loop->burgers().dot(loop->rightHandedUnitNormal());
-                    if(std::abs(sign)>FLT_EPSILON)
+                    if(std::abs(sign)>std::numeric_limits<float>::epsilon())
                     {
                         bias=cdp.discreteDislocationBias(sign>0?0:1,k);
                     }

@@ -9,7 +9,7 @@
 #include <iomanip>
 #include <chrono>
 
-void require(bool value,const char* message)
+void require(bool value,const std::string& message)
 {
     if(!value)
     {
@@ -27,9 +27,11 @@ void mustFail(Function operation,const std::string& message)
     }
     catch(const std::runtime_error& error)
     {
-        failed=std::string(error.what()).find(message)!=std::string::npos;
+        require(std::string(error.what()).find(message)!=std::string::npos,
+                "Expected diagnostic containing: " + message + "; received: " + error.what());
+        failed=true;
     }
-    require(failed,"Expected operation to fail with the specified diagnostic");
+    require(failed,"Expected operation to fail with diagnostic containing: " + message);
 }
 
 int main(int argc,char** argv)
@@ -49,7 +51,7 @@ int main(int argc,char** argv)
         {
             std::ofstream(input/"DefectiveCrystal.txt")
                 <<"physics="<<physics<<";\nuseFEM=0;\nNsteps=0;\nmaxResolveSteps=0;\ndtMax=1;\n"
-                <<"outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\nEwaldLengthFactor=0;\n"<<depth<<'\n';
+                <<"outputFrequency=1;\noutputBinary=0;\nstartAtTimeStep=0;\nperiodicImageSize=0 0 0;\n"<<depth<<'\n';
             std::ofstream(input/"polycrystal.txt")<<std::setprecision(17)
                 <<"materialFile=W.txt;\nmeshFile=mesh.msh;\nabsoluteTemperature=300;\nC2G1=1 0 0 0 1 0 0 0 1;\nF="
                 <<length<<" 0 0 0 "<<length<<" 0 0 0 "<<length<<";\nX0=0 0 0;\nperiodicFaceIDs="<<faces<<";\n";
