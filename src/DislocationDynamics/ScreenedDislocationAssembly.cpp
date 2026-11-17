@@ -446,12 +446,13 @@ namespace model
             View weights,strengths,output,moments,velocity;
             std::vector<std::size_t> nodeIDs;
             SparseMap momentMap,localMap;
+            Eigen::SparseMatrix<double,Eigen::RowMajor> assemblyNear;
             bool segmentBased=false,addLocal=false;
         };
         std::vector<Channel> channels;
         Impl(std::shared_ptr<FMMManager> manager,std::shared_ptr<const BoxTree<3>> t,
              std::size_t n,std::size_t ns,const std::vector<ClimbKernelChannel>& sources,
-             const std::vector<ConcentrationTarget>& points,const ScreenedDislocationOptions& supplied,bool filter,bool onlyLong)
+             const std::vector<ConcentrationTarget>& points,const ScreenedDislocationOptions& supplied,bool filter,bool onlyLong,bool assembleSegmentNear)
             :registrations(std::move(manager)),tree(std::move(t)),revision(tree?tree->revision():0),nodes(n),species(ns),targets(points.size()),longOnly(onlyLong)
         {
             if(!tree)
@@ -507,14 +508,14 @@ namespace model
                 for(auto& entry:source.segments) { remap(entry); }
                 ch.velocity=View("grain concentration velocities",ch.nodeIDs.size(),1);
                 ch.segmentBased=!source.segments.empty();
-                ch.addLocal=!onlyLong||!options.screened;
+                ch.addLocal=!assembleSegmentNear&&(!onlyLong||!options.screened);
                 std::unique_ptr<SegmentConcentrationPlan> segmentPlan;
                 Positions src;
                 auto opt=interactionOptions(options);
                 opt.buildShortNeighbors=!onlyLong;
                 if(ch.segmentBased)
                 {
-                    segmentPlan=std::make_unique<SegmentConcentrationPlan>(*tree,source,ch.nodeIDs.size(),targetPositions,options,ch.addLocal);
+                    segmentPlan=std::make_unique<SegmentConcentrationPlan>(*tree,source,ch.nodeIDs.size(),targetPositions,options,ch.addLocal||assembleSegmentNear);
                     src=segmentPlan->markers;
                     if(profilingEnabled())
         {
@@ -525,6 +526,10 @@ namespace model
                     opt.externalNear=!options.screened;
                     ch.momentMap.upload(ex,segmentPlan->moments);
                     ch.moments=View("segment concentration moments",segmentPlan->moments.rows(),1);
+                    if(assembleSegmentNear)
+                    {
+                        ch.assemblyNear=std::move(segmentPlan->local);
+                    }
                     if(ch.addLocal)
                     {
                         ch.localMap.upload(ex,segmentPlan->local);
@@ -645,6 +650,8 @@ namespace model
         std::uint64_t revision;
         std::size_t nodes,species;
         bool screened;
+        bool hasParticleSources=false;
+        std::vector<Eigen::SparseMatrix<double>> segmentLocal;
         std::vector<Eigen::SparseMatrix<double>> local;
         std::vector<Eigen::VectorXd> rhs;
         std::unique_ptr<DislocationConcentrationEvaluator> evaluator;
@@ -684,9 +691,23 @@ namespace model
             std::vector<ConcentrationTarget> fieldPoints;
             for(const auto& point:snapshot.targets){ConcentrationTarget target;target.position=point.position;target.grains={point.grain};fieldPoints.push_back(target);}
             SolverStageTimer setupStage("Climb setup: FMM plans",true);
-            evaluator=std::make_unique<DislocationConcentrationEvaluator>(registrations.manager,tree,nodes,species,snapshot.channels,fieldPoints,opt,true,true);
+            evaluator=std::make_unique<DislocationConcentrationEvaluator>(registrations.manager,tree,nodes,species,snapshot.channels,fieldPoints,opt,true,true,true);
             setupStage.start("Climb setup: local matrix construction");
             std::vector<std::vector<Eigen::Triplet<double>>> entries(species);
+            evaluator->appendSegmentNearEntries(snapshot.targets,entries);
+            for(const auto& channel:snapshot.channels)
+            {
+                hasParticleSources=hasParticleSources||!channel.sources.empty();
+            }
+            if(hasParticleSources&&!screened)
+            {
+                for(const auto& triplets:entries)
+                {
+                    Eigen::SparseMatrix<double> matrix(nodes,nodes);
+                    matrix.setFromTriplets(triplets.begin(),triplets.end());
+                    segmentLocal.push_back(std::move(matrix));
+                }
+            }
             for(std::size_t ci=0;ci<snapshot.channels.size();++ci)
             {
                 const auto& input=snapshot.channels[ci];
@@ -695,31 +716,6 @@ namespace model
       }
                 if(!input.segments.empty())
                 {
-                    Positions grainTargets;
-                    std::vector<std::size_t> grainRows;
-                    for(std::size_t i=0;i<snapshot.targets.size();++i)
-                    {
-                        if(snapshot.targets[i].grain==input.grain)
-                        {
-                            grainRows.push_back(i);
-                            for(int c=0;c<3;++c) { grainTargets[c].push_back(snapshot.targets[i].position[c]); }
-                        }
-                    }
-                    SegmentConcentrationPlan plan(*tree,input,nodes,grainTargets,opt,true,false);
-                    auto& triplets=entries[input.species];
-                    std::vector<std::vector<Eigen::Triplet<double>>> rows(grainRows.size());
-                    independentParallelFor(rows.size(),[&](std::size_t ti)
-                    {
-                        const auto& target=snapshot.targets[grainRows[ti]];
-                        for(Eigen::SparseMatrix<double,Eigen::RowMajor>::InnerIterator it(plan.local,ti);it;++it)
-                        {
-                            for(int k=0;k<2;++k)
-                            {
-                                rows[ti].emplace_back(target.nodes[k],it.col(),target.weights[k]*it.value());
-                            }
-                        }
-                    });
-                    appendOrderedRows(triplets,rows);
                     continue;
                 }
       const auto sources=positions(input.sources,nodes);
@@ -798,10 +794,46 @@ namespace model
 #endif
     DislocationConcentrationEvaluator::DislocationConcentrationEvaluator(std::shared_ptr<FMMManager> m,std::shared_ptr<const BoxTree<3>> t,
         std::size_t nodes,std::size_t species,const std::vector<ClimbKernelChannel>& sources,
-        const std::vector<ConcentrationTarget>& targets,const ScreenedDislocationOptions& options,bool filter,bool longOnly)
+        const std::vector<ConcentrationTarget>& targets,const ScreenedDislocationOptions& options,bool filter,bool longOnly,bool assembleSegmentNear)
     {
 #ifdef MODELIB_FIELD_EVALUATOR_KOKKOS
-        impl_=std::make_unique<Impl>(std::move(m),std::move(t),nodes,species,sources,targets,options,filter,longOnly);
+        impl_=std::make_unique<Impl>(std::move(m),std::move(t),nodes,species,sources,targets,options,filter,longOnly,assembleSegmentNear);
+#else
+        throw std::logic_error("Concentration FMM requires Kokkos");
+#endif
+    }
+    void DislocationConcentrationEvaluator::appendSegmentNearEntries(
+        const std::vector<ClimbQuadratureMap>& targets,
+        std::vector<std::vector<Eigen::Triplet<double>>>& entries)
+    {
+#ifdef MODELIB_FIELD_EVALUATOR_KOKKOS
+        if(targets.size()!=impl_->targets||entries.size()!=impl_->species)
+        {
+            throw std::invalid_argument("Invalid near-map projection dimensions");
+        }
+        for(auto& channel:impl_->channels)
+        {
+            if(!channel.segmentBased) { continue; }
+            if(channel.assemblyNear.rows()!=Eigen::Index(channel.rows.size()))
+            {
+                throw std::logic_error("Segment near map unavailable or already consumed");
+            }
+            std::vector<std::vector<Eigen::Triplet<double>>> rows(channel.rows.size());
+            independentParallelFor(rows.size(),[&](std::size_t row)
+            {
+                const auto& target=targets.at(channel.rows[row]);
+                for(Eigen::SparseMatrix<double,Eigen::RowMajor>::InnerIterator it(channel.assemblyNear,row);it;++it)
+                {
+                    for(int k=0;k<2;++k)
+                    {
+                        rows[row].emplace_back(target.nodes[k],channel.nodeIDs.at(it.col()),target.weights[k]*it.value());
+                    }
+                }
+            });
+            appendOrderedRows(entries.at(channel.species),rows);
+            Eigen::SparseMatrix<double,Eigen::RowMajor> empty;
+            channel.assemblyNear.swap(empty);
+        }
 #else
         throw std::logic_error("Concentration FMM requires Kokkos");
 #endif
@@ -906,9 +938,14 @@ namespace model
     Eigen::VectorXd ScreenedClimbAssembly::apply(std::size_t s,const Eigen::VectorXd& v)
     {auto out=applyLong(s,v);
 #ifdef MODELIB_FIELD_EVALUATOR_KOKKOS
-        if(impl_->screened) {
-    out+=shortMatrix(s)*v;
-  }
+        if(impl_->screened||!impl_->hasParticleSources)
+        {
+            out+=shortMatrix(s)*v;
+        }
+        else
+        {
+            out+=impl_->segmentLocal.at(s)*v;
+        }
 #endif
         return out;}
 }

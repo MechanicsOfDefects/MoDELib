@@ -21,4 +21,4 @@ outputBinary=0;
 # Modes: none (analytical segments), ewaldFMM, FMM (full core-regularized kernels).
 multipoleMode=FMM; # enables both stress evaluation and matrix-free climb
 fmmInterpolationOrder=4; # integer 2..6
-fmmTreeDepth=2; # uniform depth for FMM and ewaldFMM, integer 0..5; 0 gives one root box
+fmmTreeDepth=4; # uniform depth for FMM and ewaldFMM, integer 0..5; 0 gives one root box

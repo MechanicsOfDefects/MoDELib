@@ -78,8 +78,11 @@ namespace model
         DislocationConcentrationEvaluator(std::shared_ptr<FMMManager>,std::shared_ptr<const BoxTree<3>>,
             std::size_t nodes,std::size_t species,const std::vector<ClimbKernelChannel>&,
             const std::vector<ConcentrationTarget>&,const ScreenedDislocationOptions&,
-            bool filterGrains=false,bool longOnly=false);
+            bool filterGrains=false,bool longOnly=false,bool assembleSegmentNear=false);
         ~DislocationConcentrationEvaluator();
+        // Consume cached segment near maps, projecting targets to nodal rows.
+        void appendSegmentNearEntries(const std::vector<ClimbQuadratureMap>&,
+            std::vector<std::vector<Eigen::Triplet<double>>>&);
         Eigen::VectorXd evaluate(std::size_t species,const Eigen::VectorXd& velocities);
     };
     struct ClimbAssemblySnapshot
